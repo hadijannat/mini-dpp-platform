@@ -1,0 +1,138 @@
+"""
+Application configuration using Pydantic Settings.
+All configuration is loaded from environment variables with sensible defaults.
+"""
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, PostgresDsn, RedisDsn, computed_field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """
+    Application settings loaded from environment variables.
+
+    The configuration hierarchy allows for environment-specific overrides
+    while maintaining secure defaults for production deployments.
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ==========================================================================
+    # Core Application Settings
+    # ==========================================================================
+    environment: Literal["development", "staging", "production"] = "development"
+    debug: bool = Field(default=False)
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+
+    # API Configuration
+    api_v1_prefix: str = "/api/v1"
+    project_name: str = "Mini DPP Platform"
+    version: str = "0.1.0"
+
+    # ==========================================================================
+    # Database Configuration
+    # ==========================================================================
+    database_url: PostgresDsn = Field(
+        default="postgresql+asyncpg://dpp_user:password@localhost:5432/dpp_platform"
+    )
+    database_pool_size: int = Field(default=10, ge=1, le=100)
+    database_max_overflow: int = Field(default=20, ge=0, le=100)
+    database_pool_timeout: int = Field(default=30, ge=1)
+
+    # ==========================================================================
+    # Redis Configuration
+    # ==========================================================================
+    redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
+    redis_cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+
+    # ==========================================================================
+    # Keycloak / OIDC Configuration
+    # ==========================================================================
+    keycloak_server_url: str = Field(default="http://localhost:8080")
+    keycloak_realm: str = Field(default="dpp-platform")
+    keycloak_client_id: str = Field(default="dpp-backend")
+    keycloak_client_secret: str = Field(default="")
+
+    @computed_field
+    @property
+    def keycloak_issuer_url(self) -> str:
+        """Construct the OIDC issuer URL from Keycloak configuration."""
+        return f"{self.keycloak_server_url}/realms/{self.keycloak_realm}"
+
+    @computed_field
+    @property
+    def keycloak_jwks_url(self) -> str:
+        """Construct the JWKS endpoint URL for token verification."""
+        return f"{self.keycloak_issuer_url}/protocol/openid-connect/certs"
+
+    # ==========================================================================
+    # OPA (Open Policy Agent) Configuration
+    # ==========================================================================
+    opa_url: str = Field(default="http://localhost:8181")
+    opa_policy_path: str = Field(default="v1/data/dpp/authz")
+    opa_timeout: float = Field(default=1.0, description="OPA request timeout in seconds")
+
+    # ==========================================================================
+    # MinIO / Object Storage Configuration
+    # ==========================================================================
+    minio_endpoint: str = Field(default="localhost:9000")
+    minio_access_key: str = Field(default="minio_admin")
+    minio_secret_key: str = Field(default="")
+    minio_secure: bool = Field(default=False)
+    minio_bucket_attachments: str = Field(default="dpp-attachments")
+    minio_bucket_exports: str = Field(default="dpp-exports")
+
+    # ==========================================================================
+    # Security Configuration
+    # ==========================================================================
+    encryption_master_key: str = Field(
+        default="",
+        description="Base64-encoded 256-bit master key for envelope encryption"
+    )
+
+    # CORS settings
+    cors_origins: list[str] = Field(
+        default=["http://localhost:5173", "http://localhost:3000"]
+    )
+
+    # ==========================================================================
+    # Template Registry Configuration
+    # ==========================================================================
+    idta_templates_base_url: str = Field(
+        default="https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/published"
+    )
+    template_cache_ttl: int = Field(
+        default=86400,
+        description="Template cache TTL in seconds (default: 24 hours)"
+    )
+
+    # DPP4.0 Template versions (pinned for stability)
+    template_versions: dict[str, str] = Field(
+        default={
+            "digital-nameplate": "3.0.1",
+            "contact-information": "1.0.1",
+            "technical-data": "2.0.1",
+            "carbon-footprint": "1.0.1",
+            "handover-documentation": "2.0.1",
+            "hierarchical-structures": "1.1.1",
+        }
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """
+    Get cached application settings.
+
+    Using lru_cache ensures settings are loaded once and reused,
+    avoiding repeated environment variable parsing.
+    """
+    return Settings()

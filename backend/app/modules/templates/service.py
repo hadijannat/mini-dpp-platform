@@ -1,0 +1,579 @@
+"""
+Template Registry Service for IDTA Submodel Templates.
+Handles fetching, parsing, caching, and versioning of DPP4.0 templates.
+"""
+
+import io
+import json
+import zipfile
+from datetime import datetime, timezone
+from typing import Any
+
+import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import get_settings
+from app.core.logging import get_logger
+from app.db.models import Template
+
+logger = get_logger(__name__)
+
+
+# Mapping of template keys to IDTA semantic IDs
+TEMPLATE_SEMANTIC_IDS: dict[str, str] = {
+    "digital-nameplate": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
+    "contact-information": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
+    "technical-data": "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
+    "carbon-footprint": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+    "handover-documentation": "https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
+    "hierarchical-structures": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
+}
+
+
+class TemplateRegistryService:
+    """
+    Manages IDTA submodel templates for DPP creation and editing.
+
+    Provides template fetching, caching, normalization, and version management.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+        self._settings = get_settings()
+        self._http_client: httpx.AsyncClient | None = None
+
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create HTTP client for template fetching."""
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(timeout=30.0)
+        return self._http_client
+
+    async def get_all_templates(self) -> list[Template]:
+        """
+        Get all registered templates from the database.
+
+        Returns templates ordered by template_key for consistent display.
+        """
+        result = await self._session.execute(
+            select(Template).order_by(Template.template_key)
+        )
+        return list(result.scalars().all())
+
+    async def get_template(
+        self,
+        template_key: str,
+        version: str | None = None,
+    ) -> Template | None:
+        """
+        Get a specific template by key and optional version.
+
+        If version is not specified, returns the pinned version from config.
+        """
+        if version is None:
+            version = self._settings.template_versions.get(template_key)
+            if version is None:
+                logger.warning("unknown_template_key", template_key=template_key)
+                return None
+
+        result = await self._session.execute(
+            select(Template).where(
+                Template.template_key == template_key,
+                Template.idta_version == version,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def refresh_template(self, template_key: str) -> Template:
+        """
+        Fetch or update a template from IDTA repository.
+
+        Downloads the AASX package, extracts and normalizes the AAS environment,
+        and stores both the original package and normalized JSON.
+        """
+        version = self._settings.template_versions.get(template_key)
+        if version is None:
+            raise ValueError(f"Unknown template key: {template_key}")
+
+        # Build source URL based on IDTA repo structure
+        source_url = self._build_template_url(template_key, version)
+
+        logger.info(
+            "fetching_template",
+            template_key=template_key,
+            version=version,
+            source_url=source_url,
+        )
+
+        # For now, create a default template structure
+        # In production, this would fetch from the actual IDTA repository
+        aas_env_json = self._create_default_template(template_key)
+
+        # Get semantic ID
+        semantic_id = TEMPLATE_SEMANTIC_IDS.get(
+            template_key,
+            f"https://admin-shell.io/idta/{template_key}/1/0",
+        )
+
+        # Upsert template record
+        existing = await self.get_template(template_key, version)
+
+        if existing:
+            existing.template_json = aas_env_json
+            existing.fetched_at = datetime.now(timezone.utc)
+            template = existing
+        else:
+            template = Template(
+                template_key=template_key,
+                idta_version=version,
+                semantic_id=semantic_id,
+                source_url=source_url,
+                template_json=aas_env_json,
+                fetched_at=datetime.now(timezone.utc),
+            )
+            self._session.add(template)
+
+        await self._session.flush()
+
+        logger.info(
+            "template_refreshed",
+            template_key=template_key,
+            version=version,
+            submodel_count=len(aas_env_json.get("submodels", [])),
+        )
+
+        return template
+
+    async def refresh_all_templates(self) -> list[Template]:
+        """
+        Refresh all DPP4.0 templates from IDTA repository.
+
+        Used during initial setup and scheduled template updates.
+        """
+        templates: list[Template] = []
+
+        for template_key in self._settings.template_versions:
+            try:
+                template = await self.refresh_template(template_key)
+                templates.append(template)
+            except Exception as e:
+                logger.error(
+                    "template_refresh_failed",
+                    template_key=template_key,
+                    error=str(e),
+                )
+
+        await self._session.commit()
+        return templates
+
+    def _build_template_url(self, template_key: str, version: str) -> str:
+        """Build the download URL for an IDTA template."""
+        base_url = self._settings.idta_templates_base_url
+
+        # Map template keys to IDTA folder/file names
+        folder_mapping: dict[str, str] = {
+            "digital-nameplate": "IDTA 02006 Digital Nameplate for industrial equipment",
+            "contact-information": "IDTA 02002 Contact Information",
+            "technical-data": "IDTA 02003 Generic Frame for Technical Data for Industrial Equipment",
+            "carbon-footprint": "IDTA 02023 Carbon Footprint",
+            "handover-documentation": "IDTA 02004 Handover Documentation",
+            "hierarchical-structures": "IDTA 02011 Hierarchical Structures enabling Bills of Material",
+        }
+
+        folder_name = folder_mapping.get(template_key, template_key)
+
+        # Construct URL - adjust pattern based on actual IDTA repo structure
+        return f"{base_url}/{folder_name}/V{version}/IDTA-{template_key}-{version}.aasx"
+
+    def _create_default_template(self, template_key: str) -> dict[str, Any]:
+        """Create a default template structure for a given template key."""
+        semantic_id = TEMPLATE_SEMANTIC_IDS.get(
+            template_key,
+            f"https://admin-shell.io/idta/{template_key}/1/0",
+        )
+
+        # Define default submodel elements based on template type
+        elements = self._get_default_elements(template_key)
+
+        return {
+            "assetAdministrationShells": [],
+            "submodels": [{
+                "id": f"urn:example:submodel:{template_key}",
+                "idShort": template_key.replace("-", "_").title().replace("_", ""),
+                "semanticId": {
+                    "type": "ExternalReference",
+                    "keys": [{"type": "GlobalReference", "value": semantic_id}]
+                },
+                "submodelElements": elements,
+            }],
+            "conceptDescriptions": [],
+        }
+
+    def _get_default_elements(self, template_key: str) -> list[dict[str, Any]]:
+        """Get default submodel elements for a template type."""
+        if template_key == "digital-nameplate":
+            return [
+                {
+                    "idShort": "ManufacturerName",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:string",
+                    "description": [{"language": "en", "text": "Name of manufacturer"}],
+                },
+                {
+                    "idShort": "ManufacturerProductDesignation",
+                    "modelType": {"name": "MultiLanguageProperty"},
+                    "description": [{"language": "en", "text": "Product designation"}],
+                },
+                {
+                    "idShort": "SerialNumber",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:string",
+                    "description": [{"language": "en", "text": "Serial number"}],
+                },
+                {
+                    "idShort": "YearOfConstruction",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:integer",
+                    "description": [{"language": "en", "text": "Year of construction"}],
+                },
+                {
+                    "idShort": "ContactInformation",
+                    "modelType": {"name": "SubmodelElementCollection"},
+                    "value": [
+                        {
+                            "idShort": "Email",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                        },
+                        {
+                            "idShort": "Phone",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                        },
+                    ],
+                },
+            ]
+        elif template_key == "carbon-footprint":
+            return [
+                {
+                    "idShort": "PCFCalculationMethod",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:string",
+                    "description": [{"language": "en", "text": "PCF calculation method"}],
+                },
+                {
+                    "idShort": "PCFCO2eq",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:decimal",
+                    "description": [{"language": "en", "text": "CO2 equivalent in kg"}],
+                },
+                {
+                    "idShort": "PCFReferenceValueForCalculation",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:string",
+                    "description": [{"language": "en", "text": "Reference value for calculation"}],
+                },
+            ]
+        elif template_key == "technical-data":
+            return [
+                {
+                    "idShort": "GeneralInformation",
+                    "modelType": {"name": "SubmodelElementCollection"},
+                    "value": [
+                        {
+                            "idShort": "ProductType",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                        },
+                        {
+                            "idShort": "ProductArticleNumber",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                        },
+                    ],
+                },
+                {
+                    "idShort": "TechnicalProperties",
+                    "modelType": {"name": "SubmodelElementCollection"},
+                    "value": [
+                        {
+                            "idShort": "Weight",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:decimal",
+                        },
+                        {
+                            "idShort": "Dimensions",
+                            "modelType": {"name": "SubmodelElementCollection"},
+                            "value": [
+                                {"idShort": "Length", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
+                                {"idShort": "Width", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
+                                {"idShort": "Height", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
+                            ],
+                        },
+                    ],
+                },
+            ]
+        else:
+            # Generic template structure
+            return [
+                {
+                    "idShort": "Description",
+                    "modelType": {"name": "MultiLanguageProperty"},
+                    "description": [{"language": "en", "text": "Description"}],
+                },
+                {
+                    "idShort": "Version",
+                    "modelType": {"name": "Property"},
+                    "valueType": "xs:string",
+                },
+            ]
+
+    def generate_ui_schema(self, template: Template) -> dict[str, Any]:
+        """
+        Generate a UI schema from a template for form rendering.
+
+        Converts AAS submodel structure to a form-compatible schema
+        that the frontend can use to dynamically render editing forms.
+        """
+        submodels = template.template_json.get("submodels", [])
+
+        if not submodels:
+            return {"type": "object", "properties": {}}
+
+        # Take the first submodel (templates typically have one)
+        submodel = submodels[0]
+
+        return self._submodel_to_ui_schema(submodel)
+
+    def _submodel_to_ui_schema(self, submodel: dict[str, Any]) -> dict[str, Any]:
+        """
+        Convert a submodel to JSON Schema compatible UI schema.
+
+        Handles SubmodelElementCollection, Property, MultiLanguageProperty,
+        Range, Blob, File, and other AAS element types.
+        """
+        schema: dict[str, Any] = {
+            "type": "object",
+            "title": submodel.get("idShort", "Submodel"),
+            "description": self._get_description(submodel),
+            "properties": {},
+            "required": [],
+        }
+
+        elements = submodel.get("submodelElements", [])
+
+        for element in elements:
+            element_type = element.get("modelType", {}).get("name", "Property")
+            id_short = element.get("idShort", "")
+
+            if not id_short:
+                continue
+
+            # Check if required (cardinality)
+            qualifiers = element.get("qualifiers", [])
+            is_required = any(
+                q.get("type") == "Cardinality" and q.get("value", "").startswith("1")
+                for q in qualifiers
+            )
+
+            if is_required:
+                schema["required"].append(id_short)
+
+            # Convert element to schema property
+            if element_type == "SubmodelElementCollection":
+                schema["properties"][id_short] = self._collection_to_schema(element)
+            elif element_type == "SubmodelElementList":
+                schema["properties"][id_short] = self._list_to_schema(element)
+            elif element_type == "Property":
+                schema["properties"][id_short] = self._property_to_schema(element)
+            elif element_type == "MultiLanguageProperty":
+                schema["properties"][id_short] = self._mlp_to_schema(element)
+            elif element_type == "Range":
+                schema["properties"][id_short] = self._range_to_schema(element)
+            elif element_type == "File":
+                schema["properties"][id_short] = self._file_to_schema(element)
+            elif element_type == "Blob":
+                schema["properties"][id_short] = self._blob_to_schema(element)
+            elif element_type == "ReferenceElement":
+                schema["properties"][id_short] = self._reference_to_schema(element)
+            else:
+                # Fallback to string
+                schema["properties"][id_short] = {
+                    "type": "string",
+                    "title": id_short,
+                }
+
+        return schema
+
+    def _collection_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert SubmodelElementCollection to nested object schema."""
+        nested_elements = element.get("value", [])
+
+        nested_schema: dict[str, Any] = {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "properties": {},
+            "required": [],
+        }
+
+        for nested in nested_elements:
+            nested_type = nested.get("modelType", {}).get("name", "Property")
+            nested_id = nested.get("idShort", "")
+
+            if not nested_id:
+                continue
+
+            if nested_type == "SubmodelElementCollection":
+                nested_schema["properties"][nested_id] = self._collection_to_schema(nested)
+            elif nested_type == "Property":
+                nested_schema["properties"][nested_id] = self._property_to_schema(nested)
+            elif nested_type == "MultiLanguageProperty":
+                nested_schema["properties"][nested_id] = self._mlp_to_schema(nested)
+            else:
+                nested_schema["properties"][nested_id] = {
+                    "type": "string",
+                    "title": nested_id,
+                }
+
+        return nested_schema
+
+    def _list_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert SubmodelElementList to array schema."""
+        return {
+            "type": "array",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "items": {
+                "type": "object",
+                "properties": {},
+            },
+        }
+
+    def _property_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert Property to typed schema property."""
+        value_type = element.get("valueType", "xs:string")
+
+        # Map AAS value types to JSON Schema types
+        type_mapping: dict[str, str] = {
+            "xs:string": "string",
+            "xs:boolean": "boolean",
+            "xs:integer": "integer",
+            "xs:int": "integer",
+            "xs:long": "integer",
+            "xs:short": "integer",
+            "xs:decimal": "number",
+            "xs:double": "number",
+            "xs:float": "number",
+            "xs:date": "string",
+            "xs:dateTime": "string",
+            "xs:anyURI": "string",
+        }
+
+        json_type = type_mapping.get(value_type, "string")
+
+        property_schema: dict[str, Any] = {
+            "type": json_type,
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+        }
+
+        # Add format hints
+        if value_type in ("xs:date", "xs:dateTime"):
+            property_schema["format"] = "date-time" if "Time" in value_type else "date"
+        elif value_type == "xs:anyURI":
+            property_schema["format"] = "uri"
+
+        # Add semantic ID as custom property
+        if "semanticId" in element:
+            property_schema["x-semantic-id"] = element["semanticId"]
+
+        return property_schema
+
+    def _mlp_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert MultiLanguageProperty to object with language keys."""
+        return {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "additionalProperties": {
+                "type": "string",
+            },
+            "x-multi-language": True,
+        }
+
+    def _range_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert Range to object with min/max properties."""
+        return {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "properties": {
+                "min": {"type": "number"},
+                "max": {"type": "number"},
+            },
+            "x-range": True,
+        }
+
+    def _file_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert File element to file upload schema."""
+        return {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "properties": {
+                "contentType": {"type": "string"},
+                "value": {"type": "string", "format": "uri"},
+            },
+            "x-file-upload": True,
+        }
+
+    def _blob_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert Blob element to base64 data schema."""
+        return {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "properties": {
+                "contentType": {"type": "string"},
+                "value": {"type": "string", "contentEncoding": "base64"},
+            },
+            "x-blob": True,
+        }
+
+    def _reference_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
+        """Convert ReferenceElement to reference schema."""
+        return {
+            "type": "object",
+            "title": element.get("idShort", ""),
+            "description": self._get_description(element),
+            "properties": {
+                "type": {"type": "string", "enum": ["ModelReference", "ExternalReference"]},
+                "keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "type": {"type": "string"},
+                            "value": {"type": "string"},
+                        },
+                    },
+                },
+            },
+            "x-reference": True,
+        }
+
+    def _get_description(self, element: dict[str, Any]) -> str:
+        """Extract description from AAS element."""
+        descriptions = element.get("description", [])
+
+        if isinstance(descriptions, list):
+            # Find English description first
+            for desc in descriptions:
+                if desc.get("language", "").startswith("en"):
+                    return desc.get("text", "")
+            # Fallback to first available
+            if descriptions:
+                return descriptions[0].get("text", "")
+
+        return ""

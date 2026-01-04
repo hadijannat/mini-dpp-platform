@@ -1,0 +1,390 @@
+"""
+API Router for DPP (Digital Product Passport) endpoints.
+"""
+
+from typing import Any
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+
+from app.core.security import CurrentUser, Publisher
+from app.db.models import DPPStatus
+from app.db.session import DbSession
+from app.modules.dpps.service import DPPService
+
+router = APIRouter()
+
+
+class AssetIdsInput(BaseModel):
+    """Input model for asset identifiers."""
+    manufacturerPartId: str
+    serialNumber: str | None = None
+    batchId: str | None = None
+    globalAssetId: str | None = None
+
+
+class CreateDPPRequest(BaseModel):
+    """Request model for creating a new DPP."""
+    asset_ids: AssetIdsInput
+    selected_templates: list[str] = Field(
+        default=["digital-nameplate"],
+        description="List of template keys to include",
+    )
+    initial_data: dict[str, Any] | None = None
+
+
+class UpdateSubmodelRequest(BaseModel):
+    """Request model for updating a submodel."""
+    template_key: str
+    data: dict[str, Any]
+
+
+class DPPResponse(BaseModel):
+    """Response model for DPP data."""
+    id: UUID
+    status: str
+    owner_subject: str
+    asset_ids: dict[str, Any]
+    qr_payload: str | None
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
+
+
+class DPPDetailResponse(DPPResponse):
+    """Detailed response model including revision data."""
+    current_revision_no: int | None
+    aas_environment: dict[str, Any] | None
+    digest_sha256: str | None
+
+
+class DPPListResponse(BaseModel):
+    """Response model for list of DPPs."""
+    dpps: list[DPPResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class RevisionResponse(BaseModel):
+    """Response model for revision data."""
+    id: UUID
+    revision_no: int
+    state: str
+    digest_sha256: str
+    created_by_subject: str
+    created_at: str
+
+
+@router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
+async def create_dpp(
+    request: CreateDPPRequest,
+    db: DbSession,
+    user: Publisher,
+) -> DPPResponse:
+    """
+    Create a new Digital Product Passport.
+
+    Requires publisher role. Creates a draft DPP with selected templates.
+    """
+    service = DPPService(db)
+
+    asset_ids_dict = request.asset_ids.model_dump(exclude_none=True)
+
+    dpp = await service.create_dpp(
+        owner_subject=user.sub,
+        asset_ids=asset_ids_dict,
+        selected_templates=request.selected_templates,
+        initial_data=request.initial_data,
+    )
+
+    await db.commit()
+
+    return DPPResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        owner_subject=dpp.owner_subject,
+        asset_ids=dpp.asset_ids,
+        qr_payload=dpp.qr_payload,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+    )
+
+
+@router.get("", response_model=DPPListResponse)
+async def list_dpps(
+    db: DbSession,
+    user: CurrentUser,
+    status_filter: DPPStatus | None = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> DPPListResponse:
+    """
+    List DPPs accessible to the current user.
+
+    Publishers see their own DPPs. Viewers see all published DPPs.
+    """
+    service = DPPService(db)
+
+    if user.is_publisher:
+        dpps = await service.get_dpps_for_owner(
+            owner_subject=user.sub,
+            status=status_filter,
+            limit=limit,
+            offset=offset,
+        )
+    else:
+        dpps = await service.get_published_dpps(
+            limit=limit,
+            offset=offset,
+        )
+
+    return DPPListResponse(
+        dpps=[
+            DPPResponse(
+                id=dpp.id,
+                status=dpp.status.value,
+                owner_subject=dpp.owner_subject,
+                asset_ids=dpp.asset_ids,
+                qr_payload=dpp.qr_payload,
+                created_at=dpp.created_at.isoformat(),
+                updated_at=dpp.updated_at.isoformat(),
+            )
+            for dpp in dpps
+        ],
+        count=len(dpps),
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/{dpp_id}", response_model=DPPDetailResponse)
+async def get_dpp(
+    dpp_id: UUID,
+    db: DbSession,
+    user: CurrentUser,
+) -> DPPDetailResponse:
+    """
+    Get a specific DPP by ID.
+
+    Returns full DPP details including current revision AAS environment.
+    """
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    # Check access
+    if dpp.status != DPPStatus.PUBLISHED and dpp.owner_subject != user.sub:
+        if not user.is_publisher:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied",
+            )
+
+    # Get latest revision
+    revision = await service.get_latest_revision(dpp_id)
+
+    return DPPDetailResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        owner_subject=dpp.owner_subject,
+        asset_ids=dpp.asset_ids,
+        qr_payload=dpp.qr_payload,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+        current_revision_no=revision.revision_no if revision else None,
+        aas_environment=revision.aas_env_json if revision else None,
+        digest_sha256=revision.digest_sha256 if revision else None,
+    )
+
+
+@router.put("/{dpp_id}/submodel", response_model=RevisionResponse)
+async def update_submodel(
+    dpp_id: UUID,
+    request: UpdateSubmodelRequest,
+    db: DbSession,
+    user: Publisher,
+) -> RevisionResponse:
+    """
+    Update a submodel within a DPP.
+
+    Creates a new revision with the updated data.
+    """
+    service = DPPService(db)
+
+    # Verify ownership
+    dpp = await service.get_dpp(dpp_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != user.sub and not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can edit this DPP",
+        )
+
+    try:
+        revision = await service.update_submodel(
+            dpp_id=dpp_id,
+            template_key=request.template_key,
+            submodel_data=request.data,
+            updated_by_subject=user.sub,
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return RevisionResponse(
+        id=revision.id,
+        revision_no=revision.revision_no,
+        state=revision.state.value,
+        digest_sha256=revision.digest_sha256,
+        created_by_subject=revision.created_by_subject,
+        created_at=revision.created_at.isoformat(),
+    )
+
+
+@router.post("/{dpp_id}/publish", response_model=DPPResponse)
+async def publish_dpp(
+    dpp_id: UUID,
+    db: DbSession,
+    user: Publisher,
+) -> DPPResponse:
+    """
+    Publish a DPP, making it visible to viewers.
+    """
+    service = DPPService(db)
+
+    # Verify ownership
+    dpp = await service.get_dpp(dpp_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != user.sub and not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can publish this DPP",
+        )
+
+    try:
+        published_dpp = await service.publish_dpp(
+            dpp_id=dpp_id,
+            published_by_subject=user.sub,
+        )
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return DPPResponse(
+        id=published_dpp.id,
+        status=published_dpp.status.value,
+        owner_subject=published_dpp.owner_subject,
+        asset_ids=published_dpp.asset_ids,
+        qr_payload=published_dpp.qr_payload,
+        created_at=published_dpp.created_at.isoformat(),
+        updated_at=published_dpp.updated_at.isoformat(),
+    )
+
+
+@router.post("/{dpp_id}/archive", response_model=DPPResponse)
+async def archive_dpp(
+    dpp_id: UUID,
+    db: DbSession,
+    user: Publisher,
+) -> DPPResponse:
+    """
+    Archive a DPP, marking it as no longer active.
+    """
+    service = DPPService(db)
+
+    # Verify ownership
+    dpp = await service.get_dpp(dpp_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != user.sub and not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can archive this DPP",
+        )
+
+    try:
+        archived_dpp = await service.archive_dpp(dpp_id)
+        await db.commit()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    return DPPResponse(
+        id=archived_dpp.id,
+        status=archived_dpp.status.value,
+        owner_subject=archived_dpp.owner_subject,
+        asset_ids=archived_dpp.asset_ids,
+        qr_payload=archived_dpp.qr_payload,
+        created_at=archived_dpp.created_at.isoformat(),
+        updated_at=archived_dpp.updated_at.isoformat(),
+    )
+
+
+@router.get("/{dpp_id}/revisions", response_model=list[RevisionResponse])
+async def list_revisions(
+    dpp_id: UUID,
+    db: DbSession,
+    user: Publisher,
+) -> list[RevisionResponse]:
+    """
+    List all revisions for a DPP.
+
+    Requires publisher role and ownership.
+    """
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, include_revisions=True)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != user.sub and not user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    return [
+        RevisionResponse(
+            id=rev.id,
+            revision_no=rev.revision_no,
+            state=rev.state.value,
+            digest_sha256=rev.digest_sha256,
+            created_by_subject=rev.created_by_subject,
+            created_at=rev.created_at.isoformat(),
+        )
+        for rev in dpp.revisions
+    ]

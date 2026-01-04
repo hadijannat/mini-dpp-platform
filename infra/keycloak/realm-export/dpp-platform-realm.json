@@ -1,0 +1,77 @@
+{
+  "realm": "dpp-platform",
+  "enabled": true,
+  "registrationAllowed": false,
+  "resetPasswordAllowed": true,
+  "clients": [
+    {
+      "clientId": "dpp-frontend",
+      "enabled": true,
+      "publicClient": true,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "protocol": "openid-connect"
+    },
+    {
+      "clientId": "dpp-backend",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "backend-secret-dev",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocol": "openid-connect"
+    }
+  ],
+  "roles": {
+    "realm": [
+      {"name": "viewer", "description": "Can view published DPPs"},
+      {"name": "publisher", "description": "Can create and manage DPPs"},
+      {"name": "admin", "description": "Full administrative access"}
+    ]
+  },
+  "users": [
+    {
+      "username": "viewer",
+      "email": "viewer@example.com",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "viewer123", "temporary": false}],
+      "realmRoles": ["viewer"]
+    },
+    {
+      "username": "publisher",
+      "email": "publisher@example.com",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "publisher123", "temporary": false}],
+      "realmRoles": ["publisher"]
+    },
+    {
+      "username": "admin",
+      "email": "admin@example.com",
+      "enabled": true,
+      "credentials": [{"type": "password", "value": "admin123", "temporary": false}],
+      "realmRoles": ["admin"]
+    }
+  ],
+  "clientScopes": [
+    {
+      "name": "bpn",
+      "protocol": "openid-connect",
+      "protocolMappers": [
+        {
+          "name": "bpn-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "bpn",
+            "claim.name": "bpn",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

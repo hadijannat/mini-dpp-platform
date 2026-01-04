@@ -1,0 +1,199 @@
+version: "3.9"
+
+services:
+  # =============================================================================
+  # PostgreSQL - Primary Data Store
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: dpp-postgres
+    environment:
+      POSTGRES_USER: dpp_user
+      POSTGRES_PASSWORD: dpp_dev_password_2024
+      POSTGRES_DB: dpp_platform
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dpp_user -d dpp_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Redis - Caching and Rate Limiting
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: dpp-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Keycloak - Identity Provider (OIDC)
+  # =============================================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: dpp-keycloak
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin_dev_2024
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/dpp_platform
+      KC_DB_USERNAME: dpp_user
+      KC_DB_PASSWORD: dpp_dev_password_2024
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+      KC_HOSTNAME_STRICT: false
+      KC_HTTP_ENABLED: true
+    volumes:
+      - ./infra/keycloak/realm-export:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Open Policy Agent - ABAC Policy Decision Point
+  # =============================================================================
+  opa:
+    image: openpolicyagent/opa:0.62.1-static
+    container_name: dpp-opa
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - --set=decision_logs.console=true
+      - /policies
+    volumes:
+      - ./infra/opa/policies:/policies:ro
+    ports:
+      - "8181:8181"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8181/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # MinIO - Object Storage for Large Attachments
+  # =============================================================================
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: dpp-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_dev_password_2024
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Backend API - FastAPI Application
+  # =============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: dpp-backend
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://dpp_user:dpp_dev_password_2024@postgres:5432/dpp_platform
+      - REDIS_URL=redis://redis:6379/0
+      - KEYCLOAK_SERVER_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=dpp-platform
+      - KEYCLOAK_CLIENT_ID=dpp-backend
+      - KEYCLOAK_CLIENT_SECRET=backend-secret-dev
+      - OPA_URL=http://opa:8181
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minio_admin
+      - MINIO_SECRET_KEY=minio_dev_password_2024
+      - LOG_LEVEL=DEBUG
+    volumes:
+      - ./backend:/app:cached
+      - backend_cache:/app/.cache
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Frontend - React Application (Development Server)
+  # =============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    container_name: dpp-frontend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_KEYCLOAK_URL=http://localhost:8080
+      - VITE_KEYCLOAK_REALM=dpp-platform
+      - VITE_KEYCLOAK_CLIENT_ID=dpp-frontend
+    volumes:
+      - ./frontend:/app:cached
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    networks:
+      - dpp-network
+
+networks:
+  dpp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  backend_cache:
