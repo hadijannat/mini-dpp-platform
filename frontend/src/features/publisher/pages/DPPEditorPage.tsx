@@ -1,8 +1,31 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+
+const SEMANTIC_ID_TO_TEMPLATE_KEY: Record<string, string> = {
+  'https://admin-shell.io/zvei/nameplate/2/0/Nameplate': 'digital-nameplate',
+  'https://admin-shell.io/zvei/nameplate/1/0/ContactInformations': 'contact-information',
+  'https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2': 'technical-data',
+  'https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0': 'carbon-footprint',
+  'https://admin-shell.io/ZVEI/HandoverDocumentation/1/0': 'handover-documentation',
+  'https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel': 'hierarchical-structures',
+};
+
+function extractSemanticId(submodel: any): string | null {
+  const semanticId = submodel?.semanticId;
+  if (semanticId && Array.isArray(semanticId.keys) && semanticId.keys[0]?.value) {
+    return String(semanticId.keys[0].value);
+  }
+  return null;
+}
+
+function resolveTemplateKey(submodel: any): string | null {
+  const semanticId = extractSemanticId(submodel);
+  if (!semanticId) return null;
+  return SEMANTIC_ID_TO_TEMPLATE_KEY[semanticId] ?? null;
+}
 
 async function fetchDPP(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
@@ -211,13 +234,24 @@ export default function DPPEditorPage() {
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-lg font-medium text-gray-900 mb-4">Submodels</h2>
         <div className="space-y-4">
-          {(dpp.aas_environment?.submodels || []).map((submodel: any, index: number) => (
+          {(dpp.aas_environment?.submodels || []).map((submodel: any, index: number) => {
+            const templateKey = resolveTemplateKey(submodel);
+            return (
             <div key={index} className="border rounded-lg p-4">
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="font-medium text-gray-900">{submodel.idShort}</h3>
                   <p className="text-sm text-gray-500">{submodel.id}</p>
                 </div>
+                {templateKey && (
+                  <Link
+                    to={`/console/dpps/${dpp.id}/edit/${templateKey}`}
+                    className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    <Edit3 className="h-4 w-4 mr-1" />
+                    Edit
+                  </Link>
+                )}
               </div>
               {submodel.submodelElements && (
                 <div className="mt-4 space-y-2">
@@ -230,7 +264,8 @@ export default function DPPEditorPage() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
