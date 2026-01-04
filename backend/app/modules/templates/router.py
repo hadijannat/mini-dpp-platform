@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.security import Publisher
+from app.core.security import CurrentUser, Publisher
 from app.db.session import DbSession
 from app.modules.templates.service import TemplateRegistryService
 
@@ -47,6 +47,7 @@ class UISchemaResponse(BaseModel):
 @router.get("", response_model=TemplateListResponse)
 async def list_templates(
     db: DbSession,
+    _user: CurrentUser,
 ) -> TemplateListResponse:
     """
     List all registered templates.
@@ -76,6 +77,7 @@ async def list_templates(
 async def get_template(
     template_key: str,
     db: DbSession,
+    _user: CurrentUser,
     version: str | None = None,
 ) -> TemplateResponse:
     """
@@ -106,6 +108,7 @@ async def get_template(
 async def get_template_ui_schema(
     template_key: str,
     db: DbSession,
+    _user: CurrentUser,
 ) -> UISchemaResponse:
     """
     Get the UI schema for a template.

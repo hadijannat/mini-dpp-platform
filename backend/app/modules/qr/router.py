@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
+from app.core.security import CurrentUser
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -20,6 +21,7 @@ router = APIRouter()
 async def generate_qr_code(
     dpp_id: UUID,
     db: DbSession,
+    _user: CurrentUser,
     format: Literal["png", "svg"] = Query("png", description="Image format"),
     size: int = Query(400, ge=100, le=1000, description="Image size in pixels"),
 ) -> Response:

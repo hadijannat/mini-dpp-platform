@@ -37,8 +37,14 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/callback" element={<CallbackPage />} />
 
-      {/* Viewer routes (minimal auth required) */}
-      <Route element={<ViewerLayout />}>
+      {/* Viewer routes (auth required) */}
+      <Route
+        element={
+          <ProtectedRoute>
+            <ViewerLayout />
+          </ProtectedRoute>
+        }
+      >
         <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
         <Route path="/p/:slug" element={<DPPViewerPage />} />
       </Route>

@@ -34,6 +34,25 @@ async function downloadExport(dppId: string, format: 'json' | 'aasx', token?: st
   window.URL.revokeObjectURL(url);
 }
 
+async function openQrCode(dppId: string, token?: string) {
+  const response = await apiFetch(`/api/v1/qr/${dppId}?format=png`, {}, token);
+  if (!response.ok) {
+    throw new Error('Failed to generate QR code');
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(url);
+  }, 1000);
+}
+
 export default function DPPEditorPage() {
   const { dppId } = useParams();
   const navigate = useNavigate();
@@ -79,6 +98,15 @@ export default function DPPEditorPage() {
     }
   };
 
+  const handleQrCode = async () => {
+    try {
+      await openQrCode(dpp.id, token);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -99,15 +127,14 @@ export default function DPPEditorPage() {
         </div>
         <div className="flex space-x-3">
           {dpp.status === 'published' && (
-            <a
-              href={`/api/v1/qr/${dpp.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => { void handleQrCode(); }}
               className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+              type="button"
             >
               <QrCode className="h-4 w-4 mr-2" />
               QR Code
-            </a>
+            </button>
           )}
           <button
             onClick={() => { void handleExport('json'); }}

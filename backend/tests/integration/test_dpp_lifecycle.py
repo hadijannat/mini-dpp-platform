@@ -23,28 +23,29 @@ class TestDPPLifecycle:
 
     @pytest.mark.asyncio
     async def test_list_dpps_requires_auth(self, test_client: AsyncClient):
-        """Test that listing DPPs returns published items without auth."""
+        """Test that listing DPPs requires authentication."""
         response = await test_client.get("/api/v1/dpps")
-        assert response.status_code == 200
+        assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_get_templates_list(self, test_client: AsyncClient):
-        """Test that templates endpoint returns available templates."""
+        """Test that templates endpoint requires authentication."""
         response = await test_client.get("/api/v1/templates")
-        # Templates should be publicly accessible for viewers
-        assert response.status_code == 200
+        assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_export_dpp_not_found(self, test_client: AsyncClient):
         """Test export returns 404 for non-existent DPP."""
-        response = await test_client.get("/api/v1/export/00000000-0000-0000-0000-000000000000/aasx")
-        assert response.status_code in (401, 404)
+        response = await test_client.get(
+            "/api/v1/export/00000000-0000-0000-0000-000000000000?format=aasx"
+        )
+        assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_qr_code_generation_not_found(self, test_client: AsyncClient):
         """Test QR code generation returns 404 for non-existent DPP."""
         response = await test_client.get("/api/v1/qr/00000000-0000-0000-0000-000000000000")
-        assert response.status_code in (401, 404)
+        assert response.status_code == 401
 
 
 class TestDPPWithAuth:

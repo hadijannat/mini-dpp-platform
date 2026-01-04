@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.core.security import OptionalUser, Publisher
+from app.core.security import CurrentUser, Publisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -124,7 +124,7 @@ async def create_dpp(
 @router.get("", response_model=DPPListResponse)
 async def list_dpps(
     db: DbSession,
-    user: OptionalUser,
+    user: CurrentUser,
     status_filter: DPPStatus | None = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -136,7 +136,7 @@ async def list_dpps(
     """
     service = DPPService(db)
 
-    if user and user.is_publisher:
+    if user.is_publisher:
         dpps = await service.get_dpps_for_owner(
             owner_subject=user.sub,
             status=status_filter,
@@ -172,7 +172,7 @@ async def list_dpps(
 async def get_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: OptionalUser,
+    user: CurrentUser,
 ) -> DPPDetailResponse:
     """
     Get a specific DPP by ID.
@@ -189,17 +189,11 @@ async def get_dpp(
         )
 
     # Check access
-    if dpp.status != DPPStatus.PUBLISHED:
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required",
-            )
-        if dpp.owner_subject != user.sub and not user.is_publisher:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied",
-            )
+    if dpp.status != DPPStatus.PUBLISHED and dpp.owner_subject != user.sub and not user.is_publisher:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
 
     # Get latest revision
     revision = await service.get_latest_revision(dpp_id)
