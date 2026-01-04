@@ -8,7 +8,6 @@ from app.core.config import get_settings
 from app.db.models import DPP, DPPRevision
 from app.modules.connectors.catenax.dtr_client import ShellDescriptor
 
-
 # Semantic IDs for DPP4.0 submodels in Catena-X context
 CATENAX_SEMANTIC_IDS: dict[str, str] = {
     "digital-nameplate": "urn:samm:io.catenax.serial_part:3.0.0#SerialPart",
@@ -38,26 +37,27 @@ def build_shell_descriptor(
     settings = get_settings()
 
     # Build global asset ID
-    global_asset_id = dpp.asset_ids.get(
-        "globalAssetId",
-        f"urn:uuid:{dpp.id}"
-    )
+    global_asset_id = dpp.asset_ids.get("globalAssetId", f"urn:uuid:{dpp.id}")
 
     # Build specific asset IDs
     specific_asset_ids = []
     for key, value in dpp.asset_ids.items():
         if key != "globalAssetId":
-            specific_asset_ids.append({
-                "name": key,
-                "value": str(value),
-                "externalSubjectId": {
-                    "type": "ExternalReference",
-                    "keys": [{
-                        "type": "GlobalReference",
-                        "value": settings.keycloak_client_id or "dpp-platform",
-                    }],
-                },
-            })
+            specific_asset_ids.append(
+                {
+                    "name": key,
+                    "value": str(value),
+                    "externalSubjectId": {
+                        "type": "ExternalReference",
+                        "keys": [
+                            {
+                                "type": "GlobalReference",
+                                "value": settings.keycloak_client_id or "dpp-platform",
+                            }
+                        ],
+                    },
+                }
+            )
 
     # Build submodel descriptors
     submodel_descriptors = []
@@ -77,28 +77,34 @@ def build_shell_descriptor(
             "idShort": id_short,
             "semanticId": {
                 "type": "ExternalReference",
-                "keys": [{
-                    "type": "GlobalReference",
-                    "value": semantic_id,
-                }],
+                "keys": [
+                    {
+                        "type": "GlobalReference",
+                        "value": semantic_id,
+                    }
+                ],
             },
-            "endpoints": [{
-                "interface": "SUBMODEL-3.0",
-                "protocolInformation": {
-                    "href": endpoint_url,
-                    "endpointProtocol": "HTTP",
-                    "endpointProtocolVersion": ["1.1"],
-                },
-            }],
+            "endpoints": [
+                {
+                    "interface": "SUBMODEL-3.0",
+                    "protocolInformation": {
+                        "href": endpoint_url,
+                        "endpointProtocol": "HTTP",
+                        "endpointProtocolVersion": ["1.1"],
+                    },
+                }
+            ],
         }
 
         # Add EDC-specific fields if configured
         if edc_dsp_endpoint:
-            descriptor["endpoints"][0]["protocolInformation"].update({
-                "subprotocol": "DSP",
-                "subprotocolBody": f"id={submodel_id};dspEndpoint={edc_dsp_endpoint}",
-                "subprotocolBodyEncoding": "plain",
-            })
+            descriptor["endpoints"][0]["protocolInformation"].update(
+                {
+                    "subprotocol": "DSP",
+                    "subprotocolBody": f"id={submodel_id};dspEndpoint={edc_dsp_endpoint}",
+                    "subprotocolBodyEncoding": "plain",
+                }
+            )
 
         submodel_descriptors.append(descriptor)
 
@@ -118,6 +124,6 @@ def _extract_semantic_id(submodel: dict[str, Any]) -> str:
     if isinstance(semantic_id, dict):
         keys = semantic_id.get("keys", [])
         if keys and isinstance(keys, list):
-            return keys[0].get("value", "")
+            return str(keys[0].get("value", ""))
 
     return ""

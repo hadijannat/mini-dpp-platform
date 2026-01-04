@@ -5,10 +5,10 @@ API Router for Template Registry endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.security import CurrentUser, Publisher
+from app.core.security import Publisher
 from app.db.session import DbSession
 from app.modules.templates.service import TemplateRegistryService
 
@@ -17,6 +17,7 @@ router = APIRouter()
 
 class TemplateResponse(BaseModel):
     """Response model for template data."""
+
     id: UUID
     template_key: str
     idta_version: str
@@ -24,20 +25,23 @@ class TemplateResponse(BaseModel):
     source_url: str
     fetched_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TemplateListResponse(BaseModel):
     """Response model for list of templates."""
+
     templates: list[TemplateResponse]
     count: int
 
 
 class UISchemaResponse(BaseModel):
     """Response model for UI schema."""
+
     template_key: str
-    schema: dict[str, Any]
+    schema_: dict[str, Any] = Field(alias="schema")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 @router.get("", response_model=TemplateListResponse)
@@ -121,14 +125,14 @@ async def get_template_ui_schema(
 
     return UISchemaResponse(
         template_key=template_key,
-        schema=schema,
+        schema_=schema,
     )
 
 
 @router.post("/refresh", response_model=TemplateListResponse)
 async def refresh_templates(
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> TemplateListResponse:
     """
     Refresh all templates from IDTA repository.
@@ -158,7 +162,7 @@ async def refresh_templates(
 async def refresh_template(
     template_key: str,
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> TemplateResponse:
     """
     Refresh a specific template from IDTA repository.

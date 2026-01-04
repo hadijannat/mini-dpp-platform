@@ -5,17 +5,16 @@ Handles DPP lifecycle, revision management, and data hydration.
 
 import hashlib
 import json
-from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template
+from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState
 from app.modules.templates.service import TemplateRegistryService
 
 logger = get_logger(__name__)
@@ -176,9 +175,7 @@ class DPPService:
             return None
 
         result = await self._session.execute(
-            select(DPPRevision).where(
-                DPPRevision.id == dpp.current_published_revision_id
-            )
+            select(DPPRevision).where(DPPRevision.id == dpp.current_published_revision_id)
         )
         return result.scalar_one_or_none()
 
@@ -227,11 +224,7 @@ class DPPService:
             sm_semantic_id = submodel.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
             if target_semantic_id in sm_semantic_id:
                 # Hydrate the submodel with new data
-                submodels[i] = await self._hydrate_submodel(
-                    template,
-                    submodel,
-                    submodel_data,
-                )
+                submodels[i] = await self._hydrate_submodel(submodel, submodel_data)
                 updated = True
                 break
 
@@ -379,7 +372,9 @@ class DPPService:
 
             for sm_template in template_submodels:
                 # Create instance from template
-                submodel_id = f"urn:dpp:sm:{template_key}:{asset_ids.get('manufacturerPartId', 'unknown')}"
+                submodel_id = (
+                    f"urn:dpp:sm:{template_key}:{asset_ids.get('manufacturerPartId', 'unknown')}"
+                )
 
                 submodel = json.loads(json.dumps(sm_template))
                 submodel["id"] = submodel_id
@@ -387,7 +382,6 @@ class DPPService:
                 # Apply initial data if provided
                 if template_key in initial_data:
                     submodel = await self._hydrate_submodel(
-                        template,
                         submodel,
                         initial_data[template_key],
                     )
@@ -395,10 +389,12 @@ class DPPService:
                 aas_env["submodels"].append(submodel)
 
                 # Add reference to AAS
-                aas["submodelRefs"].append({
-                    "type": "ModelReference",
-                    "keys": [{"type": "Submodel", "value": submodel_id}],
-                })
+                aas["submodelRefs"].append(
+                    {
+                        "type": "ModelReference",
+                        "keys": [{"type": "Submodel", "value": submodel_id}],
+                    }
+                )
 
             # Include concept descriptions
             template_cds = template.template_json.get("conceptDescriptions", [])
@@ -410,7 +406,6 @@ class DPPService:
 
     async def _hydrate_submodel(
         self,
-        template: Template,
         submodel: dict[str, Any],
         data: dict[str, Any],
     ) -> dict[str, Any]:
@@ -450,8 +445,7 @@ class DPPService:
                 elif element_type == "MultiLanguageProperty":
                     if isinstance(value, dict):
                         hydrated_element["value"] = [
-                            {"language": lang, "text": text}
-                            for lang, text in value.items()
+                            {"language": lang, "text": text} for lang, text in value.items()
                         ]
                 elif element_type == "SubmodelElementCollection":
                     if isinstance(value, dict):
@@ -461,10 +455,9 @@ class DPPService:
                     if isinstance(value, dict):
                         hydrated_element["min"] = value.get("min")
                         hydrated_element["max"] = value.get("max")
-                elif element_type == "File":
-                    if isinstance(value, dict):
-                        hydrated_element["contentType"] = value.get("contentType", "")
-                        hydrated_element["value"] = value.get("value", "")
+                elif element_type == "File" and isinstance(value, dict):
+                    hydrated_element["contentType"] = value.get("contentType", "")
+                    hydrated_element["value"] = value.get("value", "")
 
             hydrated.append(hydrated_element)
 

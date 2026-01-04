@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Plus, Eye, Edit, Archive } from 'lucide-react';
+import { useAuth } from 'react-oidc-context';
+import { Plus, Eye, Edit } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
-async function fetchDPPs() {
-  const response = await fetch('/api/v1/dpps');
+async function fetchDPPs(token?: string) {
+  const response = await apiFetch('/api/v1/dpps', {}, token);
   if (!response.ok) throw new Error('Failed to fetch DPPs');
   return response.json();
 }
 
-async function createDPP(data: any) {
-  const response = await fetch('/api/v1/dpps', {
+async function createDPP(data: any, token?: string) {
+  const response = await apiFetch('/api/v1/dpps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
-  });
+  }, token);
   if (!response.ok) throw new Error('Failed to create DPP');
   return response.json();
 }
@@ -22,14 +24,16 @@ async function createDPP(data: any) {
 export default function DPPListPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const auth = useAuth();
+  const token = auth.user?.access_token;
 
   const { data: dpps, isLoading } = useQuery({
     queryKey: ['dpps'],
-    queryFn: fetchDPPs,
+    queryFn: () => fetchDPPs(token),
   });
 
   const createMutation = useMutation({
-    mutationFn: createDPP,
+    mutationFn: (data: any) => createDPP(data, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpps'] });
       setShowCreateModal(false);

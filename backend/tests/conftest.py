@@ -3,43 +3,66 @@ Pytest fixtures for backend testing.
 Provides database sessions, test clients, and mock data factories.
 """
 
-import asyncio
+import os
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 import pytest_asyncio
+from fastapi import HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import Settings
+from app.core.security.oidc import TokenPayload, optional_verify_token, verify_token
 from app.db.models import Base
+from app.db.session import get_db_session
 from app.main import create_application
 
 # Test database URL
-TEST_DATABASE_URL = "postgresql+asyncpg://test:test@localhost:5433/dpp_test"
+TEST_DATABASE_URL = (
+    os.getenv("TEST_DATABASE_URL")
+    or os.getenv("DATABASE_URL")
+    or "postgresql+asyncpg://test:test@localhost:5433/dpp_test"
+)
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def test_engine():
     """Create test database engine."""
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
 
     async with engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA public CASCADE;"))
+        await conn.execute(text("CREATE SCHEMA public;"))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto";'))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'))
+        await conn.execute(
+            text("""
+CREATE OR REPLACE FUNCTION uuid_generate_v7()
+RETURNS uuid AS $$
+DECLARE
+    unix_ts_ms bytea;
+    uuid_bytes bytea;
+BEGIN
+    unix_ts_ms = substring(int8send(floor(extract(epoch from clock_timestamp()) * 1000)::bigint) from 3);
+    uuid_bytes = unix_ts_ms || gen_random_bytes(10);
+
+    -- Set version 7
+    uuid_bytes = set_byte(uuid_bytes, 6, (get_byte(uuid_bytes, 6) & 15) | 112);
+    -- Set variant (RFC 4122)
+    uuid_bytes = set_byte(uuid_bytes, 8, (get_byte(uuid_bytes, 8) & 63) | 128);
+
+    RETURN encode(uuid_bytes, 'hex')::uuid;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+        """)
+        )
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
-
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
 
     await engine.dispose()
 
@@ -59,14 +82,60 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest_asyncio.fixture
-async def test_client() -> AsyncGenerator[AsyncClient, None]:
+async def test_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async HTTP client for API testing."""
     app = create_application()
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as client:
+    def _mock_payload() -> TokenPayload:
+        return TokenPayload(
+            sub="test-user-123",
+            email="test@example.com",
+            preferred_username="testuser",
+            roles=["publisher"],
+            bpn="BPNL00000001TEST",
+            org="Test Organization",
+            clearance="public",
+            exp=datetime.now(UTC),
+            iat=datetime.now(UTC),
+            raw_claims={},
+        )
+
+    async def override_verify_token(request: Request) -> TokenPayload:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated",
+            )
+        return _mock_payload()
+
+    async def override_optional_verify_token(
+        credentials: HTTPAuthorizationCredentials | None = None,
+    ) -> TokenPayload | None:
+        if credentials is None:
+            return None
+        return _mock_payload()
+
+    session_factory = async_sessionmaker(
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def override_get_db_session():
+        async with session_factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    app.dependency_overrides[verify_token] = override_verify_token
+    app.dependency_overrides[optional_verify_token] = override_optional_verify_token
+    app.dependency_overrides[get_db_session] = override_get_db_session
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
 
 
@@ -94,3 +163,9 @@ def mock_viewer_token() -> dict[str, Any]:
         "realm_access": {"roles": ["viewer"]},
         "clearance": "public",
     }
+
+
+@pytest.fixture
+def mock_auth_headers() -> dict[str, str]:
+    """Mock Authorization header."""
+    return {"Authorization": "Bearer test-token"}

@@ -4,19 +4,20 @@ Provides dependency injection for authenticated endpoints.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Annotated, Any
+from datetime import UTC, datetime
+from typing import Annotated, Any, cast
 
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 security = HTTPBearer(auto_error=True)
+optional_security = HTTPBearer(auto_error=False)
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class TokenPayload:
 
     Provides typed access to standard OIDC claims and custom attributes.
     """
+
     sub: str
     email: str | None
     preferred_username: str | None
@@ -56,7 +58,7 @@ class JWKSClient:
     """
 
     def __init__(self) -> None:
-        self._keys: dict[str, Any] = {}
+        self._keys: dict[str, dict[str, Any]] = {}
         self._last_fetch: datetime | None = None
         self._cache_duration_seconds = 3600  # 1 hour
 
@@ -69,7 +71,7 @@ class JWKSClient:
         settings = get_settings()
 
         # Check if we need to refresh the cache
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         should_refresh = (
             self._last_fetch is None
             or (now - self._last_fetch).total_seconds() > self._cache_duration_seconds
@@ -93,14 +95,19 @@ class JWKSClient:
             async with httpx.AsyncClient() as client:
                 response = await client.get(jwks_url, timeout=10.0)
                 response.raise_for_status()
-                jwks_data = response.json()
+                jwks_data = cast(dict[str, Any], response.json())
 
             self._keys = {}
             for key_data in jwks_data.get("keys", []):
-                if key_data.get("use") == "sig" and "kid" in key_data:
-                    self._keys[key_data["kid"]] = key_data
+                if (
+                    isinstance(key_data, dict)
+                    and key_data.get("use") == "sig"
+                    and "kid" in key_data
+                ):
+                    kid_value = str(key_data["kid"])
+                    self._keys[kid_value] = key_data
 
-            self._last_fetch = datetime.now(timezone.utc)
+            self._last_fetch = datetime.now(UTC)
             logger.info("jwks_refreshed", key_count=len(self._keys))
 
         except httpx.HTTPError as e:
@@ -115,17 +122,13 @@ class JWKSClient:
 _jwks_client = JWKSClient()
 
 
-async def verify_token(
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
-) -> TokenPayload:
+async def _decode_token(token: str) -> TokenPayload:
     """
-    Dependency that verifies JWT tokens and extracts claims.
+    Decode and validate a JWT token.
 
     Validates signature, expiration, and issuer claims against Keycloak configuration.
     """
     settings = get_settings()
-    token = credentials.credentials
-
     try:
         # Decode header to get key ID
         unverified_header = jwt.get_unverified_header(token)
@@ -137,10 +140,8 @@ async def verify_token(
                 detail="Token missing key ID",
             )
 
-        # Get signing key
         signing_key = await _jwks_client.get_signing_key(kid)
 
-        # Verify and decode token
         payload = jwt.decode(
             token,
             signing_key,
@@ -177,8 +178,8 @@ async def verify_token(
             bpn=payload.get("bpn"),
             org=payload.get("org"),
             clearance=payload.get("clearance"),
-            exp=datetime.fromtimestamp(payload["exp"], tz=timezone.utc),
-            iat=datetime.fromtimestamp(payload["iat"], tz=timezone.utc),
+            exp=datetime.fromtimestamp(payload["exp"], tz=UTC),
+            iat=datetime.fromtimestamp(payload["iat"], tz=UTC),
             raw_claims=payload,
         )
 
@@ -190,8 +191,29 @@ async def verify_token(
         )
 
 
+async def verify_token(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+) -> TokenPayload:
+    """
+    Dependency that verifies JWT tokens and extracts claims.
+    """
+    return await _decode_token(credentials.credentials)
+
+
+async def optional_verify_token(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(optional_security)],
+) -> TokenPayload | None:
+    """
+    Optional auth dependency for public endpoints.
+    """
+    if credentials is None:
+        return None
+    return await _decode_token(credentials.credentials)
+
+
 # Type aliases for dependency injection
 CurrentUser = Annotated[TokenPayload, Depends(verify_token)]
+OptionalUser = Annotated[TokenPayload | None, Depends(optional_verify_token)]
 
 
 async def require_publisher(user: CurrentUser) -> TokenPayload:

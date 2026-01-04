@@ -3,7 +3,7 @@ Catena-X Connector Service.
 Orchestrates DTR registration and EDC integration.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -33,9 +33,7 @@ class CatenaXConnectorService:
 
     async def get_connector(self, connector_id: UUID) -> Connector | None:
         """Get a connector by ID."""
-        result = await self._session.execute(
-            select(Connector).where(Connector.id == connector_id)
-        )
+        result = await self._session.execute(select(Connector).where(Connector.id == connector_id))
         return result.scalar_one_or_none()
 
     async def get_connectors(
@@ -117,7 +115,7 @@ class CatenaXConnectorService:
             result = await client.test_connection()
 
             # Update connector status
-            connector.last_tested_at = datetime.now(timezone.utc)
+            connector.last_tested_at = datetime.now(UTC)
             connector.last_test_result = result
 
             if result.get("status") == "connected":

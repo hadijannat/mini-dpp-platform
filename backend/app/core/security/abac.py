@@ -4,7 +4,7 @@ Provides policy enforcement point (PEP) for route and element-level access contr
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
@@ -20,6 +20,7 @@ logger = get_logger(__name__)
 
 class PolicyEffect(str, Enum):
     """Possible effects of an ABAC policy decision."""
+
     ALLOW = "allow"
     DENY = "deny"
     MASK = "mask"
@@ -34,6 +35,7 @@ class PolicyDecision:
 
     Contains the decision effect and any applicable transformations.
     """
+
     effect: PolicyEffect
     policy_id: str | None = None
     reason: str | None = None
@@ -51,6 +53,7 @@ class ABACContext:
 
     Includes subject (user), action, resource, and environment attributes.
     """
+
     subject: dict[str, Any]
     action: str
     resource: dict[str, Any]
@@ -148,16 +151,18 @@ def build_subject_context(user: TokenPayload) -> dict[str, Any]:
 def build_environment_context(request: Request | None = None) -> dict[str, Any]:
     """Build ABAC environment context from request."""
     context: dict[str, Any] = {
-        "time": datetime.now(timezone.utc).isoformat(),
+        "time": datetime.now(UTC).isoformat(),
     }
 
     if request:
-        context.update({
-            "ip_address": request.client.host if request.client else None,
-            "user_agent": request.headers.get("user-agent"),
-            "method": request.method,
-            "path": str(request.url.path),
-        })
+        context.update(
+            {
+                "ip_address": request.client.host if request.client else None,
+                "user_agent": request.headers.get("user-agent"),
+                "method": request.method,
+                "path": str(request.url.path),
+            }
+        )
 
     return context
 

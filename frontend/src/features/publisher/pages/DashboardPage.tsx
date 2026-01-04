@@ -1,17 +1,19 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useAuth } from 'react-oidc-context';
 import { FileText, Plus, ArrowRight } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
-async function fetchDPPs() {
-  const response = await fetch('/api/v1/dpps');
+async function fetchDPPs(token?: string) {
+  const response = await apiFetch('/api/v1/dpps', {}, token);
   if (!response.ok) {
     throw new Error('Failed to fetch DPPs');
   }
   return response.json();
 }
 
-async function fetchTemplates() {
-  const response = await fetch('/api/v1/templates');
+async function fetchTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates', {}, token);
   if (!response.ok) {
     throw new Error('Failed to fetch templates');
   }
@@ -19,14 +21,17 @@ async function fetchTemplates() {
 }
 
 export default function DashboardPage() {
+  const auth = useAuth();
+  const token = auth.user?.access_token;
+
   const { data: dpps } = useQuery({
     queryKey: ['dpps'],
-    queryFn: fetchDPPs,
+    queryFn: () => fetchDPPs(token),
   });
 
   const { data: templates } = useQuery({
     queryKey: ['templates'],
-    queryFn: fetchTemplates,
+    queryFn: () => fetchTemplates(token),
   });
 
   const stats = [

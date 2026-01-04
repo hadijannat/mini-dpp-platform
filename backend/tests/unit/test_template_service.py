@@ -2,10 +2,9 @@
 Unit tests for Template Registry Service.
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from app.modules.templates.service import TemplateRegistryService, TEMPLATE_SEMANTIC_IDS
+from app.modules.templates.service import TEMPLATE_SEMANTIC_IDS, TemplateRegistryService
 
 
 class TestTemplateRegistryService:
@@ -35,15 +34,19 @@ class TestTemplateRegistryService:
         # Mock template with a simple property
         mock_template = MagicMock()
         mock_template.template_json = {
-            "submodels": [{
-                "idShort": "TestSubmodel",
-                "submodelElements": [{
-                    "idShort": "ManufacturerName",
-                    "modelType": {"name": "Property"},
-                    "valueType": "xs:string",
-                    "description": [{"language": "en", "text": "Name of manufacturer"}],
-                }],
-            }],
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "ManufacturerName",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                            "description": [{"language": "en", "text": "Name of manufacturer"}],
+                        }
+                    ],
+                }
+            ],
         }
 
         schema = service.generate_ui_schema(mock_template)
@@ -60,22 +63,29 @@ class TestTemplateRegistryService:
 
         mock_template = MagicMock()
         mock_template.template_json = {
-            "submodels": [{
-                "idShort": "Nameplate",
-                "submodelElements": [{
-                    "idShort": "ContactInfo",
-                    "modelType": {"name": "SubmodelElementCollection"},
-                    "value": [{
-                        "idShort": "Email",
-                        "modelType": {"name": "Property"},
-                        "valueType": "xs:string",
-                    }, {
-                        "idShort": "Phone",
-                        "modelType": {"name": "Property"},
-                        "valueType": "xs:string",
-                    }],
-                }],
-            }],
+            "submodels": [
+                {
+                    "idShort": "Nameplate",
+                    "submodelElements": [
+                        {
+                            "idShort": "ContactInfo",
+                            "modelType": {"name": "SubmodelElementCollection"},
+                            "value": [
+                                {
+                                    "idShort": "Email",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:string",
+                                },
+                                {
+                                    "idShort": "Phone",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:string",
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
         }
 
         schema = service.generate_ui_schema(mock_template)
@@ -92,13 +102,17 @@ class TestTemplateRegistryService:
 
         mock_template = MagicMock()
         mock_template.template_json = {
-            "submodels": [{
-                "idShort": "TestSubmodel",
-                "submodelElements": [{
-                    "idShort": "ProductDescription",
-                    "modelType": {"name": "MultiLanguageProperty"},
-                }],
-            }],
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "ProductDescription",
+                            "modelType": {"name": "MultiLanguageProperty"},
+                        }
+                    ],
+                }
+            ],
         }
 
         schema = service.generate_ui_schema(mock_template)
@@ -113,13 +127,17 @@ class TestTemplateRegistryService:
 
         mock_template = MagicMock()
         mock_template.template_json = {
-            "submodels": [{
-                "idShort": "TestSubmodel",
-                "submodelElements": [{
-                    "idShort": "TemperatureRange",
-                    "modelType": {"name": "Range"},
-                }],
-            }],
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "TemperatureRange",
+                            "modelType": {"name": "Range"},
+                        }
+                    ],
+                }
+            ],
         }
 
         schema = service.generate_ui_schema(mock_template)
@@ -136,13 +154,17 @@ class TestTemplateRegistryService:
 
         mock_template = MagicMock()
         mock_template.template_json = {
-            "submodels": [{
-                "idShort": "TestSubmodel",
-                "submodelElements": [{
-                    "idShort": "ProductImage",
-                    "modelType": {"name": "File"},
-                }],
-            }],
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "ProductImage",
+                            "modelType": {"name": "File"},
+                        }
+                    ],
+                }
+            ],
         }
 
         schema = service.generate_ui_schema(mock_template)

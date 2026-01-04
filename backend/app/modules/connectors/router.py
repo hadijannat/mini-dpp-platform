@@ -18,12 +18,14 @@ router = APIRouter()
 
 class ConnectorCreateRequest(BaseModel):
     """Request model for creating a connector."""
+
     name: str
     config: dict[str, Any]
 
 
 class ConnectorResponse(BaseModel):
     """Response model for connector data."""
+
     id: UUID
     name: str
     connector_type: str
@@ -38,12 +40,14 @@ class ConnectorResponse(BaseModel):
 
 class ConnectorListResponse(BaseModel):
     """Response model for list of connectors."""
+
     connectors: list[ConnectorResponse]
     count: int
 
 
 class TestResultResponse(BaseModel):
     """Response model for connector test result."""
+
     status: str
     error_message: str | None = None
     dtr_url: str | None = None
@@ -52,6 +56,7 @@ class TestResultResponse(BaseModel):
 
 class PublishResultResponse(BaseModel):
     """Response model for DPP publish result."""
+
     status: str
     action: str | None = None
     shell_id: str | None = None
@@ -61,7 +66,7 @@ class PublishResultResponse(BaseModel):
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
     connector_type: ConnectorType | None = Query(None, description="Filter by connector type"),
 ) -> ConnectorListResponse:
     """
@@ -131,7 +136,7 @@ async def create_connector(
 async def get_connector(
     connector_id: UUID,
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> ConnectorResponse:
     """
     Get a specific connector by ID.
@@ -160,7 +165,7 @@ async def get_connector(
 async def test_connector(
     connector_id: UUID,
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> TestResultResponse:
     """
     Test connectivity for a connector.
@@ -184,7 +189,7 @@ async def publish_dpp_to_connector(
     connector_id: UUID,
     dpp_id: UUID,
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> PublishResultResponse:
     """
     Publish a DPP to a connector's Digital Twin Registry.

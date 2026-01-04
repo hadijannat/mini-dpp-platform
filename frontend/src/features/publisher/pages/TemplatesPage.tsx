@@ -1,30 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from 'react-oidc-context';
 import { RefreshCw } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
-async function fetchTemplates() {
-  const response = await fetch('/api/v1/templates');
+async function fetchTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates', {}, token);
   if (!response.ok) throw new Error('Failed to fetch templates');
   return response.json();
 }
 
-async function refreshTemplates() {
-  const response = await fetch('/api/v1/templates/refresh', {
+async function refreshTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates/refresh', {
     method: 'POST',
-  });
+  }, token);
   if (!response.ok) throw new Error('Failed to refresh templates');
   return response.json();
 }
 
 export default function TemplatesPage() {
   const queryClient = useQueryClient();
+  const auth = useAuth();
+  const token = auth.user?.access_token;
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ['templates'],
-    queryFn: fetchTemplates,
+    queryFn: () => fetchTemplates(token),
   });
 
   const refreshMutation = useMutation({
-    mutationFn: refreshTemplates,
+    mutationFn: () => refreshTemplates(token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['templates'] });
     },

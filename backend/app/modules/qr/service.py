@@ -5,9 +5,9 @@ QR Code generation service for DPP identification links.
 import io
 from typing import Literal
 
-import qrcode
-from qrcode.image.styledpil import StyledPilImage
-from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+import qrcode  # type: ignore[import-untyped]
+from qrcode.image.styledpil import StyledPilImage  # type: ignore[import-untyped]
+from qrcode.image.styles.moduledrawers import RoundedModuleDrawer  # type: ignore[import-untyped]
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -67,7 +67,7 @@ class QRCodeService:
         self,
         qr: qrcode.QRCode,
         size: int,
-        with_logo: bool,
+        _with_logo: bool,
     ) -> bytes:
         """Generate PNG QR code."""
         # Create styled image with rounded modules
@@ -88,9 +88,9 @@ class QRCodeService:
 
         return buffer.read()
 
-    def _generate_svg(self, qr: qrcode.QRCode, size: int) -> bytes:
+    def _generate_svg(self, qr: qrcode.QRCode, _size: int) -> bytes:
         """Generate SVG QR code."""
-        import qrcode.image.svg
+        import qrcode.image.svg  # type: ignore[import-untyped]
 
         factory = qrcode.image.svg.SvgImage
         img = qr.make_image(image_factory=factory)
@@ -112,7 +112,11 @@ class QRCodeService:
         Returns:
             Complete URL for DPP viewer
         """
-        base_url = self._settings.cors_origins[0] if self._settings.cors_origins else "http://localhost:5173"
+        base_url = (
+            self._settings.cors_origins[0]
+            if self._settings.cors_origins
+            else "http://localhost:5173"
+        )
 
         if short_link:
             # Generate short slug (first 8 chars of ID)

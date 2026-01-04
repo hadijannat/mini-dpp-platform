@@ -18,6 +18,7 @@ router = APIRouter()
 
 class PolicyCreateRequest(BaseModel):
     """Request model for creating a policy."""
+
     dpp_id: UUID | None = None
     policy_type: PolicyType
     target: str
@@ -29,6 +30,7 @@ class PolicyCreateRequest(BaseModel):
 
 class PolicyResponse(BaseModel):
     """Response model for policy data."""
+
     id: UUID
     dpp_id: UUID | None
     policy_type: str
@@ -46,6 +48,7 @@ class PolicyResponse(BaseModel):
 
 class PolicyListResponse(BaseModel):
     """Response model for list of policies."""
+
     policies: list[PolicyResponse]
     count: int
 
@@ -53,7 +56,7 @@ class PolicyListResponse(BaseModel):
 @router.get("", response_model=PolicyListResponse)
 async def list_policies(
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
     dpp_id: UUID | None = Query(None, description="Filter by DPP ID"),
     policy_type: PolicyType | None = Query(None, description="Filter by policy type"),
 ) -> PolicyListResponse:
@@ -97,7 +100,7 @@ async def list_policies(
 async def create_policy(
     request: PolicyCreateRequest,
     db: DbSession,
-    user: Admin,
+    _user: Admin,
 ) -> PolicyResponse:
     """
     Create a new policy.
@@ -136,14 +139,12 @@ async def create_policy(
 async def get_policy(
     policy_id: UUID,
     db: DbSession,
-    user: Publisher,
+    _user: Publisher,
 ) -> PolicyResponse:
     """
     Get a specific policy by ID.
     """
-    result = await db.execute(
-        select(Policy).where(Policy.id == policy_id)
-    )
+    result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = result.scalar_one_or_none()
 
     if not policy:
@@ -170,16 +171,14 @@ async def get_policy(
 async def delete_policy(
     policy_id: UUID,
     db: DbSession,
-    user: Admin,
+    _user: Admin,
 ) -> None:
     """
     Delete a policy.
 
     Requires admin role.
     """
-    result = await db.execute(
-        select(Policy).where(Policy.id == policy_id)
-    )
+    result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = result.scalar_one_or_none()
 
     if not policy:

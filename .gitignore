@@ -47,5 +47,8 @@ secrets/
 .DS_Store
 Thumbs.db
 
+# Docs
+AGENTS.md
+
 # Docker volumes (local dev)
 .docker-data/

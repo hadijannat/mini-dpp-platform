@@ -1,34 +1,54 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Send, Archive, Download, QrCode } from 'lucide-react';
+import { useAuth } from 'react-oidc-context';
+import { ArrowLeft, Send, Download, QrCode } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
-async function fetchDPP(dppId: string) {
-  const response = await fetch(`/api/v1/dpps/${dppId}`);
+async function fetchDPP(dppId: string, token?: string) {
+  const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
   if (!response.ok) throw new Error('Failed to fetch DPP');
   return response.json();
 }
 
-async function publishDPP(dppId: string) {
-  const response = await fetch(`/api/v1/dpps/${dppId}/publish`, {
+async function publishDPP(dppId: string, token?: string) {
+  const response = await apiFetch(`/api/v1/dpps/${dppId}/publish`, {
     method: 'POST',
-  });
+  }, token);
   if (!response.ok) throw new Error('Failed to publish DPP');
   return response.json();
+}
+
+async function downloadExport(dppId: string, format: 'json' | 'aasx', token?: string) {
+  const response = await apiFetch(`/api/v1/export/${dppId}?format=${format}`, {}, token);
+  if (!response.ok) {
+    throw new Error(`Failed to export ${format.toUpperCase()}`);
+  }
+  const blob = await response.blob();
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `dpp-${dppId}.${format === 'json' ? 'json' : 'aasx'}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 export default function DPPEditorPage() {
   const { dppId } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const auth = useAuth();
+  const token = auth.user?.access_token;
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', dppId],
-    queryFn: () => fetchDPP(dppId!),
+    queryFn: () => fetchDPP(dppId!, token),
     enabled: !!dppId,
   });
 
   const publishMutation = useMutation({
-    mutationFn: () => publishDPP(dppId!),
+    mutationFn: () => publishDPP(dppId!, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
     },
@@ -49,6 +69,15 @@ export default function DPPEditorPage() {
       </div>
     );
   }
+
+  const handleExport = async (format: 'json' | 'aasx') => {
+    try {
+      await downloadExport(dpp.id, format, token);
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error(error);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -80,20 +109,20 @@ export default function DPPEditorPage() {
               QR Code
             </a>
           )}
-          <a
-            href={`/api/v1/export/${dpp.id}?format=json`}
+          <button
+            onClick={() => { void handleExport('json'); }}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
             <Download className="h-4 w-4 mr-2" />
             Export JSON
-          </a>
-          <a
-            href={`/api/v1/export/${dpp.id}?format=aasx`}
+          </button>
+          <button
+            onClick={() => { void handleExport('aasx'); }}
             className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
           >
             <Download className="h-4 w-4 mr-2" />
             Export AASX
-          </a>
+          </button>
           {dpp.status === 'draft' && (
             <button
               onClick={() => publishMutation.mutate()}

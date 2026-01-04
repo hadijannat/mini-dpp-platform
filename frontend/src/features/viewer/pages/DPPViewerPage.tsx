@@ -1,8 +1,10 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from 'react-oidc-context';
+import { apiFetch } from '@/lib/api';
 
-async function fetchDPP(dppId: string) {
-  const response = await fetch(`/api/v1/dpps/${dppId}`);
+async function fetchDPP(dppId: string, token?: string) {
+  const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
   if (!response.ok) {
     throw new Error('Failed to fetch DPP');
   }
@@ -12,10 +14,12 @@ async function fetchDPP(dppId: string) {
 export default function DPPViewerPage() {
   const { dppId, slug } = useParams();
   const id = dppId || slug;
+  const auth = useAuth();
+  const token = auth.user?.access_token;
 
   const { data: dpp, isLoading, error } = useQuery({
     queryKey: ['dpp', id],
-    queryFn: () => fetchDPP(id!),
+    queryFn: () => fetchDPP(id!, token),
     enabled: !!id,
   });
 

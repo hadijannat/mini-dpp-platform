@@ -3,8 +3,8 @@ FastAPI application entry point.
 Configures middleware, routers, and lifecycle events.
 """
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,13 +12,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
-from app.db.session import init_db, close_db
-from app.modules.templates.router import router as templates_router
-from app.modules.dpps.router import router as dpps_router
-from app.modules.policies.router import router as policies_router
+from app.db.session import close_db, init_db
 from app.modules.connectors.router import router as connectors_router
+from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
+from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
+from app.modules.templates.router import router as templates_router
 
 # Configure logging before anything else
 configure_logging()
@@ -26,7 +26,7 @@ logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan manager.
 

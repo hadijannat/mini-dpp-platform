@@ -6,8 +6,8 @@ Handles fetching, parsing, caching, and versioning of DPP4.0 templates.
 import io
 import json
 import zipfile
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
+from typing import Any, cast
 
 import httpx
 from sqlalchemy import select
@@ -55,9 +55,7 @@ class TemplateRegistryService:
 
         Returns templates ordered by template_key for consistent display.
         """
-        result = await self._session.execute(
-            select(Template).order_by(Template.template_key)
-        )
+        result = await self._session.execute(select(Template).order_by(Template.template_key))
         return list(result.scalars().all())
 
     async def get_template(
@@ -105,9 +103,22 @@ class TemplateRegistryService:
             source_url=source_url,
         )
 
-        # For now, create a default template structure
-        # In production, this would fetch from the actual IDTA repository
-        aas_env_json = self._create_default_template(template_key)
+        aas_env_json: dict[str, Any]
+        template_aasx: bytes | None = None
+
+        try:
+            client = await self._get_http_client()
+            response = await client.get(source_url)
+            response.raise_for_status()
+            template_aasx = response.content
+            aas_env_json = self._extract_aas_environment(template_aasx)
+        except Exception as e:
+            logger.warning(
+                "template_fetch_failed",
+                template_key=template_key,
+                error=str(e),
+            )
+            aas_env_json = self._create_default_template(template_key)
 
         # Get semantic ID
         semantic_id = TEMPLATE_SEMANTIC_IDS.get(
@@ -120,7 +131,9 @@ class TemplateRegistryService:
 
         if existing:
             existing.template_json = aas_env_json
-            existing.fetched_at = datetime.now(timezone.utc)
+            if template_aasx is not None:
+                existing.template_aasx = template_aasx
+            existing.fetched_at = datetime.now(UTC)
             template = existing
         else:
             template = Template(
@@ -128,8 +141,9 @@ class TemplateRegistryService:
                 idta_version=version,
                 semantic_id=semantic_id,
                 source_url=source_url,
+                template_aasx=template_aasx,
                 template_json=aas_env_json,
-                fetched_at=datetime.now(timezone.utc),
+                fetched_at=datetime.now(UTC),
             )
             self._session.add(template)
 
@@ -185,6 +199,89 @@ class TemplateRegistryService:
         # Construct URL - adjust pattern based on actual IDTA repo structure
         return f"{base_url}/{folder_name}/V{version}/IDTA-{template_key}-{version}.aasx"
 
+    def _extract_aas_environment(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """
+        Extract and normalize AAS Environment from an AASX package.
+        """
+        aas_env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [],
+        }
+
+        with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".json") and "aas" in name.lower():
+                    with zf.open(name) as f:
+                        content = json.load(f)
+                        if "assetAdministrationShells" in content:
+                            aas_env["assetAdministrationShells"].extend(
+                                content["assetAdministrationShells"]
+                            )
+                        if "submodels" in content:
+                            aas_env["submodels"].extend(content["submodels"])
+                        if "conceptDescriptions" in content:
+                            aas_env["conceptDescriptions"].extend(content["conceptDescriptions"])
+
+        if not aas_env["submodels"]:
+            aas_env = self._extract_from_xml(aasx_bytes)
+
+        return self._normalize_aas_environment(aas_env)
+
+    def _extract_from_xml(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """
+        Extract AAS Environment from XML inside AASX.
+        """
+        import xmltodict  # type: ignore[import-untyped]
+
+        aas_env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [],
+        }
+
+        with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as zf:
+            for name in zf.namelist():
+                if name.endswith(".xml") and (
+                    "aas" in name.lower() or "environment" in name.lower()
+                ):
+                    with zf.open(name) as f:
+                        xml_content = f.read()
+                        parsed = xmltodict.parse(xml_content)
+                        env_data = parsed.get("aas:aasenv", parsed.get("environment", {}))
+
+                        shells = env_data.get("aas:assetAdministrationShells")
+                        if shells:
+                            if isinstance(shells, dict):
+                                shells = [shells]
+                            aas_env["assetAdministrationShells"].extend(shells)
+
+                        submodels = env_data.get("aas:submodels")
+                        if submodels:
+                            if isinstance(submodels, dict):
+                                submodels = [submodels]
+                            aas_env["submodels"].extend(submodels)
+
+        return aas_env
+
+    def _normalize_aas_environment(self, aas_env: dict[str, Any]) -> dict[str, Any]:
+        """
+        Normalize AAS Environment to canonical JSON format.
+        """
+
+        def sort_dict(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {k: sort_dict(v) for k, v in sorted(value.items())}
+            if isinstance(value, list):
+                return [sort_dict(item) for item in value]
+            return value
+
+        normalized = cast(dict[str, Any], sort_dict(aas_env))
+        normalized.setdefault("assetAdministrationShells", [])
+        normalized.setdefault("submodels", [])
+        normalized.setdefault("conceptDescriptions", [])
+        return normalized
+
     def _create_default_template(self, template_key: str) -> dict[str, Any]:
         """Create a default template structure for a given template key."""
         semantic_id = TEMPLATE_SEMANTIC_IDS.get(
@@ -197,22 +294,24 @@ class TemplateRegistryService:
 
         return {
             "assetAdministrationShells": [],
-            "submodels": [{
-                "id": f"urn:example:submodel:{template_key}",
-                "idShort": template_key.replace("-", "_").title().replace("_", ""),
-                "semanticId": {
-                    "type": "ExternalReference",
-                    "keys": [{"type": "GlobalReference", "value": semantic_id}]
-                },
-                "submodelElements": elements,
-            }],
+            "submodels": [
+                {
+                    "id": f"urn:example:submodel:{template_key}",
+                    "idShort": template_key.replace("-", "_").title().replace("_", ""),
+                    "semanticId": {
+                        "type": "ExternalReference",
+                        "keys": [{"type": "GlobalReference", "value": semantic_id}],
+                    },
+                    "submodelElements": elements,
+                }
+            ],
             "conceptDescriptions": [],
         }
 
     def _get_default_elements(self, template_key: str) -> list[dict[str, Any]]:
         """Get default submodel elements for a template type."""
-        if template_key == "digital-nameplate":
-            return [
+        default_elements: dict[str, list[dict[str, Any]]] = {
+            "digital-nameplate": [
                 {
                     "idShort": "ManufacturerName",
                     "modelType": {"name": "Property"},
@@ -252,9 +351,8 @@ class TemplateRegistryService:
                         },
                     ],
                 },
-            ]
-        elif template_key == "carbon-footprint":
-            return [
+            ],
+            "carbon-footprint": [
                 {
                     "idShort": "PCFCalculationMethod",
                     "modelType": {"name": "Property"},
@@ -273,9 +371,8 @@ class TemplateRegistryService:
                     "valueType": "xs:string",
                     "description": [{"language": "en", "text": "Reference value for calculation"}],
                 },
-            ]
-        elif template_key == "technical-data":
-            return [
+            ],
+            "technical-data": [
                 {
                     "idShort": "GeneralInformation",
                     "modelType": {"name": "SubmodelElementCollection"},
@@ -305,28 +402,44 @@ class TemplateRegistryService:
                             "idShort": "Dimensions",
                             "modelType": {"name": "SubmodelElementCollection"},
                             "value": [
-                                {"idShort": "Length", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
-                                {"idShort": "Width", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
-                                {"idShort": "Height", "modelType": {"name": "Property"}, "valueType": "xs:decimal"},
+                                {
+                                    "idShort": "Length",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:decimal",
+                                },
+                                {
+                                    "idShort": "Width",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:decimal",
+                                },
+                                {
+                                    "idShort": "Height",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:decimal",
+                                },
                             ],
                         },
                     ],
                 },
-            ]
-        else:
-            # Generic template structure
-            return [
-                {
-                    "idShort": "Description",
-                    "modelType": {"name": "MultiLanguageProperty"},
-                    "description": [{"language": "en", "text": "Description"}],
-                },
-                {
-                    "idShort": "Version",
-                    "modelType": {"name": "Property"},
-                    "valueType": "xs:string",
-                },
-            ]
+            ],
+        }
+
+        if template_key in default_elements:
+            return default_elements[template_key]
+
+        # Generic template structure
+        return [
+            {
+                "idShort": "Description",
+                "modelType": {"name": "MultiLanguageProperty"},
+                "description": [{"language": "en", "text": "Description"}],
+            },
+            {
+                "idShort": "Version",
+                "modelType": {"name": "Property"},
+                "valueType": "xs:string",
+            },
+        ]
 
     def generate_ui_schema(self, template: Template) -> dict[str, Any]:
         """
@@ -571,9 +684,9 @@ class TemplateRegistryService:
             # Find English description first
             for desc in descriptions:
                 if desc.get("language", "").startswith("en"):
-                    return desc.get("text", "")
+                    return str(desc.get("text", ""))
             # Fallback to first available
             if descriptions:
-                return descriptions[0].get("text", "")
+                return str(descriptions[0].get("text", ""))
 
         return ""

@@ -37,8 +37,10 @@ class Base(DeclarativeBase):
 # Enums
 # =============================================================================
 
+
 class UserRole(str, PyEnum):
     """User roles for RBAC baseline."""
+
     VIEWER = "viewer"
     PUBLISHER = "publisher"
     ADMIN = "admin"
@@ -46,6 +48,7 @@ class UserRole(str, PyEnum):
 
 class DPPStatus(str, PyEnum):
     """DPP lifecycle status."""
+
     DRAFT = "draft"
     PUBLISHED = "published"
     ARCHIVED = "archived"
@@ -53,12 +56,14 @@ class DPPStatus(str, PyEnum):
 
 class RevisionState(str, PyEnum):
     """State of a DPP revision."""
+
     DRAFT = "draft"
     PUBLISHED = "published"
 
 
 class PolicyType(str, PyEnum):
     """Type of access control policy."""
+
     ROUTE = "route"
     SUBMODEL = "submodel"
     ELEMENT = "element"
@@ -66,6 +71,7 @@ class PolicyType(str, PyEnum):
 
 class PolicyEffect(str, PyEnum):
     """Effect of a policy rule."""
+
     ALLOW = "allow"
     DENY = "deny"
     MASK = "mask"
@@ -75,6 +81,7 @@ class PolicyEffect(str, PyEnum):
 
 class ConnectorType(str, PyEnum):
     """Type of external connector."""
+
     CATENA_X = "catena_x"
     REST = "rest"
     FILE = "file"
@@ -82,6 +89,7 @@ class ConnectorType(str, PyEnum):
 
 class ConnectorStatus(str, PyEnum):
     """Status of a connector."""
+
     ACTIVE = "active"
     DISABLED = "disabled"
     ERROR = "error"
@@ -91,12 +99,14 @@ class ConnectorStatus(str, PyEnum):
 # User Model
 # =============================================================================
 
+
 class User(Base):
     """
     User entity representing authenticated principals.
 
     Stores OIDC subject identifiers and ABAC attributes.
     """
+
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(
@@ -148,6 +158,7 @@ class User(Base):
 # DPP and Revision Models
 # =============================================================================
 
+
 class DPP(Base):
     """
     Digital Product Passport entity.
@@ -155,6 +166,7 @@ class DPP(Base):
     Represents a single product passport with its lifecycle status
     and associated asset identifiers.
     """
+
     __tablename__ = "dpps"
 
     id: Mapped[UUID] = mapped_column(
@@ -181,7 +193,11 @@ class DPP(Base):
         comment="URL encoded in QR code for product identification",
     )
     current_published_revision_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("dpp_revisions.id", use_alter=True),
+        ForeignKey(
+            "dpp_revisions.id",
+            name="fk_dpps_current_published_revision",
+            use_alter=True,
+        ),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -224,6 +240,7 @@ class DPPRevision(Base):
     Every edit creates a new revision, providing complete audit history
     and enabling rollback capabilities.
     """
+
     __tablename__ = "dpp_revisions"
 
     id: Mapped[UUID] = mapped_column(
@@ -288,6 +305,7 @@ class EncryptedValue(Base):
     Stores encrypted payloads separately from the AAS environment,
     allowing authorized decryption while maintaining security.
     """
+
     __tablename__ = "encrypted_values"
 
     id: Mapped[UUID] = mapped_column(
@@ -339,12 +357,14 @@ class EncryptedValue(Base):
 # Template Model
 # =============================================================================
 
+
 class Template(Base):
     """
     IDTA Submodel Template storage.
 
     Caches fetched templates with version pinning for stability.
     """
+
     __tablename__ = "templates"
 
     id: Mapped[UUID] = mapped_column(
@@ -391,6 +411,7 @@ class Template(Base):
 # Policy Model
 # =============================================================================
 
+
 class Policy(Base):
     """
     ABAC access control policy.
@@ -398,6 +419,7 @@ class Policy(Base):
     Policies can be global (dpp_id is NULL) or DPP-specific.
     Element-level policies use JSON Pointer paths for targeting.
     """
+
     __tablename__ = "policies"
 
     id: Mapped[UUID] = mapped_column(
@@ -456,12 +478,14 @@ class Policy(Base):
 # Connector Model
 # =============================================================================
 
+
 class Connector(Base):
     """
     External connector configuration.
 
     Stores connection details for Catena-X DTR/EDC and other integrations.
     """
+
     __tablename__ = "connectors"
 
     id: Mapped[UUID] = mapped_column(
@@ -505,12 +529,14 @@ class Connector(Base):
 # Audit Event Model
 # =============================================================================
 
+
 class AuditEvent(Base):
     """
     Audit log for security and compliance tracking.
 
     Records all significant actions for accountability and forensics.
     """
+
     __tablename__ = "audit_events"
 
     id: Mapped[UUID] = mapped_column(
@@ -536,7 +562,7 @@ class AuditEvent(Base):
         comment="Policy decision: allow, deny, mask, etc.",
     )
     policy_id: Mapped[UUID | None] = mapped_column(ForeignKey("policies.id"))
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(

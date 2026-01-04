@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
-from app.core.security import CurrentUser
+from app.core.security import OptionalUser
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -21,7 +21,7 @@ router = APIRouter()
 async def export_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: CurrentUser,
+    user: OptionalUser,
     format: Literal["json", "aasx"] = Query("json", description="Export format"),
 ) -> Response:
     """
@@ -43,15 +43,20 @@ async def export_dpp(
         )
 
     # Check access
-    if dpp.status != DPPStatus.PUBLISHED and dpp.owner_subject != user.sub:
-        if not user.is_publisher:
+    if dpp.status != DPPStatus.PUBLISHED:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        if dpp.owner_subject != user.sub and not user.is_publisher:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
             )
 
     # AASX export requires publisher role
-    if format == "aasx" and not user.is_publisher:
+    if format == "aasx" and (user is None or not user.is_publisher):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="AASX export requires publisher role",

@@ -1,27 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAuth } from 'react-oidc-context';
 import { Plus, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
-async function fetchConnectors() {
-  const response = await fetch('/api/v1/connectors');
+async function fetchConnectors(token?: string) {
+  const response = await apiFetch('/api/v1/connectors', {}, token);
   if (!response.ok) throw new Error('Failed to fetch connectors');
   return response.json();
 }
 
-async function createConnector(data: any) {
-  const response = await fetch('/api/v1/connectors', {
+async function createConnector(data: any, token?: string) {
+  const response = await apiFetch('/api/v1/connectors', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
-  });
+  }, token);
   if (!response.ok) throw new Error('Failed to create connector');
   return response.json();
 }
 
-async function testConnector(connectorId: string) {
-  const response = await fetch(`/api/v1/connectors/${connectorId}/test`, {
+async function testConnector(connectorId: string, token?: string) {
+  const response = await apiFetch(`/api/v1/connectors/${connectorId}/test`, {
     method: 'POST',
-  });
+  }, token);
   if (!response.ok) throw new Error('Failed to test connector');
   return response.json();
 }
@@ -29,14 +31,16 @@ async function testConnector(connectorId: string) {
 export default function ConnectorsPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const auth = useAuth();
+  const token = auth.user?.access_token;
 
   const { data: connectors, isLoading } = useQuery({
     queryKey: ['connectors'],
-    queryFn: fetchConnectors,
+    queryFn: () => fetchConnectors(token),
   });
 
   const createMutation = useMutation({
-    mutationFn: createConnector,
+    mutationFn: (data: any) => createConnector(data, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });
       setShowCreateModal(false);
@@ -44,7 +48,7 @@ export default function ConnectorsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: testConnector,
+    mutationFn: (connectorId: string) => testConnector(connectorId, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });
     },

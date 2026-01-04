@@ -5,7 +5,7 @@ Handles shell descriptor registration and management.
 
 import base64
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -18,6 +18,7 @@ logger = get_logger(__name__)
 @dataclass
 class DTRConfig:
     """Configuration for DTR connection."""
+
     base_url: str
     auth_type: str  # "oidc" or "token"
     client_id: str | None = None
@@ -29,6 +30,7 @@ class DTRConfig:
 @dataclass
 class ShellDescriptor:
     """AAS Shell Descriptor for DTR registration."""
+
     id: str
     id_short: str
     global_asset_id: str
@@ -96,7 +98,8 @@ class DTRClient:
                 },
             )
             response.raise_for_status()
-            return response.json()["access_token"]
+            payload = cast(dict[str, Any], response.json())
+            return str(payload.get("access_token", ""))
 
     async def register_shell(self, descriptor: ShellDescriptor) -> dict[str, Any]:
         """
@@ -120,7 +123,7 @@ class DTRClient:
         )
         response.raise_for_status()
 
-        result = response.json()
+        result = cast(dict[str, Any], response.json())
 
         logger.info(
             "shell_descriptor_registered",
@@ -149,7 +152,7 @@ class DTRClient:
         )
         response.raise_for_status()
 
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     async def get_shell(self, shell_id: str) -> dict[str, Any] | None:
         """
@@ -162,7 +165,7 @@ class DTRClient:
         try:
             response = await client.get(f"/shell-descriptors/{encoded_id}")
             response.raise_for_status()
-            return response.json()
+            return cast(dict[str, Any], response.json())
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None

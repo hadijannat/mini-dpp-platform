@@ -47,7 +47,7 @@ async def generate_qr_code(
         )
 
     # Build URL and generate QR
-    dpp_url = qr_service.build_dpp_url(str(dpp_id))
+    dpp_url = qr_service.build_dpp_url(str(dpp_id), short_link=False)
     qr_bytes = qr_service.generate_qr_code(
         dpp_url=dpp_url,
         format=format,

@@ -5,7 +5,7 @@ Provides JSON-formatted logs for production and human-readable logs for developm
 
 import logging
 import sys
-from typing import Any
+from typing import cast
 
 import structlog
 from structlog.types import Processor
@@ -35,14 +35,12 @@ def configure_logging() -> None:
 
     if settings.environment == "development":
         # Development: Human-readable colored output
-        processors = shared_processors + [
-            structlog.dev.ConsoleRenderer(colors=True)
-        ]
+        processors = shared_processors + [structlog.dev.ConsoleRenderer(colors=True)]
     else:
         # Production: JSON output for log aggregation
         processors = shared_processors + [
             structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer()
+            structlog.processors.JSONRenderer(),
         ]
 
     structlog.configure(
@@ -63,4 +61,4 @@ def configure_logging() -> None:
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Get a structured logger instance with the given name."""
-    return structlog.get_logger(name)
+    return cast(structlog.stdlib.BoundLogger, structlog.get_logger(name))

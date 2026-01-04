@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # Database Configuration
     # ==========================================================================
     database_url: PostgresDsn = Field(
-        default="postgresql+asyncpg://dpp_user:password@localhost:5432/dpp_platform"
+        default=PostgresDsn("postgresql+asyncpg://dpp_user:password@localhost:5432/dpp_platform")
     )
     database_pool_size: int = Field(default=10, ge=1, le=100)
     database_max_overflow: int = Field(default=20, ge=0, le=100)
@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Redis Configuration
     # ==========================================================================
-    redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
+    redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
     redis_cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
 
     # ==========================================================================
@@ -61,13 +61,13 @@ class Settings(BaseSettings):
     keycloak_client_id: str = Field(default="dpp-backend")
     keycloak_client_secret: str = Field(default="")
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def keycloak_issuer_url(self) -> str:
         """Construct the OIDC issuer URL from Keycloak configuration."""
         return f"{self.keycloak_server_url}/realms/{self.keycloak_realm}"
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def keycloak_jwks_url(self) -> str:
         """Construct the JWKS endpoint URL for token verification."""
@@ -94,14 +94,11 @@ class Settings(BaseSettings):
     # Security Configuration
     # ==========================================================================
     encryption_master_key: str = Field(
-        default="",
-        description="Base64-encoded 256-bit master key for envelope encryption"
+        default="", description="Base64-encoded 256-bit master key for envelope encryption"
     )
 
     # CORS settings
-    cors_origins: list[str] = Field(
-        default=["http://localhost:5173", "http://localhost:3000"]
-    )
+    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
 
     # ==========================================================================
     # Template Registry Configuration
@@ -110,8 +107,7 @@ class Settings(BaseSettings):
         default="https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/published"
     )
     template_cache_ttl: int = Field(
-        default=86400,
-        description="Template cache TTL in seconds (default: 24 hours)"
+        default=86400, description="Template cache TTL in seconds (default: 24 hours)"
     )
 
     # DPP4.0 Template versions (pinned for stability)

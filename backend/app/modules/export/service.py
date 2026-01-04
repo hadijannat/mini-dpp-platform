@@ -6,7 +6,7 @@ Supports AASX, JSON, and PDF export with integrity verification.
 import io
 import json
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 from xml.etree import ElementTree as ET
@@ -41,7 +41,7 @@ class ExportService:
         export_data = {
             "aasEnvironment": revision.aas_env_json,
             "metadata": {
-                "exportedAt": datetime.now(timezone.utc).isoformat(),
+                "exportedAt": datetime.now(UTC).isoformat(),
                 "revisionNo": revision.revision_no,
                 "digestSha256": revision.digest_sha256,
                 "signedJws": revision.signed_jws,
@@ -90,7 +90,7 @@ class ExportService:
             # 5. Create aasx-origin file
             origin_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <origin xmlns="http://www.admin-shell.io/aasx/origin">
-    <created>{datetime.now(timezone.utc).isoformat()}</created>
+    <created>{datetime.now(UTC).isoformat()}</created>
     <creator>Mini DPP Platform v{self._settings.version}</creator>
     <dppId>{dpp_id}</dppId>
     <revisionNo>{revision.revision_no}</revisionNo>
@@ -136,7 +136,7 @@ class ExportService:
         dpp_id: UUID,
     ) -> str:
         """Create Dublin Core metadata file."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <coreProperties xmlns="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"

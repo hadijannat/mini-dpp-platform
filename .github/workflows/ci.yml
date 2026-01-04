@@ -159,8 +159,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install aas-core3.0-testgen
-        run: pip install aas-core3.0-testgen
+      - name: Install aas-core3.0-testgen (optional)
+        run: |
+          pip install aas-core3.0-testgen || echo "aas-core3.0-testgen not available on PyPI; skipping."
 
       - name: Validate AAS schemas
         run: |

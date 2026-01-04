@@ -5,10 +5,10 @@ API Router for DPP (Digital Product Passport) endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.core.security import CurrentUser, Publisher
+from app.core.security import OptionalUser, Publisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -18,6 +18,7 @@ router = APIRouter()
 
 class AssetIdsInput(BaseModel):
     """Input model for asset identifiers."""
+
     manufacturerPartId: str
     serialNumber: str | None = None
     batchId: str | None = None
@@ -26,6 +27,7 @@ class AssetIdsInput(BaseModel):
 
 class CreateDPPRequest(BaseModel):
     """Request model for creating a new DPP."""
+
     asset_ids: AssetIdsInput
     selected_templates: list[str] = Field(
         default=["digital-nameplate"],
@@ -36,12 +38,14 @@ class CreateDPPRequest(BaseModel):
 
 class UpdateSubmodelRequest(BaseModel):
     """Request model for updating a submodel."""
+
     template_key: str
     data: dict[str, Any]
 
 
 class DPPResponse(BaseModel):
     """Response model for DPP data."""
+
     id: UUID
     status: str
     owner_subject: str
@@ -56,6 +60,7 @@ class DPPResponse(BaseModel):
 
 class DPPDetailResponse(DPPResponse):
     """Detailed response model including revision data."""
+
     current_revision_no: int | None
     aas_environment: dict[str, Any] | None
     digest_sha256: str | None
@@ -63,6 +68,7 @@ class DPPDetailResponse(DPPResponse):
 
 class DPPListResponse(BaseModel):
     """Response model for list of DPPs."""
+
     dpps: list[DPPResponse]
     count: int
     limit: int
@@ -71,6 +77,7 @@ class DPPListResponse(BaseModel):
 
 class RevisionResponse(BaseModel):
     """Response model for revision data."""
+
     id: UUID
     revision_no: int
     state: str
@@ -117,7 +124,7 @@ async def create_dpp(
 @router.get("", response_model=DPPListResponse)
 async def list_dpps(
     db: DbSession,
-    user: CurrentUser,
+    user: OptionalUser,
     status_filter: DPPStatus | None = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -129,7 +136,7 @@ async def list_dpps(
     """
     service = DPPService(db)
 
-    if user.is_publisher:
+    if user and user.is_publisher:
         dpps = await service.get_dpps_for_owner(
             owner_subject=user.sub,
             status=status_filter,
@@ -165,7 +172,7 @@ async def list_dpps(
 async def get_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: CurrentUser,
+    user: OptionalUser,
 ) -> DPPDetailResponse:
     """
     Get a specific DPP by ID.
@@ -182,8 +189,13 @@ async def get_dpp(
         )
 
     # Check access
-    if dpp.status != DPPStatus.PUBLISHED and dpp.owner_subject != user.sub:
-        if not user.is_publisher:
+    if dpp.status != DPPStatus.PUBLISHED:
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required",
+            )
+        if dpp.owner_subject != user.sub and not user.is_publisher:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied",
