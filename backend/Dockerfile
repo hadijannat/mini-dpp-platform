@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install dependencies
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN pip install -e ".[dev]"
 
 # Copy application code
@@ -49,7 +49,7 @@ FROM base as production
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 # Copy and install production dependencies only
-COPY pyproject.toml .
+COPY pyproject.toml README.md ./
 RUN pip install .
 
 # Copy application code
