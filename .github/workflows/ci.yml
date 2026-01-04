@@ -27,7 +27,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: Run ruff check
         working-directory: backend
@@ -82,7 +82,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: backend
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev --extra test
 
       - name: Run tests
         working-directory: backend
