@@ -189,7 +189,11 @@ async def get_dpp(
         )
 
     # Check access
-    if dpp.status != DPPStatus.PUBLISHED and dpp.owner_subject != user.sub and not user.is_publisher:
+    if (
+        dpp.status != DPPStatus.PUBLISHED
+        and dpp.owner_subject != user.sub
+        and not user.is_publisher
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",
