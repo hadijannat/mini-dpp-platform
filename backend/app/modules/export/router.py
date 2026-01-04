@@ -22,7 +22,7 @@ async def export_dpp(
     dpp_id: UUID,
     db: DbSession,
     user: CurrentUser,
-    format: Literal["json", "aasx"] = Query("json", description="Export format"),
+    format: Literal["json", "aasx", "pdf"] = Query("json", description="Export format"),
 ) -> Response:
     """
     Export a DPP in the specified format.
@@ -30,6 +30,7 @@ async def export_dpp(
     Supported formats:
     - json: AAS Environment JSON with metadata
     - aasx: AASX package (IDTA Part 5 compliant)
+    - pdf: PDF summary
     """
     dpp_service = DPPService(db)
     export_service = ExportService()
@@ -85,6 +86,15 @@ async def export_dpp(
             media_type="application/asset-administration-shell-package+xml",
             headers={
                 "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.aasx"',
+            },
+        )
+    elif format == "pdf":
+        content = export_service.export_pdf(revision, dpp_id)
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.pdf"',
             },
         )
     else:

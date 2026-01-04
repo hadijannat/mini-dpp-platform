@@ -7,7 +7,7 @@ import io
 import json
 import zipfile
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import UUID
 from xml.etree import ElementTree as ET
 
@@ -104,6 +104,45 @@ class ExportService:
 
         buffer.seek(0)
         return buffer.read()
+
+    def export_pdf(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
+        """
+        Export DPP as a simple PDF summary.
+
+        The PDF includes basic metadata and a JSON snapshot of the AAS environment.
+        """
+        try:
+            from fpdf import FPDF  # type: ignore[import-untyped]
+        except ImportError as exc:  # pragma: no cover - dependency error
+            logger.error("pdf_export_dependency_missing", error=str(exc))
+            raise RuntimeError("PDF export dependency missing") from exc
+
+        pdf = FPDF()
+        pdf.set_auto_page_break(auto=True, margin=12)
+        pdf.add_page()
+
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, "Digital Product Passport", ln=True)
+
+        pdf.set_font("Helvetica", size=11)
+        pdf.cell(0, 8, f"DPP ID: {dpp_id}", ln=True)
+        pdf.cell(0, 8, f"Revision: {revision.revision_no}", ln=True)
+        pdf.cell(0, 8, f"Digest (SHA-256): {revision.digest_sha256}", ln=True)
+        if revision.signed_jws:
+            pdf.multi_cell(0, 6, f"Signature (JWS): {revision.signed_jws}")
+
+        pdf.ln(2)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 8, "AAS Environment (JSON)", ln=True)
+
+        pdf.set_font("Courier", size=8)
+        aas_json = json.dumps(revision.aas_env_json, indent=2, ensure_ascii=True)
+        pdf.multi_cell(0, 4, aas_json)
+
+        output = cast(str | bytes | bytearray, pdf.output(dest="S"))
+        if isinstance(output, (bytes, bytearray)):
+            return bytes(output)
+        return output.encode("latin-1")
 
     def _create_content_types(self) -> str:
         """Create AASX content types XML."""

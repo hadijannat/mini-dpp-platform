@@ -18,7 +18,7 @@ async function publishDPP(dppId: string, token?: string) {
   return response.json();
 }
 
-async function downloadExport(dppId: string, format: 'json' | 'aasx', token?: string) {
+async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', token?: string) {
   const response = await apiFetch(`/api/v1/export/${dppId}?format=${format}`, {}, token);
   if (!response.ok) {
     throw new Error(`Failed to export ${format.toUpperCase()}`);
@@ -27,7 +27,7 @@ async function downloadExport(dppId: string, format: 'json' | 'aasx', token?: st
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `dpp-${dppId}.${format === 'json' ? 'json' : 'aasx'}`;
+  link.download = `dpp-${dppId}.${format === 'json' ? 'json' : format}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -89,7 +89,7 @@ export default function DPPEditorPage() {
     );
   }
 
-  const handleExport = async (format: 'json' | 'aasx') => {
+  const handleExport = async (format: 'json' | 'aasx' | 'pdf') => {
     try {
       await downloadExport(dpp.id, format, token);
     } catch (error) {
@@ -142,6 +142,13 @@ export default function DPPEditorPage() {
           >
             <Download className="h-4 w-4 mr-2" />
             Export JSON
+          </button>
+          <button
+            onClick={() => { void handleExport('pdf'); }}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
           </button>
           <button
             onClick={() => { void handleExport('aasx'); }}
