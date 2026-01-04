@@ -1,5 +1,10 @@
 # Mini DPP Platform
 
+[![CI](https://github.com/hadijannat/mini-dpp-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/hadijannat/mini-dpp-platform/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/hadijannat/mini-dpp-platform)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
+[![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
+
 A Digital Product Passport (DPP) management platform based on the Asset Administration Shell (AAS) and IDTA DPP4.0 standards.
 
 ## Features
