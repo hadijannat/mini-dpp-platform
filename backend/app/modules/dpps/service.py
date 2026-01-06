@@ -39,9 +39,7 @@ class DPPService:
 
         Auto-provisions users on first API access (just-in-time provisioning).
         """
-        result = await self._session.execute(
-            select(User).where(User.subject == subject)
-        )
+        result = await self._session.execute(select(User).where(User.subject == subject))
         user = result.scalar_one_or_none()
 
         if user is None:
