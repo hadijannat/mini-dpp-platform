@@ -1,7 +1,7 @@
 # Mini DPP Platform
 
 [![CI](https://github.com/hadijannat/mini-dpp-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/hadijannat/mini-dpp-platform/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/hadijannat/mini-dpp-platform)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
 
