@@ -989,7 +989,13 @@ class TemplateRegistryService:
         return template
 
     def _element_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        element_type = element.get("modelType", {}).get("name", "Property")
+        model_type = element.get("modelType", {})
+        if isinstance(model_type, dict):
+            element_type = model_type.get("name", "Property")
+        elif isinstance(model_type, str):
+            element_type = model_type
+        else:
+            element_type = "Property"
 
         if element_type == "SubmodelElementCollection":
             return self._collection_to_schema(element)
