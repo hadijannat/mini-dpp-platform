@@ -52,6 +52,9 @@ Thumbs.db
 
 # Docs
 AGENTS.md
+CLAUDE.md
+CLAIM_REGISTER.md
+REVIEW_REPORT.md
 
 # Docker volumes (local dev)
 .docker-data/

@@ -51,7 +51,7 @@ A Digital Product Passport (DPP) management platform based on the Asset Administ
   - Hierarchical Structures
 - **OIDC Authentication**: Keycloak integration for secure authentication
 - **ABAC Authorization**: Open Policy Agent (OPA) for fine-grained access control
-- **Catena-X Integration**: DTR (Digital Twin Registry) and EDC connector support
+- **Catena-X Integration**: DTR (Digital Twin Registry) publishing with optional EDC DSP endpoint metadata
 - **Export Formats**: AASX (IDTA Part 5 compliant) and JSON export
 - **QR Code Generation**: Product identification via QR codes
 
@@ -104,9 +104,12 @@ docker compose down
 |---------|-----|
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8000 |
-| API Documentation | http://localhost:8000/docs |
+| API Documentation | http://localhost:8000/api/v1/docs |
 | Keycloak Admin | http://localhost:8080/admin (default: admin/admin) |
 | OPA | http://localhost:8181 |
+
+> Port conflicts? Set `KEYCLOAK_HOST_PORT` and/or `BACKEND_HOST_PORT` in `.env` to override
+> the defaults and adjust the URLs above accordingly.
 
 > Note: Keycloak admin credentials are set only on the first boot. If the default
 > admin login fails, you likely have old volumes from a previous run. In that
@@ -155,7 +158,7 @@ After starting the services, you need to load the IDTA templates:
 
 ### Connecting to Catena-X
 
-The platform supports integration with Catena-X dataspaces via the Digital Twin Registry (DTR):
+The platform supports Catena-X Digital Twin Registry (DTR) publishing. If you have an EDC data plane, you can optionally attach its DSP endpoint to submodel descriptor metadata.
 
 1. **Navigate to Connectors**: Click "Connectors" in the sidebar
 2. **Add Connector**: Click "Add Connector"
@@ -165,15 +168,18 @@ The platform supports integration with Catena-X dataspaces via the Digital Twin 
    - **Access Token**: Bearer token for DTR authentication
    - **BPN**: Your Business Partner Number (e.g., `BPNL00000001TEST`)
    - **Submodel Base URL**: Public URL where your submodels are exposed
+   - **EDC DSP endpoint** (optional): DSP endpoint to include in descriptor metadata
 4. **Test Connection**: Click "Test" to verify connectivity
 5. **Publish DPPs**: Use the API to publish DPPs to the registry
 
 ### API Usage Example
 
 ```bash
+# If you overrode host ports in .env, replace 8080/8000 accordingly.
 # Get an access token
 TOKEN=$(curl -s -X POST "http://localhost:8080/realms/dpp-platform/protocol/openid-connect/token" \
-  -d "client_id=dpp-frontend" \
+  -d "client_id=dpp-backend" \
+  -d "client_secret=backend-secret-dev" \
   -d "username=publisher" \
   -d "password=publisher123" \
   -d "grant_type=password" | jq -r '.access_token')
@@ -247,6 +253,12 @@ npm run typecheck
 npm run build
 ```
 
+## Release & Security
+
+- Release process: see `docs/RELEASE.md`
+- Changelog: `CHANGELOG.md`
+- SBOM + vulnerability scans run in the `Security` GitHub Actions workflow
+
 ## Project Structure
 
 ```
@@ -311,10 +323,15 @@ mini-dpp-platform/
 
 ## Standards Compliance
 
-- **IDTA 2002-1-0**: Asset Administration Shell - Part 1
-- **IDTA 2006-2-0**: Digital Nameplate
-- **IDTA 2002-4-0**: AAS JSON Serialization
-- **IDTA Part 5**: AASX Package Format
+- **IDTA 01001**: Asset Administration Shell - Part 1: Metamodel
+- **IDTA Part 2**: AAS API and JSON serialization
+- **IDTA 01005**: Asset Administration Shell - Part 5: AASX Package File Format
+- **IDTA 02006**: Digital Nameplate
+- **IDTA 02002**: Contact Information
+- **IDTA 02003**: Technical Data
+- **IDTA 02023**: Carbon Footprint
+- **IDTA 02004**: Handover Documentation
+- **IDTA 02011**: Hierarchical Structures (HSEBoM)
 - **DPP4.0**: Digital Product Passport Submodel Templates
 
 ## Troubleshooting

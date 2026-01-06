@@ -100,6 +100,8 @@ class OPAClient:
 
             # Parse OPA result
             decision_data = result.get("result", {})
+            if isinstance(decision_data, dict) and isinstance(decision_data.get("decision"), dict):
+                decision_data = decision_data["decision"]
 
             effect_str = decision_data.get("effect", "deny")
             try:
@@ -132,6 +134,15 @@ class OPAClient:
 
 # Singleton OPA client
 _opa_client = OPAClient()
+
+
+def _opa_disabled_decision() -> PolicyDecision:
+    """Return an allow decision when OPA enforcement is disabled."""
+    return PolicyDecision(
+        effect=PolicyEffect.ALLOW,
+        policy_id="opa-disabled",
+        reason="OPA enforcement disabled",
+    )
 
 
 def build_subject_context(user: TokenPayload) -> dict[str, Any]:
@@ -178,6 +189,10 @@ async def check_access(
 
     This is the main entry point for ABAC policy evaluation.
     """
+    settings = get_settings()
+    if not settings.opa_enabled:
+        return _opa_disabled_decision()
+
     context = ABACContext(
         subject=build_subject_context(user),
         action=action,

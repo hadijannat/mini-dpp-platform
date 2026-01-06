@@ -1,6 +1,6 @@
 """
 Catena-X Connector Service.
-Orchestrates DTR registration and EDC integration.
+Orchestrates DTR registration and optional EDC DSP metadata inclusion.
 """
 
 from datetime import UTC, datetime
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 class CatenaXConnectorService:
     """
-    Service for managing Catena-X DTR/EDC integrations.
+    Service for managing Catena-X DTR publishing with optional EDC DSP metadata.
 
     Provides connector lifecycle management and DPP publishing
     to Catena-X dataspaces.
@@ -90,7 +90,7 @@ class CatenaXConnectorService:
         """
         Test connectivity for a Catena-X connector.
 
-        Verifies DTR and optionally EDC endpoints are reachable
+        Verifies DTR connectivity; EDC DSP endpoint is included as metadata only.
         and authentication is valid.
         """
         connector = await self.get_connector(connector_id)

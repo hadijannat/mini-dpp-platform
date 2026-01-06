@@ -8,13 +8,23 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.core.security import Admin, CurrentUser, Publisher
+from app.core.security import Admin, CurrentUser, Publisher, require_access
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
 from app.modules.templates.service import TemplateRegistryService
 
 router = APIRouter()
+
+
+def _dpp_resource(dpp: Any) -> dict[str, Any]:
+    """Build ABAC resource context for a DPP."""
+    return {
+        "type": "dpp",
+        "id": str(dpp.id),
+        "owner_subject": dpp.owner_subject,
+        "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
+    }
 
 
 class AssetIdsInput(BaseModel):
@@ -115,6 +125,7 @@ async def create_dpp(
 
     Requires publisher role. Creates a draft DPP with selected templates.
     """
+    await require_access(user, "create", {"type": "dpp"})
     service = DPPService(db)
 
     asset_ids_dict = request.asset_ids.model_dump(exclude_none=True)
@@ -235,16 +246,8 @@ async def get_dpp(
             detail=f"DPP {dpp_id} not found",
         )
 
-    # Check access
-    if (
-        dpp.status != DPPStatus.PUBLISHED
-        and dpp.owner_subject != user.sub
-        and not user.is_publisher
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+    # Check access via ABAC
+    await require_access(user, "read", _dpp_resource(dpp))
 
     # Get latest revision
     revision = await service.get_latest_revision(dpp_id)
@@ -290,6 +293,8 @@ async def update_submodel(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can edit this DPP",
         )
+
+    await require_access(user, "update", _dpp_resource(dpp))
 
     try:
         revision = await service.update_submodel(
@@ -341,12 +346,15 @@ async def publish_dpp(
             detail="Only the owner can publish this DPP",
         )
 
+    await require_access(user, "publish", _dpp_resource(dpp))
+
     try:
         published_dpp = await service.publish_dpp(
             dpp_id=dpp_id,
             published_by_subject=user.sub,
         )
         await db.commit()
+        await db.refresh(published_dpp)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -389,9 +397,12 @@ async def archive_dpp(
             detail="Only the owner can archive this DPP",
         )
 
+    await require_access(user, "archive", _dpp_resource(dpp))
+
     try:
         archived_dpp = await service.archive_dpp(dpp_id)
         await db.commit()
+        await db.refresh(archived_dpp)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

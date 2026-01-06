@@ -16,6 +16,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.core.config import get_settings
 from app.core.security.oidc import TokenPayload, optional_verify_token, verify_token
 from app.db.models import Base
 from app.db.session import get_db_session
@@ -84,6 +85,8 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 @pytest_asyncio.fixture
 async def test_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
     """Provide an async HTTP client for API testing."""
+    os.environ.setdefault("OPA_ENABLED", "false")
+    get_settings.cache_clear()
     app = create_application()
 
     def _mock_payload() -> TokenPayload:

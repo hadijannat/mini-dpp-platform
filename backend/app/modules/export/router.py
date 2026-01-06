@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
-from app.core.security import CurrentUser
+from app.core.security import CurrentUser, require_access
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -42,6 +42,18 @@ async def export_dpp(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+
+    await require_access(
+        user,
+        "export",
+        {
+            "type": "dpp",
+            "id": str(dpp.id),
+            "owner_subject": dpp.owner_subject,
+            "status": dpp.status.value,
+            "format": format,
+        },
+    )
 
     # Check access
     if (

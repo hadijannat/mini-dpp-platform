@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  dtr:
+    image: tractusx/sldt-digital-twin-registry:0.10.0
+    container_name: dpp-dtr
+    environment:
+      - SPRING_PROFILES_ACTIVE=local
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=http://keycloak:8080/realms/dpp-platform
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/dpp_platform
+      - SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
+      - SPRING_DATASOURCE_USERNAME=dpp_user
+      - SPRING_DATASOURCE_PASSWORD=dpp_dev_password_2024
+      - SERVER_PORT=4243
+      - JAVA_TOOL_OPTIONS=-Xms256m -Xmx1024m
+    working_dir: /service
+    volumes:
+      - dtr_data:/service/persistence
+    ports:
+      - "4243:4243"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+volumes:
+  dtr_data:

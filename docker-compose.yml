@@ -58,9 +58,9 @@ services:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/dpp_platform
-      KC_DB_USERNAME: dpp_user
-      KC_DB_PASSWORD: dpp_dev_password_2024
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:-keycloak_dev_password_2024}
       KC_HEALTH_ENABLED: true
       KC_METRICS_ENABLED: true
       KC_HOSTNAME_STRICT: false
@@ -68,7 +68,7 @@ services:
     volumes:
       - ./infra/keycloak/realm-export:/opt/keycloak/data/import:ro
     ports:
-      - "8080:8080"
+      - "${KEYCLOAK_HOST_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -156,8 +156,9 @@ services:
       - KEYCLOAK_REALM=dpp-platform
       - KEYCLOAK_CLIENT_ID=dpp-backend
       - KEYCLOAK_CLIENT_SECRET=backend-secret-dev
-      - KEYCLOAK_ISSUER_URL_OVERRIDE=http://localhost:8080/realms/dpp-platform
+      - KEYCLOAK_ISSUER_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform
       - KEYCLOAK_JWKS_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform/protocol/openid-connect/certs
+      - KEYCLOAK_ALLOWED_ISSUERS=http://localhost:${KEYCLOAK_HOST_PORT:-8080}/realms/dpp-platform
       - OPA_URL=http://opa:8181
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minio_admin
@@ -168,7 +169,7 @@ services:
       - ./backend:/app:cached
       - backend_cache:/app/.cache
     ports:
-      - "8000:8000"
+      - "${BACKEND_HOST_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -191,8 +192,8 @@ services:
       target: development
     container_name: dpp-frontend
     environment:
-      - VITE_API_BASE_URL=http://localhost:8000
-      - VITE_KEYCLOAK_URL=http://localhost:8080
+      - VITE_API_BASE_URL=http://localhost:${BACKEND_HOST_PORT:-8000}
+      - VITE_KEYCLOAK_URL=http://localhost:${KEYCLOAK_HOST_PORT:-8080}
       - VITE_KEYCLOAK_REALM=dpp-platform
       - VITE_KEYCLOAK_CLIENT_ID=dpp-frontend
     volumes:

@@ -1,4 +1,4 @@
-"""Catena-X connector for DTR and EDC integration."""
+"""Catena-X connector for DTR publishing with optional EDC DSP metadata."""
 
 from app.modules.connectors.catenax.dtr_client import DTRClient, DTRConfig, ShellDescriptor
 from app.modules.connectors.catenax.mapping import build_shell_descriptor

@@ -8,12 +8,25 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
-from app.core.security import Publisher
+from app.core.security import Publisher, require_access
 from app.db.models import ConnectorType
 from app.db.session import DbSession
 from app.modules.connectors.catenax.service import CatenaXConnectorService
+from app.modules.dpps.service import DPPService
 
 router = APIRouter()
+
+
+def _connector_resource(connector: Any) -> dict[str, Any]:
+    """Build ABAC resource context for a connector."""
+    return {
+        "type": "connector",
+        "id": str(connector.id),
+        "owner_subject": connector.created_by_subject,
+        "status": connector.status.value
+        if hasattr(connector.status, "value")
+        else str(connector.status),
+    }
 
 
 class ConnectorCreateRequest(BaseModel):
@@ -66,7 +79,7 @@ class PublishResultResponse(BaseModel):
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
     connector_type: ConnectorType | None = Query(None, description="Filter by connector type"),
 ) -> ConnectorListResponse:
     """
@@ -74,6 +87,7 @@ async def list_connectors(
 
     Requires publisher role.
     """
+    await require_access(user, "list", {"type": "connector"})
     service = CatenaXConnectorService(db)
     connectors = await service.get_connectors(connector_type)
 
@@ -112,6 +126,7 @@ async def create_connector(
     - submodel_base_url: URL where submodels are exposed
     - edc_dsp_endpoint: Optional EDC DSP endpoint
     """
+    await require_access(user, "create", {"type": "connector"})
     service = CatenaXConnectorService(db)
 
     connector = await service.create_connector(
@@ -136,7 +151,7 @@ async def create_connector(
 async def get_connector(
     connector_id: UUID,
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
 ) -> ConnectorResponse:
     """
     Get a specific connector by ID.
@@ -149,6 +164,8 @@ async def get_connector(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Connector {connector_id} not found",
         )
+
+    await require_access(user, "read", _connector_resource(connector))
 
     return ConnectorResponse(
         id=connector.id,
@@ -165,7 +182,7 @@ async def get_connector(
 async def test_connector(
     connector_id: UUID,
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
 ) -> TestResultResponse:
     """
     Test connectivity for a connector.
@@ -173,6 +190,15 @@ async def test_connector(
     Verifies DTR endpoint is reachable and authentication is valid.
     """
     service = CatenaXConnectorService(db)
+    connector = await service.get_connector(connector_id)
+    if not connector:
+        return TestResultResponse(
+            status="error",
+            error_message="Connector not found",
+        )
+
+    await require_access(user, "test", _connector_resource(connector))
+
     result = await service.test_connector(connector_id)
     await db.commit()
 
@@ -189,7 +215,7 @@ async def publish_dpp_to_connector(
     connector_id: UUID,
     dpp_id: UUID,
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
 ) -> PublishResultResponse:
     """
     Publish a DPP to a connector's Digital Twin Registry.
@@ -198,6 +224,25 @@ async def publish_dpp_to_connector(
     the shell descriptor in the DTR.
     """
     service = CatenaXConnectorService(db)
+
+    dpp_service = DPPService(db)
+    dpp = await dpp_service.get_dpp(dpp_id)
+    if not dpp:
+        return PublishResultResponse(
+            status="error",
+            error_message=f"DPP {dpp_id} not found",
+        )
+
+    await require_access(
+        user,
+        "publish_to_connector",
+        {
+            "type": "dpp",
+            "id": str(dpp.id),
+            "owner_subject": dpp.owner_subject,
+            "status": dpp.status.value,
+        },
+    )
 
     try:
         result = await service.publish_dpp_to_dtr(connector_id, dpp_id)

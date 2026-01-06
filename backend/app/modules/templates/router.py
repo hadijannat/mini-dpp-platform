@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.core.security import CurrentUser, Publisher
+from app.core.security import CurrentUser, Publisher, require_access
 from app.db.session import DbSession
 from app.modules.templates.service import TemplateRegistryService
 
@@ -47,13 +47,14 @@ class UISchemaResponse(BaseModel):
 @router.get("", response_model=TemplateListResponse)
 async def list_templates(
     db: DbSession,
-    _user: CurrentUser,
+    user: CurrentUser,
 ) -> TemplateListResponse:
     """
     List all registered templates.
 
     Returns all DPP4.0 templates that have been fetched and cached.
     """
+    await require_access(user, "read", {"type": "template"})
     service = TemplateRegistryService(db)
     templates = await service.get_all_templates()
 
@@ -77,7 +78,7 @@ async def list_templates(
 async def get_template(
     template_key: str,
     db: DbSession,
-    _user: CurrentUser,
+    user: CurrentUser,
     version: str | None = None,
 ) -> TemplateResponse:
     """
@@ -85,6 +86,7 @@ async def get_template(
 
     Optionally specify a version, otherwise returns the pinned version.
     """
+    await require_access(user, "read", {"type": "template"})
     service = TemplateRegistryService(db)
     template = await service.get_template(template_key, version)
 
@@ -108,13 +110,14 @@ async def get_template(
 async def get_template_ui_schema(
     template_key: str,
     db: DbSession,
-    _user: CurrentUser,
+    user: CurrentUser,
 ) -> UISchemaResponse:
     """
     Get the UI schema for a template.
 
     Returns a JSON Schema compatible structure for form rendering.
     """
+    await require_access(user, "read", {"type": "template"})
     service = TemplateRegistryService(db)
     template = await service.get_template(template_key)
 
@@ -135,13 +138,14 @@ async def get_template_ui_schema(
 @router.post("/refresh", response_model=TemplateListResponse)
 async def refresh_templates(
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
 ) -> TemplateListResponse:
     """
     Refresh all templates from IDTA repository.
 
     Requires publisher role. Fetches and updates all DPP4.0 templates.
     """
+    await require_access(user, "refresh", {"type": "template"})
     service = TemplateRegistryService(db)
     templates = await service.refresh_all_templates()
 
@@ -165,13 +169,14 @@ async def refresh_templates(
 async def refresh_template(
     template_key: str,
     db: DbSession,
-    _user: Publisher,
+    user: Publisher,
 ) -> TemplateResponse:
     """
     Refresh a specific template from IDTA repository.
 
     Requires publisher role.
     """
+    await require_access(user, "refresh", {"type": "template"})
     service = TemplateRegistryService(db)
 
     try:

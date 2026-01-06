@@ -3,6 +3,7 @@ Application configuration using Pydantic Settings.
 All configuration is loaded from environment variables with sensible defaults.
 """
 
+import json
 from functools import lru_cache
 from typing import Literal
 
@@ -64,6 +65,13 @@ class Settings(BaseSettings):
         default=None,
         description="Override issuer URL when Keycloak is accessed via a different hostname",
     )
+    keycloak_allowed_issuers: str | None = Field(
+        default=None,
+        description=(
+            "Optional list of additional issuer URLs accepted for token validation. "
+            "Supports comma-separated values or a JSON array string."
+        ),
+    )
     keycloak_jwks_url_override: str | None = Field(
         default=None,
         description="Override JWKS URL when Keycloak is accessed via a different hostname",
@@ -79,15 +87,46 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def keycloak_allowed_issuers_all(self) -> list[str]:
+        """All allowed issuer URLs, including the primary issuer."""
+        issuers = [self.keycloak_issuer_url, *self._parse_allowed_issuers()]
+        deduped: list[str] = []
+        for issuer in issuers:
+            if issuer and issuer not in deduped:
+                deduped.append(issuer)
+        return deduped
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def keycloak_jwks_url(self) -> str:
         """Construct the JWKS endpoint URL for token verification."""
         if self.keycloak_jwks_url_override:
             return self.keycloak_jwks_url_override
         return f"{self.keycloak_issuer_url}/protocol/openid-connect/certs"
 
+    def _parse_allowed_issuers(self) -> list[str]:
+        raw = self.keycloak_allowed_issuers
+        if raw is None:
+            return []
+        raw = raw.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in raw.split(",") if item.strip()]
+
     # ==========================================================================
     # OPA (Open Policy Agent) Configuration
     # ==========================================================================
+    opa_enabled: bool = Field(
+        default=True,
+        description="Enable OPA-backed ABAC enforcement",
+    )
     opa_url: str = Field(default="http://localhost:8181")
     opa_policy_path: str = Field(default="v1/data/dpp/authz")
     opa_timeout: float = Field(default=1.0, description="OPA request timeout in seconds")

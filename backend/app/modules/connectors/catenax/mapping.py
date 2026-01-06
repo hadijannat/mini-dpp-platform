@@ -1,5 +1,5 @@
 """
-Mapping utilities for converting DPP data to Catena-X descriptor format.
+Mapping utilities for converting DPP data to Catena-X DTR descriptor format.
 """
 
 from typing import Any
@@ -15,6 +15,11 @@ CATENAX_SEMANTIC_IDS: dict[str, str] = {
     "hierarchical-structures": "urn:samm:io.catenax.single_level_bom_as_built:3.0.0#SingleLevelBomAsBuilt",
 }
 
+# DTR requires at least one security attribute entry on protocolInformation.
+DEFAULT_SECURITY_ATTRIBUTES = [
+    {"type": "NONE", "key": "none", "value": "none"},
+]
+
 
 def build_shell_descriptor(
     dpp: DPP,
@@ -29,7 +34,7 @@ def build_shell_descriptor(
         dpp: The DPP entity
         revision: The revision to use for descriptor content
         submodel_base_url: Base URL where submodel endpoints are exposed
-        edc_dsp_endpoint: EDC DSP endpoint for data plane access
+        edc_dsp_endpoint: Optional DSP endpoint metadata for data plane access
 
     Returns:
         ShellDescriptor ready for DTR registration
@@ -91,6 +96,7 @@ def build_shell_descriptor(
                         "href": endpoint_url,
                         "endpointProtocol": "HTTP",
                         "endpointProtocolVersion": ["1.1"],
+                        "securityAttributes": DEFAULT_SECURITY_ATTRIBUTES,
                     },
                 }
             ],

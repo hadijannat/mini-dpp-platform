@@ -68,6 +68,8 @@
     {
       "username": "viewer",
       "email": "viewer@example.com",
+      "firstName": "Viewer",
+      "lastName": "User",
       "enabled": true,
       "credentials": [
         {
@@ -83,6 +85,8 @@
     {
       "username": "publisher",
       "email": "publisher@example.com",
+      "firstName": "Publisher",
+      "lastName": "User",
       "enabled": true,
       "credentials": [
         {
@@ -98,6 +102,8 @@
     {
       "username": "admin",
       "email": "admin@example.com",
+      "firstName": "Admin",
+      "lastName": "User",
       "enabled": true,
       "credentials": [
         {

@@ -146,13 +146,21 @@ async def _decode_token(token: str) -> TokenPayload:
             token,
             signing_key,
             algorithms=["RS256"],
-            issuer=settings.keycloak_issuer_url,
             options={
                 "verify_aud": False,  # Keycloak puts client ID in azp, not aud
                 "verify_exp": True,
                 "verify_iat": True,
+                "verify_iss": False,
             },
         )
+
+        token_issuer = payload.get("iss")
+        allowed_issuers = set(settings.keycloak_allowed_issuers_all)
+        if not token_issuer or token_issuer not in allowed_issuers:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token issuer",
+            )
 
         # Extract roles from various possible locations
         roles: list[str] = []

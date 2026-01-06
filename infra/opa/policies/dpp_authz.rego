@@ -12,6 +12,14 @@ default decision := {
     "reason": "No matching policy found"
 }
 
+# Admin override: allow all actions
+decision := {
+    "effect": "allow",
+    "policy_id": "admin-override"
+} if {
+    input.subject.is_admin
+}
+
 # =============================================================================
 # Route-Level Policies
 # =============================================================================
@@ -94,6 +102,40 @@ decision := {
 }
 
 # =============================================================================
+# Template Policies
+# =============================================================================
+
+# All authenticated users can read templates
+decision := {
+    "effect": "allow",
+    "policy_id": "template-read"
+} if {
+    input.action == "read"
+    input.resource.type == "template"
+}
+
+# Publishers can refresh templates
+decision := {
+    "effect": "allow",
+    "policy_id": "template-refresh"
+} if {
+    input.action in ["refresh", "update"]
+    input.resource.type == "template"
+    input.subject.is_publisher
+}
+
+# Deny template refresh for non-publishers
+decision := {
+    "effect": "deny",
+    "reason": "Publisher role required",
+    "policy_id": "template-refresh-deny"
+} if {
+    input.action in ["refresh", "update"]
+    input.resource.type == "template"
+    not input.subject.is_publisher
+}
+
+# =============================================================================
 # Submodel Element Policies
 # =============================================================================
 
@@ -169,6 +211,16 @@ decision := {
 # Connector Policies
 # =============================================================================
 
+# Publishers can read connectors
+decision := {
+    "effect": "allow",
+    "policy_id": "connector-read"
+} if {
+    input.action in ["read", "list"]
+    input.resource.type == "connector"
+    input.subject.is_publisher
+}
+
 # Publishers can manage connectors
 decision := {
     "effect": "allow",
@@ -214,6 +266,7 @@ decision := {
     input.resource.type == "dpp"
     input.resource.status == "published"
     input.resource.format in ["json", "pdf"]
+    not input.subject.is_publisher
 }
 
 # AASX export only for publishers

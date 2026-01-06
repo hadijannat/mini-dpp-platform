@@ -1,0 +1,40 @@
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate SBOM (SPDX JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+
+  trivy:
+    name: Trivy FS Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: fs
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true

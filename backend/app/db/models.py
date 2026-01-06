@@ -483,7 +483,7 @@ class Connector(Base):
     """
     External connector configuration.
 
-    Stores connection details for Catena-X DTR/EDC and other integrations.
+    Stores connection details for Catena-X DTR and optional EDC DSP endpoint metadata.
     """
 
     __tablename__ = "connectors"
