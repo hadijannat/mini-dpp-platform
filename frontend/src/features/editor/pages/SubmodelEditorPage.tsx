@@ -621,7 +621,7 @@ export default function SubmodelEditorPage() {
             {list.length === 0 && (
               <p className="text-xs text-gray-400">No items yet.</p>
             )}
-            {list.map((item, index) => {
+            {list.map((_, index) => {
               const itemPath = [...path, index];
               const itemKey = pathToKey(itemPath);
               return (

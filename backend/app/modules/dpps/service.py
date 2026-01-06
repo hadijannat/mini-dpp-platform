@@ -486,7 +486,7 @@ class DPPService:
                 rebuilt_submodels.append(submodel)
                 continue
 
-            base_submodel = self._select_template_submodel(template, submodel)
+            base_submodel = self._select_template_submodel(template)
             if not base_submodel:
                 rebuilt_submodels.append(submodel)
                 continue
@@ -645,11 +645,7 @@ class DPPService:
     def _select_template_submodel(
         self,
         template: Template,
-        submodel: dict[str, Any],
     ) -> dict[str, Any] | None:
-        sm_semantic_id = (
-            submodel.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
-        )
         template_submodels = template.template_json.get("submodels", [])
         candidates: list[dict[str, Any]] = []
         for candidate in template_submodels:

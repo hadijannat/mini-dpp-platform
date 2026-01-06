@@ -5,7 +5,7 @@ export function extractElementValue(element: any): unknown {
   }
   if (type === 'SubmodelElementList') {
     const items = Array.isArray(element.value) ? element.value : [];
-    return items.map((item) => {
+    return items.map((item: any) => {
       if (item && typeof item === 'object' && item.modelType) {
         return extractElementValue(item);
       }

@@ -217,12 +217,12 @@ export default function DPPEditorPage() {
     }
   };
 
-  const submodels = dpp.aas_environment?.submodels || [];
+  const submodels: Array<Record<string, any>> = dpp.aas_environment?.submodels || [];
   const availableTemplates = templatesData?.templates || [];
   const existingTemplateKeys = new Set(
     submodels
       .map(resolveTemplateKey)
-      .filter((value): value is string => Boolean(value))
+      .filter((value: string | null): value is string => Boolean(value))
   );
   const missingTemplates = availableTemplates.filter(
     (template: any) => !existingTemplateKeys.has(template.template_key)
@@ -320,7 +320,7 @@ export default function DPPEditorPage() {
       <div className="bg-white shadow rounded-lg p-6">
         <h2 className="text-lg font-medium text-gray-900 mb-4">Asset Information</h2>
         <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {Object.entries(dpp.asset_ids || {}).map(([key, value]) => (
+          {(Object.entries(dpp.asset_ids || {}) as Array<[string, unknown]>).map(([key, value]) => (
             <div key={key}>
               <dt className="text-sm font-medium text-gray-500">{key}</dt>
               <dd className="mt-1 text-sm text-gray-900">{String(value)}</dd>
