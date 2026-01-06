@@ -75,8 +75,10 @@ services:
     healthcheck:
       test:
         [
-          "CMD-SHELL",
-          "if command -v curl >/dev/null; then curl -fsS http://localhost:8080/health/ready; elif command -v wget >/dev/null; then wget -q --spider http://localhost:8080/health/ready; else exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'; fi",
+          "CMD",
+          "bash",
+          "-lc",
+          "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3",
         ]
       interval: 10s
       timeout: 5s
@@ -106,7 +108,7 @@ services:
     ports:
       - "8181:8181"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8181/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
       interval: 5s
       timeout: 3s
       retries: 5
