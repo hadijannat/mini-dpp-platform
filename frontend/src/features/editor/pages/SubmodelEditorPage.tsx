@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { apiFetch } from '@/lib/api';
+import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 type TemplateResponse = {
   semantic_id: string;
@@ -15,9 +16,18 @@ type UISchema = {
   properties?: Record<string, UISchema>;
   items?: UISchema;
   required?: string[];
+  enum?: string[];
+  format?: string;
+  additionalProperties?: UISchema;
   'x-multi-language'?: boolean;
   'x-range'?: boolean;
   'x-file-upload'?: boolean;
+  'x-reference'?: boolean;
+  'x-entity'?: boolean;
+  'x-relationship'?: boolean;
+  'x-annotated-relationship'?: boolean;
+  'x-readonly'?: boolean;
+  'x-blob'?: boolean;
 };
 
 type FormData = Record<string, unknown>;
@@ -45,15 +55,34 @@ async function updateSubmodel(
   templateKey: string,
   data: Record<string, unknown>,
   token?: string,
+  rebuildFromTemplate = false,
 ) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}/submodel`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ template_key: templateKey, data }),
+    body: JSON.stringify({
+      template_key: templateKey,
+      data,
+      rebuild_from_template: rebuildFromTemplate,
+    }),
   }, token);
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Failed to update submodel');
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Session expired. Please sign in again.');
+    }
+    const contentType = response.headers.get('content-type') ?? '';
+    const rawText = await response.text();
+    if (contentType.includes('application/json')) {
+      try {
+        const body = JSON.parse(rawText) as { detail?: string };
+        const detail = typeof body?.detail === 'string' ? body.detail : '';
+        const message = detail || rawText;
+        throw new Error(message || 'Failed to update submodel');
+      } catch {
+        throw new Error(rawText || 'Failed to update submodel');
+      }
+    }
+    throw new Error(rawText || 'Failed to update submodel');
   }
   return response.json();
 }
@@ -64,38 +93,6 @@ function extractSemanticId(submodel: any): string | null {
     return String(semanticId.keys[0].value);
   }
   return null;
-}
-
-function extractElementValue(element: any): unknown {
-  const type = element?.modelType?.name;
-  if (type === 'SubmodelElementCollection') {
-    return extractElements(element.value || []);
-  }
-  if (type === 'MultiLanguageProperty') {
-    const value = element.value;
-    if (Array.isArray(value)) {
-      return value.reduce<Record<string, string>>((acc, entry) => {
-        if (entry?.language) acc[String(entry.language)] = String(entry.text ?? '');
-        return acc;
-      }, {});
-    }
-  }
-  if (type === 'Range') {
-    return { min: element.min ?? null, max: element.max ?? null };
-  }
-  if (type === 'File') {
-    return { contentType: element.contentType ?? '', value: element.value ?? '' };
-  }
-  return element?.value ?? '';
-}
-
-function extractElements(elements: any[]): Record<string, unknown> {
-  return elements.reduce<Record<string, unknown>>((acc, element) => {
-    const idShort = element?.idShort;
-    if (!idShort) return acc;
-    acc[String(idShort)] = extractElementValue(element);
-    return acc;
-  }, {});
 }
 
 function pathToKey(path: Array<string | number>): string {
@@ -141,9 +138,18 @@ function isEmptyValue(value: unknown): boolean {
 
 function defaultValueForSchema(schema?: UISchema): unknown {
   if (!schema) return '';
+  if (schema.enum && schema.enum.length > 0) return schema.enum[0];
   if (schema['x-multi-language']) return {};
   if (schema['x-range']) return { min: null, max: null };
   if (schema['x-file-upload']) return { contentType: '', value: '' };
+  if (schema['x-reference']) return { type: 'ModelReference', keys: [] };
+  if (schema['x-entity']) {
+    return { entityType: 'SelfManagedEntity', globalAssetId: '', statements: {} };
+  }
+  if (schema['x-relationship']) return { first: null, second: null };
+  if (schema['x-annotated-relationship']) {
+    return { first: null, second: null, annotations: {} };
+  }
   switch (schema.type) {
     case 'object':
       return {};
@@ -229,7 +235,7 @@ export default function SubmodelEditorPage() {
 
   const initialData = useMemo(() => {
     if (!submodel) return {};
-    return extractElements(submodel.submodelElements || []);
+    return buildSubmodelData(submodel);
   }, [submodel]);
 
   const [rawJson, setRawJson] = useState('');
@@ -240,12 +246,21 @@ export default function SubmodelEditorPage() {
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = useMutation({
-    mutationFn: (payload: Record<string, unknown>) =>
-      updateSubmodel(dppId!, templateKey!, payload, token),
+    mutationFn: (payload: { data: Record<string, unknown>; rebuildFromTemplate?: boolean }) =>
+      updateSubmodel(
+        dppId!,
+        templateKey!,
+        payload.data,
+        token,
+        payload.rebuildFromTemplate ?? false,
+      ),
     onSuccess: () => {
       navigate(`/console/dpps/${dppId}`);
     },
   });
+
+  const updateError = updateMutation.isError ? (updateMutation.error as Error) : null;
+  const sessionExpired = Boolean(updateError?.message?.includes('Session expired'));
 
   useEffect(() => {
     if (!hasEdited) {
@@ -304,7 +319,7 @@ export default function SubmodelEditorPage() {
           return;
         }
         setError(null);
-        updateMutation.mutate(parsed);
+        updateMutation.mutate({ data: parsed });
       } catch {
         setError('Invalid JSON. Please fix formatting before saving.');
       }
@@ -319,7 +334,7 @@ export default function SubmodelEditorPage() {
     }
 
     setError(null);
-    updateMutation.mutate(formData);
+    updateMutation.mutate({ data: formData });
   };
 
   const isLoading = loadingDpp || loadingTemplate || loadingSchema;
@@ -347,6 +362,23 @@ export default function SubmodelEditorPage() {
     const fieldError = formErrors[fieldKey];
     const value = getValueAtPath(formData, path);
     const description = fieldSchema.description;
+
+    if (fieldSchema['x-readonly'] || fieldSchema['x-blob']) {
+      return (
+        <div key={fieldKey} className="border rounded-md p-4 bg-gray-50">
+          <p className="text-sm font-medium text-gray-800">
+            {fieldSchema.title || label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </p>
+          {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          <pre className="mt-3 text-xs text-gray-600 whitespace-pre-wrap">
+            {value === undefined || value === null || value === ''
+              ? 'Read-only'
+              : JSON.stringify(value, null, 2)}
+          </pre>
+        </div>
+      );
+    }
 
     if (fieldSchema['x-multi-language']) {
       const languages = ['en', 'de', 'fr', 'es', 'it'];
@@ -377,6 +409,95 @@ export default function SubmodelEditorPage() {
                 />
               </div>
             ))}
+          </div>
+          {fieldError && <p className="text-xs text-red-600 mt-2">{fieldError}</p>}
+        </div>
+      );
+    }
+
+    if (fieldSchema['x-reference']) {
+      const current =
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? (value as { type?: string; keys?: Array<{ type?: string; value?: string }> })
+          : { type: 'ModelReference', keys: [] };
+      const keys = Array.isArray(current.keys) ? current.keys : [];
+
+      return (
+        <div key={fieldKey} className="border rounded-md p-4">
+          <p className="text-sm font-medium text-gray-800">
+            {fieldSchema.title || label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </p>
+          {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          <div className="mt-3 space-y-3">
+            <div>
+              <label className="text-xs text-gray-500">Reference Type</label>
+              <select
+                className="mt-1 w-full border rounded-md px-3 py-2 text-sm"
+                value={current.type ?? 'ModelReference'}
+                onChange={(event) => {
+                  updateValue(path, { ...current, type: event.target.value, keys });
+                }}
+              >
+                {(fieldSchema.properties?.type?.enum ?? ['ModelReference', 'ExternalReference']).map(
+                  (option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  )
+                )}
+              </select>
+            </div>
+            <div className="space-y-2">
+              {keys.map((key, index) => (
+                <div key={`${fieldKey}-key-${index}`} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    className="w-32 border rounded-md px-2 py-1 text-sm"
+                    placeholder="Type"
+                    value={key?.type ?? ''}
+                    onChange={(event) => {
+                      const next = keys.map((entry, idx) =>
+                        idx === index ? { ...entry, type: event.target.value } : entry
+                      );
+                      updateValue(path, { ...current, keys: next });
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="flex-1 border rounded-md px-2 py-1 text-sm"
+                    placeholder="Value"
+                    value={key?.value ?? ''}
+                    onChange={(event) => {
+                      const next = keys.map((entry, idx) =>
+                        idx === index ? { ...entry, value: event.target.value } : entry
+                      );
+                      updateValue(path, { ...current, keys: next });
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="text-xs text-red-500 hover:text-red-600"
+                    onClick={() => {
+                      const next = keys.filter((_, idx) => idx !== index);
+                      updateValue(path, { ...current, keys: next });
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="text-sm text-primary-600 hover:text-primary-700"
+                onClick={() => {
+                  const next = [...keys, { type: '', value: '' }];
+                  updateValue(path, { ...current, keys: next });
+                }}
+              >
+                Add key
+              </button>
+            </div>
           </div>
           {fieldError && <p className="text-xs text-red-600 mt-2">{fieldError}</p>}
         </div>
@@ -517,22 +638,14 @@ export default function SubmodelEditorPage() {
                       Remove
                     </button>
                   </div>
-                  {itemsSchema?.type === 'object' && itemsSchema.properties ? (
-                    <div className="mt-2">
-                      {renderObjectFields(itemsSchema, itemPath)}
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      className="w-full border rounded-md px-3 py-2 text-sm"
-                      value={item as any}
-                      onChange={(event) => {
-                        const next = [...list];
-                        next[index] = event.target.value;
-                        updateValue(path, next);
-                      }}
-                    />
-                  )}
+                  <div className="mt-2">
+                    {renderField(
+                      itemsSchema || { type: 'string' },
+                      itemPath,
+                      `${label} ${index + 1}`,
+                      false
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -563,7 +676,36 @@ export default function SubmodelEditorPage() {
       );
     }
 
-    const inputType = fieldSchema.type === 'number' || fieldSchema.type === 'integer' ? 'number' : 'text';
+    if (fieldSchema.enum && fieldSchema.enum.length > 0) {
+      return (
+        <div key={fieldKey} className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            {fieldSchema.title || label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </label>
+          {description && <p className="text-xs text-gray-500">{description}</p>}
+          <select
+            className={`w-full border rounded-md px-3 py-2 text-sm ${
+              fieldError ? 'border-red-500' : ''
+            }`}
+            value={(value as string) ?? ''}
+            onChange={(event) => updateValue(path, event.target.value)}
+          >
+            {fieldSchema.enum.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          {fieldError && <p className="text-xs text-red-600">{fieldError}</p>}
+        </div>
+      );
+    }
+
+    const isNumber = fieldSchema.type === 'number' || fieldSchema.type === 'integer';
+    let inputType = isNumber ? 'number' : 'text';
+    if (fieldSchema.format === 'date') inputType = 'date';
+    if (fieldSchema.format === 'date-time') inputType = 'datetime-local';
     const numericValue =
       inputType === 'number' ? (typeof value === 'number' ? value : value ?? '') : value ?? '';
 
@@ -621,6 +763,7 @@ export default function SubmodelEditorPage() {
         <button
           onClick={() => navigate(`/console/dpps/${dppId}`)}
           className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
+          data-testid="submodel-back"
         >
           Back
         </button>
@@ -658,6 +801,11 @@ export default function SubmodelEditorPage() {
             </button>
           </div>
         </div>
+        {!submodel && (
+          <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
+            This template is not initialized yet. Saving will add it to the DPP.
+          </div>
+        )}
 
         {activeView === 'form' ? (
           uiSchema?.type === 'object' ? (
@@ -680,9 +828,21 @@ export default function SubmodelEditorPage() {
         {error && (
           <p className="text-sm text-red-600">{error}</p>
         )}
-        {updateMutation.isError && (
+        {sessionExpired && (
+          <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <span>Session expired. Please sign in again.</span>
+            <button
+              type="button"
+              className="text-sm font-medium text-red-700 underline"
+              onClick={() => { void auth.signinRedirect(); }}
+            >
+              Sign in
+            </button>
+          </div>
+        )}
+        {updateMutation.isError && !sessionExpired && (
           <p className="text-sm text-red-600">
-            {(updateMutation.error as Error)?.message || 'Failed to save changes.'}
+            {updateError?.message || 'Failed to save changes.'}
           </p>
         )}
         <div className="flex justify-end gap-3">
@@ -696,6 +856,15 @@ export default function SubmodelEditorPage() {
           >
             Reset
           </button>
+          {!updateMutation.isPending && (
+            <button
+              type="button"
+              onClick={() => updateMutation.mutate({ data: formData, rebuildFromTemplate: true })}
+              className="px-4 py-2 border border-primary-200 text-primary-700 rounded-md text-sm hover:bg-primary-50"
+            >
+              Rebuild from template
+            </button>
+          )}
           <button
             type="button"
             onClick={handleSubmit}

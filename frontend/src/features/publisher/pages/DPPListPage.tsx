@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
@@ -23,14 +23,30 @@ async function createDPP(data: any, token?: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   }, token);
-  if (!response.ok) throw new Error('Failed to create DPP');
+  if (!response.ok) {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('Session expired. Please sign in again.');
+    }
+    const contentType = response.headers.get('content-type') ?? '';
+    const rawText = await response.text();
+    if (contentType.includes('application/json')) {
+      try {
+        const body = JSON.parse(rawText) as { detail?: string };
+        const detail = typeof body?.detail === 'string' ? body.detail : '';
+        throw new Error(detail || rawText || 'Failed to create DPP');
+      } catch {
+        throw new Error(rawText || 'Failed to create DPP');
+      }
+    }
+    throw new Error(rawText || 'Failed to create DPP');
+  }
   return response.json();
 }
 
 export default function DPPListPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedTemplates, setSelectedTemplates] = useState<string[]>(['digital-nameplate']);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const auth = useAuth();
   const token = auth.user?.access_token;
 
@@ -44,14 +60,28 @@ export default function DPPListPage() {
     queryFn: () => fetchTemplates(token),
   });
 
+  useEffect(() => {
+    const available = templatesData?.templates?.map((template: any) => template.template_key) || [];
+    setSelectedTemplates((prev) => {
+      const filtered = prev.filter((key) => available.includes(key));
+      if (filtered.length > 0) return filtered;
+      if (available.length > 0) return [available[0]];
+      return [];
+    });
+  }, [templatesData?.templates]);
+
   const createMutation = useMutation({
     mutationFn: (data: any) => createDPP(data, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpps'] });
       setShowCreateModal(false);
-      setSelectedTemplates(['digital-nameplate']);
+      const available = templatesData?.templates?.map((template: any) => template.template_key) || [];
+      setSelectedTemplates(available.length > 0 ? [available[0]] : []);
     },
   });
+
+  const createError = createMutation.isError ? (createMutation.error as Error) : null;
+  const sessionExpired = Boolean(createError?.message?.includes('Session expired'));
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,6 +115,7 @@ export default function DPPListPage() {
         <button
           onClick={() => setShowCreateModal(true)}
           className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
+          data-testid="dpp-create-open"
         >
           <Plus className="h-4 w-4 mr-2" />
           Create DPP
@@ -94,7 +125,7 @@ export default function DPPListPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg" data-testid="dpp-create-modal">
             <h2 className="text-lg font-semibold mb-4">Create New DPP</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
@@ -141,6 +172,20 @@ export default function DPPListPage() {
                 </div>
               </div>
               <div className="flex justify-end space-x-3 pt-4">
+                {sessionExpired && (
+                  <button
+                    type="button"
+                    onClick={() => { void auth.signinRedirect(); }}
+                    className="mr-auto text-sm text-red-600 underline"
+                  >
+                    Sign in
+                  </button>
+                )}
+                {createMutation.isError && (
+                  <p className="mr-auto text-sm text-red-600">
+                    {createError?.message || 'Failed to create DPP.'}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
@@ -152,6 +197,7 @@ export default function DPPListPage() {
                   type="submit"
                   disabled={createMutation.isPending || selectedTemplates.length === 0}
                   className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-50"
+                  data-testid="dpp-create-submit"
                 >
                   {createMutation.isPending ? 'Creating...' : 'Create'}
                 </button>
@@ -215,6 +261,7 @@ export default function DPPListPage() {
                         to={`/dpp/${dpp.id}`}
                         className="text-gray-400 hover:text-gray-600"
                         title="View"
+                        data-testid={`dpp-view-${dpp.id}`}
                       >
                         <Eye className="h-5 w-5" />
                       </Link>
@@ -222,6 +269,7 @@ export default function DPPListPage() {
                         to={`/console/dpps/${dpp.id}`}
                         className="text-primary-400 hover:text-primary-600"
                         title="Edit"
+                        data-testid={`dpp-edit-${dpp.id}`}
                       >
                         <Edit className="h-5 w-5" />
                       </Link>

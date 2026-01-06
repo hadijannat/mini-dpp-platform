@@ -105,8 +105,20 @@ docker compose down
 | Frontend | http://localhost:5173 |
 | Backend API | http://localhost:8000 |
 | API Documentation | http://localhost:8000/docs |
-| Keycloak Admin | http://localhost:8080/admin (admin/admin) |
+| Keycloak Admin | http://localhost:8080/admin (default: admin/admin) |
 | OPA | http://localhost:8181 |
+
+> Note: Keycloak admin credentials are set only on the first boot. If the default
+> admin login fails, you likely have old volumes from a previous run. In that
+> case, reset the data with `docker compose down -v` (this removes all local data),
+> then start again with `docker compose up -d`.
+
+To set a custom Keycloak admin password on first boot:
+
+```bash
+cp .env.example .env
+# edit KEYCLOAK_ADMIN_PASSWORD before starting containers
+```
 
 ### Default Users
 | Username | Password | Role |
@@ -114,6 +126,9 @@ docker compose down
 | publisher | publisher123 | Publisher |
 | viewer | viewer123 | Viewer |
 | admin | admin123 | Admin |
+
+> The app login uses the `dpp-platform` realm users above. These are separate
+> from the Keycloak admin console user.
 
 ### Initial Setup
 
@@ -124,6 +139,9 @@ After starting the services, you need to load the IDTA templates:
 3. Go to **Templates** page
 4. Click **Refresh All** to fetch templates from the IDTA repository
 5. You should see 6 templates loaded
+
+> If template refresh fails due to GitHub API rate limits, set
+> `IDTA_TEMPLATES_GITHUB_TOKEN` in `.env` and restart the backend.
 
 ## Usage
 

@@ -118,6 +118,18 @@ class Settings(BaseSettings):
     idta_templates_base_url: str = Field(
         default="https://raw.githubusercontent.com/admin-shell-io/submodel-templates/main/published"
     )
+    idta_templates_repo_api_url: str = Field(
+        default="https://api.github.com/repos/admin-shell-io/submodel-templates/contents/published",
+        description="GitHub API base URL for resolving template download locations",
+    )
+    idta_templates_repo_ref: str = Field(
+        default="main",
+        description="Git ref for the IDTA template repository (branch or tag)",
+    )
+    idta_templates_github_token: str | None = Field(
+        default=None,
+        description="Optional GitHub token to avoid API rate limits when resolving templates",
+    )
     template_cache_ttl: int = Field(
         default=86400, description="Template cache TTL in seconds (default: 24 hours)"
     )

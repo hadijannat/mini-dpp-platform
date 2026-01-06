@@ -11,6 +11,21 @@ async function fetchDPP(dppId: string, token?: string) {
   return response.json();
 }
 
+function formatElementValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.length} items]`;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[object]';
+  }
+}
+
 export default function DPPViewerPage() {
   const { dppId, slug } = useParams();
   const id = dppId || slug;
@@ -46,6 +61,8 @@ export default function DPPViewerPage() {
       </div>
     );
   }
+
+  const submodels = dpp.aas_environment?.submodels || [];
 
   return (
     <div className="space-y-6">
@@ -90,7 +107,12 @@ export default function DPPViewerPage() {
             Submodels
           </h2>
           <div className="space-y-4">
-            {(dpp.aas_environment.submodels || []).map((submodel: any, index: number) => (
+            {submodels.length === 0 && (
+              <p className="text-sm text-gray-500">
+                No submodels yet. Add templates in the console to initialize this DPP.
+              </p>
+            )}
+            {submodels.map((submodel: any, index: number) => (
               <div key={index} className="border rounded-lg p-4">
                 <h3 className="font-medium text-gray-900">{submodel.idShort}</h3>
                 <p className="text-sm text-gray-500">{submodel.id}</p>
@@ -99,7 +121,9 @@ export default function DPPViewerPage() {
                     {submodel.submodelElements.map((element: any, idx: number) => (
                       <div key={idx} className="flex justify-between text-sm">
                         <span className="text-gray-600">{element.idShort}</span>
-                        <span className="text-gray-900">{element.value || '-'}</span>
+                        <span className="text-gray-900">
+                          {formatElementValue(element.value)}
+                        </span>
                       </div>
                     ))}
                   </div>

@@ -8,10 +8,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
-from app.core.security import CurrentUser, Publisher
+from app.core.security import Admin, CurrentUser, Publisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
+from app.modules.templates.service import TemplateRegistryService
 
 router = APIRouter()
 
@@ -41,6 +42,7 @@ class UpdateSubmodelRequest(BaseModel):
 
     template_key: str
     data: dict[str, Any]
+    rebuild_from_template: bool = False
 
 
 class DPPResponse(BaseModel):
@@ -86,6 +88,22 @@ class RevisionResponse(BaseModel):
     created_at: str
 
 
+class BulkRebuildError(BaseModel):
+    """Response model for rebuild errors."""
+
+    dpp_id: UUID
+    error: str
+
+
+class BulkRebuildResponse(BaseModel):
+    """Response model for bulk rebuild results."""
+
+    total: int
+    updated: int
+    skipped: int
+    errors: list[BulkRebuildError]
+
+
 @router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
 async def create_dpp(
     request: CreateDPPRequest,
@@ -119,6 +137,34 @@ async def create_dpp(
         qr_payload=dpp.qr_payload,
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
+    )
+
+
+@router.post("/rebuild-all", response_model=BulkRebuildResponse)
+async def rebuild_all_dpps(
+    db: DbSession,
+    user: Admin,
+) -> BulkRebuildResponse:
+    """
+    Refresh templates and rebuild submodels for all DPPs.
+
+    Requires admin role.
+    """
+    template_service = TemplateRegistryService(db)
+    await template_service.refresh_all_templates()
+
+    service = DPPService(db)
+    summary = await service.rebuild_all_from_templates(updated_by_subject=user.sub)
+    await db.commit()
+
+    return BulkRebuildResponse(
+        total=summary["total"],
+        updated=summary["updated"],
+        skipped=summary["skipped"],
+        errors=[
+            BulkRebuildError(dpp_id=entry["dpp_id"], error=entry["error"])
+            for entry in summary.get("errors", [])
+        ],
     )
 
 
@@ -251,6 +297,7 @@ async def update_submodel(
             template_key=request.template_key,
             submodel_data=request.data,
             updated_by_subject=user.sub,
+            rebuild_from_template=request.rebuild_from_template,
         )
         await db.commit()
     except ValueError as e:

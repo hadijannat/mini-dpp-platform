@@ -1,8 +1,9 @@
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3 } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 const SEMANTIC_ID_TO_TEMPLATE_KEY: Record<string, string> = {
   'https://admin-shell.io/zvei/nameplate/2/0/Nameplate': 'digital-nameplate',
@@ -27,9 +28,63 @@ function resolveTemplateKey(submodel: any): string | null {
   return SEMANTIC_ID_TO_TEMPLATE_KEY[semanticId] ?? null;
 }
 
+function formatElementValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.length} items]`;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '[object]';
+  }
+}
+
 async function fetchDPP(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
   if (!response.ok) throw new Error('Failed to fetch DPP');
+  return response.json();
+}
+
+async function fetchTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates', {}, token);
+  if (!response.ok) throw new Error('Failed to fetch templates');
+  return response.json();
+}
+
+async function refreshTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates/refresh', {
+    method: 'POST',
+  }, token);
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to refresh templates');
+  }
+  return response.json();
+}
+
+async function rebuildSubmodel(
+  dppId: string,
+  templateKey: string,
+  data: Record<string, unknown>,
+  token?: string,
+) {
+  const response = await apiFetch(`/api/v1/dpps/${dppId}/submodel`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      template_key: templateKey,
+      data,
+      rebuild_from_template: true,
+    }),
+  }, token);
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || 'Failed to rebuild submodel');
+  }
   return response.json();
 }
 
@@ -89,10 +144,42 @@ export default function DPPEditorPage() {
     enabled: !!dppId,
   });
 
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => fetchTemplates(token),
+  });
+
   const publishMutation = useMutation({
     mutationFn: () => publishDPP(dppId!, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
+    },
+  });
+
+  const refreshRebuildMutation = useMutation({
+    mutationFn: async () => {
+      if (!dppId) return;
+      await refreshTemplates(token);
+
+      const submodels = dpp?.aas_environment?.submodels || [];
+      const seen = new Set<string>();
+      const rebuildTasks: Promise<unknown>[] = [];
+
+      for (const submodel of submodels) {
+        const templateKey = resolveTemplateKey(submodel);
+        if (!templateKey || seen.has(templateKey)) continue;
+        seen.add(templateKey);
+        const data = buildSubmodelData(submodel);
+        rebuildTasks.push(rebuildSubmodel(dppId, templateKey, data, token));
+      }
+
+      if (rebuildTasks.length > 0) {
+        await Promise.all(rebuildTasks);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
   });
 
@@ -130,6 +217,17 @@ export default function DPPEditorPage() {
     }
   };
 
+  const submodels = dpp.aas_environment?.submodels || [];
+  const availableTemplates = templatesData?.templates || [];
+  const existingTemplateKeys = new Set(
+    submodels
+      .map(resolveTemplateKey)
+      .filter((value): value is string => Boolean(value))
+  );
+  const missingTemplates = availableTemplates.filter(
+    (template: any) => !existingTemplateKeys.has(template.template_key)
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -138,6 +236,7 @@ export default function DPPEditorPage() {
           <button
             onClick={() => navigate('/console/dpps')}
             className="text-gray-400 hover:text-gray-600"
+            data-testid="dpp-back"
           >
             <ArrowLeft className="h-6 w-6" />
           </button>
@@ -232,9 +331,31 @@ export default function DPPEditorPage() {
 
       {/* Submodels */}
       <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">Submodels</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-medium text-gray-900">Submodels</h2>
+          <button
+            type="button"
+            onClick={() => refreshRebuildMutation.mutate()}
+            disabled={refreshRebuildMutation.isPending}
+            className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            data-testid="dpp-refresh-rebuild"
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshRebuildMutation.isPending ? 'animate-spin' : ''}`} />
+            {refreshRebuildMutation.isPending ? 'Refreshing...' : 'Refresh & Rebuild'}
+          </button>
+        </div>
+        {refreshRebuildMutation.isError && (
+          <p className="mb-4 text-sm text-red-600">
+            {(refreshRebuildMutation.error as Error)?.message || 'Failed to refresh templates.'}
+          </p>
+        )}
         <div className="space-y-4">
-          {(dpp.aas_environment?.submodels || []).map((submodel: any, index: number) => {
+          {submodels.length === 0 && (
+            <p className="text-sm text-gray-500">
+              No submodels yet. Add one from the templates below.
+            </p>
+          )}
+          {submodels.map((submodel: any, index: number) => {
             const templateKey = resolveTemplateKey(submodel);
             return (
             <div key={index} className="border rounded-lg p-4">
@@ -247,6 +368,7 @@ export default function DPPEditorPage() {
                   <Link
                     to={`/console/dpps/${dpp.id}/edit/${templateKey}`}
                     className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700"
+                    data-testid={`submodel-edit-${templateKey}`}
                   >
                     <Edit3 className="h-4 w-4 mr-1" />
                     Edit
@@ -258,7 +380,9 @@ export default function DPPEditorPage() {
                   {submodel.submodelElements.map((element: any, idx: number) => (
                     <div key={idx} className="flex justify-between text-sm border-b pb-2">
                       <span className="text-gray-600">{element.idShort}</span>
-                      <span className="text-gray-900">{element.value || '-'}</span>
+                      <span className="text-gray-900">
+                        {formatElementValue(element.value)}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -267,6 +391,39 @@ export default function DPPEditorPage() {
             );
           })}
         </div>
+        {availableTemplates.length === 0 ? (
+          <p className="mt-4 text-sm text-gray-500">
+            No templates available. Refresh templates first.
+          </p>
+        ) : (
+          missingTemplates.length > 0 && (
+            <div className="mt-6 border-t pt-4">
+              <h3 className="text-sm font-semibold text-gray-700">Available templates</h3>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {missingTemplates.map((template: any) => (
+                  <div
+                    key={template.id}
+                    className="flex items-center justify-between rounded-md border border-gray-200 p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        {template.template_key}
+                      </p>
+                      <p className="text-xs text-gray-500">v{template.idta_version}</p>
+                    </div>
+                    <Link
+                      to={`/console/dpps/${dpp.id}/edit/${template.template_key}`}
+                      className="text-sm text-primary-600 hover:text-primary-700"
+                      data-testid={`submodel-add-${template.template_key}`}
+                    >
+                      Add
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )
+        )}
       </div>
 
       {/* Integrity */}
