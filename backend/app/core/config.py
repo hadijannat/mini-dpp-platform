@@ -60,17 +60,29 @@ class Settings(BaseSettings):
     keycloak_realm: str = Field(default="dpp-platform")
     keycloak_client_id: str = Field(default="dpp-backend")
     keycloak_client_secret: str = Field(default="")
+    keycloak_issuer_url_override: str | None = Field(
+        default=None,
+        description="Override issuer URL when Keycloak is accessed via a different hostname",
+    )
+    keycloak_jwks_url_override: str | None = Field(
+        default=None,
+        description="Override JWKS URL when Keycloak is accessed via a different hostname",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def keycloak_issuer_url(self) -> str:
         """Construct the OIDC issuer URL from Keycloak configuration."""
+        if self.keycloak_issuer_url_override:
+            return self.keycloak_issuer_url_override
         return f"{self.keycloak_server_url}/realms/{self.keycloak_realm}"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def keycloak_jwks_url(self) -> str:
         """Construct the JWKS endpoint URL for token verification."""
+        if self.keycloak_jwks_url_override:
+            return self.keycloak_jwks_url_override
         return f"{self.keycloak_issuer_url}/protocol/openid-connect/certs"
 
     # ==========================================================================

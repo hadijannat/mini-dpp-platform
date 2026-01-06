@@ -109,6 +109,7 @@ async def create_dpp(
     )
 
     await db.commit()
+    await db.refresh(dpp)
 
     return DPPResponse(
         id=dpp.id,

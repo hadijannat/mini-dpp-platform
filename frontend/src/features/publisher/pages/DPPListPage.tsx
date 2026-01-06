@@ -11,6 +11,12 @@ async function fetchDPPs(token?: string) {
   return response.json();
 }
 
+async function fetchTemplates(token?: string) {
+  const response = await apiFetch('/api/v1/templates', {}, token);
+  if (!response.ok) throw new Error('Failed to fetch templates');
+  return response.json();
+}
+
 async function createDPP(data: any, token?: string) {
   const response = await apiFetch('/api/v1/dpps', {
     method: 'POST',
@@ -24,6 +30,7 @@ async function createDPP(data: any, token?: string) {
 export default function DPPListPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedTemplates, setSelectedTemplates] = useState<string[]>(['digital-nameplate']);
   const auth = useAuth();
   const token = auth.user?.access_token;
 
@@ -32,11 +39,17 @@ export default function DPPListPage() {
     queryFn: () => fetchDPPs(token),
   });
 
+  const { data: templatesData } = useQuery({
+    queryKey: ['templates'],
+    queryFn: () => fetchTemplates(token),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: any) => createDPP(data, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpps'] });
       setShowCreateModal(false);
+      setSelectedTemplates(['digital-nameplate']);
     },
   });
 
@@ -48,8 +61,16 @@ export default function DPPListPage() {
         manufacturerPartId: formData.get('manufacturerPartId'),
         serialNumber: formData.get('serialNumber'),
       },
-      selected_templates: ['digital-nameplate'],
+      selected_templates: selectedTemplates,
     });
+  };
+
+  const handleTemplateToggle = (templateKey: string) => {
+    setSelectedTemplates(prev =>
+      prev.includes(templateKey)
+        ? prev.filter(t => t !== templateKey)
+        : [...prev, templateKey]
+    );
   };
 
   return (
@@ -73,7 +94,7 @@ export default function DPPListPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
             <h2 className="text-lg font-semibold mb-4">Create New DPP</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
@@ -97,6 +118,28 @@ export default function DPPListPage() {
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Select Templates
+                </label>
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                  {templatesData?.templates?.map((template: any) => (
+                    <label key={template.id} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedTemplates.includes(template.template_key)}
+                        onChange={() => handleTemplateToggle(template.template_key)}
+                        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                      />
+                      <span className="text-sm text-gray-900">{template.template_key}</span>
+                      <span className="text-xs text-gray-500">v{template.idta_version}</span>
+                    </label>
+                  ))}
+                  {(!templatesData?.templates || templatesData.templates.length === 0) && (
+                    <p className="text-sm text-gray-500">No templates available. Please refresh templates first.</p>
+                  )}
+                </div>
+              </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
@@ -107,7 +150,7 @@ export default function DPPListPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createMutation.isPending}
+                  disabled={createMutation.isPending || selectedTemplates.length === 0}
                   className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-50"
                 >
                   {createMutation.isPending ? 'Creating...' : 'Create'}
@@ -154,13 +197,12 @@ export default function DPPListPage() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      dpp.status === 'published'
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${dpp.status === 'published'
                         ? 'bg-green-100 text-green-800'
                         : dpp.status === 'archived'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}>
+                          ? 'bg-gray-100 text-gray-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
                       {dpp.status}
                     </span>
                   </td>

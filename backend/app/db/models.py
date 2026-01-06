@@ -122,7 +122,7 @@ class User(Base):
     email: Mapped[str | None] = mapped_column(String(255))
     display_name: Mapped[str | None] = mapped_column(String(255))
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole),
+        Enum(UserRole, values_callable=lambda e: [m.value for m in e]),
         default=UserRole.VIEWER,
         nullable=False,
     )
@@ -174,7 +174,7 @@ class DPP(Base):
         server_default=func.uuid_generate_v7(),
     )
     status: Mapped[DPPStatus] = mapped_column(
-        Enum(DPPStatus),
+        Enum(DPPStatus, values_callable=lambda e: [m.value for m in e]),
         default=DPPStatus.DRAFT,
         nullable=False,
     )
@@ -257,7 +257,7 @@ class DPPRevision(Base):
         comment="Monotonically increasing revision number",
     )
     state: Mapped[RevisionState] = mapped_column(
-        Enum(RevisionState),
+        Enum(RevisionState, values_callable=lambda e: [m.value for m in e]),
         default=RevisionState.DRAFT,
         nullable=False,
     )
@@ -431,7 +431,7 @@ class Policy(Base):
         comment="NULL for global policies, specific DPP ID for per-DPP policies",
     )
     policy_type: Mapped[PolicyType] = mapped_column(
-        Enum(PolicyType),
+        Enum(PolicyType, values_callable=lambda e: [m.value for m in e]),
         nullable=False,
     )
     target: Mapped[str] = mapped_column(
@@ -440,7 +440,7 @@ class Policy(Base):
         comment="Target specification: route path, submodel key, or JSON Pointer",
     )
     effect: Mapped[PolicyEffect] = mapped_column(
-        Enum(PolicyEffect),
+        Enum(PolicyEffect, values_callable=lambda e: [m.value for m in e]),
         nullable=False,
     )
     rules: Mapped[dict[str, Any]] = mapped_column(
@@ -494,7 +494,7 @@ class Connector(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     connector_type: Mapped[ConnectorType] = mapped_column(
-        Enum(ConnectorType),
+        Enum(ConnectorType, values_callable=lambda e: [m.value for m in e]),
         nullable=False,
     )
     config: Mapped[dict[str, Any]] = mapped_column(
@@ -503,7 +503,7 @@ class Connector(Base):
         comment="Connection configuration: endpoints, auth, mapping",
     )
     status: Mapped[ConnectorStatus] = mapped_column(
-        Enum(ConnectorStatus),
+        Enum(ConnectorStatus, values_callable=lambda e: [m.value for m in e]),
         default=ConnectorStatus.DISABLED,
     )
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

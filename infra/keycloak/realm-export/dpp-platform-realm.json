@@ -1,6 +1,7 @@
 {
   "realm": "dpp-platform",
   "enabled": true,
+  "sslRequired": "none",
   "registrationAllowed": false,
   "resetPasswordAllowed": true,
   "clients": [
@@ -8,11 +9,24 @@
       "clientId": "dpp-frontend",
       "enabled": true,
       "publicClient": true,
-      "redirectUris": ["http://localhost:5173/*"],
-      "webOrigins": ["http://localhost:5173"],
+      "redirectUris": [
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:5173"
+      ],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
-      "protocol": "openid-connect"
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "bpn"
+      ]
     },
     {
       "clientId": "dpp-backend",
@@ -22,14 +36,32 @@
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
-      "protocol": "openid-connect"
+      "protocol": "openid-connect",
+      "defaultClientScopes": [
+        "openid",
+        "profile",
+        "email",
+        "roles"
+      ],
+      "optionalClientScopes": [
+        "bpn"
+      ]
     }
   ],
   "roles": {
     "realm": [
-      {"name": "viewer", "description": "Can view published DPPs"},
-      {"name": "publisher", "description": "Can create and manage DPPs"},
-      {"name": "admin", "description": "Full administrative access"}
+      {
+        "name": "viewer",
+        "description": "Can view published DPPs"
+      },
+      {
+        "name": "publisher",
+        "description": "Can create and manage DPPs"
+      },
+      {
+        "name": "admin",
+        "description": "Full administrative access"
+      }
     ]
   },
   "users": [
@@ -37,25 +69,150 @@
       "username": "viewer",
       "email": "viewer@example.com",
       "enabled": true,
-      "credentials": [{"type": "password", "value": "viewer123", "temporary": false}],
-      "realmRoles": ["viewer"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "viewer123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "viewer"
+      ]
     },
     {
       "username": "publisher",
       "email": "publisher@example.com",
       "enabled": true,
-      "credentials": [{"type": "password", "value": "publisher123", "temporary": false}],
-      "realmRoles": ["publisher"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "publisher123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "publisher"
+      ]
     },
     {
       "username": "admin",
       "email": "admin@example.com",
       "enabled": true,
-      "credentials": [{"type": "password", "value": "admin123", "temporary": false}],
-      "realmRoles": ["admin"]
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ]
     }
   ],
   "clientScopes": [
+    {
+      "name": "openid",
+      "protocol": "openid-connect",
+      "description": "OpenID Connect scope",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "false"
+      }
+    },
+    {
+      "name": "profile",
+      "protocol": "openid-connect",
+      "description": "User profile scope",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "username",
+            "claim.name": "preferred_username",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "full name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-full-name-mapper",
+          "config": {
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "protocol": "openid-connect",
+      "description": "Email scope",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "email",
+            "claim.name": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "email verified",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "config": {
+            "user.attribute": "emailVerified",
+            "claim.name": "email_verified",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "roles",
+      "protocol": "openid-connect",
+      "description": "User roles scope",
+      "attributes": {
+        "include.in.token.scope": "false",
+        "display.on.consent.screen": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "multivalued": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
     {
       "name": "bpn",
       "protocol": "openid-connect",

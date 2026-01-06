@@ -156,6 +156,8 @@ services:
       - KEYCLOAK_REALM=dpp-platform
       - KEYCLOAK_CLIENT_ID=dpp-backend
       - KEYCLOAK_CLIENT_SECRET=backend-secret-dev
+      - KEYCLOAK_ISSUER_URL_OVERRIDE=http://localhost:8080/realms/dpp-platform
+      - KEYCLOAK_JWKS_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform/protocol/openid-connect/certs
       - OPA_URL=http://opa:8181
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minio_admin

@@ -7,6 +7,38 @@
 
 A Digital Product Passport (DPP) management platform based on the Asset Administration Shell (AAS) and IDTA DPP4.0 standards.
 
+## 📸 Screenshots
+
+### Dashboard
+![Dashboard showing DPP statistics and quick actions](docs/images/dashboard.png)
+*Dashboard showing DPP counts, template statistics, and recent activity*
+
+### Template Registry
+![IDTA DPP4.0 Template Grid](docs/images/templates.png)
+*All 6 IDTA DPP4.0 submodel templates loaded and ready for use*
+
+### DPP Creation
+![Creating a new Digital Product Passport](docs/images/dpp_create.png)
+*Creating a new DPP with template selection*
+
+### DPP Management
+![List of Digital Product Passports](docs/images/dpp_list.png)
+*Managing created DPPs with status tracking and edit capabilities*
+
+### Connector Configuration
+![Catena-X Connector Setup](docs/images/connector_create.png)
+*Adding a new Catena-X DTR connector with authentication settings*
+
+### Connector Management
+![Connector List with Test Status](docs/images/connector_list.png)
+*Managing connectors with status and connectivity testing*
+
+### API Documentation
+![FastAPI Swagger Documentation](docs/images/api_docs.png)
+*Interactive API documentation with all available endpoints*
+
+---
+
 ## Features
 
 - **DPP Lifecycle Management**: Create, edit, publish, and archive Digital Product Passports
@@ -68,18 +100,85 @@ docker compose down
 ```
 
 ### Service URLs
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
-- API Documentation: http://localhost:8000/docs
-- Keycloak Admin: http://localhost:8080/admin (admin/admin)
-- OPA: http://localhost:8181
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API Documentation | http://localhost:8000/docs |
+| Keycloak Admin | http://localhost:8080/admin (admin/admin) |
+| OPA | http://localhost:8181 |
 
 ### Default Users
 | Username | Password | Role |
 |----------|----------|------|
-| publisher@example.com | publisher123 | Publisher |
-| viewer@example.com | viewer123 | Viewer |
-| admin@example.com | admin123 | Admin |
+| publisher | publisher123 | Publisher |
+| viewer | viewer123 | Viewer |
+| admin | admin123 | Admin |
+
+### Initial Setup
+
+After starting the services, you need to load the IDTA templates:
+
+1. Navigate to http://localhost:5173
+2. Login with `publisher` / `publisher123`
+3. Go to **Templates** page
+4. Click **Refresh All** to fetch templates from the IDTA repository
+5. You should see 6 templates loaded
+
+## Usage
+
+### Creating a Digital Product Passport
+
+1. **Navigate to DPPs**: Click "DPPs" in the sidebar
+2. **Create New**: Click the "Create DPP" button
+3. **Enter Asset IDs**: Provide Manufacturer Part ID and Serial Number
+4. **Select Templates**: Choose which submodel templates to include
+5. **Create**: Click "Create" to save the DPP
+
+### Connecting to Catena-X
+
+The platform supports integration with Catena-X dataspaces via the Digital Twin Registry (DTR):
+
+1. **Navigate to Connectors**: Click "Connectors" in the sidebar
+2. **Add Connector**: Click "Add Connector"
+3. **Configure**:
+   - **Name**: Friendly name for the connector
+   - **DTR Base URL**: Your DTR API endpoint (e.g., `https://dtr.catena-x.net/api/v3`)
+   - **Access Token**: Bearer token for DTR authentication
+   - **BPN**: Your Business Partner Number (e.g., `BPNL00000001TEST`)
+   - **Submodel Base URL**: Public URL where your submodels are exposed
+4. **Test Connection**: Click "Test" to verify connectivity
+5. **Publish DPPs**: Use the API to publish DPPs to the registry
+
+### API Usage Example
+
+```bash
+# Get an access token
+TOKEN=$(curl -s -X POST "http://localhost:8080/realms/dpp-platform/protocol/openid-connect/token" \
+  -d "client_id=dpp-frontend" \
+  -d "username=publisher" \
+  -d "password=publisher123" \
+  -d "grant_type=password" | jq -r '.access_token')
+
+# List templates
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/templates
+
+# Create a DPP
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://localhost:8000/api/v1/dpps \
+  -d '{
+    "asset_ids": {
+      "manufacturerPartId": "BATTERY-X2000",
+      "serialNumber": "SN-2024-001"
+    },
+    "selected_templates": ["digital-nameplate", "carbon-footprint"]
+  }'
+
+# Publish a DPP
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8000/api/v1/dpps/{dpp_id}/publish
+```
 
 ## Development
 
@@ -156,6 +255,8 @@ mini-dpp-platform/
 │   ├── keycloak/          # Realm configuration
 │   ├── opa/               # Policy files
 │   └── postgres/          # Init scripts
+├── docs/
+│   └── images/            # Screenshots and documentation images
 └── docker-compose.yml
 ```
 
@@ -165,14 +266,16 @@ mini-dpp-platform/
 - `GET /api/v1/templates` - List available templates
 - `GET /api/v1/templates/{key}` - Get template details
 - `GET /api/v1/templates/{key}/schema` - Get UI schema
+- `POST /api/v1/templates/refresh` - Refresh all templates
 
 ### DPPs
 - `POST /api/v1/dpps` - Create new DPP
 - `GET /api/v1/dpps` - List DPPs
 - `GET /api/v1/dpps/{id}` - Get DPP details
-- `PUT /api/v1/dpps/{id}` - Update DPP
+- `PUT /api/v1/dpps/{id}/submodel` - Update submodel data
 - `POST /api/v1/dpps/{id}/publish` - Publish DPP
 - `POST /api/v1/dpps/{id}/archive` - Archive DPP
+- `GET /api/v1/dpps/{id}/revisions` - List revisions
 
 ### Export
 - `GET /api/v1/export/{dpp_id}/aasx` - Export as AASX
@@ -184,6 +287,7 @@ mini-dpp-platform/
 ### Connectors
 - `GET /api/v1/connectors` - List connectors
 - `POST /api/v1/connectors` - Create connector
+- `GET /api/v1/connectors/{id}` - Get connector details
 - `POST /api/v1/connectors/{id}/test` - Test connector
 - `POST /api/v1/connectors/{id}/publish/{dpp_id}` - Publish DPP to DTR
 
@@ -194,6 +298,21 @@ mini-dpp-platform/
 - **IDTA 2002-4-0**: AAS JSON Serialization
 - **IDTA Part 5**: AASX Package Format
 - **DPP4.0**: Digital Product Passport Submodel Templates
+
+## Troubleshooting
+
+### Common Issues
+
+**Templates not loading**: Ensure the backend can reach external URLs. Check the backend logs:
+```bash
+docker logs dpp-backend
+```
+
+**Login redirect fails**: The Keycloak realm may need `sslRequired: none` for local development. This is already configured in the provided realm export.
+
+**API returns 401**: Ensure your JWT token hasn't expired. Tokens are issued with a short lifespan (5 minutes by default).
+
+**Connector test fails**: Verify the DTR URL is accessible and the authentication token is valid.
 
 ## License
 
