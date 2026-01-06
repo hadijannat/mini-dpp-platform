@@ -48,7 +48,10 @@ services:
   # Keycloak - Identity Provider (OIDC)
   # =============================================================================
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0
+    build:
+      context: ./infra/keycloak
+      dockerfile: Dockerfile
+    image: dpp-keycloak:local
     container_name: dpp-keycloak
     command: start-dev --import-realm
     environment:
@@ -86,7 +89,10 @@ services:
   # Open Policy Agent - ABAC Policy Decision Point
   # =============================================================================
   opa:
-    image: openpolicyagent/opa:0.62.1-static
+    build:
+      context: ./infra/opa
+      dockerfile: Dockerfile
+    image: dpp-opa:local
     container_name: dpp-opa
     command:
       - run
