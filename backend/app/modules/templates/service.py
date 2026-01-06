@@ -257,9 +257,7 @@ class TemplateRegistryService:
         await self._session.commit()
         return templates
 
-    def _build_template_url(
-        self, template_key: str, version: str, file_kind: str = "aasx"
-    ) -> str:
+    def _build_template_url(self, template_key: str, version: str, file_kind: str = "aasx") -> str:
         """
         Build a fallback download URL for an IDTA template.
 
@@ -364,9 +362,7 @@ class TemplateRegistryService:
 
         return json_url, aasx_url
 
-    def _select_template_file(
-        self, files: list[dict[str, Any]], prefer_kind: str
-    ) -> str | None:
+    def _select_template_file(self, files: list[dict[str, Any]], prefer_kind: str) -> str | None:
         if not files:
             return None
 

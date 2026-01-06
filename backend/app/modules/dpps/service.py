@@ -634,9 +634,7 @@ class DPPService:
         submodel: dict[str, Any],
         templates: list[Template],
     ) -> Template | None:
-        sm_semantic_id = (
-            submodel.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
-        )
+        sm_semantic_id = submodel.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
         for template in templates:
             if template.semantic_id and template.semantic_id in sm_semantic_id:
                 return template
@@ -697,9 +695,7 @@ class DPPService:
             items = element.get("value", [])
             if isinstance(items, list):
                 return [
-                    self._extract_element_value(item)
-                    if isinstance(item, dict)
-                    else item
+                    self._extract_element_value(item) if isinstance(item, dict) else item
                     for item in items
                 ]
             return []
