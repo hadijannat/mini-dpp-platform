@@ -36,14 +36,14 @@ class DPPService:
     async def _ensure_user_exists(self, subject: str) -> User:
         """
         Ensure a user exists for the given OIDC subject.
-        
+
         Auto-provisions users on first API access (just-in-time provisioning).
         """
         result = await self._session.execute(
             select(User).where(User.subject == subject)
         )
         user = result.scalar_one_or_none()
-        
+
         if user is None:
             # Auto-provision user with publisher role
             user = User(
@@ -54,7 +54,7 @@ class DPPService:
             self._session.add(user)
             await self._session.flush()
             logger.info("user_auto_provisioned", subject=subject)
-        
+
         return user
 
     async def create_dpp(
@@ -78,7 +78,7 @@ class DPPService:
         """
         # Ensure user exists (auto-provision if needed)
         await self._ensure_user_exists(owner_subject)
-        
+
         # Build initial AAS Environment from selected templates
         aas_env = await self._build_initial_environment(
             asset_ids,
