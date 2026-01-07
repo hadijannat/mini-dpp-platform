@@ -44,16 +44,12 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint("id"),
             sa.UniqueConstraint("template_key", "idta_version", name="uq_template_key_version"),
         )
-        op.create_index(
-            "ix_templates_template_key", "templates", ["template_key"], unique=False
-        )
+        op.create_index("ix_templates_template_key", "templates", ["template_key"], unique=False)
         return
 
     indexes = {index["name"] for index in inspector.get_indexes("templates")}
     if "ix_templates_template_key" not in indexes:
-        op.create_index(
-            "ix_templates_template_key", "templates", ["template_key"], unique=False
-        )
+        op.create_index("ix_templates_template_key", "templates", ["template_key"], unique=False)
 
 
 def downgrade() -> None:
