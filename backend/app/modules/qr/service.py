@@ -153,7 +153,7 @@ class QRCodeService:
         # Try to use a system font, fall back to default
         try:
             font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(size * 0.05))
-        except (OSError, IOError):
+        except OSError:
             font = ImageFont.load_default()
 
         # Center the text
