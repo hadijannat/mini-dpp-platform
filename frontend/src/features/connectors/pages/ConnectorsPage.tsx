@@ -40,7 +40,7 @@ export default function ConnectorsPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
 
-  const { data: connectors, isLoading } = useQuery({
+  const { data: connectors, isLoading, isError, error } = useQuery({
     queryKey: ['connectors'],
     queryFn: () => fetchConnectors(token),
   });
@@ -59,6 +59,12 @@ export default function ConnectorsPage() {
       queryClient.invalidateQueries({ queryKey: ['connectors'] });
     },
   });
+
+  const pageError =
+    (testMutation.error as Error | undefined) ??
+    (createMutation.error as Error | undefined) ??
+    (isError ? (error as Error) : undefined);
+  const sessionExpired = Boolean(pageError?.message?.includes('Session expired'));
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -103,6 +109,23 @@ export default function ConnectorsPage() {
           Add Connector
         </button>
       </div>
+
+      {pageError && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{pageError.message || 'Something went wrong.'}</span>
+            {sessionExpired && (
+              <button
+                type="button"
+                onClick={() => { void auth.signinRedirect(); }}
+                className="text-xs font-medium text-red-700 underline"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (
@@ -157,6 +180,11 @@ export default function ConnectorsPage() {
                 />
               </div>
               <div className="flex justify-end space-x-3 pt-4">
+                {createMutation.isError && (
+                  <p className="mr-auto text-sm text-red-600">
+                    {(createMutation.error as Error)?.message || 'Failed to create connector.'}
+                  </p>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}

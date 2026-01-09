@@ -54,12 +54,12 @@ export default function DPPListPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
 
-  const { data: dpps, isLoading } = useQuery({
+  const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
     queryKey: ['dpps'],
     queryFn: () => fetchDPPs(token),
   });
 
-  const { data: templatesData } = useQuery({
+  const { data: templatesData, isError: templatesError, error: templatesErrorObj } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
   });
@@ -86,6 +86,10 @@ export default function DPPListPage() {
 
   const createError = createMutation.isError ? (createMutation.error as Error) : null;
   const sessionExpired = Boolean(createError?.message?.includes('Session expired'));
+  const pageError =
+    (dppsError ? (dppsErrorObj as Error) : null) ??
+    (templatesError ? (templatesErrorObj as Error) : null);
+  const pageSessionExpired = Boolean(pageError?.message?.includes('Session expired'));
 
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -125,6 +129,23 @@ export default function DPPListPage() {
           Create DPP
         </button>
       </div>
+
+      {pageError && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{pageError.message || 'Failed to load data.'}</span>
+            {pageSessionExpired && (
+              <button
+                type="button"
+                onClick={() => { void auth.signinRedirect(); }}
+                className="text-xs font-medium text-red-700 underline"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

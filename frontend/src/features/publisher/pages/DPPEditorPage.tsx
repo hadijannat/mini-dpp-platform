@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -143,6 +144,7 @@ export default function DPPEditorPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', dppId],
@@ -161,6 +163,10 @@ export default function DPPEditorPage() {
       queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
     },
   });
+
+  const publishError = publishMutation.isError ? (publishMutation.error as Error) : null;
+  const bannerMessage = actionError ?? publishError?.message ?? null;
+  const sessionExpired = Boolean(bannerMessage?.includes('Session expired'));
 
   const refreshRebuildMutation = useMutation({
     mutationFn: async () => {
@@ -206,18 +212,22 @@ export default function DPPEditorPage() {
   }
 
   const handleExport = async (format: 'json' | 'aasx' | 'pdf') => {
+    setActionError(null);
     try {
       await downloadExport(dpp.id, format, token);
     } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to export');
       // eslint-disable-next-line no-console
       console.error(error);
     }
   };
 
   const handleQrCode = async () => {
+    setActionError(null);
     try {
       await openQrCode(dpp.id, token);
     } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to generate QR code');
       // eslint-disable-next-line no-console
       console.error(error);
     }
@@ -297,6 +307,23 @@ export default function DPPEditorPage() {
           )}
         </div>
       </div>
+
+      {bannerMessage && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{bannerMessage}</span>
+            {sessionExpired && (
+              <button
+                type="button"
+                onClick={() => { void auth.signinRedirect(); }}
+                className="text-xs font-medium text-red-700 underline"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status */}
       <div className="bg-white shadow rounded-lg p-6">

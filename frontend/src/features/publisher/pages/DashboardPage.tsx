@@ -24,15 +24,20 @@ export default function DashboardPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
 
-  const { data: dpps } = useQuery({
+  const { data: dpps, isError: dppsError, error: dppsErrorObj } = useQuery({
     queryKey: ['dpps'],
     queryFn: () => fetchDPPs(token),
   });
 
-  const { data: templates } = useQuery({
+  const { data: templates, isError: templatesError, error: templatesErrorObj } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
   });
+
+  const pageError =
+    (dppsError ? (dppsErrorObj as Error) : null) ??
+    (templatesError ? (templatesErrorObj as Error) : null);
+  const sessionExpired = Boolean(pageError?.message?.includes('Session expired'));
 
   const stats = [
     { name: 'Total DPPs', value: dpps?.count || 0 },
@@ -49,6 +54,23 @@ export default function DashboardPage() {
           Overview of your Digital Product Passports
         </p>
       </div>
+
+      {pageError && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="flex items-center justify-between gap-3">
+            <span>{pageError.message || 'Something went wrong.'}</span>
+            {sessionExpired && (
+              <button
+                type="button"
+                onClick={() => { void auth.signinRedirect(); }}
+                className="text-xs font-medium text-red-700 underline"
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
