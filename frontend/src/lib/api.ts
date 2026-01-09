@@ -16,8 +16,13 @@ export async function apiFetch(
   options: RequestInit = {},
   token?: string
 ): Promise<Response> {
+  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+  const resolvedUrl =
+    baseUrl && !url.startsWith('http')
+      ? `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
+      : url;
   const headers = withAuthHeaders(token, options.headers ?? {});
-  return fetch(url, {
+  return fetch(resolvedUrl, {
     ...options,
     headers,
   });
