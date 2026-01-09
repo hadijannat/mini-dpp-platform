@@ -148,6 +148,8 @@ services:
       dockerfile: Dockerfile
       target: development
     container_name: dpp-backend
+    command: >
+      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       - ENVIRONMENT=development
       - DATABASE_URL=postgresql+asyncpg://dpp_user:dpp_dev_password_2024@postgres:5432/dpp_platform
