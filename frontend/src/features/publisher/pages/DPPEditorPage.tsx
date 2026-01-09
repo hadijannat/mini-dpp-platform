@@ -2,7 +2,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 const SEMANTIC_ID_TO_TEMPLATE_KEY: Record<string, string> = {
@@ -45,13 +45,17 @@ function formatElementValue(value: unknown): string {
 
 async function fetchDPP(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
-  if (!response.ok) throw new Error('Failed to fetch DPP');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
+  }
   return response.json();
 }
 
 async function fetchTemplates(token?: string) {
   const response = await apiFetch('/api/v1/templates', {}, token);
-  if (!response.ok) throw new Error('Failed to fetch templates');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch templates'));
+  }
   return response.json();
 }
 
@@ -60,8 +64,7 @@ async function refreshTemplates(token?: string) {
     method: 'POST',
   }, token);
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Failed to refresh templates');
+    throw new Error(await getApiErrorMessage(response, 'Failed to refresh templates'));
   }
   return response.json();
 }
@@ -82,8 +85,7 @@ async function rebuildSubmodel(
     }),
   }, token);
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || 'Failed to rebuild submodel');
+    throw new Error(await getApiErrorMessage(response, 'Failed to rebuild submodel'));
   }
   return response.json();
 }
@@ -92,14 +94,18 @@ async function publishDPP(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}/publish`, {
     method: 'POST',
   }, token);
-  if (!response.ok) throw new Error('Failed to publish DPP');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to publish DPP'));
+  }
   return response.json();
 }
 
 async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', token?: string) {
   const response = await apiFetch(`/api/v1/export/${dppId}?format=${format}`, {}, token);
   if (!response.ok) {
-    throw new Error(`Failed to export ${format.toUpperCase()}`);
+    throw new Error(
+      await getApiErrorMessage(response, `Failed to export ${format.toUpperCase()}`)
+    );
   }
   const blob = await response.blob();
   const url = window.URL.createObjectURL(blob);
@@ -115,7 +121,7 @@ async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', to
 async function openQrCode(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/qr/${dppId}?format=png`, {}, token);
   if (!response.ok) {
-    throw new Error('Failed to generate QR code');
+    throw new Error(await getApiErrorMessage(response, 'Failed to generate QR code'));
   }
   const blob = await response.blob();
   const url = window.URL.createObjectURL(blob);
