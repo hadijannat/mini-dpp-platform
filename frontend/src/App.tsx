@@ -13,6 +13,7 @@ import DashboardPage from './features/publisher/pages/DashboardPage';
 import DPPListPage from './features/publisher/pages/DPPListPage';
 import DPPEditorPage from './features/publisher/pages/DPPEditorPage';
 import TemplatesPage from './features/publisher/pages/TemplatesPage';
+import DataCarriersPage from './features/publisher/pages/DataCarriersPage';
 import ConnectorsPage from './features/connectors/pages/ConnectorsPage';
 import SubmodelEditorPage from './features/editor/pages/SubmodelEditorPage';
 
@@ -64,6 +65,7 @@ function App() {
         <Route path="dpps/:dppId" element={<DPPEditorPage />} />
         <Route path="dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
         <Route path="templates" element={<TemplatesPage />} />
+        <Route path="carriers" element={<DataCarriersPage />} />
         <Route path="connectors" element={<ConnectorsPage />} />
       </Route>
 

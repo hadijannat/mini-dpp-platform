@@ -20,6 +20,7 @@ Create, manage, and publish Digital Product Passports compliant with EU regulati
 | 📦 **DPP Lifecycle** | Create → Edit → Publish → Archive with revision history |
 | 🔗 **Catena-X Ready** | DTR publishing with optional EDC DSP endpoint metadata |
 | 📤 **Export Formats** | AASX (IDTA Part 5), JSON, and QR code generation |
+| 📱 **Data Carriers** | GS1 Digital Link QR codes for EU DPP compliance |
 | 🛡️ **ABAC Policies** | Fine-grained access control via Open Policy Agent |
 
 ---
@@ -187,6 +188,27 @@ After creating DPPs, the dashboard reflects your activity:
 
 ---
 
+### Step 10: Generate Data Carriers (QR Codes)
+
+Navigate to **Data Carriers** in the sidebar to generate QR codes for product identification.
+
+![Data Carriers page with QR preview and GS1 Digital Link](docs/images/data_carriers.png)
+
+**Features:**
+- **Standard QR** - Encodes DPP viewer URL
+- **GS1 Digital Link** - EU DPP compliant format: `https://id.gs1.org/01/{GTIN}/21/{serial}`
+- **Customizable** - Size, colors, and product ID text
+- **Export Formats** - PNG, SVG, or print-ready PDF
+
+**GS1 Digital Link Example:**
+```
+https://id.gs1.org/01/03772280965805/21/SN-2024-DEMO-001
+```
+
+> **Note:** QR codes can only be generated for **published** DPPs.
+
+---
+
 ## 🎬 Video Walkthrough
 
 For a complete animated demonstration of the workflow:
@@ -339,12 +361,14 @@ cp .env.example .env
 | PUT | `/api/v1/dpps/{id}/submodel` | Update submodel data |
 | POST | `/api/v1/dpps/{id}/publish` | Publish DPP |
 
-### Export
+### Export & Data Carriers
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/export/{id}/aasx` | Export as AASX |
 | GET | `/api/v1/export/{id}/json` | Export as JSON |
-| GET | `/api/v1/qr/{id}` | Generate QR code |
+| GET | `/api/v1/qr/{id}` | Generate basic QR code |
+| POST | `/api/v1/qr/{id}/carrier` | Generate custom data carrier |
+| GET | `/api/v1/qr/{id}/gs1` | Get GS1 Digital Link URL |
 
 ---
 

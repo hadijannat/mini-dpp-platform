@@ -5,6 +5,7 @@ import {
   FileText,
   FileCode,
   Link2,
+  QrCode,
   LogOut,
   User,
 } from 'lucide-react';
@@ -13,6 +14,7 @@ const navigation = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
   { name: 'DPPs', href: '/console/dpps', icon: FileText },
   { name: 'Templates', href: '/console/templates', icon: FileCode },
+  { name: 'Data Carriers', href: '/console/carriers', icon: QrCode },
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
 ];
 
@@ -44,11 +46,10 @@ export default function PublisherLayout() {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${
-                    isActive
+                  className={`flex items-center px-4 py-2 text-sm font-medium rounded-md ${isActive
                       ? 'bg-gray-800 text-white'
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                  }`}
+                    }`}
                 >
                   <item.icon className="mr-3 h-5 w-5" />
                   {item.name}

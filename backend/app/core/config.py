@@ -185,6 +185,15 @@ class Settings(BaseSettings):
         }
     )
 
+    # ==========================================================================
+    # Data Carrier / GS1 Configuration
+    # ==========================================================================
+    gs1_resolver_url: str = Field(
+        default="https://id.gs1.org",
+        description="GS1 Digital Link resolver URL for QR code generation",
+    )
+
+
 
 @lru_cache
 def get_settings() -> Settings:
