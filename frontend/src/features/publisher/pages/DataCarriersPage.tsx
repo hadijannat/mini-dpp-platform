@@ -51,6 +51,24 @@ export default function DataCarriersPage() {
         loadDPPs();
     }, [token]);
 
+    const resolveErrorMessage = async (response: Response, fallback: string) => {
+        if (response.status === 401 || response.status === 403) {
+            return 'Session expired. Please sign in again.';
+        }
+        const contentType = response.headers.get('content-type') ?? '';
+        const rawText = await response.text();
+        if (contentType.includes('application/json')) {
+            try {
+                const body = JSON.parse(rawText) as { detail?: string };
+                const detail = typeof body?.detail === 'string' ? body.detail : '';
+                return detail || rawText || fallback;
+            } catch {
+                return rawText || fallback;
+            }
+        }
+        return rawText || fallback;
+    };
+
     const loadDPPs = async () => {
         if (!token) return;
         setLoading(true);
@@ -58,29 +76,32 @@ export default function DataCarriersPage() {
 
         try {
             const response = await apiFetch('/api/v1/dpps', {}, token);
-            if (response.ok) {
-                const data = await response.json();
-                // Handle both array and paginated response formats safely
-                let dppList: DPP[] = [];
-                if (Array.isArray(data)) {
-                    dppList = data;
-                } else if (data && Array.isArray(data.items)) {
-                    dppList = data.items;
-                } else if (data && typeof data === 'object') {
-                    // Try to find any array property
-                    const arrayProp = Object.values(data).find(v => Array.isArray(v));
-                    if (arrayProp) dppList = arrayProp as DPP[];
-                }
-                // Filter to only published DPPs
-                const publishedDpps = dppList.filter(
-                    (d: DPP) => d.status === 'published'
-                );
-                setDpps(publishedDpps);
-            } else {
-                setError('Failed to load DPPs');
+            if (!response.ok) {
+                const message = await resolveErrorMessage(response, 'Failed to load DPPs');
+                setError(message);
+                return;
             }
+            const data = await response.json();
+            // Handle both array and paginated response formats safely
+            let dppList: DPP[] = [];
+            if (Array.isArray(data)) {
+                dppList = data;
+            } else if (data && Array.isArray(data.items)) {
+                dppList = data.items;
+            } else if (data && Array.isArray(data.dpps)) {
+                dppList = data.dpps;
+            } else if (data && typeof data === 'object') {
+                // Try to find any array property
+                const arrayProp = Object.values(data).find((v) => Array.isArray(v));
+                if (arrayProp) dppList = arrayProp as DPP[];
+            }
+            // Filter to only published DPPs
+            const publishedDpps = dppList.filter(
+                (d: DPP) => d.status === 'published'
+            );
+            setDpps(publishedDpps);
         } catch (err) {
-            setError('Failed to load DPPs');
+            setError(err instanceof Error ? err.message : 'Failed to load DPPs');
             console.error(err);
         } finally {
             setLoading(false);
@@ -129,8 +150,8 @@ export default function DataCarriersPage() {
                 const url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
             } else {
-                const err = await response.json();
-                setError(err.detail || 'Failed to generate preview');
+                const message = await resolveErrorMessage(response, 'Failed to generate preview');
+                setError(message);
             }
         } catch (err) {
             setError('Failed to generate preview');
@@ -172,6 +193,9 @@ export default function DataCarriersPage() {
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
+            } else {
+                const message = await resolveErrorMessage(response, 'Failed to download carrier');
+                setError(message);
             }
         } catch (err) {
             setError('Failed to download carrier');
