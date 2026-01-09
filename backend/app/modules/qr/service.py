@@ -12,7 +12,7 @@ import io
 from typing import Literal
 
 import qrcode  # type: ignore[import-untyped]
-from PIL import Image, ImageDraw, ImageFont  # type: ignore[import-untyped]
+from PIL import Image, ImageDraw, ImageFont
 from qrcode.image.styledpil import StyledPilImage  # type: ignore[import-untyped]
 from qrcode.image.styles.moduledrawers import RoundedModuleDrawer  # type: ignore[import-untyped]
 
@@ -154,7 +154,7 @@ class QRCodeService:
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(size * 0.05)
             )
         except OSError:
-            font = ImageFont.load_default()
+            font = ImageFont.load_default()  # type: ignore[assignment]
 
         # Center the text
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -262,7 +262,7 @@ class QRCodeService:
         # Format: https://id.gs1.org/01/{GTIN}/21/{serial}
         return f"{base_url}/01/{clean_gtin}/21/{serial}"
 
-    def extract_gtin_from_asset_ids(self, asset_ids: dict) -> tuple[str, str]:
+    def extract_gtin_from_asset_ids(self, asset_ids: dict[str, str]) -> tuple[str, str]:
         """
         Extract GTIN and serial from DPP asset identifiers.
 
