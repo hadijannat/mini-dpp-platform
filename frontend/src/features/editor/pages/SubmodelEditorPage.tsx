@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 type TemplateResponse = {
@@ -34,19 +34,25 @@ type FormData = Record<string, unknown>;
 
 async function fetchDpp(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
-  if (!response.ok) throw new Error('Failed to fetch DPP');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
+  }
   return response.json();
 }
 
 async function fetchTemplate(templateKey: string, token?: string) {
   const response = await apiFetch(`/api/v1/templates/${templateKey}`, {}, token);
-  if (!response.ok) throw new Error('Failed to fetch template');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch template'));
+  }
   return response.json();
 }
 
 async function fetchTemplateSchema(templateKey: string, token?: string) {
   const response = await apiFetch(`/api/v1/templates/${templateKey}/schema`, {}, token);
-  if (!response.ok) throw new Error('Failed to fetch template schema');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch template schema'));
+  }
   return response.json();
 }
 
@@ -67,22 +73,7 @@ async function updateSubmodel(
     }),
   }, token);
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Session expired. Please sign in again.');
-    }
-    const contentType = response.headers.get('content-type') ?? '';
-    const rawText = await response.text();
-    if (contentType.includes('application/json')) {
-      try {
-        const body = JSON.parse(rawText) as { detail?: string };
-        const detail = typeof body?.detail === 'string' ? body.detail : '';
-        const message = detail || rawText;
-        throw new Error(message || 'Failed to update submodel');
-      } catch {
-        throw new Error(rawText || 'Failed to update submodel');
-      }
-    }
-    throw new Error(rawText || 'Failed to update submodel');
+    throw new Error(await getApiErrorMessage(response, 'Failed to update submodel'));
   }
   return response.json();
 }

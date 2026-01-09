@@ -86,9 +86,7 @@ class QRCodeService:
                 qr, size, with_logo, fg_color, bg_color, include_text, text_label
             )
         elif format == "pdf":
-            return self._generate_pdf(
-                qr, size, fg_color, bg_color, include_text, text_label
-            )
+            return self._generate_pdf(qr, size, fg_color, bg_color, include_text, text_label)
         else:
             return self._generate_svg(qr, size)
 
@@ -152,7 +150,9 @@ class QRCodeService:
 
         # Try to use a system font, fall back to default
         try:
-            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(size * 0.05))
+            font = ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", int(size * 0.05)
+            )
         except OSError:
             font = ImageFont.load_default()
 

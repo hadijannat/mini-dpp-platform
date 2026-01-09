@@ -2,11 +2,13 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { Plus, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 
 async function fetchConnectors(token?: string) {
   const response = await apiFetch('/api/v1/connectors', {}, token);
-  if (!response.ok) throw new Error('Failed to fetch connectors');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch connectors'));
+  }
   return response.json();
 }
 
@@ -16,7 +18,9 @@ async function createConnector(data: any, token?: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   }, token);
-  if (!response.ok) throw new Error('Failed to create connector');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to create connector'));
+  }
   return response.json();
 }
 
@@ -24,7 +28,9 @@ async function testConnector(connectorId: string, token?: string) {
   const response = await apiFetch(`/api/v1/connectors/${connectorId}/test`, {
     method: 'POST',
   }, token);
-  if (!response.ok) throw new Error('Failed to test connector');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to test connector'));
+  }
   return response.json();
 }
 

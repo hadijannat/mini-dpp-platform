@@ -1,12 +1,12 @@
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 
 async function fetchDPP(dppId: string, token?: string) {
   const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
   if (!response.ok) {
-    throw new Error('Failed to fetch DPP');
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
   return response.json();
 }
@@ -49,7 +49,9 @@ export default function DPPViewerPage() {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Error loading Digital Product Passport</p>
+        <p className="text-red-800">
+          {(error as Error)?.message || 'Error loading Digital Product Passport'}
+        </p>
       </div>
     );
   }
