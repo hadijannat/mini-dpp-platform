@@ -2,12 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { FileText, Plus, ArrowRight } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 
 async function fetchDPPs(token?: string) {
   const response = await apiFetch('/api/v1/dpps', {}, token);
   if (!response.ok) {
-    throw new Error('Failed to fetch DPPs');
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPPs'));
   }
   return response.json();
 }
@@ -15,7 +15,7 @@ async function fetchDPPs(token?: string) {
 async function fetchTemplates(token?: string) {
   const response = await apiFetch('/api/v1/templates', {}, token);
   if (!response.ok) {
-    throw new Error('Failed to fetch templates');
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch templates'));
   }
   return response.json();
 }

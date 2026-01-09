@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { QrCode, Download, RefreshCw, Link2, Copy, Check, Printer } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 
 interface DPP {
     id: string;
@@ -51,24 +51,6 @@ export default function DataCarriersPage() {
         loadDPPs();
     }, [token]);
 
-    const resolveErrorMessage = async (response: Response, fallback: string) => {
-        if (response.status === 401 || response.status === 403) {
-            return 'Session expired. Please sign in again.';
-        }
-        const contentType = response.headers.get('content-type') ?? '';
-        const rawText = await response.text();
-        if (contentType.includes('application/json')) {
-            try {
-                const body = JSON.parse(rawText) as { detail?: string };
-                const detail = typeof body?.detail === 'string' ? body.detail : '';
-                return detail || rawText || fallback;
-            } catch {
-                return rawText || fallback;
-            }
-        }
-        return rawText || fallback;
-    };
-
     const loadDPPs = async () => {
         if (!token) return;
         setLoading(true);
@@ -77,7 +59,7 @@ export default function DataCarriersPage() {
         try {
             const response = await apiFetch('/api/v1/dpps', {}, token);
             if (!response.ok) {
-                const message = await resolveErrorMessage(response, 'Failed to load DPPs');
+                const message = await getApiErrorMessage(response, 'Failed to load DPPs');
                 setError(message);
                 return;
             }
@@ -150,7 +132,7 @@ export default function DataCarriersPage() {
                 const url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
             } else {
-                const message = await resolveErrorMessage(response, 'Failed to generate preview');
+                const message = await getApiErrorMessage(response, 'Failed to generate preview');
                 setError(message);
             }
         } catch (err) {
@@ -194,7 +176,7 @@ export default function DataCarriersPage() {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
             } else {
-                const message = await resolveErrorMessage(response, 'Failed to download carrier');
+                const message = await getApiErrorMessage(response, 'Failed to download carrier');
                 setError(message);
             }
         } catch (err) {

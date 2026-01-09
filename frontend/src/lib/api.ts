@@ -11,6 +11,27 @@ export function withAuthHeaders(
   };
 }
 
+export async function getApiErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
+  if (response.status === 401 || response.status === 403) {
+    return 'Session expired. Please sign in again.';
+  }
+  const contentType = response.headers.get('content-type') ?? '';
+  const rawText = await response.text();
+  if (contentType.includes('application/json')) {
+    try {
+      const body = JSON.parse(rawText) as { detail?: string };
+      const detail = typeof body?.detail === 'string' ? body.detail : '';
+      return detail || rawText || fallback;
+    } catch {
+      return rawText || fallback;
+    }
+  }
+  return rawText || fallback;
+}
+
 export async function apiFetch(
   url: string,
   options: RequestInit = {},

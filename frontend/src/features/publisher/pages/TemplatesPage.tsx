@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { RefreshCw } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 
 type RebuildSummary = {
   total: number;
@@ -11,18 +11,11 @@ type RebuildSummary = {
   errors: Array<{ dpp_id: string; error: string }>;
 };
 
-async function assertOk(response: Response, fallbackMessage: string) {
-  if (response.ok) return;
-  if (response.status === 401) {
-    throw new Error('Session expired. Please sign in again.');
-  }
-  const message = await response.text();
-  throw new Error(message || fallbackMessage);
-}
-
 async function fetchTemplates(token?: string) {
   const response = await apiFetch('/api/v1/templates', {}, token);
-  await assertOk(response, 'Failed to fetch templates');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch templates'));
+  }
   return response.json();
 }
 
@@ -30,7 +23,9 @@ async function refreshTemplates(token?: string) {
   const response = await apiFetch('/api/v1/templates/refresh', {
     method: 'POST',
   }, token);
-  await assertOk(response, 'Failed to refresh templates');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to refresh templates'));
+  }
   return response.json();
 }
 
@@ -38,7 +33,9 @@ async function refreshAndRebuildAll(token?: string) {
   const response = await apiFetch('/api/v1/dpps/rebuild-all', {
     method: 'POST',
   }, token);
-  await assertOk(response, 'Failed to rebuild all DPPs');
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to rebuild all DPPs'));
+  }
   return response.json();
 }
 
