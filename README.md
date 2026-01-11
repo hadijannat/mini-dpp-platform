@@ -225,6 +225,32 @@ docker compose exec -T backend python -m app.modules.templates.diagnostics > /tm
 
 ---
 
+## 🧪 Template Goldens (Snapshots)
+
+Golden files lock the **template definition + schema** hashes so we can detect
+unexpected changes in dynamic form generation.
+
+### Update goldens
+
+```bash
+docker compose up -d
+docker exec dpp-backend alembic upgrade head
+
+# Backend runs on 8001 in docker-compose by default
+cd backend
+DPP_BASE_URL=http://localhost:8001 uv run python -m tests.tools.update_template_goldens
+```
+
+### Run golden checks
+
+```bash
+cd backend
+RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=http://localhost:8081 \
+  uv run pytest -m golden --run-e2e --run-goldens
+```
+
+---
+
 ## 📋 API Endpoints (Summary)
 
 ### Tenants
