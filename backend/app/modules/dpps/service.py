@@ -13,7 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.core.identifiers import IdentifierValidationError, build_global_asset_id, normalize_base_uri
 from app.core.logging import get_logger
+from app.core.settings_service import SettingsService
 from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
 from app.modules.templates.service import TemplateRegistryService
 
@@ -76,6 +78,22 @@ class DPPService:
         """
         # Ensure user exists (auto-provision if needed)
         await self._ensure_user_exists(owner_subject)
+
+        # Resolve globalAssetId if not provided (admin-managed base URI)
+        settings_service = SettingsService(self._session)
+        base_uri = await settings_service.get_setting("global_asset_id_base_uri")
+        if not base_uri:
+            base_uri = self._settings.global_asset_id_base_uri_default
+        if base_uri:
+            normalized_base = normalize_base_uri(base_uri)
+            provided_global_id = str(asset_ids.get("globalAssetId", "")).strip()
+            if provided_global_id:
+                if not provided_global_id.startswith(normalized_base):
+                    raise IdentifierValidationError(
+                        "globalAssetId must start with the configured base URI."
+                    )
+            else:
+                asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
 
         # Build initial AAS Environment from selected templates
         aas_env = await self._build_initial_environment(

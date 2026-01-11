@@ -279,9 +279,11 @@ class QRCodeService:
         serial = asset_ids.get("serialNumber", "")
 
         # Check for explicit GTIN in asset_ids
-        gtin = asset_ids.get("globalAssetId", "")
+        gtin = asset_ids.get("gtin", "")
         if not gtin:
-            gtin = asset_ids.get("gtin", "")
+            candidate = asset_ids.get("globalAssetId", "")
+            if isinstance(candidate, str) and candidate.isdigit():
+                gtin = candidate
 
         # If no GTIN, create a pseudo-GTIN from part ID
         if not gtin:

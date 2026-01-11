@@ -193,6 +193,14 @@ class Settings(BaseSettings):
         description="GS1 Digital Link resolver URL for QR code generation",
     )
 
+    # ==========================================================================
+    # Identifier Configuration
+    # ==========================================================================
+    global_asset_id_base_uri_default: str = Field(
+        default="http://localhost:8000/asset/",
+        description="Default base URI for globalAssetId generation",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

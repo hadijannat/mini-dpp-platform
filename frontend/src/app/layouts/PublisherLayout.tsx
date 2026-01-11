@@ -8,9 +8,10 @@ import {
   QrCode,
   LogOut,
   User,
+  Settings,
 } from 'lucide-react';
 
-const navigation = [
+const baseNavigation = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
   { name: 'DPPs', href: '/console/dpps', icon: FileText },
   { name: 'Templates', href: '/console/templates', icon: FileCode },
@@ -21,6 +22,11 @@ const navigation = [
 export default function PublisherLayout() {
   const auth = useAuth();
   const location = useLocation();
+  const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
+  const isAdmin = userRoles.includes('admin');
+  const navigation = isAdmin
+    ? [...baseNavigation, { name: 'Settings', href: '/console/settings', icon: Settings }]
+    : baseNavigation;
 
   const handleLogout = () => {
     auth.signoutRedirect();

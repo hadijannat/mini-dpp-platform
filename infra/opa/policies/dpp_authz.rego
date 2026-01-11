@@ -29,6 +29,7 @@ decision := {
     "effect": "allow",
     "policy_id": "route-publisher-access"
 } if {
+    not input.subject.is_admin
     input.action == "access_route"
     input.resource.route_type == "publisher"
     input.subject.is_publisher
@@ -39,6 +40,7 @@ decision := {
     "effect": "allow",
     "policy_id": "route-viewer-access"
 } if {
+    not input.subject.is_admin
     input.action == "access_route"
     input.resource.route_type == "viewer"
 }
@@ -49,6 +51,7 @@ decision := {
     "reason": "Publisher role required",
     "policy_id": "route-publisher-deny"
 } if {
+    not input.subject.is_admin
     input.action == "access_route"
     input.resource.route_type == "publisher"
     not input.subject.is_publisher
@@ -63,6 +66,7 @@ decision := {
     "effect": "allow",
     "policy_id": "dpp-create"
 } if {
+    not input.subject.is_admin
     input.action == "create"
     input.resource.type == "dpp"
     input.subject.is_publisher
@@ -73,6 +77,7 @@ decision := {
     "effect": "allow",
     "policy_id": "dpp-edit-owner"
 } if {
+    not input.subject.is_admin
     input.action in ["update", "publish", "archive"]
     input.resource.type == "dpp"
     input.resource.owner_subject == input.subject.sub
@@ -84,6 +89,7 @@ decision := {
     "effect": "allow",
     "policy_id": "dpp-read-published"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "dpp"
     input.resource.status == "published"
@@ -94,6 +100,7 @@ decision := {
     "effect": "allow",
     "policy_id": "dpp-read-own-draft"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "dpp"
     input.resource.status == "draft"
@@ -110,6 +117,7 @@ decision := {
     "effect": "allow",
     "policy_id": "template-read"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "template"
 }
@@ -119,6 +127,7 @@ decision := {
     "effect": "allow",
     "policy_id": "template-refresh"
 } if {
+    not input.subject.is_admin
     input.action in ["refresh", "update"]
     input.resource.type == "template"
     input.subject.is_publisher
@@ -130,6 +139,7 @@ decision := {
     "reason": "Publisher role required",
     "policy_id": "template-refresh-deny"
 } if {
+    not input.subject.is_admin
     input.action in ["refresh", "update"]
     input.resource.type == "template"
     not input.subject.is_publisher
@@ -144,6 +154,7 @@ decision := {
     "effect": "allow",
     "policy_id": "element-public"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "element"
     input.resource.confidentiality == "public"
@@ -155,6 +166,7 @@ decision := {
     "masked_value": "[INTERNAL]",
     "policy_id": "element-internal-mask"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "element"
     input.resource.confidentiality == "internal"
@@ -166,6 +178,7 @@ decision := {
     "effect": "allow",
     "policy_id": "element-internal-publisher"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "element"
     input.resource.confidentiality == "internal"
@@ -177,6 +190,7 @@ decision := {
     "effect": "hide",
     "policy_id": "element-confidential-hide"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "element"
     input.resource.confidentiality == "confidential"
@@ -188,6 +202,7 @@ decision := {
     "effect": "allow",
     "policy_id": "element-confidential-cleared"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type == "element"
     input.resource.confidentiality == "confidential"
@@ -200,6 +215,7 @@ decision := {
     "effect": "decrypt",
     "policy_id": "element-encrypted-authorized"
 } if {
+    not input.subject.is_admin
     input.action == "decrypt"
     input.resource.type == "element"
     input.resource.confidentiality == "encrypted"
@@ -216,6 +232,7 @@ decision := {
     "effect": "allow",
     "policy_id": "connector-read"
 } if {
+    not input.subject.is_admin
     input.action in ["read", "list"]
     input.resource.type == "connector"
     input.subject.is_publisher
@@ -226,6 +243,7 @@ decision := {
     "effect": "allow",
     "policy_id": "connector-manage"
 } if {
+    not input.subject.is_admin
     input.action in ["create", "update", "delete", "test"]
     input.resource.type == "connector"
     input.subject.is_publisher
@@ -236,6 +254,7 @@ decision := {
     "effect": "allow",
     "policy_id": "connector-publish"
 } if {
+    not input.subject.is_admin
     input.action == "publish_to_connector"
     input.resource.type == "dpp"
     input.resource.owner_subject == input.subject.sub
@@ -251,6 +270,7 @@ decision := {
     "effect": "allow",
     "policy_id": "export-owner"
 } if {
+    not input.subject.is_admin
     input.action == "export"
     input.resource.type == "dpp"
     input.resource.owner_subject == input.subject.sub
@@ -262,6 +282,7 @@ decision := {
     "effect": "allow",
     "policy_id": "export-viewer-published"
 } if {
+    not input.subject.is_admin
     input.action == "export"
     input.resource.type == "dpp"
     input.resource.status == "published"
@@ -275,6 +296,7 @@ decision := {
     "reason": "AASX export requires publisher role",
     "policy_id": "export-aasx-deny"
 } if {
+    not input.subject.is_admin
     input.action == "export"
     input.resource.format == "aasx"
     not input.subject.is_publisher
@@ -289,6 +311,7 @@ decision := {
     "effect": "allow",
     "policy_id": "bpn-shared-access"
 } if {
+    not input.subject.is_admin
     input.action == "read"
     input.resource.type in ["dpp", "element"]
     input.resource.shared_bpns[_] == input.subject.bpn

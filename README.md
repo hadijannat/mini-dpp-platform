@@ -198,6 +198,37 @@ Navigate to **Data Carriers** in the sidebar to generate QR codes for product id
 - **Standard QR** - Encodes DPP viewer URL
 - **GS1 Digital Link** - EU DPP compliant format: `https://id.gs1.org/01/{GTIN}/21/{serial}`
 - **Customizable** - Size, colors, and product ID text
+
+---
+
+## 🔧 Admin Walkthrough: Change Global Asset ID Prefix
+
+This walkthrough shows how an **admin** can change the HTTP prefix for global asset IDs (e.g., from `http://example.org/asset/*` to a custom domain).
+
+### Admin Step 1: Open Settings
+
+Sign in as an admin and open **Settings** from the left navigation.
+
+![Admin settings page with Global Asset ID Base URI](docs/images/admin-id-prefix-01-settings.png)
+
+---
+
+### Admin Step 2: Enter Your Custom Prefix
+
+Set the **Global Asset ID Base URI**. Rules enforced by the platform:
+- Must start with `http://`
+- Must end with `/`
+- Must not include a query string or fragment
+
+![Editing the base URI and previewing the new ID format](docs/images/admin-id-prefix-02-edit.png)
+
+---
+
+### Admin Step 3: Save and Verify
+
+Click **Save changes** and confirm the success message. Newly created DPPs will use this prefix for their global asset IDs.
+
+![Settings saved confirmation](docs/images/admin-id-prefix-03-saved.png)
 - **Export Formats** - PNG, SVG, or print-ready PDF
 
 **GS1 Digital Link Example:**

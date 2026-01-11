@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
+from app.core.identifiers import IdentifierValidationError
 from app.core.security import Admin, CurrentUser, Publisher, require_access
 from app.db.models import DPPStatus
 from app.db.session import DbSession
@@ -130,12 +131,18 @@ async def create_dpp(
 
     asset_ids_dict = request.asset_ids.model_dump(exclude_none=True)
 
-    dpp = await service.create_dpp(
-        owner_subject=user.sub,
-        asset_ids=asset_ids_dict,
-        selected_templates=request.selected_templates,
-        initial_data=request.initial_data,
-    )
+    try:
+        dpp = await service.create_dpp(
+            owner_subject=user.sub,
+            asset_ids=asset_ids_dict,
+            selected_templates=request.selected_templates,
+            initial_data=request.initial_data,
+        )
+    except IdentifierValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     await db.commit()
     await db.refresh(dpp)

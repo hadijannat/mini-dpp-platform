@@ -18,6 +18,7 @@ from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
+from app.modules.settings.router import router as settings_router
 from app.modules.templates.router import router as templates_router
 
 # Configure logging before anything else
@@ -125,6 +126,11 @@ def create_application() -> FastAPI:
         qr_router,
         prefix=f"{settings.api_v1_prefix}/qr",
         tags=["QR Codes"],
+    )
+    app.include_router(
+        settings_router,
+        prefix=f"{settings.api_v1_prefix}/admin/settings",
+        tags=["Settings"],
     )
 
     return app

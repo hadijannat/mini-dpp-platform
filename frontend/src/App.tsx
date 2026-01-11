@@ -16,6 +16,7 @@ import TemplatesPage from './features/publisher/pages/TemplatesPage';
 import DataCarriersPage from './features/publisher/pages/DataCarriersPage';
 import ConnectorsPage from './features/connectors/pages/ConnectorsPage';
 import SubmodelEditorPage from './features/editor/pages/SubmodelEditorPage';
+import GlobalIdSettingsPage from './features/admin/pages/GlobalIdSettingsPage';
 
 // Auth
 import LoginPage from './auth/LoginPage';
@@ -67,6 +68,14 @@ function App() {
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="carriers" element={<DataCarriersPage />} />
         <Route path="connectors" element={<ConnectorsPage />} />
+        <Route
+          path="settings"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <GlobalIdSettingsPage />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* Default redirect */}
