@@ -256,6 +256,8 @@ class TemplateDefinitionBuilder:
     def _enum_to_str(self, value: Any) -> str | None:
         if value is None:
             return None
+        if isinstance(value, type):
+            return str(value)
         if hasattr(value, "value"):
             return str(value.value)
         return str(value)
