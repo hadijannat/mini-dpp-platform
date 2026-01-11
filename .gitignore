@@ -35,6 +35,7 @@ skills/code-nerd/
 htmlcov/
 .pytest_cache/
 coverage/
+backend/test-results/
 
 # Build artifacts
 *.aasx
