@@ -35,6 +35,8 @@ jobs:
           echo "COMPLIANCE_TOOL_CMD=$COMPLIANCE_CMD" >> $GITHUB_ENV
 
       - name: Start stack
+        env:
+          IDTA_TEMPLATES_GITHUB_TOKEN: ${{ github.token }}
         run: docker compose up -d --build
 
       - name: Wait for backend health
