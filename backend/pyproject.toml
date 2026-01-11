@@ -46,7 +46,7 @@ dependencies = [
     # AAS Processing
     "xmltodict>=0.13.0",
     "jsonschema>=4.21.0",
-    "basyx-python-sdk>=2.0.0,<3",
+    "basyx-python-sdk==2.0.0",
 
     # Validation & Serialization
     "pydantic>=2.6.0",
