@@ -139,6 +139,7 @@ def api_client(
     oidc_token: str,
     ensure_publisher_membership: str,
 ) -> httpx.Client:
+    _ = ensure_publisher_membership
     wait_for_http_ok(f"{runtime.dpp_base_url}/api/v1/docs")
 
     headers = {"Authorization": f"Bearer {oidc_token}"}

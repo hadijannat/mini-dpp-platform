@@ -28,11 +28,11 @@ jobs:
         working-directory: backend
         run: uv sync --frozen --extra dev --extra test
 
-      - name: Install compliance tool (optional)
+      - name: Set up compliance tool env
         working-directory: backend
         run: |
-          uv pip install "git+https://github.com/rwth-iat/aas-compliance-tool@v1.0.0" || \
-          echo "aas-compliance-tool install failed; continuing without compliance check."
+          COMPLIANCE_CMD=$(python tests/tools/setup_compliance_tool_env.py)
+          echo "COMPLIANCE_TOOL_CMD=$COMPLIANCE_CMD" >> $GITHUB_ENV
 
       - name: Start stack
         run: docker compose up -d --build

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shlex
 import shutil
 import subprocess
 import zipfile
@@ -31,13 +33,23 @@ def _save_bytes(path: Path, payload: bytes) -> None:
     path.write_bytes(payload)
 
 
-def _run_compliance_tool(file_path: Path, *, is_aasx: bool) -> tuple[bool, str]:
+def _resolve_compliance_cmd() -> list[str] | None:
+    env_cmd = os.getenv("COMPLIANCE_TOOL_CMD")
+    if env_cmd:
+        return shlex.split(env_cmd)
+
     exe = shutil.which("aas-compliance-check")
     if exe:
-        cmd = [exe]
-    else:
+        return [exe]
+
+    if importlib.util.find_spec("aas_compliance_tool"):
         python = shutil.which("python") or "python"
-        cmd = [python, "-m", "aas_compliance_tool.cli"]
+        return [python, "-m", "aas_compliance_tool.cli"]
+
+    return None
+
+
+def _run_compliance_tool(cmd: list[str], file_path: Path, *, is_aasx: bool) -> tuple[bool, str]:
 
     args = ["deserialization", "--json"]
     if is_aasx:
@@ -47,16 +59,6 @@ def _run_compliance_tool(file_path: Path, *, is_aasx: bool) -> tuple[bool, str]:
     proc = subprocess.run(full, capture_output=True, text=True)
     output = (proc.stdout or "") + "\n" + (proc.stderr or "")
     return proc.returncode == 0, output
-
-
-def _is_compliance_tool_error(output: str) -> bool:
-    markers = (
-        "ImportError",
-        "ModuleNotFoundError",
-        "No module named",
-        "cannot import name",
-    )
-    return any(marker in output for marker in markers)
 
 
 @pytest.mark.e2e
@@ -118,38 +120,22 @@ def test_pipeline_refresh_build_export(
 
     # 5) Optional compliance check (if tool installed)
     compliance = {"json_ok": None, "aasx_ok": None}
-    compliance_available = bool(
-        shutil.which("aas-compliance-check") or importlib.util.find_spec("aas_compliance_tool")
-    )
-    if compliance_available:
-        json_ok, json_output = _run_compliance_tool(json_path, is_aasx=False)
-        aasx_ok, aasx_output = _run_compliance_tool(aasx_path, is_aasx=True)
-        tool_error = _is_compliance_tool_error(json_output) or _is_compliance_tool_error(
-            aasx_output
+    compliance_cmd = _resolve_compliance_cmd()
+    if compliance_cmd:
+        json_ok, json_output = _run_compliance_tool(compliance_cmd, json_path, is_aasx=False)
+        aasx_ok, aasx_output = _run_compliance_tool(compliance_cmd, aasx_path, is_aasx=True)
+        compliance["json_ok"] = json_ok
+        compliance["aasx_ok"] = aasx_ok
+        _save_json(
+            artifacts / f"{dpp_id}.compliance.json.log.json",
+            {"ok": json_ok, "output": json_output},
         )
-        if tool_error:
-            compliance["error"] = "compliance_tool_unavailable"
-            _save_json(
-                artifacts / f"{dpp_id}.compliance.json.log.json",
-                {"ok": False, "output": json_output},
-            )
-            _save_json(
-                artifacts / f"{dpp_id}.compliance.aasx.log.json",
-                {"ok": False, "output": aasx_output},
-            )
-        else:
-            compliance["json_ok"] = json_ok
-            compliance["aasx_ok"] = aasx_ok
-            _save_json(
-                artifacts / f"{dpp_id}.compliance.json.log.json",
-                {"ok": json_ok, "output": json_output},
-            )
-            _save_json(
-                artifacts / f"{dpp_id}.compliance.aasx.log.json",
-                {"ok": aasx_ok, "output": aasx_output},
-            )
-            # If compliance tool is present, enforce AASX deserialization success
-            assert aasx_ok, "AASX compliance check failed; see compliance logs"
+        _save_json(
+            artifacts / f"{dpp_id}.compliance.aasx.log.json",
+            {"ok": aasx_ok, "output": aasx_output},
+        )
+        # If compliance tool is present, enforce AASX deserialization success
+        assert aasx_ok, "AASX compliance check failed; see compliance logs"
 
     report["steps"]["compliance"] = compliance
 

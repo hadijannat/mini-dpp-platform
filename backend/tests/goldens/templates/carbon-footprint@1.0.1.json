@@ -3,7 +3,7 @@
   "idta_version": "1.0.1",
   "semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
   "expected": {
-    "definition_sha256": "dc6e9b6ca4f6aa235bdfbd81ffb40f63caabbf03cec0ad4df75721726c5ba005",
+    "definition_sha256": "77e95d8a67b1cf5f83169737b979945afb264ea125fff414cf22c29cb9721a15",
     "schema_sha256": "7b991d0d5f815d82bc7b2c60519c6b56ccc23055a593529a94993a788496ef5d"
   }
 }
