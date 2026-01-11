@@ -167,6 +167,7 @@ services:
       - MINIO_SECRET_KEY=minio_dev_password_2024
       - LOG_LEVEL=DEBUG
       - IDTA_TEMPLATES_GITHUB_TOKEN=${IDTA_TEMPLATES_GITHUB_TOKEN:-}
+      - IDTA_TEMPLATES_REPO_REF=${IDTA_TEMPLATES_REPO_REF:-1d4e0b45469f9260228ca6e99ff907c670476e2a}
     volumes:
       - ./backend:/app:cached
       - backend_cache:/app/.cache

@@ -37,6 +37,7 @@ jobs:
       - name: Start stack
         env:
           IDTA_TEMPLATES_GITHUB_TOKEN: ${{ github.token }}
+          IDTA_TEMPLATES_REPO_REF: 1d4e0b45469f9260228ca6e99ff907c670476e2a
         run: docker compose up -d --build
 
       - name: Wait for backend health
