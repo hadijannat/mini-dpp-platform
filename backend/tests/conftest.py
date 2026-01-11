@@ -193,3 +193,37 @@ def mock_viewer_token() -> dict[str, Any]:
 def mock_auth_headers() -> dict[str, str]:
     """Mock Authorization header."""
     return {"Authorization": "Bearer test-token"}
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--run-e2e",
+        action="store_true",
+        default=False,
+        help="Run e2e tests that require the full docker-compose stack.",
+    )
+    parser.addoption(
+        "--run-goldens",
+        action="store_true",
+        default=False,
+        help="Run golden snapshot tests against refreshed IDTA templates.",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    run_e2e = bool(config.getoption("--run-e2e") or os.getenv("RUN_E2E") == "1")
+    run_goldens = bool(config.getoption("--run-goldens") or os.getenv("RUN_GOLDENS") == "1")
+
+    if not run_e2e:
+        skip_e2e = pytest.mark.skip(reason="e2e tests require --run-e2e or RUN_E2E=1")
+        for item in items:
+            if "e2e" in item.keywords:
+                item.add_marker(skip_e2e)
+
+    if not run_goldens:
+        skip_goldens = pytest.mark.skip(
+            reason="golden tests require --run-goldens or RUN_GOLDENS=1"
+        )
+        for item in items:
+            if "golden" in item.keywords:
+                item.add_marker(skip_goldens)

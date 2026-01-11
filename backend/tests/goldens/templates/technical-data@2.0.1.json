@@ -1,0 +1,9 @@
+{
+  "key": "technical-data",
+  "idta_version": "2.0.1",
+  "semantic_id": "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
+  "expected": {
+    "definition_sha256": "402d6c85abdd3f4bb117a6ee203d2c1b47ca8f7dfd87c8d8ea4afc3009802613",
+    "schema_sha256": "f6d8e32e33c989bc8b48d1f8bb1ee214a586c37b7e50015935dac9e3f6759b06"
+  }
+}

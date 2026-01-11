@@ -1,0 +1,9 @@
+{
+  "key": "hierarchical-structures",
+  "idta_version": "1.1.1",
+  "semantic_id": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
+  "expected": {
+    "definition_sha256": "36de841d768042f8e877210d2a1e77142f665ba2b3b33d27881f7bacff707181",
+    "schema_sha256": "a6bd8f9a48f0f7382fae1f9d4a62af9513d0e6317696458fd25cdec55e6b0b27"
+  }
+}

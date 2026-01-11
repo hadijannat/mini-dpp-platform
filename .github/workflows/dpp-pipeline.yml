@@ -1,0 +1,68 @@
+name: DPP Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  dpp-pipeline:
+    name: Refresh → Build → Export → Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev --extra test
+
+      - name: Install compliance tool (optional)
+        working-directory: backend
+        run: |
+          uv pip install "git+https://github.com/rwth-iat/aas-compliance-tool@v1.0.0" || \
+          echo "aas-compliance-tool install failed; continuing without compliance check."
+
+      - name: Start stack
+        run: docker compose up -d --build
+
+      - name: Run database migrations
+        run: docker exec dpp-backend alembic upgrade head
+
+      - name: Run pipeline + golden tests
+        working-directory: backend
+        env:
+          RUN_E2E: "1"
+          RUN_GOLDENS: "1"
+          DPP_BASE_URL: "http://localhost:8000"
+          KEYCLOAK_BASE_URL: "http://localhost:8081"
+          KEYCLOAK_REALM: "dpp-platform"
+          KEYCLOAK_CLIENT_ID: "dpp-backend"
+          KEYCLOAK_CLIENT_SECRET: "backend-secret-dev"
+          DPP_USERNAME: "publisher"
+          DPP_PASSWORD: "publisher123"
+          DPP_TENANT: "default"
+          PIPELINE_REPORT_DIR: "${{ github.workspace }}/test-results"
+        run: uv run pytest -m "e2e or golden" --run-e2e --run-goldens -q
+
+      - name: Upload pipeline artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dpp-pipeline-artifacts
+          path: test-results/
+
+      - name: Teardown
+        if: always()
+        run: docker compose down -v

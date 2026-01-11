@@ -234,3 +234,126 @@ class TestTemplateRegistryService:
         assert field["maximum"] == 100
         assert field["readOnly"] is True
         assert field["title"] == "Threshold Value"
+
+    def test_generate_ui_schema_allowed_value_regex(self):
+        """AllowedValue qualifiers should map to regex patterns."""
+        mock_session = MagicMock()
+        service = TemplateRegistryService(mock_session)
+
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "PatternField",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                            "qualifiers": [
+                                {"type": "SMT/AllowedValue", "value": "^[A-Z]{3}$"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        schema = service.generate_ui_schema(mock_template)
+        field = schema["properties"]["PatternField"]
+        assert field["pattern"] == "^[A-Z]{3}$"
+        assert field["x-allowed-value"] == "^[A-Z]{3}$"
+
+    def test_generate_ui_schema_form_choices_enum(self):
+        """FormChoices should map to enum choices for string fields."""
+        mock_session = MagicMock()
+        service = TemplateRegistryService(mock_session)
+
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "Mode",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                            "qualifiers": [
+                                {"type": "SMT/FormChoices", "value": "A;B;C"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        schema = service.generate_ui_schema(mock_template)
+        field = schema["properties"]["Mode"]
+        assert field["enum"] == ["A", "B", "C"]
+        assert field["x-form-choices"] == ["A", "B", "C"]
+
+    def test_generate_ui_schema_id_short_controls(self):
+        """AllowedIdShort/EditIdShort/Naming should be surfaced in schema hints."""
+        mock_session = MagicMock()
+        service = TemplateRegistryService(mock_session)
+
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "DynamicGroup",
+                            "modelType": {"name": "SubmodelElementCollection"},
+                            "value": [],
+                            "qualifiers": [
+                                {"type": "SMT/AllowedIdShort", "value": "SlotA,SlotB"},
+                                {"type": "SMT/EditIdShort", "value": "true"},
+                                {"type": "SMT/Naming", "value": "Counter"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        schema = service.generate_ui_schema(mock_template)
+        field = schema["properties"]["DynamicGroup"]
+        assert field["x-allowed-id-short"] == ["SlotA", "SlotB"]
+        assert field["x-edit-id-short"] is True
+        assert field["x-naming"] == "Counter"
+
+    def test_generate_ui_schema_list_cardinality(self):
+        """OneToMany list cardinality should set minItems=1."""
+        mock_session = MagicMock()
+        service = TemplateRegistryService(mock_session)
+
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "Items",
+                            "modelType": {"name": "SubmodelElementList"},
+                            "qualifiers": [{"type": "SMT/Cardinality", "value": "OneToMany"}],
+                            "value": [
+                                {
+                                    "idShort": "Item",
+                                    "modelType": {"name": "Property"},
+                                    "valueType": "xs:string",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+        schema = service.generate_ui_schema(mock_template)
+        field = schema["properties"]["Items"]
+        assert field["type"] == "array"
+        assert field["minItems"] == 1

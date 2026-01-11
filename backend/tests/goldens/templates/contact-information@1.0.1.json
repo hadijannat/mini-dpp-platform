@@ -1,0 +1,9 @@
+{
+  "key": "contact-information",
+  "idta_version": "1.0.1",
+  "semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
+  "expected": {
+    "definition_sha256": "84744b703f55a9fe322c679ba847ebc46c04c5ea3fd2646871a9477e8702d053",
+    "schema_sha256": "3ced1457f7ee7b2570caddc9e78d2258e8b7d68ca9ce43f81947c9130837a7a7"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "key": "carbon-footprint",
+  "idta_version": "1.0.1",
+  "semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+  "expected": {
+    "definition_sha256": "ef7a62b435caf11737e5991eb5c6d3b37cc312ceed3fbdfc48c01a805c3b91f5",
+    "schema_sha256": "7b991d0d5f815d82bc7b2c60519c6b56ccc23055a593529a94993a788496ef5d"
+  }
+}
