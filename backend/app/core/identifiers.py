@@ -65,9 +65,7 @@ def build_composite_suffix(asset_ids: dict[str, Any]) -> str:
     """
     manufacturer_part_id = str(asset_ids.get("manufacturerPartId", "")).strip()
     if not manufacturer_part_id:
-        raise IdentifierValidationError(
-            "manufacturerPartId is required to build globalAssetId."
-        )
+        raise IdentifierValidationError("manufacturerPartId is required to build globalAssetId.")
 
     parts: list[str] = [manufacturer_part_id]
     serial = str(asset_ids.get("serialNumber", "")).strip()

@@ -23,7 +23,9 @@ class SettingsService:
         setting = result.scalar_one_or_none()
         return setting.value if setting else None
 
-    async def set_setting(self, key: str, value: str, updated_by: str | None = None) -> PlatformSetting:
+    async def set_setting(
+        self, key: str, value: str, updated_by: str | None = None
+    ) -> PlatformSetting:
         result = await self._session.execute(
             select(PlatformSetting).where(PlatformSetting.key == key)
         )
