@@ -8,7 +8,7 @@ import json
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, cast
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 from sqlalchemy import select
@@ -312,7 +312,7 @@ class TemplateRegistryService:
         This is kept for backward compatibility and is used only if the
         GitHub API resolution fails.
         """
-        base_url = self._settings.idta_templates_base_url.rstrip("/")
+        base_url = self._resolve_base_url().rstrip("/")
         folder_name = descriptor.repo_folder
         major, minor, patch = self._split_version(version)
         if file_kind == "json":
@@ -332,6 +332,23 @@ class TemplateRegistryService:
             quote(file_name),
         ]
         return "/".join(segments)
+
+    def _resolve_base_url(self) -> str:
+        base_url = self._settings.idta_templates_base_url.rstrip("/")
+        ref = self._settings.idta_templates_repo_ref
+        if not ref:
+            return base_url
+
+        parsed = urlparse(base_url)
+        if parsed.netloc != "raw.githubusercontent.com":
+            return base_url
+
+        parts = parsed.path.strip("/").split("/")
+        if len(parts) >= 3 and parts[0] == "admin-shell-io" and parts[1] == "submodel-templates":
+            parts[2] = ref
+            return parsed._replace(path="/" + "/".join(parts)).geturl()
+
+        return base_url
 
     def _split_version(self, version: str) -> tuple[str, str, str]:
         parts = version.split(".")
