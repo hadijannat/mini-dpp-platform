@@ -13,7 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
-from app.core.identifiers import IdentifierValidationError, build_global_asset_id, normalize_base_uri
+from app.core.identifiers import (
+    IdentifierValidationError,
+    build_global_asset_id,
+    normalize_base_uri,
+)
 from app.core.logging import get_logger
 from app.core.settings_service import SettingsService
 from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
