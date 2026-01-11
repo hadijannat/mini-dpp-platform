@@ -56,7 +56,7 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
         template_uri="https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
         repo_folder="Carbon Footprint",
-        aasx_pattern="IDTA 02023-{major}-{minor}-{patch} _Template_CarbonFootprint.aasx",
+        aasx_pattern="IDTA 02023-{major}-{minor}-{patch}_Template_CarbonFootprint.aasx",
     ),
     "handover-documentation": TemplateDescriptor(
         key="handover-documentation",

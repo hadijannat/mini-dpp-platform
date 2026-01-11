@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import asdict
 from typing import Any
 
@@ -197,7 +198,21 @@ class TemplateDefinitionBuilder:
             qualifiers = getattr(element, "qualifiers", None)
         if not qualifiers:
             return []
-        return [self._qualifier_to_dict(q) for q in qualifiers]
+        qualifier_dicts = [self._qualifier_to_dict(q) for q in qualifiers]
+
+        def sort_key(item: dict[str, Any]) -> tuple[str, str, str]:
+            semantic = item.get("semanticId")
+            semantic_key = (
+                json.dumps(semantic, sort_keys=True, ensure_ascii=False) if semantic else ""
+            )
+            return (
+                str(item.get("type") or ""),
+                str(item.get("value") or ""),
+                semantic_key,
+            )
+
+        qualifier_dicts.sort(key=sort_key)
+        return qualifier_dicts
 
     def _qualifier_to_dict(self, qualifier: model.Qualifier) -> dict[str, Any]:
         return {
@@ -249,5 +264,18 @@ class TemplateDefinitionBuilder:
         for name in names:
             value = getattr(obj, name, None)
             if value is not None:
-                return list(value)
+                if isinstance(value, (list, tuple)):
+                    return list(value)
+                items = list(value.values()) if isinstance(value, dict) else list(value)
+                items.sort(key=self._element_sort_key)
+                return items
         return []
+
+    def _element_sort_key(self, element: Any) -> tuple[str, str]:
+        id_short = getattr(element, "id_short", None)
+        if id_short:
+            return ("0", str(id_short))
+        identifier = getattr(element, "id", None)
+        if identifier:
+            return ("1", str(identifier))
+        return ("2", str(element))

@@ -55,7 +55,8 @@ def main() -> None:
             ]
         )
 
-    print(exe)
+    # The package's console entrypoint is broken; call the CLI module directly.
+    print(f"{python} -m aas_compliance_tool.cli")
 
 
 if __name__ == "__main__":

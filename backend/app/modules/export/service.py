@@ -5,6 +5,7 @@ Supports AASX, JSON, and PDF export with integrity verification.
 
 import io
 import json
+import tempfile
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -63,44 +64,37 @@ class ExportService:
         Creates an AASX file following IDTA Part 5 specification.
         AASX is a ZIP archive with specific structure and relationships.
         """
+        import pyecma376_2
+        from basyx.aas.adapter import aasx
+        from basyx.aas.adapter import json as basyx_json
+
         buffer = io.BytesIO()
 
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
-            # 1. Create [Content_Types].xml
-            content_types = self._create_content_types()
-            zf.writestr("[Content_Types].xml", content_types)
-
-            # 2. Create _rels/.rels (root relationships)
-            root_rels = self._create_root_rels()
-            zf.writestr("_rels/.rels", root_rels)
-
-            # 3. Create aasx/aas.json (main AAS content)
-            aas_json = json.dumps(
-                revision.aas_env_json,
-                sort_keys=True,
-                indent=2,
-                ensure_ascii=False,
+        with tempfile.NamedTemporaryFile(suffix=".json") as fp:
+            fp.write(
+                json.dumps(
+                    revision.aas_env_json,
+                    sort_keys=True,
+                    indent=2,
+                    ensure_ascii=False,
+                ).encode("utf-8")
             )
-            zf.writestr("aasx/aas.json", aas_json)
+            fp.flush()
+            store = basyx_json.read_aas_json_file(fp.name)  # type: ignore[attr-defined]
 
-            # 4. Create aasx/_rels/aas.json.rels (AAS relationships)
-            aas_rels = self._create_aas_rels()
-            zf.writestr("aasx/_rels/aas.json.rels", aas_rels)
+        files = aasx.DictSupplementaryFileContainer()
 
-            # 5. Create aasx-origin file
-            origin_content = f"""<?xml version="1.0" encoding="UTF-8"?>
-<origin xmlns="http://www.admin-shell.io/aasx/origin">
-    <created>{datetime.now(UTC).isoformat()}</created>
-    <creator>Mini DPP Platform v{self._settings.version}</creator>
-    <dppId>{dpp_id}</dppId>
-    <revisionNo>{revision.revision_no}</revisionNo>
-    <digest algorithm="SHA-256">{revision.digest_sha256}</digest>
-</origin>"""
-            zf.writestr("aasx/aasx-origin", origin_content)
-
-            # 6. Create metadata/core-properties.xml (Dublin Core)
-            core_props = self._create_core_properties(revision, dpp_id)
-            zf.writestr("metadata/core-properties.xml", core_props)
+        with aasx.AASXWriter(buffer) as writer:
+            core_props = pyecma376_2.OPCCoreProperties()
+            core_props.created = revision.created_at
+            core_props.modified = datetime.now(UTC)
+            core_props.creator = "Mini DPP Platform"
+            core_props.title = f"DPP {dpp_id}"
+            core_props.description = f"AASX package containing DPP revision {revision.revision_no}"
+            core_props.version = self._settings.version
+            core_props.revision = str(revision.revision_no)
+            writer.write_core_properties(core_props)
+            writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
 
         buffer.seek(0)
         return buffer.read()

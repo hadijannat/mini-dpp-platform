@@ -50,9 +50,15 @@ class BasyxTemplateParser:
         submodel = self._select_submodel(store, expected_semantic_id)
         concept_desc_type = getattr(model, "ConceptDescription", None)
         if concept_desc_type is None:
-            concept_descriptions: list[Any] = []
+            concept_descriptions = []
         else:
             concept_descriptions = [obj for obj in store if isinstance(obj, concept_desc_type)]
+            concept_descriptions.sort(
+                key=lambda cd: (
+                    str(getattr(cd, "id", "")),
+                    str(getattr(cd, "id_short", "")),
+                )
+            )
         return ParsedTemplate(
             store=store,
             submodel=submodel,

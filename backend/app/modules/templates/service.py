@@ -392,8 +392,15 @@ class TemplateRegistryService:
         json_files = [item for item in payload if str(item.get("name", "")).endswith(".json")]
         aasx_files = [item for item in payload if str(item.get("name", "")).endswith(".aasx")]
 
-        json_url = self._select_template_file(json_files, prefer_kind="json")
-        aasx_url = self._select_template_file(aasx_files, prefer_kind="aasx")
+        expected_json = self._expected_template_filename(descriptor, version, file_kind="json")
+        expected_aasx = self._expected_template_filename(descriptor, version, file_kind="aasx")
+
+        json_url = self._select_template_file(
+            json_files, prefer_kind="json", expected_name=expected_json
+        )
+        aasx_url = self._select_template_file(
+            aasx_files, prefer_kind="aasx", expected_name=expected_aasx
+        )
 
         if not json_url and not aasx_url:
             logger.warning(
@@ -404,31 +411,56 @@ class TemplateRegistryService:
 
         return json_url, aasx_url
 
-    def _select_template_file(self, files: list[dict[str, Any]], prefer_kind: str) -> str | None:
+    def _select_template_file(
+        self,
+        files: list[dict[str, Any]],
+        prefer_kind: str,
+        expected_name: str | None = None,
+    ) -> str | None:
         if not files:
             return None
 
-        def score(file_item: dict[str, Any]) -> int:
+        expected = expected_name.lower() if expected_name else None
+        if expected:
+            for file_item in files:
+                name = str(file_item.get("name", ""))
+                if name.lower() == expected:
+                    return cast(str | None, file_item.get("download_url"))
+
+        def score(file_item: dict[str, Any]) -> tuple[int, str]:
             name = str(file_item.get("name", ""))
             lowered = name.lower()
-            score = 0
+            points = 0
 
             if "template" in lowered:
-                score += 5
+                points += 5
             if "sample" in lowered or "example" in lowered:
-                score -= 6
+                points -= 6
+            if "schema" in lowered:
+                points -= 8
             if "foraasmetamodel" in lowered:
-                score -= 3
+                points -= 3
             if prefer_kind == "json" and "submodel" in lowered:
-                score += 1
+                points += 1
             if prefer_kind == "aasx" and "aasx" in lowered:
-                score += 1
+                points += 1
 
-            return score
+            # Secondary sort by name to keep selection deterministic.
+            return (points, lowered)
 
         files_sorted = sorted(files, key=score, reverse=True)
         chosen = files_sorted[0]
         return cast(str | None, chosen.get("download_url"))
+
+    def _expected_template_filename(
+        self, descriptor: TemplateDescriptor, version: str, file_kind: str
+    ) -> str:
+        major, minor, patch = self._split_version(version)
+        if file_kind == "json":
+            pattern = descriptor.resolve_json_pattern()
+        else:
+            pattern = descriptor.aasx_pattern
+        return pattern.format(major=major, minor=minor, patch=patch)
 
     def _normalize_template_json(
         self, payload: dict[str, Any], template_key: str
