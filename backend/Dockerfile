@@ -8,7 +8,9 @@ FROM python:3.12-slim as base
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
@@ -36,14 +38,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency files
 COPY pyproject.toml uv.lock README.md ./
 
-# Install dependencies using uv with locked versions
-RUN uv sync --frozen --extra dev --extra test
+# Create a shared virtual environment outside the bind-mounted /app directory.
+RUN python -m venv "$VIRTUAL_ENV"
+
+# Install dependencies using uv with locked versions into the active environment.
+RUN uv sync --frozen --extra dev --extra test --active
 
 # Copy application code
 COPY . .
 
 # Development server with hot reload
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # =============================================================================
 # Production Stage
@@ -56,8 +61,11 @@ RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 # Copy dependency files
 COPY pyproject.toml uv.lock README.md ./
 
-# Install production dependencies only using locked versions
-RUN uv sync --frozen
+# Create a shared virtual environment outside the bind-mounted /app directory.
+RUN python -m venv "$VIRTUAL_ENV"
+
+# Install production dependencies only using locked versions into the active environment.
+RUN uv sync --frozen --active
 
 # Copy application code
 COPY --chown=appuser:appgroup . .
@@ -65,4 +73,4 @@ COPY --chown=appuser:appgroup . .
 USER appuser
 
 # Production server with multiple workers
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
