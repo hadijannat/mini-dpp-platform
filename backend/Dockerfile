@@ -19,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv for fast, deterministic dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 # =============================================================================
 # Development Stage
 # =============================================================================
@@ -30,15 +33,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install dependencies
-COPY pyproject.toml README.md ./
-RUN pip install -e ".[dev]"
+# Copy dependency files
+COPY pyproject.toml uv.lock README.md ./
+
+# Install dependencies using uv with locked versions
+RUN uv sync --frozen --extra dev --extra test
 
 # Copy application code
 COPY . .
 
 # Development server with hot reload
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # =============================================================================
 # Production Stage
@@ -48,9 +53,11 @@ FROM base as production
 # Create non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-# Copy and install production dependencies only
-COPY pyproject.toml README.md ./
-RUN pip install .
+# Copy dependency files
+COPY pyproject.toml uv.lock README.md ./
+
+# Install production dependencies only using locked versions
+RUN uv sync --frozen
 
 # Copy application code
 COPY --chown=appuser:appgroup . .
@@ -58,4 +65,4 @@ COPY --chown=appuser:appgroup . .
 USER appuser
 
 # Production server with multiple workers
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
