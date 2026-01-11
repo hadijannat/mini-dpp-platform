@@ -100,6 +100,17 @@ class RevisionResponse(BaseModel):
     created_at: str
 
 
+class SubmodelDefinitionResponse(BaseModel):
+    """Response model for submodel definition AST per revision."""
+
+    dpp_id: UUID
+    template_key: str
+    revision_id: UUID
+    revision_no: int
+    state: str
+    definition: dict[str, Any]
+
+
 class BulkRebuildError(BaseModel):
     """Response model for rebuild errors."""
 
@@ -341,6 +352,55 @@ async def update_submodel(
         digest_sha256=revision.digest_sha256,
         created_by_subject=revision.created_by_subject,
         created_at=revision.created_at.isoformat(),
+    )
+
+
+@router.get(
+    "/{dpp_id}/submodels/{template_key}/definition", response_model=SubmodelDefinitionResponse
+)
+async def get_submodel_definition(
+    dpp_id: UUID,
+    template_key: str,
+    db: DbSession,
+    tenant: TenantContextDep,
+    revision: str | None = Query(None, description="latest or published"),
+    revision_id: UUID | None = Query(None),
+) -> SubmodelDefinitionResponse:
+    """
+    Get a submodel definition derived from a DPP revision environment.
+    """
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+
+    try:
+        definition, used_revision = await service.get_submodel_definition(
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            template_key=template_key,
+            revision_selector=revision,
+            revision_id=revision_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return SubmodelDefinitionResponse(
+        dpp_id=dpp_id,
+        template_key=template_key,
+        revision_id=used_revision.id,
+        revision_no=used_revision.revision_no,
+        state=used_revision.state.value,
+        definition=definition,
     )
 
 

@@ -1,5 +1,15 @@
+function resolveModelType(element: any): string | undefined {
+  const modelType = element?.modelType;
+  if (!modelType) return undefined;
+  if (typeof modelType === 'string') return modelType;
+  if (typeof modelType === 'object' && 'name' in modelType) {
+    return String((modelType as { name?: unknown }).name ?? '');
+  }
+  return undefined;
+}
+
 export function extractElementValue(element: any): unknown {
-  const type = element?.modelType?.name;
+  const type = resolveModelType(element);
   if (type === 'SubmodelElementCollection') {
     return extractElements(element.value || []);
   }

@@ -10,7 +10,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import CurrentUser, Publisher, require_access
 from app.db.session import DbSession
-from app.modules.templates.service import TemplateRegistryService
+from app.modules.templates.service import (
+    TemplateFetchError,
+    TemplateParseError,
+    TemplateRegistryService,
+)
 
 router = APIRouter()
 
@@ -42,6 +46,48 @@ class UISchemaResponse(BaseModel):
     schema_: dict[str, Any] = Field(alias="schema")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class TemplateDefinitionResponse(BaseModel):
+    """Response model for template definition AST."""
+
+    template_key: str
+    definition: dict[str, Any]
+
+
+@router.get("/{template_key}/definition", response_model=TemplateDefinitionResponse)
+async def get_template_definition(
+    template_key: str,
+    db: DbSession,
+    user: CurrentUser,
+) -> TemplateDefinitionResponse:
+    """
+    Get the template definition AST (BaSyx parsed).
+
+    Returns a stable representation of the submodel template tree.
+    """
+    await require_access(user, "read", {"type": "template"})
+    service = TemplateRegistryService(db)
+    template = await service.get_template(template_key)
+
+    if not template:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Template '{template_key}' not found",
+        )
+
+    try:
+        definition = service.generate_template_definition(template)
+    except TemplateParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        )
+
+    return TemplateDefinitionResponse(
+        template_key=template_key,
+        definition=definition,
+    )
 
 
 @router.get("", response_model=TemplateListResponse)
@@ -185,6 +231,11 @@ async def refresh_template(
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except TemplateFetchError as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(e),
         )
 

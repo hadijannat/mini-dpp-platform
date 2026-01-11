@@ -6,13 +6,18 @@ import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw } from 'lucide-reac
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
-const SEMANTIC_ID_TO_TEMPLATE_KEY: Record<string, string> = {
-  'https://admin-shell.io/zvei/nameplate/2/0/Nameplate': 'digital-nameplate',
-  'https://admin-shell.io/zvei/nameplate/1/0/ContactInformations': 'contact-information',
-  'https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2': 'technical-data',
-  'https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0': 'carbon-footprint',
-  'https://admin-shell.io/ZVEI/HandoverDocumentation/1/0': 'handover-documentation',
-  'https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel': 'hierarchical-structures',
+type TemplateDescriptor = {
+  template_key: string;
+  semantic_id: string;
+};
+
+const ID_SHORT_TO_TEMPLATE_KEY: Record<string, string> = {
+  Nameplate: 'digital-nameplate',
+  ContactInformations: 'contact-information',
+  TechnicalData: 'technical-data',
+  CarbonFootprint: 'carbon-footprint',
+  HandoverDocumentation: 'handover-documentation',
+  HierarchicalStructures: 'hierarchical-structures',
 };
 
 function extractSemanticId(submodel: any): string | null {
@@ -23,10 +28,21 @@ function extractSemanticId(submodel: any): string | null {
   return null;
 }
 
-function resolveTemplateKey(submodel: any): string | null {
+function resolveTemplateKey(submodel: any, templates: TemplateDescriptor[]): string | null {
   const semanticId = extractSemanticId(submodel);
   if (!semanticId) return null;
-  return SEMANTIC_ID_TO_TEMPLATE_KEY[semanticId] ?? null;
+  if (!Array.isArray(templates)) return null;
+  const direct = templates.find((template) => template.semantic_id === semanticId);
+  if (direct) return direct.template_key;
+  const partial = templates.find((template) =>
+    semanticId.includes(template.semantic_id) || template.semantic_id.includes(semanticId)
+  );
+  if (partial) return partial.template_key;
+  const idShort = submodel?.idShort;
+  if (idShort && ID_SHORT_TO_TEMPLATE_KEY[idShort]) {
+    return ID_SHORT_TO_TEMPLATE_KEY[idShort];
+  }
+  return null;
 }
 
 function formatElementValue(value: unknown): string {
@@ -178,7 +194,7 @@ export default function DPPEditorPage() {
       const rebuildTasks: Promise<unknown>[] = [];
 
       for (const submodel of submodels) {
-        const templateKey = resolveTemplateKey(submodel);
+        const templateKey = resolveTemplateKey(submodel, availableTemplates);
         if (!templateKey || seen.has(templateKey)) continue;
         seen.add(templateKey);
         const data = buildSubmodelData(submodel);
@@ -234,10 +250,10 @@ export default function DPPEditorPage() {
   };
 
   const submodels: Array<Record<string, any>> = dpp.aas_environment?.submodels || [];
-  const availableTemplates = templatesData?.templates || [];
+  const availableTemplates: TemplateDescriptor[] = templatesData?.templates || [];
   const existingTemplateKeys = new Set(
     submodels
-      .map(resolveTemplateKey)
+      .map((submodel) => resolveTemplateKey(submodel, availableTemplates))
       .filter((value: string | null): value is string => Boolean(value))
   );
   const missingTemplates = availableTemplates.filter(
@@ -389,7 +405,7 @@ export default function DPPEditorPage() {
             </p>
           )}
           {submodels.map((submodel: any, index: number) => {
-            const templateKey = resolveTemplateKey(submodel);
+            const templateKey = resolveTemplateKey(submodel, availableTemplates);
             return (
             <div key={index} className="border rounded-lg p-4">
               <div className="flex justify-between items-start">

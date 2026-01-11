@@ -242,44 +242,66 @@ https://id.gs1.org/01/03772280965805/21/SN-2024-DEMO-001
 
 ## 🧭 Multi‑Tenant Walkthrough (Docker Demo)
 
-This walkthrough uses the local Docker stack with **two tenants**: `default` and `quality`.
-Log in as **admin** to create the tenant and assign a **publisher**, then log in as **publisher**
+This walkthrough uses the local Docker stack with **two tenants**: `alpha` and `beta`.
+Log in as **admin** to create the tenants and assign a **publisher**, then log in as **publisher**
 to create a tenant‑scoped DPP and view it at a tenant URL.
 
 ### Step 1: Open the Login Page
-![Multi‑tenant demo login page](docs/images/mt-01-login.png)
+![Multi‑tenant demo login page](docs/storyboard/01-login.png)
 
 ### Step 2: Authenticate with Keycloak
-![Keycloak sign‑in](docs/images/mt-02-keycloak-login.png)
+![Keycloak sign‑in](docs/storyboard/02-keycloak-login.png)
 
 ### Step 3: Admin Dashboard (platform admin)
-![Admin dashboard](docs/images/mt-03-admin-dashboard.png)
+![Admin dashboard](docs/storyboard/03-admin-dashboard.png)
 
 ### Step 4: Open Tenants
-![Tenants list](docs/images/mt-04-tenants-list.png)
+![Tenants list](docs/storyboard/04-tenants-list.png)
 
-### Step 5: Create the `quality` Tenant
-![Create tenant modal](docs/images/mt-05-create-tenant.png)
+### Step 5: Create the `alpha` and `beta` Tenants
+![Create tenant modal](docs/storyboard/05-create-tenant.png)
 
-### Step 6: Confirm Both Tenants
-![Tenants list with quality + default](docs/images/mt-06-tenants-after-create.png)
-
-### Step 7: Add Publisher Membership to `quality`
+### Step 6: Add Publisher Membership to `alpha`
 Use the **publisher user subject (OIDC sub)** when adding members.
-![Add tenant member](docs/images/mt-07-tenant-members.png)
+![Add tenant member](docs/storyboard/06-tenant-members.png)
 
-### Step 8: Switch to `quality` as Publisher
-![Tenant switcher](docs/images/mt-08-tenant-switcher.png)
+### Step 7: Switch to `alpha` as Publisher
+![Tenant switcher](docs/storyboard/07-publisher-tenant-switcher.png)
 
-### Step 9: Create a DPP in `quality`
-![Create DPP modal](docs/images/mt-09-create-dpp.png)
+### Step 8: Create a DPP in `alpha`
+![Create DPP modal](docs/storyboard/08-create-dpp.png)
 
-### Step 10: Verify DPP List is Tenant‑Scoped
-![DPP list for quality tenant](docs/images/mt-10-dpp-list-quality.png)
+### Step 9: Verify DPP List is Tenant‑Scoped (`alpha`)
+![DPP list for alpha tenant](docs/storyboard/09-dpp-list-alpha.png)
+
+### Step 10: Confirm `beta` is Empty
+![DPP list for beta tenant](docs/storyboard/10-dpp-list-beta-empty.png)
 
 ### Step 11: Open the Tenant Viewer Route
-Example route: `/t/quality/dpp/{dpp_id}`
-![Viewer route](docs/images/mt-11-viewer-route.png)
+Example route: `/t/alpha/dpp/{dpp_id}`
+![Viewer route](docs/storyboard/11-viewer-route.png)
+
+---
+
+## 🧩 Template‑Driven Editor (Dynamic Forms)
+
+This walkthrough shows how templates drive the dynamic form renderer. You’ll select multiple templates,
+create a DPP, and edit each submodel with its own generated form.
+
+### Step 12: Select Templates When Creating a DPP
+![Template selection modal](docs/storyboard/12-template-selection.png)
+
+### Step 13: DPP Created in the List
+![DPP list with new draft](docs/storyboard/13-dpp-list-new.png)
+
+### Step 14: Submodels With Per‑Template Edit Links
+![DPP detail with edit links](docs/storyboard/14-dpp-submodels-edit.png)
+
+### Step 15: Carbon Footprint Form (Lists + Nested Sections)
+![Carbon footprint dynamic form](docs/storyboard/15-carbon-footprint-form.png)
+
+### Step 16: Nameplate Form (Multi‑Language + File Inputs)
+![Nameplate dynamic form](docs/storyboard/16-nameplate-form.png)
 
 ---
 
@@ -432,6 +454,16 @@ docker exec dpp-backend alembic upgrade head  # Run migrations
 ```bash
 cp .env.example .env
 # Edit KEYCLOAK_HOST_PORT, BACKEND_HOST_PORT as needed
+```
+
+---
+
+## 🧪 Template Diagnostics
+
+Generate a template conformance report (schema coverage + qualifier support):
+
+```bash
+docker compose exec -T backend python -m app.modules.templates.diagnostics > /tmp/template-report.json
 ```
 
 ---

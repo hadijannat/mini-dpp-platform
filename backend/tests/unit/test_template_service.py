@@ -4,14 +4,15 @@ Unit tests for Template Registry Service.
 
 from unittest.mock import MagicMock
 
-from app.modules.templates.service import TEMPLATE_SEMANTIC_IDS, TemplateRegistryService
+from app.modules.templates.catalog import TEMPLATE_CATALOG
+from app.modules.templates.service import TemplateRegistryService
 
 
 class TestTemplateRegistryService:
     """Tests for template fetching, parsing, and schema generation."""
 
-    def test_template_semantic_ids_defined(self):
-        """Test that all DPP4.0 templates have semantic IDs defined."""
+    def test_template_catalog_contains_expected(self):
+        """Test that all DPP4.0 templates have catalog entries defined."""
         expected_templates = [
             "digital-nameplate",
             "contact-information",
@@ -22,8 +23,10 @@ class TestTemplateRegistryService:
         ]
 
         for template_key in expected_templates:
-            assert template_key in TEMPLATE_SEMANTIC_IDS
-            assert TEMPLATE_SEMANTIC_IDS[template_key].startswith("https://")
+            assert template_key in TEMPLATE_CATALOG
+            descriptor = TEMPLATE_CATALOG[template_key]
+            assert descriptor.semantic_id.startswith("https://")
+            assert descriptor.repo_folder
 
     def test_generate_ui_schema_from_property(self):
         """Test UI schema generation for simple Property elements."""
@@ -172,25 +175,62 @@ class TestTemplateRegistryService:
         assert "ProductImage" in schema["properties"]
         assert schema["properties"]["ProductImage"]["x-file-upload"] is True
 
-    def test_get_default_elements_digital_nameplate(self):
-        """Test default elements generation for digital-nameplate template."""
+    def test_generate_ui_schema_cardinality_required(self):
+        """Cardinality qualifiers should mark required fields."""
         mock_session = MagicMock()
         service = TemplateRegistryService(mock_session)
 
-        elements = service._get_default_elements("digital-nameplate")
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "RequiredField",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:string",
+                            "qualifiers": [{"type": "Cardinality", "value": "One"}],
+                        }
+                    ],
+                }
+            ],
+        }
 
-        assert len(elements) > 0
-        element_ids = [e["idShort"] for e in elements]
-        assert "ManufacturerName" in element_ids
-        assert "SerialNumber" in element_ids
+        schema = service.generate_ui_schema(mock_template)
+        assert "RequiredField" in schema["required"]
 
-    def test_get_default_elements_carbon_footprint(self):
-        """Test default elements generation for carbon-footprint template."""
+    def test_generate_ui_schema_default_and_range(self):
+        """Default values and allowed ranges should map to JSON Schema."""
         mock_session = MagicMock()
         service = TemplateRegistryService(mock_session)
 
-        elements = service._get_default_elements("carbon-footprint")
+        mock_template = MagicMock()
+        mock_template.template_json = {
+            "submodels": [
+                {
+                    "idShort": "TestSubmodel",
+                    "submodelElements": [
+                        {
+                            "idShort": "Threshold",
+                            "modelType": {"name": "Property"},
+                            "valueType": "xs:integer",
+                            "qualifiers": [
+                                {"type": "SMT/DefaultValue", "value": "10"},
+                                {"type": "SMT/AllowedRange", "value": "0..100"},
+                                {"type": "SMT/AccessMode", "value": "ReadOnly"},
+                                {"type": "SMT/FormTitle", "value": "Threshold Value"},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
 
-        assert len(elements) > 0
-        element_ids = [e["idShort"] for e in elements]
-        assert "PCFCO2eq" in element_ids
+        schema = service.generate_ui_schema(mock_template)
+        field = schema["properties"]["Threshold"]
+        assert field["default"] == 10
+        assert field["minimum"] == 0
+        assert field["maximum"] == 100
+        assert field["readOnly"] is True
+        assert field["title"] == "Threshold Value"

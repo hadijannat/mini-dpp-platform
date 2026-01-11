@@ -9,6 +9,48 @@ type TemplateResponse = {
   semantic_id: string;
 };
 
+type LangStringSet = Record<string, string>;
+
+type SmtQualifiers = {
+  cardinality?: string | null;
+  form_title?: string | null;
+  form_info?: string | null;
+  form_url?: string | null;
+  access_mode?: string | null;
+  required_lang?: string[];
+  either_or?: string | null;
+};
+
+type DefinitionNode = {
+  path?: string;
+  idShort?: string;
+  modelType: string;
+  semanticId?: string | null;
+  displayName?: LangStringSet;
+  description?: LangStringSet;
+  smt?: SmtQualifiers;
+  children?: DefinitionNode[];
+  items?: DefinitionNode | null;
+};
+
+type TemplateDefinition = {
+  template_key?: string;
+  semantic_id?: string | null;
+  submodel?: {
+    idShort?: string;
+    elements?: DefinitionNode[];
+  };
+};
+
+type SubmodelDefinitionResponse = {
+  dpp_id: string;
+  template_key: string;
+  revision_id: string;
+  revision_no: number;
+  state: string;
+  definition: TemplateDefinition;
+};
+
 type UISchema = {
   type?: string;
   title?: string;
@@ -16,8 +58,15 @@ type UISchema = {
   properties?: Record<string, UISchema>;
   items?: UISchema;
   required?: string[];
+  minItems?: number;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
   enum?: string[];
   format?: string;
+  default?: unknown;
+  readOnly?: boolean;
+  writeOnly?: boolean;
   additionalProperties?: UISchema;
   'x-multi-language'?: boolean;
   'x-range'?: boolean;
@@ -28,6 +77,8 @@ type UISchema = {
   'x-annotated-relationship'?: boolean;
   'x-readonly'?: boolean;
   'x-blob'?: boolean;
+  'x-form-url'?: string;
+  'x-required-languages'?: string[];
 };
 
 type FormData = Record<string, unknown>;
@@ -52,6 +103,14 @@ async function fetchTemplateSchema(templateKey: string, token?: string) {
   const response = await apiFetch(`/api/v1/templates/${templateKey}/schema`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch template schema'));
+  }
+  return response.json();
+}
+
+async function fetchSubmodelDefinition(dppId: string, templateKey: string, token?: string) {
+  const response = await tenantApiFetch(`/dpps/${dppId}/submodels/${templateKey}/definition`, {}, token);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch submodel definition'));
   }
   return response.json();
 }
@@ -127,8 +186,28 @@ function isEmptyValue(value: unknown): boolean {
   return false;
 }
 
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return a === b;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, idx) => deepEqual(item, b[idx]));
+  }
+  if (typeof a === 'object' && typeof b === 'object') {
+    const aObj = a as Record<string, unknown>;
+    const bObj = b as Record<string, unknown>;
+    const aKeys = Object.keys(aObj);
+    const bKeys = Object.keys(bObj);
+    if (aKeys.length !== bKeys.length) return false;
+    return aKeys.every((key) => deepEqual(aObj[key], bObj[key]));
+  }
+  return false;
+}
+
 function defaultValueForSchema(schema?: UISchema): unknown {
   if (!schema) return '';
+  if (schema.default !== undefined) return schema.default;
   if (schema.enum && schema.enum.length > 0) return schema.enum[0];
   if (schema['x-multi-language']) return {};
   if (schema['x-range']) return { min: null, max: null };
@@ -156,6 +235,132 @@ function defaultValueForSchema(schema?: UISchema): unknown {
   }
 }
 
+function definitionPathToSegments(path: string, rootIdShort?: string): Array<string | '[]'> {
+  const parts = path.split('/').filter(Boolean);
+  const trimmed = rootIdShort && parts[0] === rootIdShort ? parts.slice(1) : parts;
+  const segments: Array<string | '[]'> = [];
+  for (const part of trimmed) {
+    if (part.endsWith('[]')) {
+      segments.push(part.slice(0, -2));
+      segments.push('[]');
+    } else {
+      segments.push(part);
+    }
+  }
+  return segments;
+}
+
+function getValuesAtPattern(data: unknown, segments: Array<string | '[]'>): unknown[] {
+  let current: unknown[] = [data];
+  for (const segment of segments) {
+    const next: unknown[] = [];
+    if (segment === '[]') {
+      for (const value of current) {
+        if (Array.isArray(value)) {
+          next.push(...value);
+        }
+      }
+    } else {
+      for (const value of current) {
+        if (Array.isArray(value)) {
+          value.forEach((entry) => {
+            if (entry && typeof entry === 'object') {
+              next.push((entry as Record<string, unknown>)[segment]);
+            }
+          });
+        } else if (value && typeof value === 'object') {
+          next.push((value as Record<string, unknown>)[segment]);
+        }
+      }
+    }
+    current = next;
+    if (current.length === 0) break;
+  }
+  return current;
+}
+
+function validateReadOnly(
+  schema: UISchema | undefined,
+  data: unknown,
+  baseline: unknown,
+  path: Array<string | number> = [],
+): Record<string, string> {
+  if (!schema) return {};
+  const errors: Record<string, string> = {};
+  const key = pathToKey(path);
+
+  if (schema.readOnly || schema['x-readonly']) {
+    if (!deepEqual(data, baseline)) {
+      errors[key] = 'Read-only field cannot be modified';
+    }
+    return errors;
+  }
+
+  if (schema.type === 'object' && schema.properties) {
+    const obj = data && typeof data === 'object' && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+    const baseObj = baseline && typeof baseline === 'object' && !Array.isArray(baseline)
+      ? (baseline as Record<string, unknown>)
+      : {};
+    for (const [prop, propSchema] of Object.entries(schema.properties)) {
+      Object.assign(
+        errors,
+        validateReadOnly(propSchema, obj[prop], baseObj[prop], [...path, prop]),
+      );
+    }
+  } else if (schema.type === 'array' && schema.items) {
+    const list = Array.isArray(data) ? data : [];
+    const baseList = Array.isArray(baseline) ? baseline : [];
+    list.forEach((item, idx) => {
+      Object.assign(
+        errors,
+        validateReadOnly(schema.items!, item, baseList[idx], [...path, idx]),
+      );
+    });
+  }
+
+  return errors;
+}
+
+function validateEitherOr(
+  definition: TemplateDefinition | undefined,
+  data: FormData,
+): string[] {
+  if (!definition?.submodel?.elements?.length) return [];
+  const rootIdShort = definition.submodel.idShort;
+  const groups: Record<string, DefinitionNode[]> = {};
+
+  const visit = (node: DefinitionNode) => {
+    const groupId = node.smt?.either_or;
+    if (groupId) {
+      groups[groupId] = groups[groupId] || [];
+      groups[groupId].push(node);
+    }
+    node.children?.forEach(visit);
+    if (node.items) visit(node.items);
+    (node as any).statements?.forEach?.(visit);
+    (node as any).annotations?.forEach?.(visit);
+  };
+
+  definition.submodel.elements.forEach(visit);
+
+  const errors: string[] = [];
+  Object.entries(groups).forEach(([groupId, nodes]) => {
+    const hasValue = nodes.some((node) => {
+      if (!node.path) return false;
+      const segments = definitionPathToSegments(node.path, rootIdShort);
+      const values = getValuesAtPattern(data, segments);
+      return values.some((value) => !isEmptyValue(value));
+    });
+    if (!hasValue) {
+      errors.push(`Either-or group "${groupId}" requires at least one value.`);
+    }
+  });
+
+  return errors;
+}
+
 function validateSchema(
   schema: UISchema | undefined,
   data: unknown,
@@ -163,6 +368,68 @@ function validateSchema(
 ): Record<string, string> {
   if (!schema) return {};
   const errors: Record<string, string> = {};
+  const pathKey = pathToKey(path);
+
+  if (schema.enum && data !== undefined && data !== null && data !== '') {
+    if (!schema.enum.includes(data as any)) {
+      errors[pathKey] = 'Invalid value';
+    }
+  }
+
+  if (schema.pattern && typeof data === 'string' && data !== '') {
+    try {
+      const regex = new RegExp(schema.pattern);
+      if (!regex.test(data)) {
+        errors[pathKey] = 'Invalid format';
+      }
+    } catch {
+      // Ignore invalid patterns from upstream templates.
+    }
+  }
+
+  if (typeof data === 'number') {
+    if (schema.minimum !== undefined && data < schema.minimum) {
+      errors[pathKey] = `Must be ≥ ${schema.minimum}`;
+    }
+    if (schema.maximum !== undefined && data > schema.maximum) {
+      errors[pathKey] = `Must be ≤ ${schema.maximum}`;
+    }
+  }
+
+  if (schema['x-range'] && data && typeof data === 'object' && !Array.isArray(data)) {
+    const range = data as { min?: number | null; max?: number | null };
+    const min = typeof range.min === 'number' ? range.min : null;
+    const max = typeof range.max === 'number' ? range.max : null;
+
+    if (min !== null && schema.minimum !== undefined && min < schema.minimum) {
+      errors[pathKey] = `Min must be ≥ ${schema.minimum}`;
+    }
+    if (max !== null && schema.maximum !== undefined && max > schema.maximum) {
+      errors[pathKey] = `Max must be ≤ ${schema.maximum}`;
+    }
+    if (min !== null && max !== null && min > max) {
+      errors[pathKey] = 'Min cannot exceed max';
+    }
+  }
+
+  if (schema['x-multi-language']) {
+    const requiredLangs = schema['x-required-languages'] ?? [];
+    if (requiredLangs.length > 0) {
+      const obj =
+        data && typeof data === 'object' && !Array.isArray(data)
+          ? (data as Record<string, unknown>)
+          : {};
+      if (Object.keys(obj).length > 0) {
+        const missing = requiredLangs.filter((lang) => {
+          const value = obj[lang];
+          return value === undefined || value === null || String(value).trim() === '';
+        });
+        if (missing.length > 0) {
+          errors[pathKey] = `Missing required languages: ${missing.join(', ')}`;
+        }
+      }
+    }
+  }
 
   if (schema.type === 'object' && schema.properties) {
     const obj =
@@ -184,6 +451,9 @@ function validateSchema(
     }
   } else if (schema.type === 'array' && schema.items) {
     if (Array.isArray(data)) {
+      if (schema.minItems !== undefined && data.length < schema.minItems) {
+        errors[pathKey] = `At least ${schema.minItems} item(s) required`;
+      }
       data.forEach((item, index) => {
         const nested = validateSchema(schema.items, item, [...path, index]);
         Object.assign(errors, nested);
@@ -192,6 +462,51 @@ function validateSchema(
   }
 
   return errors;
+}
+
+function pickLangValue(value?: LangStringSet): string | undefined {
+  if (!value) return undefined;
+  if (value.en) return value.en;
+  const first = Object.values(value)[0];
+  return first ?? undefined;
+}
+
+function getNodeLabel(node: DefinitionNode, fallback: string) {
+  return (
+    node.smt?.form_title ??
+    pickLangValue(node.displayName) ??
+    node.idShort ??
+    fallback
+  );
+}
+
+function getNodeDescription(node: DefinitionNode) {
+  return node.smt?.form_info ?? pickLangValue(node.description);
+}
+
+function isNodeRequired(node: DefinitionNode) {
+  return node.smt?.cardinality === 'One' || node.smt?.cardinality === 'OneToMany';
+}
+
+function getSchemaAtPath(schema: UISchema | undefined, path: Array<string | number>): UISchema | undefined {
+  let current: UISchema | undefined = schema;
+  for (const segment of path) {
+    if (!current) return undefined;
+    if (typeof segment === 'number') {
+      current = current.items;
+      continue;
+    }
+    if (current.type === 'object' && current.properties) {
+      current = current.properties[segment];
+      continue;
+    }
+    if (current.type === 'array') {
+      current = current.items;
+      continue;
+    }
+    return current;
+  }
+  return current;
 }
 
 export default function SubmodelEditorPage() {
@@ -218,11 +533,27 @@ export default function SubmodelEditorPage() {
     enabled: !!templateKey,
   });
 
+  const { data: definition, isLoading: loadingDefinition } = useQuery<SubmodelDefinitionResponse>({
+    queryKey: ['submodel-definition', dppId, templateKey],
+    queryFn: () => fetchSubmodelDefinition(dppId!, templateKey!, token),
+    enabled: !!templateKey && !!dppId,
+  });
+
   const submodel = useMemo(() => {
-    if (!dpp || !template?.semantic_id) return null;
+    if (!dpp) return null;
     const submodels = dpp.aas_environment?.submodels || [];
-    return submodels.find((sm: any) => extractSemanticId(sm) === template.semantic_id) || null;
-  }, [dpp, template?.semantic_id]);
+    const semanticId = template?.semantic_id;
+    if (semanticId) {
+      const bySemantic = submodels.find((sm: any) => extractSemanticId(sm) === semanticId);
+      if (bySemantic) return bySemantic;
+    }
+    const definitionIdShort = definition?.definition?.submodel?.idShort;
+    if (definitionIdShort) {
+      const byIdShort = submodels.find((sm: any) => sm?.idShort === definitionIdShort);
+      if (byIdShort) return byIdShort;
+    }
+    return null;
+  }, [dpp, template?.semantic_id, definition?.definition?.submodel?.idShort]);
 
   const initialData = useMemo(() => {
     if (!submodel) return {};
@@ -304,9 +635,20 @@ export default function SubmodelEditorPage() {
       try {
         const parsed = JSON.parse(rawJson) as Record<string, unknown>;
         const schemaErrors = validateSchema(schema?.schema as UISchema | undefined, parsed);
-        if (Object.keys(schemaErrors).length > 0) {
-          setFormErrors(schemaErrors);
-          setError('Please fill out required fields.');
+        const readOnlyErrors = validateReadOnly(
+          schema?.schema as UISchema | undefined,
+          parsed,
+          initialData,
+        );
+        const eitherOrErrors = validateEitherOr(templateDefinition, parsed);
+        const mergedErrors = { ...schemaErrors, ...readOnlyErrors };
+        if (Object.keys(mergedErrors).length > 0 || eitherOrErrors.length > 0) {
+          setFormErrors(mergedErrors);
+          setError(
+            eitherOrErrors.length > 0
+              ? eitherOrErrors.join(' ')
+              : 'Please resolve the highlighted validation errors.'
+          );
           return;
         }
         setError(null);
@@ -318,9 +660,20 @@ export default function SubmodelEditorPage() {
     }
 
     const schemaErrors = validateSchema(schema?.schema as UISchema | undefined, formData);
-    if (Object.keys(schemaErrors).length > 0) {
-      setFormErrors(schemaErrors);
-      setError('Please fill out required fields.');
+    const readOnlyErrors = validateReadOnly(
+      schema?.schema as UISchema | undefined,
+      formData,
+      initialData,
+    );
+    const eitherOrErrors = validateEitherOr(templateDefinition, formData);
+    const mergedErrors = { ...schemaErrors, ...readOnlyErrors };
+    if (Object.keys(mergedErrors).length > 0 || eitherOrErrors.length > 0) {
+      setFormErrors(mergedErrors);
+      setError(
+        eitherOrErrors.length > 0
+          ? eitherOrErrors.join(' ')
+          : 'Please resolve the highlighted validation errors.'
+      );
       return;
     }
 
@@ -328,8 +681,9 @@ export default function SubmodelEditorPage() {
     updateMutation.mutate({ data: formData });
   };
 
-  const isLoading = loadingDpp || loadingTemplate || loadingSchema;
+  const isLoading = loadingDpp || loadingTemplate || loadingSchema || loadingDefinition;
   const uiSchema = schema?.schema as UISchema | undefined;
+  const templateDefinition = definition?.definition as TemplateDefinition | undefined;
 
   function renderObjectFields(objectSchema: UISchema, basePath: Array<string | number>) {
     const properties = objectSchema.properties ?? {};
@@ -343,18 +697,26 @@ export default function SubmodelEditorPage() {
     );
   }
 
-  function renderField(
+function renderField(
     fieldSchema: UISchema,
     path: Array<string | number>,
     label: string,
     required: boolean,
+    descriptionOverride?: string,
+    forceReadOnly?: boolean,
+    formUrlOverride?: string,
+    requiredLanguagesOverride?: string[],
   ) {
     const fieldKey = pathToKey(path);
     const fieldError = formErrors[fieldKey];
     const value = getValueAtPath(formData, path);
-    const description = fieldSchema.description;
+    const description = descriptionOverride ?? fieldSchema.description;
+    const readOnly = Boolean(forceReadOnly || fieldSchema['x-readonly'] || fieldSchema['x-blob']);
+    const formUrl = formUrlOverride ?? fieldSchema['x-form-url'];
+    const requiredLanguages =
+      requiredLanguagesOverride ?? fieldSchema['x-required-languages'] ?? [];
 
-    if (fieldSchema['x-readonly'] || fieldSchema['x-blob']) {
+    if (readOnly) {
       return (
         <div key={fieldKey} className="border rounded-md p-4 bg-gray-50">
           <p className="text-sm font-medium text-gray-800">
@@ -372,7 +734,9 @@ export default function SubmodelEditorPage() {
     }
 
     if (fieldSchema['x-multi-language']) {
-      const languages = ['en', 'de', 'fr', 'es', 'it'];
+      const languages = Array.from(
+        new Set([...(requiredLanguages || []), 'en', 'de', 'fr', 'es', 'it']),
+      );
       const current =
         value && typeof value === 'object' && !Array.isArray(value)
           ? (value as Record<string, string>)
@@ -386,6 +750,21 @@ export default function SubmodelEditorPage() {
             </p>
           </div>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {requiredLanguages.length > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              Required languages: {requiredLanguages.join(', ')}
+            </p>
+          )}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-3 space-y-2">
             {languages.map((lang) => (
               <div key={`${fieldKey}-${lang}`} className="flex items-center gap-2">
@@ -420,6 +799,16 @@ export default function SubmodelEditorPage() {
             {required && <span className="text-red-500 ml-1">*</span>}
           </p>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-3 space-y-3">
             <div>
               <label className="text-xs text-gray-500">Reference Type</label>
@@ -507,6 +896,16 @@ export default function SubmodelEditorPage() {
             {required && <span className="text-red-500 ml-1">*</span>}
           </p>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="text-xs text-gray-500">Min</label>
@@ -550,6 +949,16 @@ export default function SubmodelEditorPage() {
             {required && <span className="text-red-500 ml-1">*</span>}
           </p>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-3 space-y-2">
             <input
               type="text"
@@ -579,6 +988,16 @@ export default function SubmodelEditorPage() {
             {required && <span className="text-red-500 ml-1">*</span>}
           </p>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-4">
             {renderObjectFields(fieldSchema, path)}
           </div>
@@ -592,10 +1011,10 @@ export default function SubmodelEditorPage() {
       return (
         <div key={fieldKey} className="border rounded-md p-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-800">
-              {fieldSchema.title || label}
-              {required && <span className="text-red-500 ml-1">*</span>}
-            </p>
+          <p className="text-sm font-medium text-gray-800">
+            {fieldSchema.title || label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </p>
             <button
               type="button"
               className="text-sm text-primary-600 hover:text-primary-700"
@@ -608,6 +1027,16 @@ export default function SubmodelEditorPage() {
             </button>
           </div>
           {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          {formUrl && (
+            <a
+              className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+              href={formUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Learn more
+            </a>
+          )}
           <div className="mt-4 space-y-3">
             {list.length === 0 && (
               <p className="text-xs text-gray-400">No items yet.</p>
@@ -670,11 +1099,21 @@ export default function SubmodelEditorPage() {
     if (fieldSchema.enum && fieldSchema.enum.length > 0) {
       return (
         <div key={fieldKey} className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            {fieldSchema.title || label}
-            {required && <span className="text-red-500 ml-1">*</span>}
-          </label>
-          {description && <p className="text-xs text-gray-500">{description}</p>}
+        <label className="block text-sm font-medium text-gray-700">
+          {fieldSchema.title || label}
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+        {description && <p className="text-xs text-gray-500">{description}</p>}
+        {formUrl && (
+          <a
+            className="text-xs text-primary-600 hover:text-primary-700 inline-block mt-1"
+            href={formUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Learn more
+          </a>
+        )}
           <select
             className={`w-full border rounded-md px-3 py-2 text-sm ${
               fieldError ? 'border-red-500' : ''
@@ -707,6 +1146,16 @@ export default function SubmodelEditorPage() {
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
         {description && <p className="text-xs text-gray-500">{description}</p>}
+        {formUrl && (
+          <a
+            className="text-xs text-primary-600 hover:text-primary-700 inline-block"
+            href={formUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Learn more
+          </a>
+        )}
         <input
           type={inputType}
           className={`w-full border rounded-md px-3 py-2 text-sm ${
@@ -725,6 +1174,153 @@ export default function SubmodelEditorPage() {
         />
         {fieldError && <p className="text-xs text-red-600">{fieldError}</p>}
       </div>
+    );
+  }
+
+  function renderDefinitionNodes(
+    nodes: DefinitionNode[],
+    basePath: Array<string | number>,
+  ) {
+    return (
+      <div className="space-y-4">
+        {nodes.map((node, index) =>
+          renderDefinitionNode(node, basePath, index)
+        )}
+      </div>
+    );
+  }
+
+  function renderDefinitionNode(
+    node: DefinitionNode,
+    basePath: Array<string | number>,
+    index: number,
+    options?: { useBasePath?: boolean; schemaOverride?: UISchema },
+  ) {
+    const nodeId = node.idShort ?? `Item${index + 1}`;
+    const fieldPath = options?.useBasePath ? basePath : [...basePath, nodeId];
+    const schemaNode = options?.schemaOverride ?? getSchemaAtPath(uiSchema, fieldPath);
+    const label = getNodeLabel(node, nodeId);
+    const description = getNodeDescription(node);
+    const required = isNodeRequired(node);
+    const accessMode = node.smt?.access_mode?.toLowerCase();
+    const forceReadOnly = accessMode === 'readonly' || accessMode === 'read-only';
+    const formUrl = node.smt?.form_url ?? undefined;
+    const requiredLanguages = node.smt?.required_lang ?? undefined;
+
+    if (node.modelType === 'SubmodelElementCollection') {
+      const children = node.children ?? [];
+      return (
+        <div key={pathToKey(fieldPath)} className="border rounded-md p-4">
+          <p className="text-sm font-medium text-gray-800">
+            {label}
+            {required && <span className="text-red-500 ml-1">*</span>}
+          </p>
+          {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          <div className="mt-4">
+            {children.length > 0
+              ? renderDefinitionNodes(children, fieldPath)
+              : schemaNode?.properties
+                ? renderObjectFields(schemaNode, fieldPath)
+                : null}
+          </div>
+        </div>
+      );
+    }
+
+    if (node.modelType === 'SubmodelElementList') {
+      const list = Array.isArray(getValueAtPath(formData, fieldPath))
+        ? (getValueAtPath(formData, fieldPath) as unknown[])
+        : [];
+      const itemsSchema = schemaNode?.items;
+      const itemDefinition = node.items ?? undefined;
+
+      return (
+        <div key={pathToKey(fieldPath)} className="border rounded-md p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-800">
+              {label}
+              {required && <span className="text-red-500 ml-1">*</span>}
+            </p>
+            <button
+              type="button"
+              className="text-sm text-primary-600 hover:text-primary-700"
+              onClick={() => {
+                const next = [...list, defaultValueForSchema(itemsSchema)];
+                updateValue(fieldPath, next);
+              }}
+            >
+              Add item
+            </button>
+          </div>
+          {description && <p className="text-xs text-gray-500 mt-1">{description}</p>}
+          <div className="mt-4 space-y-3">
+            {list.length === 0 && (
+              <p className="text-xs text-gray-400">No items yet.</p>
+            )}
+            {list.map((_, itemIndex) => {
+              const itemPath = [...fieldPath, itemIndex];
+              const itemKey = pathToKey(itemPath);
+              return (
+                <div key={itemKey} className="border rounded-md p-3">
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      className="text-xs text-red-500 hover:text-red-600"
+                      onClick={() => {
+                        const next = list.filter((_, idx) => idx !== itemIndex);
+                        updateValue(fieldPath, next);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="mt-2">
+                    {itemDefinition ? (
+                      renderDefinitionNode(
+                        itemDefinition,
+                        itemPath,
+                        itemIndex,
+                        { useBasePath: true, schemaOverride: itemsSchema },
+                      )
+                    ) : (
+                      renderField(
+                        itemsSchema || { type: 'string' },
+                        itemPath,
+                        `${label} ${itemIndex + 1}`,
+                        false,
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (schemaNode) {
+      return renderField(
+        schemaNode,
+        fieldPath,
+        label,
+        required,
+        description,
+        forceReadOnly,
+        formUrl,
+        requiredLanguages,
+      );
+    }
+
+    return renderField(
+      { type: 'string' },
+      fieldPath,
+      label,
+      required,
+      description,
+      forceReadOnly,
+      formUrl,
+      requiredLanguages,
     );
   }
 
@@ -750,6 +1346,16 @@ export default function SubmodelEditorPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Edit Submodel</h1>
           <p className="text-sm text-gray-500">Template: {templateKey}</p>
+          {definition && (
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                Revision #{definition.revision_no}
+              </span>
+              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
+                {definition.state}
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={() => navigate(`/console/dpps/${dppId}`)}
@@ -799,7 +1405,11 @@ export default function SubmodelEditorPage() {
         )}
 
         {activeView === 'form' ? (
-          uiSchema?.type === 'object' ? (
+          templateDefinition?.submodel?.elements?.length ? (
+            <div className="space-y-4">
+              {renderDefinitionNodes(templateDefinition.submodel.elements, [])}
+            </div>
+          ) : uiSchema?.type === 'object' ? (
             <div className="space-y-4">{renderObjectFields(uiSchema, [])}</div>
           ) : (
             <div className="rounded-md border border-dashed border-gray-300 p-4 text-sm text-gray-500">
@@ -874,6 +1484,16 @@ export default function SubmodelEditorPage() {
           </summary>
           <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto">
             {JSON.stringify(schema.schema, null, 2)}
+          </pre>
+        </details>
+      )}
+      {templateDefinition && (
+        <details className="bg-white shadow rounded-lg p-6">
+          <summary className="cursor-pointer text-sm font-medium text-gray-700">
+            Template Definition (read-only)
+          </summary>
+          <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto">
+            {JSON.stringify(templateDefinition, null, 2)}
           </pre>
         </details>
       )}
