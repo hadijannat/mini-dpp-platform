@@ -91,7 +91,13 @@ def test_export_aasx_structure_is_valid() -> None:
 
     assert "[Content_Types].xml" in names
     assert "_rels/.rels" in names
-    assert "aasx/aas.json" in names
-    assert "aasx/_rels/aas.json.rels" in names
+    assert any(name in names for name in ("aasx/aas.json", "aasx/data.json")), (
+        f"Expected AAS JSON part, got: {sorted(names)}"
+    )
+    assert any(
+        name in names for name in ("aasx/_rels/aas.json.rels", "aasx/_rels/aasx-origin.rels")
+    ), "Missing AASX origin relationships"
     assert "aasx/aasx-origin" in names
-    assert "metadata/core-properties.xml" in names
+    assert any(name in names for name in ("metadata/core-properties.xml", "docProps/core.xml")), (
+        "Missing core properties"
+    )

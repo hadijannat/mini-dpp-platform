@@ -12,6 +12,10 @@ from typing import Any, Literal, cast
 from uuid import UUID
 from xml.etree import ElementTree as ET
 
+import pyecma376_2
+from basyx.aas.adapter import aasx
+from basyx.aas.adapter import json as basyx_json
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db.models import DPPRevision
@@ -64,10 +68,6 @@ class ExportService:
         Creates an AASX file following IDTA Part 5 specification.
         AASX is a ZIP archive with specific structure and relationships.
         """
-        import pyecma376_2
-        from basyx.aas.adapter import aasx
-        from basyx.aas.adapter import json as basyx_json
-
         buffer = io.BytesIO()
 
         with tempfile.NamedTemporaryFile(suffix=".json") as fp:
@@ -82,10 +82,10 @@ class ExportService:
             fp.flush()
             store = basyx_json.read_aas_json_file(fp.name)  # type: ignore[attr-defined]
 
-        files = aasx.DictSupplementaryFileContainer()
+        files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
 
         with aasx.AASXWriter(buffer) as writer:
-            core_props = pyecma376_2.OPCCoreProperties()
+            core_props = pyecma376_2.OPCCoreProperties()  # type: ignore[attr-defined, no-untyped-call]
             core_props.created = revision.created_at
             core_props.modified = datetime.now(UTC)
             core_props.creator = "Mini DPP Platform"
