@@ -49,6 +49,16 @@ def _run_compliance_tool(file_path: Path, *, is_aasx: bool) -> tuple[bool, str]:
     return proc.returncode == 0, output
 
 
+def _is_compliance_tool_error(output: str) -> bool:
+    markers = (
+        "ImportError",
+        "ModuleNotFoundError",
+        "No module named",
+        "cannot import name",
+    )
+    return any(marker in output for marker in markers)
+
+
 @pytest.mark.e2e
 def test_pipeline_refresh_build_export(
     runtime, api_client: httpx.Client, test_results_dir: Path
@@ -114,16 +124,32 @@ def test_pipeline_refresh_build_export(
     if compliance_available:
         json_ok, json_output = _run_compliance_tool(json_path, is_aasx=False)
         aasx_ok, aasx_output = _run_compliance_tool(aasx_path, is_aasx=True)
-        compliance["json_ok"] = json_ok
-        compliance["aasx_ok"] = aasx_ok
-        _save_json(
-            artifacts / f"{dpp_id}.compliance.json.log.json", {"ok": json_ok, "output": json_output}
+        tool_error = _is_compliance_tool_error(json_output) or _is_compliance_tool_error(
+            aasx_output
         )
-        _save_json(
-            artifacts / f"{dpp_id}.compliance.aasx.log.json", {"ok": aasx_ok, "output": aasx_output}
-        )
-        # If compliance tool is present, enforce AASX deserialization success
-        assert aasx_ok, "AASX compliance check failed; see compliance logs"
+        if tool_error:
+            compliance["error"] = "compliance_tool_unavailable"
+            _save_json(
+                artifacts / f"{dpp_id}.compliance.json.log.json",
+                {"ok": False, "output": json_output},
+            )
+            _save_json(
+                artifacts / f"{dpp_id}.compliance.aasx.log.json",
+                {"ok": False, "output": aasx_output},
+            )
+        else:
+            compliance["json_ok"] = json_ok
+            compliance["aasx_ok"] = aasx_ok
+            _save_json(
+                artifacts / f"{dpp_id}.compliance.json.log.json",
+                {"ok": json_ok, "output": json_output},
+            )
+            _save_json(
+                artifacts / f"{dpp_id}.compliance.aasx.log.json",
+                {"ok": aasx_ok, "output": aasx_output},
+            )
+            # If compliance tool is present, enforce AASX deserialization success
+            assert aasx_ok, "AASX compliance check failed; see compliance logs"
 
     report["steps"]["compliance"] = compliance
 

@@ -19,6 +19,8 @@ class RuntimeConfig:
     username: str
     password: str
     tenant_slug: str
+    admin_username: str
+    admin_password: str
 
 
 @pytest.fixture(scope="session")
@@ -32,6 +34,8 @@ def runtime() -> RuntimeConfig:
         username=os.getenv("DPP_USERNAME", "publisher"),
         password=os.getenv("DPP_PASSWORD", "publisher123"),
         tenant_slug=os.getenv("DPP_TENANT", "default"),
+        admin_username=os.getenv("DPP_ADMIN_USERNAME", "admin"),
+        admin_password=os.getenv("DPP_ADMIN_PASSWORD", "admin123"),
     )
 
 
@@ -58,16 +62,15 @@ def wait_for_http_ok(url: str, timeout_s: int = 90, interval_s: float = 1.0) -> 
     raise RuntimeError(f"Timed out waiting for {url}. Last error: {last_err}")
 
 
-@pytest.fixture(scope="session")
-def oidc_token(runtime: RuntimeConfig) -> str:
+def _get_oidc_token(runtime: RuntimeConfig, username: str, password: str) -> str:
     wait_for_http_ok(f"{runtime.keycloak_base_url}/realms/{runtime.realm}")
 
     token_url = f"{runtime.keycloak_base_url}/realms/{runtime.realm}/protocol/openid-connect/token"
     data = {
         "client_id": runtime.client_id,
         "client_secret": runtime.client_secret,
-        "username": runtime.username,
-        "password": runtime.password,
+        "username": username,
+        "password": password,
         "grant_type": "password",
     }
 
@@ -80,8 +83,62 @@ def oidc_token(runtime: RuntimeConfig) -> str:
     return token
 
 
+def _extract_token_sub(token: str) -> str:
+    import base64
+    import json
+
+    payload = token.split(".")[1]
+    payload += "=" * (-len(payload) % 4)
+    data = json.loads(base64.urlsafe_b64decode(payload.encode("utf-8")))
+    subject = data.get("sub")
+    if not subject:
+        raise RuntimeError("Missing sub in token payload")
+    return str(subject)
+
+
 @pytest.fixture(scope="session")
-def api_client(runtime: RuntimeConfig, oidc_token: str) -> httpx.Client:
+def oidc_token(runtime: RuntimeConfig) -> str:
+    return _get_oidc_token(runtime, runtime.username, runtime.password)
+
+
+@pytest.fixture(scope="session")
+def admin_token(runtime: RuntimeConfig) -> str:
+    return _get_oidc_token(runtime, runtime.admin_username, runtime.admin_password)
+
+
+@pytest.fixture(scope="session")
+def ensure_publisher_membership(
+    runtime: RuntimeConfig,
+    admin_token: str,
+    oidc_token: str,
+) -> str:
+    wait_for_http_ok(f"{runtime.dpp_base_url}/api/v1/docs")
+
+    publisher_sub = _extract_token_sub(oidc_token)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client = httpx.Client(base_url=runtime.dpp_base_url, headers=headers, timeout=30.0)
+    try:
+        response = client.post(
+            f"/api/v1/tenants/{runtime.tenant_slug}/members",
+            json={"user_subject": publisher_sub, "role": "publisher"},
+        )
+    finally:
+        client.close()
+
+    if response.status_code not in (200, 201, 409):
+        raise RuntimeError(
+            f"Failed to ensure publisher membership: {response.status_code} {response.text}"
+        )
+
+    return publisher_sub
+
+
+@pytest.fixture(scope="session")
+def api_client(
+    runtime: RuntimeConfig,
+    oidc_token: str,
+    ensure_publisher_membership: str,
+) -> httpx.Client:
     wait_for_http_ok(f"{runtime.dpp_base_url}/api/v1/docs")
 
     headers = {"Authorization": f"Bearer {oidc_token}"}

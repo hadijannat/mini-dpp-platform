@@ -49,9 +49,26 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+MIGRATION_LOCK_ID = 428197123
+
+
 def do_run_migrations(connection: Connection) -> None:
     """Run migrations with the given connection."""
     context.configure(connection=connection, target_metadata=target_metadata)
+
+    if connection.dialect.name == "postgresql":
+        # Serialize concurrent migration attempts (e.g., startup + CI exec).
+        connection.exec_driver_sql(
+            f"SELECT pg_advisory_lock({MIGRATION_LOCK_ID})"
+        )
+        try:
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            connection.exec_driver_sql(
+                f"SELECT pg_advisory_unlock({MIGRATION_LOCK_ID})"
+            )
+        return
 
     with context.begin_transaction():
         context.run_migrations()

@@ -37,8 +37,10 @@ jobs:
       - name: Start stack
         run: docker compose up -d --build
 
-      - name: Run database migrations
-        run: docker exec dpp-backend alembic upgrade head
+      - name: Wait for backend health
+        run: |
+          curl --retry 30 --retry-all-errors --retry-delay 2 \
+            --fail --silent --show-error http://localhost:8000/health
 
       - name: Run pipeline + golden tests
         working-directory: backend
