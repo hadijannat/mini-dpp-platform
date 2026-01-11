@@ -48,7 +48,7 @@ jobs:
           RUN_E2E: "1"
           RUN_GOLDENS: "1"
           DPP_BASE_URL: "http://localhost:8000"
-          KEYCLOAK_BASE_URL: "http://localhost:8081"
+          KEYCLOAK_BASE_URL: "http://localhost:8080"
           KEYCLOAK_REALM: "dpp-platform"
           KEYCLOAK_CLIENT_ID: "dpp-backend"
           KEYCLOAK_CLIENT_SECRET: "backend-secret-dev"
