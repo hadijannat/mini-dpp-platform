@@ -58,16 +58,12 @@ def do_run_migrations(connection: Connection) -> None:
 
     if connection.dialect.name == "postgresql":
         # Serialize concurrent migration attempts (e.g., startup + CI exec).
-        connection.exec_driver_sql(
-            f"SELECT pg_advisory_lock({MIGRATION_LOCK_ID})"
-        )
+        connection.exec_driver_sql(f"SELECT pg_advisory_lock({MIGRATION_LOCK_ID})")
         try:
             with context.begin_transaction():
                 context.run_migrations()
         finally:
-            connection.exec_driver_sql(
-                f"SELECT pg_advisory_unlock({MIGRATION_LOCK_ID})"
-            )
+            connection.exec_driver_sql(f"SELECT pg_advisory_unlock({MIGRATION_LOCK_ID})")
         return
 
     with context.begin_transaction():

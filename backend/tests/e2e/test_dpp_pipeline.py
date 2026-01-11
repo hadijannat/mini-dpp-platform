@@ -50,7 +50,6 @@ def _resolve_compliance_cmd() -> list[str] | None:
 
 
 def _run_compliance_tool(cmd: list[str], file_path: Path, *, is_aasx: bool) -> tuple[bool, str]:
-
     args = ["deserialization", "--json"]
     if is_aasx:
         args.append("--aasx")
