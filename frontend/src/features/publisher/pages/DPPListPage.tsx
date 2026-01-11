@@ -3,10 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { Plus, Eye, Edit } from 'lucide-react';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { getTenantSlug } from '@/lib/tenant';
 
 async function fetchDPPs(token?: string) {
-  const response = await apiFetch('/api/v1/dpps', {}, token);
+  const response = await tenantApiFetch('/dpps', {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPPs'));
   }
@@ -22,7 +23,7 @@ async function fetchTemplates(token?: string) {
 }
 
 async function createDPP(data: any, token?: string) {
-  const response = await apiFetch('/api/v1/dpps', {
+  const response = await tenantApiFetch('/dpps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -53,6 +54,7 @@ export default function DPPListPage() {
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const tenantSlug = getTenantSlug();
 
   const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
     queryKey: ['dpps'],
@@ -283,7 +285,7 @@ export default function DPPListPage() {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end space-x-2">
                       <Link
-                        to={`/dpp/${dpp.id}`}
+                        to={`/t/${tenantSlug}/dpp/${dpp.id}`}
                         className="text-gray-400 hover:text-gray-600"
                         title="View"
                         data-testid={`dpp-view-${dpp.id}`}

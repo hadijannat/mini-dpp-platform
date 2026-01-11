@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw } from 'lucide-react';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 const SEMANTIC_ID_TO_TEMPLATE_KEY: Record<string, string> = {
@@ -45,7 +45,7 @@ function formatElementValue(value: unknown): string {
 }
 
 async function fetchDPP(dppId: string, token?: string) {
-  const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
+  const response = await tenantApiFetch(`/dpps/${dppId}`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
@@ -76,7 +76,7 @@ async function rebuildSubmodel(
   data: Record<string, unknown>,
   token?: string,
 ) {
-  const response = await apiFetch(`/api/v1/dpps/${dppId}/submodel`, {
+  const response = await tenantApiFetch(`/dpps/${dppId}/submodel`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -92,7 +92,7 @@ async function rebuildSubmodel(
 }
 
 async function publishDPP(dppId: string, token?: string) {
-  const response = await apiFetch(`/api/v1/dpps/${dppId}/publish`, {
+  const response = await tenantApiFetch(`/dpps/${dppId}/publish`, {
     method: 'POST',
   }, token);
   if (!response.ok) {
@@ -102,7 +102,7 @@ async function publishDPP(dppId: string, token?: string) {
 }
 
 async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', token?: string) {
-  const response = await apiFetch(`/api/v1/export/${dppId}?format=${format}`, {}, token);
+  const response = await tenantApiFetch(`/export/${dppId}?format=${format}`, {}, token);
   if (!response.ok) {
     throw new Error(
       await getApiErrorMessage(response, `Failed to export ${format.toUpperCase()}`)
@@ -120,7 +120,7 @@ async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', to
 }
 
 async function openQrCode(dppId: string, token?: string) {
-  const response = await apiFetch(`/api/v1/qr/${dppId}?format=png`, {}, token);
+  const response = await tenantApiFetch(`/qr/${dppId}?format=png`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to generate QR code'));
   }

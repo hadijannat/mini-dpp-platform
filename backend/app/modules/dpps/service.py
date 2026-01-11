@@ -21,6 +21,7 @@ from app.core.identifiers import (
 from app.core.logging import get_logger
 from app.core.settings_service import SettingsService
 from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
+from app.modules.qr.service import QRCodeService
 from app.modules.templates.service import TemplateRegistryService
 
 logger = get_logger(__name__)
@@ -63,6 +64,8 @@ class DPPService:
 
     async def create_dpp(
         self,
+        tenant_id: UUID,
+        tenant_slug: str,
         owner_subject: str,
         asset_ids: dict[str, Any],
         selected_templates: list[str],
@@ -111,6 +114,7 @@ class DPPService:
 
         # Create DPP record
         dpp = DPP(
+            tenant_id=tenant_id,
             status=DPPStatus.DRAFT,
             owner_subject=owner_subject,
             asset_ids=asset_ids,
@@ -119,10 +123,16 @@ class DPPService:
         await self._session.flush()
 
         # Generate QR payload URL
-        dpp.qr_payload = f"{self._settings.api_v1_prefix.rstrip('/')}/dpps/{dpp.id}"
+        qr_service = QRCodeService()
+        dpp.qr_payload = qr_service.build_dpp_url(
+            str(dpp.id),
+            tenant_slug=tenant_slug,
+            short_link=False,
+        )
 
         # Create initial revision
         revision = DPPRevision(
+            tenant_id=tenant_id,
             dpp_id=dpp.id,
             revision_no=1,
             state=RevisionState.DRAFT,
@@ -145,12 +155,13 @@ class DPPService:
     async def get_dpp(
         self,
         dpp_id: UUID,
+        tenant_id: UUID,
         include_revisions: bool = False,
     ) -> DPP | None:
         """
         Get a DPP by ID with optional revision history.
         """
-        query = select(DPP).where(DPP.id == dpp_id)
+        query = select(DPP).where(DPP.id == dpp_id, DPP.tenant_id == tenant_id)
 
         if include_revisions:
             query = query.options(selectinload(DPP.revisions))
@@ -160,6 +171,7 @@ class DPPService:
 
     async def get_dpps_for_owner(
         self,
+        tenant_id: UUID,
         owner_subject: str,
         status: DPPStatus | None = None,
         limit: int = 50,
@@ -170,7 +182,29 @@ class DPPService:
         """
         query = (
             select(DPP)
-            .where(DPP.owner_subject == owner_subject)
+            .where(DPP.owner_subject == owner_subject, DPP.tenant_id == tenant_id)
+            .order_by(DPP.updated_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+
+        if status:
+            query = query.where(DPP.status == status)
+
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_dpps_for_tenant(
+        self,
+        tenant_id: UUID,
+        status: DPPStatus | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[DPP]:
+        """Get all DPPs for a tenant."""
+        query = (
+            select(DPP)
+            .where(DPP.tenant_id == tenant_id)
             .order_by(DPP.updated_at.desc())
             .limit(limit)
             .offset(offset)
@@ -184,6 +218,7 @@ class DPPService:
 
     async def get_published_dpps(
         self,
+        tenant_id: UUID,
         limit: int = 50,
         offset: int = 0,
     ) -> list[DPP]:
@@ -192,7 +227,7 @@ class DPPService:
         """
         query = (
             select(DPP)
-            .where(DPP.status == DPPStatus.PUBLISHED)
+            .where(DPP.status == DPPStatus.PUBLISHED, DPP.tenant_id == tenant_id)
             .order_by(DPP.updated_at.desc())
             .limit(limit)
             .offset(offset)
@@ -201,34 +236,38 @@ class DPPService:
         result = await self._session.execute(query)
         return list(result.scalars().all())
 
-    async def get_latest_revision(self, dpp_id: UUID) -> DPPRevision | None:
+    async def get_latest_revision(self, dpp_id: UUID, tenant_id: UUID) -> DPPRevision | None:
         """
         Get the latest revision of a DPP (draft or published).
         """
         result = await self._session.execute(
             select(DPPRevision)
-            .where(DPPRevision.dpp_id == dpp_id)
+            .where(DPPRevision.dpp_id == dpp_id, DPPRevision.tenant_id == tenant_id)
             .order_by(DPPRevision.revision_no.desc())
             .limit(1)
         )
         return result.scalar_one_or_none()
 
-    async def get_published_revision(self, dpp_id: UUID) -> DPPRevision | None:
+    async def get_published_revision(self, dpp_id: UUID, tenant_id: UUID) -> DPPRevision | None:
         """
         Get the current published revision of a DPP.
         """
-        dpp = await self.get_dpp(dpp_id)
+        dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp or not dpp.current_published_revision_id:
             return None
 
         result = await self._session.execute(
-            select(DPPRevision).where(DPPRevision.id == dpp.current_published_revision_id)
+            select(DPPRevision).where(
+                DPPRevision.id == dpp.current_published_revision_id,
+                DPPRevision.tenant_id == tenant_id,
+            )
         )
         return result.scalar_one_or_none()
 
     async def update_submodel(
         self,
         dpp_id: UUID,
+        tenant_id: UUID,
         template_key: str,
         submodel_data: dict[str, Any],
         updated_by_subject: str,
@@ -250,7 +289,7 @@ class DPPService:
             The newly created revision
         """
         # Get current revision
-        current_revision = await self.get_latest_revision(dpp_id)
+        current_revision = await self.get_latest_revision(dpp_id, tenant_id)
         if not current_revision:
             raise ValueError(f"DPP {dpp_id} not found")
 
@@ -297,7 +336,7 @@ class DPPService:
             base_submodel = None
 
         if rebuild_from_template and base_submodel:
-            dpp = await self.get_dpp(dpp_id)
+            dpp = await self.get_dpp(dpp_id, tenant_id)
             asset_ids = dpp.asset_ids if dpp else {}
             existing_id = None
             if existing_index is not None:
@@ -336,7 +375,7 @@ class DPPService:
             if not base_submodel:
                 raise ValueError(f"Submodel {template_key} not found in DPP")
 
-            dpp = await self.get_dpp(dpp_id)
+            dpp = await self.get_dpp(dpp_id, tenant_id)
             asset_ids = dpp.asset_ids if dpp else {}
             submodel_id = (
                 f"urn:dpp:sm:{template_key}:{asset_ids.get('manufacturerPartId', 'unknown')}"
@@ -367,6 +406,7 @@ class DPPService:
         new_revision_no = current_revision.revision_no + 1
 
         revision = DPPRevision(
+            tenant_id=tenant_id,
             dpp_id=dpp_id,
             revision_no=new_revision_no,
             state=RevisionState.DRAFT,
@@ -388,6 +428,7 @@ class DPPService:
 
     async def rebuild_all_from_templates(
         self,
+        tenant_id: UUID,
         updated_by_subject: str,
     ) -> dict[str, Any]:
         """
@@ -399,7 +440,7 @@ class DPPService:
         if not templates:
             templates = await self._template_service.refresh_all_templates()
 
-        result = await self._session.execute(select(DPP))
+        result = await self._session.execute(select(DPP).where(DPP.tenant_id == tenant_id))
         dpps = list(result.scalars().all())
 
         summary: dict[str, Any] = {
@@ -434,6 +475,7 @@ class DPPService:
     async def publish_dpp(
         self,
         dpp_id: UUID,
+        tenant_id: UUID,
         published_by_subject: str,
     ) -> DPP:
         """
@@ -442,12 +484,12 @@ class DPPService:
         Creates a published revision from the latest draft and updates
         the DPP status and current_published_revision_id.
         """
-        dpp = await self.get_dpp(dpp_id)
+        dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
 
         # Get latest draft revision
-        latest_revision = await self.get_latest_revision(dpp_id)
+        latest_revision = await self.get_latest_revision(dpp_id, tenant_id)
         if not latest_revision:
             raise ValueError(f"No revision found for DPP {dpp_id}")
 
@@ -455,6 +497,7 @@ class DPPService:
             # Already published, create new revision
             new_revision_no = latest_revision.revision_no + 1
             revision = DPPRevision(
+                tenant_id=tenant_id,
                 dpp_id=dpp_id,
                 revision_no=new_revision_no,
                 state=RevisionState.PUBLISHED,
@@ -490,7 +533,7 @@ class DPPService:
         templates: list[Template],
         updated_by_subject: str,
     ) -> bool:
-        current_revision = await self.get_latest_revision(dpp.id)
+        current_revision = await self.get_latest_revision(dpp.id, dpp.tenant_id)
         if not current_revision:
             return False
 
@@ -531,6 +574,7 @@ class DPPService:
         new_revision_no = current_revision.revision_no + 1
 
         revision = DPPRevision(
+            tenant_id=dpp.tenant_id,
             dpp_id=dpp.id,
             revision_no=new_revision_no,
             state=RevisionState.DRAFT,
@@ -549,11 +593,11 @@ class DPPService:
 
         return True
 
-    async def archive_dpp(self, dpp_id: UUID) -> DPP:
+    async def archive_dpp(self, dpp_id: UUID, tenant_id: UUID) -> DPP:
         """
         Archive a DPP, marking it as no longer active.
         """
-        dpp = await self.get_dpp(dpp_id)
+        dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
 

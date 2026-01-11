@@ -9,7 +9,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.core.identifiers import IdentifierValidationError
-from app.core.security import Admin, CurrentUser, Publisher, require_access
+from app.core.security import require_access
+from app.core.tenancy import TenantAdmin, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -119,21 +120,23 @@ class BulkRebuildResponse(BaseModel):
 async def create_dpp(
     request: CreateDPPRequest,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> DPPResponse:
     """
     Create a new Digital Product Passport.
 
     Requires publisher role. Creates a draft DPP with selected templates.
     """
-    await require_access(user, "create", {"type": "dpp"})
+    await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
     service = DPPService(db)
 
     asset_ids_dict = request.asset_ids.model_dump(exclude_none=True)
 
     try:
         dpp = await service.create_dpp(
-            owner_subject=user.sub,
+            tenant_id=tenant.tenant_id,
+            tenant_slug=tenant.tenant_slug,
+            owner_subject=tenant.user.sub,
             asset_ids=asset_ids_dict,
             selected_templates=request.selected_templates,
             initial_data=request.initial_data,
@@ -161,18 +164,21 @@ async def create_dpp(
 @router.post("/rebuild-all", response_model=BulkRebuildResponse)
 async def rebuild_all_dpps(
     db: DbSession,
-    user: Admin,
+    tenant: TenantAdmin,
 ) -> BulkRebuildResponse:
     """
     Refresh templates and rebuild submodels for all DPPs.
 
-    Requires admin role.
+    Requires tenant admin role.
     """
     template_service = TemplateRegistryService(db)
     await template_service.refresh_all_templates()
 
     service = DPPService(db)
-    summary = await service.rebuild_all_from_templates(updated_by_subject=user.sub)
+    summary = await service.rebuild_all_from_templates(
+        tenant_id=tenant.tenant_id,
+        updated_by_subject=tenant.user.sub,
+    )
     await db.commit()
 
     return BulkRebuildResponse(
@@ -189,7 +195,7 @@ async def rebuild_all_dpps(
 @router.get("", response_model=DPPListResponse)
 async def list_dpps(
     db: DbSession,
-    user: CurrentUser,
+    tenant: TenantContextDep,
     status_filter: DPPStatus | None = Query(None, alias="status"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -201,15 +207,24 @@ async def list_dpps(
     """
     service = DPPService(db)
 
-    if user.is_publisher:
+    if tenant.is_tenant_admin:
+        dpps = await service.get_dpps_for_tenant(
+            tenant_id=tenant.tenant_id,
+            status=status_filter,
+            limit=limit,
+            offset=offset,
+        )
+    elif tenant.is_publisher:
         dpps = await service.get_dpps_for_owner(
-            owner_subject=user.sub,
+            tenant_id=tenant.tenant_id,
+            owner_subject=tenant.user.sub,
             status=status_filter,
             limit=limit,
             offset=offset,
         )
     else:
         dpps = await service.get_published_dpps(
+            tenant_id=tenant.tenant_id,
             limit=limit,
             offset=offset,
         )
@@ -237,7 +252,7 @@ async def list_dpps(
 async def get_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: CurrentUser,
+    tenant: TenantContextDep,
 ) -> DPPDetailResponse:
     """
     Get a specific DPP by ID.
@@ -246,7 +261,7 @@ async def get_dpp(
     """
     service = DPPService(db)
 
-    dpp = await service.get_dpp(dpp_id)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -254,10 +269,10 @@ async def get_dpp(
         )
 
     # Check access via ABAC
-    await require_access(user, "read", _dpp_resource(dpp))
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
 
     # Get latest revision
-    revision = await service.get_latest_revision(dpp_id)
+    revision = await service.get_latest_revision(dpp_id, tenant.tenant_id)
 
     return DPPDetailResponse(
         id=dpp.id,
@@ -278,7 +293,7 @@ async def update_submodel(
     dpp_id: UUID,
     request: UpdateSubmodelRequest,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> RevisionResponse:
     """
     Update a submodel within a DPP.
@@ -288,27 +303,28 @@ async def update_submodel(
     service = DPPService(db)
 
     # Verify ownership
-    dpp = await service.get_dpp(dpp_id)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
 
-    if dpp.owner_subject != user.sub and not user.is_admin:
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can edit this DPP",
         )
 
-    await require_access(user, "update", _dpp_resource(dpp))
+    await require_access(tenant.user, "update", _dpp_resource(dpp), tenant=tenant)
 
     try:
         revision = await service.update_submodel(
             dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
             template_key=request.template_key,
             submodel_data=request.data,
-            updated_by_subject=user.sub,
+            updated_by_subject=tenant.user.sub,
             rebuild_from_template=request.rebuild_from_template,
         )
         await db.commit()
@@ -332,7 +348,7 @@ async def update_submodel(
 async def publish_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> DPPResponse:
     """
     Publish a DPP, making it visible to viewers.
@@ -340,25 +356,26 @@ async def publish_dpp(
     service = DPPService(db)
 
     # Verify ownership
-    dpp = await service.get_dpp(dpp_id)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
 
-    if dpp.owner_subject != user.sub and not user.is_admin:
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can publish this DPP",
         )
 
-    await require_access(user, "publish", _dpp_resource(dpp))
+    await require_access(tenant.user, "publish", _dpp_resource(dpp), tenant=tenant)
 
     try:
         published_dpp = await service.publish_dpp(
             dpp_id=dpp_id,
-            published_by_subject=user.sub,
+            tenant_id=tenant.tenant_id,
+            published_by_subject=tenant.user.sub,
         )
         await db.commit()
         await db.refresh(published_dpp)
@@ -383,7 +400,7 @@ async def publish_dpp(
 async def archive_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> DPPResponse:
     """
     Archive a DPP, marking it as no longer active.
@@ -391,23 +408,23 @@ async def archive_dpp(
     service = DPPService(db)
 
     # Verify ownership
-    dpp = await service.get_dpp(dpp_id)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
 
-    if dpp.owner_subject != user.sub and not user.is_admin:
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can archive this DPP",
         )
 
-    await require_access(user, "archive", _dpp_resource(dpp))
+    await require_access(tenant.user, "archive", _dpp_resource(dpp), tenant=tenant)
 
     try:
-        archived_dpp = await service.archive_dpp(dpp_id)
+        archived_dpp = await service.archive_dpp(dpp_id, tenant.tenant_id)
         await db.commit()
         await db.refresh(archived_dpp)
     except ValueError as e:
@@ -431,7 +448,7 @@ async def archive_dpp(
 async def list_revisions(
     dpp_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> list[RevisionResponse]:
     """
     List all revisions for a DPP.
@@ -440,14 +457,14 @@ async def list_revisions(
     """
     service = DPPService(db)
 
-    dpp = await service.get_dpp(dpp_id, include_revisions=True)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id, include_revisions=True)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
 
-    if dpp.owner_subject != user.sub and not user.is_admin:
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied",

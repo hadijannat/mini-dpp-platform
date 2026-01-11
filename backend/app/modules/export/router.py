@@ -8,7 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
-from app.core.security import CurrentUser, require_access
+from app.core.security import require_access
+from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -21,7 +22,7 @@ router = APIRouter()
 async def export_dpp(
     dpp_id: UUID,
     db: DbSession,
-    user: CurrentUser,
+    tenant: TenantContextDep,
     format: Literal["json", "aasx", "pdf"] = Query("json", description="Export format"),
 ) -> Response:
     """
@@ -36,7 +37,7 @@ async def export_dpp(
     export_service = ExportService()
 
     # Get DPP
-    dpp = await dpp_service.get_dpp(dpp_id)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -44,7 +45,7 @@ async def export_dpp(
         )
 
     await require_access(
-        user,
+        tenant.user,
         "export",
         {
             "type": "dpp",
@@ -53,13 +54,14 @@ async def export_dpp(
             "status": dpp.status.value,
             "format": format,
         },
+        tenant=tenant,
     )
 
     # Check access
     if (
         dpp.status != DPPStatus.PUBLISHED
-        and dpp.owner_subject != user.sub
-        and not user.is_publisher
+        and dpp.owner_subject != tenant.user.sub
+        and not tenant.is_publisher
     ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -67,7 +69,7 @@ async def export_dpp(
         )
 
     # AASX export requires publisher role
-    if format == "aasx" and not user.is_publisher:
+    if format == "aasx" and not tenant.is_publisher:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="AASX export requires publisher role",
@@ -75,9 +77,9 @@ async def export_dpp(
 
     # Get revision
     if dpp.status == DPPStatus.PUBLISHED:
-        revision = await dpp_service.get_published_revision(dpp_id)
+        revision = await dpp_service.get_published_revision(dpp_id, tenant.tenant_id)
     else:
-        revision = await dpp_service.get_latest_revision(dpp_id)
+        revision = await dpp_service.get_latest_revision(dpp_id, tenant.tenant_id)
 
     if not revision:
         raise HTTPException(

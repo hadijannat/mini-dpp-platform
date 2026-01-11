@@ -9,7 +9,9 @@ import {
   LogOut,
   User,
   Settings,
+  Users,
 } from 'lucide-react';
+import TenantSelector from '../components/TenantSelector';
 
 const baseNavigation = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
@@ -25,7 +27,11 @@ export default function PublisherLayout() {
   const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
   const isAdmin = userRoles.includes('admin');
   const navigation = isAdmin
-    ? [...baseNavigation, { name: 'Settings', href: '/console/settings', icon: Settings }]
+    ? [
+        ...baseNavigation,
+        { name: 'Tenants', href: '/console/tenants', icon: Users },
+        { name: 'Settings', href: '/console/settings', icon: Settings },
+      ]
     : baseNavigation;
 
   const handleLogout = () => {
@@ -79,6 +85,7 @@ export default function PublisherLayout() {
                 </p>
               </div>
             </div>
+            <TenantSelector />
             <button
               onClick={handleLogout}
               className="mt-3 w-full flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white rounded-md"

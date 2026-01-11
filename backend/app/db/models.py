@@ -95,6 +95,124 @@ class ConnectorStatus(str, PyEnum):
     ERROR = "error"
 
 
+class TenantStatus(str, PyEnum):
+    """Lifecycle status for tenants."""
+
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
+class TenantRole(str, PyEnum):
+    """Roles scoped to a tenant."""
+
+    VIEWER = "viewer"
+    PUBLISHER = "publisher"
+    TENANT_ADMIN = "tenant_admin"
+
+
+# =============================================================================
+# Tenant Models
+# =============================================================================
+
+
+class Tenant(Base):
+    """Tenant entity for multi-tenant isolation."""
+
+    __tablename__ = "tenants"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    slug: Mapped[str] = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False,
+        comment="URL-safe tenant identifier",
+    )
+    name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    status: Mapped[TenantStatus] = mapped_column(
+        Enum(TenantStatus, values_callable=lambda e: [m.value for m in e]),
+        default=TenantStatus.ACTIVE,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    members: Mapped[list["TenantMember"]] = relationship(
+        back_populates="tenant",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_tenants_slug", "slug"),
+        Index("ix_tenants_status", "status"),
+        UniqueConstraint("slug", name="uq_tenants_slug"),
+    )
+
+
+class TenantMember(Base):
+    """Membership mapping between users and tenants."""
+
+    __tablename__ = "tenant_members"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_subject: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="OIDC subject identifier",
+    )
+    role: Mapped[TenantRole] = mapped_column(
+        Enum(TenantRole, values_callable=lambda e: [m.value for m in e]),
+        default=TenantRole.VIEWER,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="members")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "user_subject", name="uq_tenant_membership"),
+        Index("ix_tenant_members_tenant_id", "tenant_id"),
+        Index("ix_tenant_members_user_subject", "user_subject"),
+    )
+
+
+class TenantScopedMixin:
+    """Mixin for tenant-scoped models."""
+
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+
 # =============================================================================
 # User Model
 # =============================================================================
@@ -206,7 +324,7 @@ class PlatformSetting(Base):
 # =============================================================================
 
 
-class DPP(Base):
+class DPP(TenantScopedMixin, Base):
     """
     Digital Product Passport entity.
 
@@ -280,7 +398,7 @@ class DPP(Base):
     )
 
 
-class DPPRevision(Base):
+class DPPRevision(TenantScopedMixin, Base):
     """
     Immutable revision of a DPP.
 
@@ -345,7 +463,7 @@ class DPPRevision(Base):
     )
 
 
-class EncryptedValue(Base):
+class EncryptedValue(TenantScopedMixin, Base):
     """
     Encrypted field value storage for field-level encryption.
 
@@ -459,7 +577,7 @@ class Template(Base):
 # =============================================================================
 
 
-class Policy(Base):
+class Policy(TenantScopedMixin, Base):
     """
     ABAC access control policy.
 
@@ -526,7 +644,7 @@ class Policy(Base):
 # =============================================================================
 
 
-class Connector(Base):
+class Connector(TenantScopedMixin, Base):
     """
     External connector configuration.
 
@@ -577,7 +695,7 @@ class Connector(Base):
 # =============================================================================
 
 
-class AuditEvent(Base):
+class AuditEvent(TenantScopedMixin, Base):
     """
     Audit log for security and compliance tracking.
 

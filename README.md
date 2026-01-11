@@ -240,6 +240,49 @@ https://id.gs1.org/01/03772280965805/21/SN-2024-DEMO-001
 
 ---
 
+## 🧭 Multi‑Tenant Walkthrough (Docker Demo)
+
+This walkthrough uses the local Docker stack with **two tenants**: `default` and `quality`.
+Log in as **admin** to create the tenant and assign a **publisher**, then log in as **publisher**
+to create a tenant‑scoped DPP and view it at a tenant URL.
+
+### Step 1: Open the Login Page
+![Multi‑tenant demo login page](docs/images/mt-01-login.png)
+
+### Step 2: Authenticate with Keycloak
+![Keycloak sign‑in](docs/images/mt-02-keycloak-login.png)
+
+### Step 3: Admin Dashboard (platform admin)
+![Admin dashboard](docs/images/mt-03-admin-dashboard.png)
+
+### Step 4: Open Tenants
+![Tenants list](docs/images/mt-04-tenants-list.png)
+
+### Step 5: Create the `quality` Tenant
+![Create tenant modal](docs/images/mt-05-create-tenant.png)
+
+### Step 6: Confirm Both Tenants
+![Tenants list with quality + default](docs/images/mt-06-tenants-after-create.png)
+
+### Step 7: Add Publisher Membership to `quality`
+Use the **publisher user subject (OIDC sub)** when adding members.
+![Add tenant member](docs/images/mt-07-tenant-members.png)
+
+### Step 8: Switch to `quality` as Publisher
+![Tenant switcher](docs/images/mt-08-tenant-switcher.png)
+
+### Step 9: Create a DPP in `quality`
+![Create DPP modal](docs/images/mt-09-create-dpp.png)
+
+### Step 10: Verify DPP List is Tenant‑Scoped
+![DPP list for quality tenant](docs/images/mt-10-dpp-list-quality.png)
+
+### Step 11: Open the Tenant Viewer Route
+Example route: `/t/quality/dpp/{dpp_id}`
+![Viewer route](docs/images/mt-11-viewer-route.png)
+
+---
+
 ## 🎬 Video Walkthrough
 
 For a complete animated demonstration of the workflow:
@@ -284,10 +327,29 @@ TOKEN=$(curl -s -X POST "http://localhost:8081/realms/dpp-platform/protocol/open
   -d "grant_type=password" | jq -r '.access_token')
 ```
 
-### Create a DPP via API
+Default roles: `viewer`, `publisher`, `tenant_admin`, `admin` (platform).
+
+### Optional: Provision Keycloak tenant groups
+
+Tenant membership is managed in the platform database via `/api/v1/tenants/{tenant}/members`.
+If you also want Keycloak group scaffolding (one group per tenant with role subgroups),
+you can run the provisioning script:
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/dpps" \
+KEYCLOAK_ADMIN_PASSWORD=admin TENANTS="default,quality" \
+  ./infra/keycloak/scripts/provision-tenants.sh
+```
+
+This creates groups like `tenant:default` with `viewer`, `publisher`, and `tenant_admin`
+subgroups and maps the realm roles.
+
+### Create a DPP via API
+
+> Tenant-scoped APIs use `/api/v1/tenants/{tenant}`. The default tenant slug is `default`.
+> The UI reads the tenant slug from local storage (or `VITE_DEFAULT_TENANT`).
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -302,7 +364,7 @@ curl -X POST "http://localhost:8000/api/v1/dpps" \
 ### Publish a DPP
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/dpps/{dpp_id}/publish" \
+curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/{dpp_id}/publish" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -310,7 +372,7 @@ curl -X POST "http://localhost:8000/api/v1/dpps/{dpp_id}/publish" \
 
 ```bash
 curl -O -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/export/{dpp_id}/aasx"
+  "http://localhost:8000/api/v1/tenants/default/export/{dpp_id}/aasx"
 ```
 
 ---
@@ -376,6 +438,17 @@ cp .env.example .env
 
 ## 📋 API Endpoints Reference
 
+### Tenants
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/tenants/mine` | List my tenants |
+| GET | `/api/v1/tenants` | List all tenants (platform admin) |
+| POST | `/api/v1/tenants` | Create tenant (platform admin) |
+| GET | `/api/v1/tenants/{tenant}` | Get tenant details |
+| GET | `/api/v1/tenants/{tenant}/members` | List tenant members |
+| POST | `/api/v1/tenants/{tenant}/members` | Add tenant member |
+| DELETE | `/api/v1/tenants/{tenant}/members/{user_subject}` | Remove tenant member |
+
 ### Templates
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -386,20 +459,20 @@ cp .env.example .env
 ### DPPs
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/v1/dpps` | Create new DPP |
-| GET | `/api/v1/dpps` | List all DPPs |
-| GET | `/api/v1/dpps/{id}` | Get DPP details |
-| PUT | `/api/v1/dpps/{id}/submodel` | Update submodel data |
-| POST | `/api/v1/dpps/{id}/publish` | Publish DPP |
+| POST | `/api/v1/tenants/{tenant}/dpps` | Create new DPP |
+| GET | `/api/v1/tenants/{tenant}/dpps` | List all DPPs |
+| GET | `/api/v1/tenants/{tenant}/dpps/{id}` | Get DPP details |
+| PUT | `/api/v1/tenants/{tenant}/dpps/{id}/submodel` | Update submodel data |
+| POST | `/api/v1/tenants/{tenant}/dpps/{id}/publish` | Publish DPP |
 
 ### Export & Data Carriers
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/export/{id}/aasx` | Export as AASX |
-| GET | `/api/v1/export/{id}/json` | Export as JSON |
-| GET | `/api/v1/qr/{id}` | Generate basic QR code |
-| POST | `/api/v1/qr/{id}/carrier` | Generate custom data carrier |
-| GET | `/api/v1/qr/{id}/gs1` | Get GS1 Digital Link URL |
+| GET | `/api/v1/tenants/{tenant}/export/{id}/aasx` | Export as AASX |
+| GET | `/api/v1/tenants/{tenant}/export/{id}/json` | Export as JSON |
+| GET | `/api/v1/tenants/{tenant}/qr/{id}` | Generate basic QR code |
+| POST | `/api/v1/tenants/{tenant}/qr/{id}/carrier` | Generate custom data carrier |
+| GET | `/api/v1/tenants/{tenant}/qr/{id}/gs1` | Get GS1 Digital Link URL |
 
 ---
 

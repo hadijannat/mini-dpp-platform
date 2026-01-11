@@ -42,7 +42,7 @@ class TokenPayload:
     @property
     def is_publisher(self) -> bool:
         """Check if user has publisher role."""
-        return "publisher" in self.roles or "admin" in self.roles
+        return "publisher" in self.roles or "tenant_admin" in self.roles or "admin" in self.roles
 
     @property
     def is_admin(self) -> bool:

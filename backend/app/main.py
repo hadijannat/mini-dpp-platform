@@ -20,6 +20,7 @@ from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
 from app.modules.settings.router import router as settings_router
 from app.modules.templates.router import router as templates_router
+from app.modules.tenants.router import router as tenants_router
 
 # Configure logging before anything else
 configure_logging()
@@ -98,33 +99,39 @@ def create_application() -> FastAPI:
 
     # API v1 routers
     app.include_router(
+        tenants_router,
+        prefix=f"{settings.api_v1_prefix}/tenants",
+        tags=["Tenants"],
+    )
+    app.include_router(
         templates_router,
         prefix=f"{settings.api_v1_prefix}/templates",
         tags=["Templates"],
     )
+    tenant_prefix = f"{settings.api_v1_prefix}/tenants/{{tenant_slug}}"
     app.include_router(
         dpps_router,
-        prefix=f"{settings.api_v1_prefix}/dpps",
+        prefix=f"{tenant_prefix}/dpps",
         tags=["DPPs"],
     )
     app.include_router(
         policies_router,
-        prefix=f"{settings.api_v1_prefix}/policies",
+        prefix=f"{tenant_prefix}/policies",
         tags=["Policies"],
     )
     app.include_router(
         connectors_router,
-        prefix=f"{settings.api_v1_prefix}/connectors",
+        prefix=f"{tenant_prefix}/connectors",
         tags=["Connectors"],
     )
     app.include_router(
         export_router,
-        prefix=f"{settings.api_v1_prefix}/export",
+        prefix=f"{tenant_prefix}/export",
         tags=["Export"],
     )
     app.include_router(
         qr_router,
-        prefix=f"{settings.api_v1_prefix}/qr",
+        prefix=f"{tenant_prefix}/qr",
         tags=["QR Codes"],
     )
     app.include_router(

@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.core.config import get_settings
 from app.core.security.oidc import TokenPayload, optional_verify_token, verify_token
-from app.db.models import Base
+from app.db.models import Base, Tenant, TenantMember, TenantRole, TenantStatus
 from app.db.session import get_db_session
 from app.main import create_application
 
@@ -124,6 +124,27 @@ async def test_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
         class_=AsyncSession,
         expire_on_commit=False,
     )
+
+    async with session_factory() as session:
+        tenant = Tenant(slug="default", name="Default Tenant", status=TenantStatus.ACTIVE)
+        session.add(tenant)
+        await session.flush()
+
+        session.add(
+            TenantMember(
+                tenant_id=tenant.id,
+                user_subject="test-user-123",
+                role=TenantRole.PUBLISHER,
+            )
+        )
+        session.add(
+            TenantMember(
+                tenant_id=tenant.id,
+                user_subject="viewer-user-456",
+                role=TenantRole.VIEWER,
+            )
+        )
+        await session.commit()
 
     async def override_get_db_session():
         async with session_factory() as session:

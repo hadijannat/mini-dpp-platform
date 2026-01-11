@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { Plus, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 
 async function fetchConnectors(token?: string) {
-  const response = await apiFetch('/api/v1/connectors', {}, token);
+  const response = await tenantApiFetch('/connectors', {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch connectors'));
   }
@@ -13,7 +13,7 @@ async function fetchConnectors(token?: string) {
 }
 
 async function createConnector(data: any, token?: string) {
-  const response = await apiFetch('/api/v1/connectors', {
+  const response = await tenantApiFetch('/connectors', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -25,7 +25,7 @@ async function createConnector(data: any, token?: string) {
 }
 
 async function testConnector(connectorId: string, token?: string) {
-  const response = await apiFetch(`/api/v1/connectors/${connectorId}/test`, {
+  const response = await tenantApiFetch(`/connectors/${connectorId}/test`, {
     method: 'POST',
   }, token);
   if (!response.ok) {
@@ -175,7 +175,7 @@ export default function ConnectorsPage() {
                 <input
                   name="submodel_base_url"
                   type="url"
-                  placeholder="https://your-domain.com/api/v1"
+                  placeholder="https://your-domain.com/api/v1/tenants/<tenant>/dpps"
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
                 />
               </div>

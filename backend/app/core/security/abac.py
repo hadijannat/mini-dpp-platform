@@ -3,10 +3,12 @@ ABAC (Attribute-Based Access Control) implementation using OPA.
 Provides policy enforcement point (PEP) for route and element-level access control.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from fastapi import HTTPException, Request, status
@@ -14,6 +16,9 @@ from fastapi import HTTPException, Request, status
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security.oidc import TokenPayload
+
+if TYPE_CHECKING:
+    from app.core.tenancy import TenantContext
 
 logger = get_logger(__name__)
 
@@ -145,21 +150,29 @@ def _opa_disabled_decision() -> PolicyDecision:
     )
 
 
-def build_subject_context(user: TokenPayload) -> dict[str, Any]:
+def build_subject_context(
+    user: TokenPayload, tenant: TenantContext | None = None
+) -> dict[str, Any]:
     """Build ABAC subject context from token payload."""
+    roles = list(tenant.roles) if tenant else user.roles
     return {
         "sub": user.sub,
         "email": user.email,
-        "roles": user.roles,
+        "roles": roles,
         "bpn": user.bpn,
         "org": user.org,
         "clearance": user.clearance or "public",
-        "is_publisher": user.is_publisher,
+        "is_publisher": tenant.is_publisher if tenant else user.is_publisher,
         "is_admin": user.is_admin,
+        "is_tenant_admin": tenant.is_tenant_admin if tenant else "tenant_admin" in roles,
+        "tenant_id": str(tenant.tenant_id) if tenant else None,
+        "tenant_slug": tenant.tenant_slug if tenant else None,
     }
 
 
-def build_environment_context(request: Request | None = None) -> dict[str, Any]:
+def build_environment_context(
+    request: Request | None = None, tenant: TenantContext | None = None
+) -> dict[str, Any]:
     """Build ABAC environment context from request."""
     context: dict[str, Any] = {
         "time": datetime.now(UTC).isoformat(),
@@ -175,6 +188,14 @@ def build_environment_context(request: Request | None = None) -> dict[str, Any]:
             }
         )
 
+    if tenant:
+        context.update(
+            {
+                "tenant_id": str(tenant.tenant_id),
+                "tenant_slug": tenant.tenant_slug,
+            }
+        )
+
     return context
 
 
@@ -183,6 +204,7 @@ async def check_access(
     action: str,
     resource: dict[str, Any],
     request: Request | None = None,
+    tenant: TenantContext | None = None,
 ) -> PolicyDecision:
     """
     Check access for a given action on a resource.
@@ -193,11 +215,19 @@ async def check_access(
     if not settings.opa_enabled:
         return _opa_disabled_decision()
 
+    resource_payload = resource
+    if tenant:
+        resource_payload = {
+            **resource,
+            "tenant_id": str(tenant.tenant_id),
+            "tenant_slug": tenant.tenant_slug,
+        }
+
     context = ABACContext(
-        subject=build_subject_context(user),
+        subject=build_subject_context(user, tenant),
         action=action,
-        resource=resource,
-        environment=build_environment_context(request),
+        resource=resource_payload,
+        environment=build_environment_context(request, tenant),
     )
 
     decision = await _opa_client.evaluate(context)
@@ -219,13 +249,14 @@ async def require_access(
     action: str,
     resource: dict[str, Any],
     request: Request | None = None,
+    tenant: TenantContext | None = None,
 ) -> PolicyDecision:
     """
     Require access for a given action, raising HTTPException on denial.
 
     Use this in route handlers where access must be granted to proceed.
     """
-    decision = await check_access(user, action, resource, request)
+    decision = await check_access(user, action, resource, request, tenant)
 
     if decision.effect == PolicyEffect.DENY:
         raise HTTPException(
@@ -240,6 +271,7 @@ async def filter_elements(
     user: TokenPayload,
     elements: list[dict[str, Any]],
     resource_base: dict[str, Any],
+    tenant: TenantContext | None = None,
 ) -> list[dict[str, Any]]:
     """
     Filter and transform elements based on ABAC policies.
@@ -257,7 +289,7 @@ async def filter_elements(
             "confidentiality": element.get("confidentiality", "public"),
         }
 
-        decision = await check_access(user, "read", resource)
+        decision = await check_access(user, "read", resource, tenant=tenant)
 
         if decision.effect == PolicyEffect.HIDE:
             # Skip hidden elements entirely

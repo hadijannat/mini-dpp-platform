@@ -1,3 +1,5 @@
+import { getTenantSlug } from './tenant';
+
 export function withAuthHeaders(
   token?: string,
   headers: HeadersInit = {}
@@ -47,4 +49,15 @@ export async function apiFetch(
     ...options,
     headers,
   });
+}
+
+export async function tenantApiFetch(
+  path: string,
+  options: RequestInit = {},
+  token?: string,
+  tenantSlug?: string
+): Promise<Response> {
+  const slug = tenantSlug || getTenantSlug();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return apiFetch(`/api/v1/tenants/${slug}${normalizedPath}`, options, token);
 }

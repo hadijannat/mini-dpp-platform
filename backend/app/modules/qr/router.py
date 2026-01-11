@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
-from app.core.security import CurrentUser
+from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -27,7 +27,7 @@ router = APIRouter()
 async def generate_qr_code(
     dpp_id: UUID,
     db: DbSession,
-    _user: CurrentUser,
+    tenant: TenantContextDep,
     format: Literal["png", "svg"] = Query("png", description="Image format"),
     size: int = Query(400, ge=100, le=1000, description="Image size in pixels"),
 ) -> Response:
@@ -40,7 +40,7 @@ async def generate_qr_code(
     qr_service = QRCodeService()
 
     # Get DPP
-    dpp = await dpp_service.get_dpp(dpp_id)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -55,7 +55,9 @@ async def generate_qr_code(
         )
 
     # Build URL and generate QR
-    dpp_url = qr_service.build_dpp_url(str(dpp_id), short_link=False)
+    dpp_url = qr_service.build_dpp_url(
+        str(dpp_id), tenant_slug=tenant.tenant_slug, short_link=False
+    )
     qr_bytes = qr_service.generate_qr_code(
         dpp_url=dpp_url,
         format=format,
@@ -86,7 +88,7 @@ async def generate_carrier(
     dpp_id: UUID,
     request: CarrierRequest,
     db: DbSession,
-    _user: CurrentUser,
+    tenant: TenantContextDep,
 ) -> Response:
     """
     Generate a customized data carrier for a DPP.
@@ -98,7 +100,7 @@ async def generate_carrier(
     qr_service = QRCodeService()
 
     # Get DPP
-    dpp = await dpp_service.get_dpp(dpp_id)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -112,7 +114,9 @@ async def generate_carrier(
         carrier_url = qr_service.build_gs1_digital_link(gtin, serial)
     else:
         # Standard DPP viewer URL
-        carrier_url = qr_service.build_dpp_url(str(dpp_id), short_link=False)
+        carrier_url = qr_service.build_dpp_url(
+            str(dpp_id), tenant_slug=tenant.tenant_slug, short_link=False
+        )
 
     # Build text label if requested
     text_label = None
@@ -153,7 +157,7 @@ async def generate_carrier(
 async def get_gs1_digital_link(
     dpp_id: UUID,
     db: DbSession,
-    _user: CurrentUser,
+    tenant: TenantContextDep,
 ) -> GS1DigitalLinkResponse:
     """
     Get the GS1 Digital Link URL for a DPP.
@@ -165,7 +169,7 @@ async def get_gs1_digital_link(
     qr_service = QRCodeService()
 
     # Get DPP
-    dpp = await dpp_service.get_dpp(dpp_id)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

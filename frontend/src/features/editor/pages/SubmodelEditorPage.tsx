@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 type TemplateResponse = {
@@ -33,7 +33,7 @@ type UISchema = {
 type FormData = Record<string, unknown>;
 
 async function fetchDpp(dppId: string, token?: string) {
-  const response = await apiFetch(`/api/v1/dpps/${dppId}`, {}, token);
+  const response = await tenantApiFetch(`/dpps/${dppId}`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
@@ -63,7 +63,7 @@ async function updateSubmodel(
   token?: string,
   rebuildFromTemplate = false,
 ) {
-  const response = await apiFetch(`/api/v1/dpps/${dppId}/submodel`, {
+  const response = await tenantApiFetch(`/dpps/${dppId}/submodel`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

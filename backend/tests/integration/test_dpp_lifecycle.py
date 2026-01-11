@@ -13,10 +13,12 @@ class TestDPPLifecycle:
     async def test_create_dpp_requires_auth(self, test_client: AsyncClient):
         """Test that creating a DPP requires authentication."""
         response = await test_client.post(
-            "/api/v1/dpps",
+            "/api/v1/tenants/default/dpps",
             json={
-                "name": "Test Product",
-                "template_key": "digital-nameplate",
+                "asset_ids": {
+                    "manufacturerPartId": "TEST-PART-001",
+                },
+                "selected_templates": ["digital-nameplate"],
             },
         )
         assert response.status_code == 401
@@ -24,7 +26,7 @@ class TestDPPLifecycle:
     @pytest.mark.asyncio
     async def test_list_dpps_requires_auth(self, test_client: AsyncClient):
         """Test that listing DPPs requires authentication."""
-        response = await test_client.get("/api/v1/dpps")
+        response = await test_client.get("/api/v1/tenants/default/dpps")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
@@ -37,14 +39,16 @@ class TestDPPLifecycle:
     async def test_export_dpp_not_found(self, test_client: AsyncClient):
         """Test export returns 404 for non-existent DPP."""
         response = await test_client.get(
-            "/api/v1/export/00000000-0000-0000-0000-000000000000?format=aasx"
+            "/api/v1/tenants/default/export/00000000-0000-0000-0000-000000000000?format=aasx"
         )
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_qr_code_generation_not_found(self, test_client: AsyncClient):
         """Test QR code generation returns 404 for non-existent DPP."""
-        response = await test_client.get("/api/v1/qr/00000000-0000-0000-0000-000000000000")
+        response = await test_client.get(
+            "/api/v1/tenants/default/qr/00000000-0000-0000-0000-000000000000"
+        )
         assert response.status_code == 401
 
 
@@ -59,12 +63,13 @@ class TestDPPWithAuth:
     ):
         """Test creating a DPP with mocked authentication."""
         response = await test_client.post(
-            "/api/v1/dpps",
+            "/api/v1/tenants/default/dpps",
             headers=mock_auth_headers,
             json={
-                "name": "Test Product DPP",
-                "template_key": "digital-nameplate",
-                "product_identifier": "PROD-001",
+                "asset_ids": {
+                    "manufacturerPartId": "TEST-PART-002",
+                },
+                "selected_templates": ["digital-nameplate"],
             },
         )
         # Will fail due to DB not being available, but auth should pass
@@ -78,7 +83,7 @@ class TestDPPWithAuth:
     ):
         """Test listing DPPs with mocked authentication."""
         response = await test_client.get(
-            "/api/v1/dpps",
+            "/api/v1/tenants/default/dpps",
             headers=mock_auth_headers,
         )
         # Will fail due to DB not being available, but auth should pass
@@ -91,14 +96,14 @@ class TestConnectors:
     @pytest.mark.asyncio
     async def test_list_connectors_requires_auth(self, test_client: AsyncClient):
         """Test that listing connectors requires authentication."""
-        response = await test_client.get("/api/v1/connectors")
+        response = await test_client.get("/api/v1/tenants/default/connectors")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_create_connector_requires_auth(self, test_client: AsyncClient):
         """Test that creating a connector requires authentication."""
         response = await test_client.post(
-            "/api/v1/connectors",
+            "/api/v1/tenants/default/connectors",
             json={
                 "name": "Test Connector",
                 "config": {
@@ -117,20 +122,20 @@ class TestPolicies:
     @pytest.mark.asyncio
     async def test_list_policies_requires_auth(self, test_client: AsyncClient):
         """Test that listing policies requires authentication."""
-        response = await test_client.get("/api/v1/policies")
+        response = await test_client.get("/api/v1/tenants/default/policies")
         assert response.status_code == 401
 
     @pytest.mark.asyncio
     async def test_create_policy_requires_auth(self, test_client: AsyncClient):
         """Test that creating a policy requires authentication."""
         response = await test_client.post(
-            "/api/v1/policies",
+            "/api/v1/tenants/default/policies",
             json={
-                "name": "Test Policy",
+                "policy_type": "route",
+                "target": "publisher",
                 "effect": "allow",
-                "subjects": {"roles": ["viewer"]},
-                "resources": {"dpp_id": "*"},
-                "actions": ["read"],
+                "rules": {"roles": ["viewer"]},
+                "priority": 0,
             },
         )
         assert response.status_code == 401

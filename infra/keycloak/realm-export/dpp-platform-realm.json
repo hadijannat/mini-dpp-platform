@@ -61,6 +61,10 @@
       {
         "name": "admin",
         "description": "Full administrative access"
+      },
+      {
+        "name": "tenant_admin",
+        "description": "Tenant administrator"
       }
     ]
   },

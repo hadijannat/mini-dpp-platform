@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { RefreshCw } from 'lucide-react';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 
 type RebuildSummary = {
   total: number;
@@ -30,7 +30,7 @@ async function refreshTemplates(token?: string) {
 }
 
 async function refreshAndRebuildAll(token?: string) {
-  const response = await apiFetch('/api/v1/dpps/rebuild-all', {
+  const response = await tenantApiFetch('/dpps/rebuild-all', {
     method: 'POST',
   }, token);
   if (!response.ok) {

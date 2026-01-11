@@ -9,8 +9,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from app.core.security import Admin, Publisher
-from app.db.models import Policy, PolicyEffect, PolicyType
+from app.core.tenancy import TenantAdmin, TenantPublisher
+from app.db.models import DPP, Policy, PolicyEffect, PolicyType
 from app.db.session import DbSession
 
 router = APIRouter()
@@ -56,7 +56,7 @@ class PolicyListResponse(BaseModel):
 @router.get("", response_model=PolicyListResponse)
 async def list_policies(
     db: DbSession,
-    _user: Publisher,
+    tenant: TenantPublisher,
     dpp_id: UUID | None = Query(None, description="Filter by DPP ID"),
     policy_type: PolicyType | None = Query(None, description="Filter by policy type"),
 ) -> PolicyListResponse:
@@ -65,7 +65,11 @@ async def list_policies(
 
     Requires publisher role. Can filter by DPP ID or policy type.
     """
-    query = select(Policy).order_by(Policy.priority.desc(), Policy.created_at.desc())
+    query = (
+        select(Policy)
+        .where(Policy.tenant_id == tenant.tenant_id)
+        .order_by(Policy.priority.desc(), Policy.created_at.desc())
+    )
 
     if dpp_id:
         query = query.where(Policy.dpp_id == dpp_id)
@@ -100,14 +104,28 @@ async def list_policies(
 async def create_policy(
     request: PolicyCreateRequest,
     db: DbSession,
-    _user: Admin,
+    tenant: TenantAdmin,
 ) -> PolicyResponse:
     """
     Create a new policy.
 
     Requires admin role.
     """
+    if request.dpp_id:
+        result = await db.execute(
+            select(DPP).where(
+                DPP.id == request.dpp_id,
+                DPP.tenant_id == tenant.tenant_id,
+            )
+        )
+        if not result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"DPP {request.dpp_id} not found",
+            )
+
     policy = Policy(
+        tenant_id=tenant.tenant_id,
         dpp_id=request.dpp_id,
         policy_type=request.policy_type,
         target=request.target,
@@ -139,12 +157,17 @@ async def create_policy(
 async def get_policy(
     policy_id: UUID,
     db: DbSession,
-    _user: Publisher,
+    tenant: TenantPublisher,
 ) -> PolicyResponse:
     """
     Get a specific policy by ID.
     """
-    result = await db.execute(select(Policy).where(Policy.id == policy_id))
+    result = await db.execute(
+        select(Policy).where(
+            Policy.id == policy_id,
+            Policy.tenant_id == tenant.tenant_id,
+        )
+    )
     policy = result.scalar_one_or_none()
 
     if not policy:
@@ -171,14 +194,19 @@ async def get_policy(
 async def delete_policy(
     policy_id: UUID,
     db: DbSession,
-    _user: Admin,
+    tenant: TenantAdmin,
 ) -> None:
     """
     Delete a policy.
 
     Requires admin role.
     """
-    result = await db.execute(select(Policy).where(Policy.id == policy_id))
+    result = await db.execute(
+        select(Policy).where(
+            Policy.id == policy_id,
+            Policy.tenant_id == tenant.tenant_id,
+        )
+    )
     policy = result.scalar_one_or_none()
 
     if not policy:

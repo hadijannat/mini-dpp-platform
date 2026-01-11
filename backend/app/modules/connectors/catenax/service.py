@@ -31,17 +31,27 @@ class CatenaXConnectorService:
         self._session = session
         self._dpp_service = DPPService(session)
 
-    async def get_connector(self, connector_id: UUID) -> Connector | None:
+    async def get_connector(self, connector_id: UUID, tenant_id: UUID) -> Connector | None:
         """Get a connector by ID."""
-        result = await self._session.execute(select(Connector).where(Connector.id == connector_id))
+        result = await self._session.execute(
+            select(Connector).where(
+                Connector.id == connector_id,
+                Connector.tenant_id == tenant_id,
+            )
+        )
         return result.scalar_one_or_none()
 
     async def get_connectors(
         self,
+        tenant_id: UUID,
         connector_type: ConnectorType | None = None,
     ) -> list[Connector]:
         """Get all connectors, optionally filtered by type."""
-        query = select(Connector).order_by(Connector.created_at.desc())
+        query = (
+            select(Connector)
+            .where(Connector.tenant_id == tenant_id)
+            .order_by(Connector.created_at.desc())
+        )
 
         if connector_type:
             query = query.where(Connector.connector_type == connector_type)
@@ -51,6 +61,7 @@ class CatenaXConnectorService:
 
     async def create_connector(
         self,
+        tenant_id: UUID,
         name: str,
         config: dict[str, Any],
         created_by_subject: str,
@@ -68,6 +79,7 @@ class CatenaXConnectorService:
         - edc_dsp_endpoint: Optional EDC DSP endpoint
         """
         connector = Connector(
+            tenant_id=tenant_id,
             name=name,
             connector_type=ConnectorType.CATENA_X,
             config=config,
@@ -86,14 +98,14 @@ class CatenaXConnectorService:
 
         return connector
 
-    async def test_connector(self, connector_id: UUID) -> dict[str, Any]:
+    async def test_connector(self, connector_id: UUID, tenant_id: UUID) -> dict[str, Any]:
         """
         Test connectivity for a Catena-X connector.
 
         Verifies DTR connectivity; EDC DSP endpoint is included as metadata only.
         and authentication is valid.
         """
-        connector = await self.get_connector(connector_id)
+        connector = await self.get_connector(connector_id, tenant_id)
         if not connector:
             return {"status": "error", "error_message": "Connector not found"}
 
@@ -134,6 +146,7 @@ class CatenaXConnectorService:
         self,
         connector_id: UUID,
         dpp_id: UUID,
+        tenant_id: UUID,
     ) -> dict[str, Any]:
         """
         Publish a DPP to Catena-X DTR.
@@ -141,18 +154,18 @@ class CatenaXConnectorService:
         Registers the shell descriptor with all submodel descriptors
         in the configured Digital Twin Registry.
         """
-        connector = await self.get_connector(connector_id)
+        connector = await self.get_connector(connector_id, tenant_id)
         if not connector:
             raise ValueError(f"Connector {connector_id} not found")
 
         if connector.status != ConnectorStatus.ACTIVE:
             raise ValueError(f"Connector {connector_id} is not active")
 
-        dpp = await self._dpp_service.get_dpp(dpp_id)
+        dpp = await self._dpp_service.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
 
-        revision = await self._dpp_service.get_published_revision(dpp_id)
+        revision = await self._dpp_service.get_published_revision(dpp_id, tenant_id)
         if not revision:
             raise ValueError(f"DPP {dpp_id} has no published revision")
 

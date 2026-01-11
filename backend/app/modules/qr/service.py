@@ -202,7 +202,12 @@ class QRCodeService:
 
         return pdf_buffer.read()
 
-    def build_dpp_url(self, dpp_id: str, short_link: bool = True) -> str:
+    def build_dpp_url(
+        self,
+        dpp_id: str,
+        tenant_slug: str | None = None,
+        short_link: bool = True,
+    ) -> str:
         """
         Build the DPP viewer URL for QR code encoding.
 
@@ -222,9 +227,12 @@ class QRCodeService:
         if short_link:
             # Generate short slug (first 8 chars of ID)
             slug = dpp_id.replace("-", "")[:8]
+            if tenant_slug:
+                return f"{base_url}/t/{tenant_slug}/p/{slug}"
             return f"{base_url}/p/{slug}"
-        else:
-            return f"{base_url}/dpp/{dpp_id}"
+        if tenant_slug:
+            return f"{base_url}/t/{tenant_slug}/dpp/{dpp_id}"
+        return f"{base_url}/dpp/{dpp_id}"
 
     def build_gs1_digital_link(
         self,

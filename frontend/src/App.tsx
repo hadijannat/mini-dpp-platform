@@ -17,6 +17,7 @@ import DataCarriersPage from './features/publisher/pages/DataCarriersPage';
 import ConnectorsPage from './features/connectors/pages/ConnectorsPage';
 import SubmodelEditorPage from './features/editor/pages/SubmodelEditorPage';
 import GlobalIdSettingsPage from './features/admin/pages/GlobalIdSettingsPage';
+import TenantsPage from './features/admin/pages/TenantsPage';
 
 // Auth
 import LoginPage from './auth/LoginPage';
@@ -48,6 +49,8 @@ function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="/t/:tenantSlug/dpp/:dppId" element={<DPPViewerPage />} />
+        <Route path="/t/:tenantSlug/p/:slug" element={<DPPViewerPage />} />
         <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
         <Route path="/p/:slug" element={<DPPViewerPage />} />
       </Route>
@@ -73,6 +76,14 @@ function App() {
           element={
             <ProtectedRoute requiredRole="admin">
               <GlobalIdSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="tenants"
+          element={
+            <ProtectedRoute requiredRole="admin">
+              <TenantsPage />
             </ProtectedRoute>
           }
         />

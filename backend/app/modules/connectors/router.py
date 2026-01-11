@@ -8,7 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 
-from app.core.security import Publisher, require_access
+from app.core.security import require_access
+from app.core.tenancy import TenantPublisher
 from app.db.models import ConnectorType
 from app.db.session import DbSession
 from app.modules.connectors.catenax.service import CatenaXConnectorService
@@ -79,7 +80,7 @@ class PublishResultResponse(BaseModel):
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
     connector_type: ConnectorType | None = Query(None, description="Filter by connector type"),
 ) -> ConnectorListResponse:
     """
@@ -87,9 +88,9 @@ async def list_connectors(
 
     Requires publisher role.
     """
-    await require_access(user, "list", {"type": "connector"})
+    await require_access(tenant.user, "list", {"type": "connector"}, tenant=tenant)
     service = CatenaXConnectorService(db)
-    connectors = await service.get_connectors(connector_type)
+    connectors = await service.get_connectors(tenant.tenant_id, connector_type)
 
     return ConnectorListResponse(
         connectors=[
@@ -112,7 +113,7 @@ async def list_connectors(
 async def create_connector(
     request: ConnectorCreateRequest,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> ConnectorResponse:
     """
     Create a new Catena-X connector.
@@ -126,13 +127,14 @@ async def create_connector(
     - submodel_base_url: URL where submodels are exposed
     - edc_dsp_endpoint: Optional EDC DSP endpoint
     """
-    await require_access(user, "create", {"type": "connector"})
+    await require_access(tenant.user, "create", {"type": "connector"}, tenant=tenant)
     service = CatenaXConnectorService(db)
 
     connector = await service.create_connector(
+        tenant_id=tenant.tenant_id,
         name=request.name,
         config=request.config,
-        created_by_subject=user.sub,
+        created_by_subject=tenant.user.sub,
     )
     await db.commit()
 
@@ -151,13 +153,13 @@ async def create_connector(
 async def get_connector(
     connector_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> ConnectorResponse:
     """
     Get a specific connector by ID.
     """
     service = CatenaXConnectorService(db)
-    connector = await service.get_connector(connector_id)
+    connector = await service.get_connector(connector_id, tenant.tenant_id)
 
     if not connector:
         raise HTTPException(
@@ -165,7 +167,7 @@ async def get_connector(
             detail=f"Connector {connector_id} not found",
         )
 
-    await require_access(user, "read", _connector_resource(connector))
+    await require_access(tenant.user, "read", _connector_resource(connector), tenant=tenant)
 
     return ConnectorResponse(
         id=connector.id,
@@ -182,7 +184,7 @@ async def get_connector(
 async def test_connector(
     connector_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> TestResultResponse:
     """
     Test connectivity for a connector.
@@ -190,16 +192,16 @@ async def test_connector(
     Verifies DTR endpoint is reachable and authentication is valid.
     """
     service = CatenaXConnectorService(db)
-    connector = await service.get_connector(connector_id)
+    connector = await service.get_connector(connector_id, tenant.tenant_id)
     if not connector:
         return TestResultResponse(
             status="error",
             error_message="Connector not found",
         )
 
-    await require_access(user, "test", _connector_resource(connector))
+    await require_access(tenant.user, "test", _connector_resource(connector), tenant=tenant)
 
-    result = await service.test_connector(connector_id)
+    result = await service.test_connector(connector_id, tenant.tenant_id)
     await db.commit()
 
     return TestResultResponse(
@@ -215,7 +217,7 @@ async def publish_dpp_to_connector(
     connector_id: UUID,
     dpp_id: UUID,
     db: DbSession,
-    user: Publisher,
+    tenant: TenantPublisher,
 ) -> PublishResultResponse:
     """
     Publish a DPP to a connector's Digital Twin Registry.
@@ -226,7 +228,7 @@ async def publish_dpp_to_connector(
     service = CatenaXConnectorService(db)
 
     dpp_service = DPPService(db)
-    dpp = await dpp_service.get_dpp(dpp_id)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         return PublishResultResponse(
             status="error",
@@ -234,7 +236,7 @@ async def publish_dpp_to_connector(
         )
 
     await require_access(
-        user,
+        tenant.user,
         "publish_to_connector",
         {
             "type": "dpp",
@@ -242,10 +244,11 @@ async def publish_dpp_to_connector(
             "owner_subject": dpp.owner_subject,
             "status": dpp.status.value,
         },
+        tenant=tenant,
     )
 
     try:
-        result = await service.publish_dpp_to_dtr(connector_id, dpp_id)
+        result = await service.publish_dpp_to_dtr(connector_id, dpp_id, tenant.tenant_id)
         return PublishResultResponse(
             status=result.get("status", "error"),
             action=result.get("action"),

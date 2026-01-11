@@ -3,7 +3,7 @@ import { useAuth } from 'react-oidc-context';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: 'viewer' | 'publisher' | 'admin';
+  requiredRole?: 'viewer' | 'publisher' | 'tenant_admin' | 'admin';
 }
 
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
@@ -17,7 +17,14 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   // Check role if required
   if (requiredRole) {
     const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-    const hasRole = userRoles.includes(requiredRole) || userRoles.includes('admin');
+    const roleHierarchy: Record<string, string[]> = {
+      viewer: ['viewer', 'publisher', 'tenant_admin', 'admin'],
+      publisher: ['publisher', 'tenant_admin', 'admin'],
+      tenant_admin: ['tenant_admin', 'admin'],
+      admin: ['admin'],
+    };
+    const allowed = roleHierarchy[requiredRole] || [requiredRole];
+    const hasRole = allowed.some((role) => userRoles.includes(role));
 
     if (!hasRole) {
       return (

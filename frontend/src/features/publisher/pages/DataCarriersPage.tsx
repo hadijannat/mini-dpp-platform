@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { QrCode, Download, RefreshCw, Link2, Copy, Check, Printer } from 'lucide-react';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 
 interface DPP {
     id: string;
@@ -47,17 +47,13 @@ export default function DataCarriersPage() {
     // Preview state
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    useEffect(() => {
-        loadDPPs();
-    }, [token]);
-
-    const loadDPPs = async () => {
+    const loadDPPs = useCallback(async () => {
         if (!token) return;
         setLoading(true);
         setError(null);
 
         try {
-            const response = await apiFetch('/api/v1/dpps', {}, token);
+            const response = await tenantApiFetch('/dpps', {}, token);
             if (!response.ok) {
                 const message = await getApiErrorMessage(response, 'Failed to load DPPs');
                 setError(message);
@@ -88,13 +84,17 @@ export default function DataCarriersPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [token]);
+
+    useEffect(() => {
+        void loadDPPs();
+    }, [loadDPPs]);
 
     const loadGS1Link = async (dppId: string) => {
         if (!token || !dppId) return;
 
         try {
-            const response = await apiFetch(`/api/v1/qr/${dppId}/gs1`, {}, token);
+            const response = await tenantApiFetch(`/qr/${dppId}/gs1`, {}, token);
             if (response.ok) {
                 const data = await response.json();
                 setGs1Link(data);
@@ -110,8 +110,8 @@ export default function DataCarriersPage() {
         setError(null);
 
         try {
-            const response = await apiFetch(
-                `/api/v1/qr/${selectedDpp}/carrier`,
+            const response = await tenantApiFetch(
+                `/qr/${selectedDpp}/carrier`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -148,8 +148,8 @@ export default function DataCarriersPage() {
         setGenerating(true);
 
         try {
-            const response = await apiFetch(
-                `/api/v1/qr/${selectedDpp}/carrier`,
+            const response = await tenantApiFetch(
+                `/qr/${selectedDpp}/carrier`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
