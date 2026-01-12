@@ -155,6 +155,71 @@ class DPPService:
 
         return dpp
 
+    async def create_dpp_from_environment(
+        self,
+        tenant_id: UUID,
+        tenant_slug: str,
+        owner_subject: str,
+        asset_ids: dict[str, Any],
+        aas_env: dict[str, Any],
+    ) -> DPP:
+        """
+        Create a new DPP from a fully populated AAS environment.
+
+        Used by import flows where the DPP JSON is provided externally.
+        """
+        await self._ensure_user_exists(owner_subject)
+
+        # Ensure globalAssetId if missing (same rules as regular create)
+        settings_service = SettingsService(self._session)
+        base_uri = await settings_service.get_setting("global_asset_id_base_uri")
+        if not base_uri:
+            base_uri = self._settings.global_asset_id_base_uri_default
+        if base_uri:
+            normalized_base = normalize_base_uri(base_uri)
+            provided_global_id = str(asset_ids.get("globalAssetId", "")).strip()
+            if provided_global_id:
+                if not provided_global_id.startswith(normalized_base):
+                    raise IdentifierValidationError(
+                        "globalAssetId must start with the configured base URI."
+                    )
+            else:
+                asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
+
+        digest = self._calculate_digest(aas_env)
+
+        dpp = DPP(
+            tenant_id=tenant_id,
+            status=DPPStatus.DRAFT,
+            owner_subject=owner_subject,
+            asset_ids=asset_ids,
+        )
+        self._session.add(dpp)
+        await self._session.flush()
+
+        qr_service = QRCodeService()
+        dpp.qr_payload = qr_service.build_dpp_url(
+            str(dpp.id),
+            tenant_slug=tenant_slug,
+            short_link=False,
+        )
+
+        revision = DPPRevision(
+            tenant_id=tenant_id,
+            dpp_id=dpp.id,
+            revision_no=1,
+            state=RevisionState.DRAFT,
+            aas_env_json=aas_env,
+            digest_sha256=digest,
+            created_by_subject=owner_subject,
+        )
+        self._session.add(revision)
+        await self._session.flush()
+
+        logger.info("dpp_imported", dpp_id=str(dpp.id), owner=owner_subject)
+
+        return dpp
+
     async def get_dpp(
         self,
         dpp_id: UUID,
@@ -675,6 +740,46 @@ class DPPService:
         aas_env["assetAdministrationShells"].append(aas)
 
         return aas_env
+
+    def extract_asset_ids_from_environment(self, aas_env: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract asset identifiers from an AAS environment.
+
+        Reads the first AssetAdministrationShell's assetInformation field.
+        """
+        shells = aas_env.get("assetAdministrationShells")
+        if not isinstance(shells, list) or not shells:
+            raise ValueError("assetAdministrationShells must contain at least one shell")
+
+        shell = shells[0]
+        if not isinstance(shell, dict):
+            raise ValueError("assetAdministrationShells must contain object entries")
+
+        asset_info = shell.get("assetInformation")
+        if not isinstance(asset_info, dict):
+            raise ValueError("assetInformation is required in the AAS environment")
+
+        asset_ids: dict[str, Any] = {}
+
+        global_asset_id = asset_info.get("globalAssetId")
+        if global_asset_id is not None:
+            asset_ids["globalAssetId"] = str(global_asset_id)
+
+        specific_asset_ids = asset_info.get("specificAssetIds") or asset_info.get("specificAssetId")
+        if isinstance(specific_asset_ids, list):
+            for entry in specific_asset_ids:
+                if not isinstance(entry, dict):
+                    continue
+                name = str(entry.get("name", "")).strip()
+                if not name:
+                    continue
+                value = entry.get("value")
+                asset_ids[name] = "" if value is None else str(value)
+
+        if not asset_ids.get("manufacturerPartId"):
+            raise ValueError("manufacturerPartId is required in specificAssetIds")
+
+        return asset_ids
 
     def _match_template_for_submodel(
         self,

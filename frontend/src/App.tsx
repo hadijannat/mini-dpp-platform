@@ -14,6 +14,7 @@ import DPPListPage from './features/publisher/pages/DPPListPage';
 import DPPEditorPage from './features/publisher/pages/DPPEditorPage';
 import TemplatesPage from './features/publisher/pages/TemplatesPage';
 import DataCarriersPage from './features/publisher/pages/DataCarriersPage';
+import MastersPage from './features/publisher/pages/MastersPage';
 import ConnectorsPage from './features/connectors/pages/ConnectorsPage';
 import SubmodelEditorPage from './features/editor/pages/SubmodelEditorPage';
 import GlobalIdSettingsPage from './features/admin/pages/GlobalIdSettingsPage';
@@ -66,6 +67,7 @@ function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="dpps" element={<DPPListPage />} />
+        <Route path="masters" element={<MastersPage />} />
         <Route path="dpps/:dppId" element={<DPPEditorPage />} />
         <Route path="dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
         <Route path="templates" element={<TemplatesPage />} />

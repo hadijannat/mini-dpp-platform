@@ -28,7 +28,10 @@ describe('apiFetch', () => {
 
     await apiFetch('/api/test', { headers: { 'X-Test': '1' } }, 'token-abc');
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/test', {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+    const expectedUrl = baseUrl ? `${baseUrl}/api/test` : '/api/test';
+
+    expect(fetchMock).toHaveBeenCalledWith(expectedUrl, {
       headers: {
         'X-Test': '1',
         Authorization: 'Bearer token-abc',

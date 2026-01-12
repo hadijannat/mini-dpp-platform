@@ -61,6 +61,13 @@ class RevisionState(str, PyEnum):
     PUBLISHED = "published"
 
 
+class MasterVersionStatus(str, PyEnum):
+    """Lifecycle status for DPP master versions."""
+
+    RELEASED = "released"
+    DEPRECATED = "deprecated"
+
+
 class PolicyType(str, PyEnum):
     """Type of access control policy."""
 
@@ -569,6 +576,128 @@ class Template(Base):
     __table_args__ = (
         UniqueConstraint("template_key", "idta_version", name="uq_template_key_version"),
         Index("ix_templates_template_key", "template_key"),
+    )
+
+
+# =============================================================================
+# DPP Master Models
+# =============================================================================
+
+
+class DPPMaster(TenantScopedMixin, Base):
+    """
+    Product-level DPP master template.
+
+    Stores a draft template JSON with placeholders and variable definitions.
+    Released versions are stored in DPPMasterVersion for immutable snapshots.
+    """
+
+    __tablename__ = "dpp_masters"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    product_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Product identifier (e.g., manufacturerPartId or GTIN)",
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    selected_templates: Mapped[list[str]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Template keys used to build the draft template",
+    )
+    draft_template_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Draft AAS environment with placeholders ({{var}})",
+    )
+    draft_variables: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Draft variable definitions",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    updated_by_subject: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    versions: Mapped[list["DPPMasterVersion"]] = relationship(
+        back_populates="master",
+        cascade="all, delete-orphan",
+        order_by="DPPMasterVersion.released_at.desc()",
+    )
+
+    __table_args__ = (
+        Index("ix_dpp_masters_product_id", "product_id"),
+        UniqueConstraint("tenant_id", "product_id", name="uq_dpp_masters_tenant_product"),
+    )
+
+
+class DPPMasterVersion(TenantScopedMixin, Base):
+    """
+    Immutable released version of a DPP master template.
+
+    Versions are addressed via semantic versions and optional aliases (e.g., latest).
+    """
+
+    __tablename__ = "dpp_master_versions"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    master_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpp_masters.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="Semantic version string for this release",
+    )
+    status: Mapped[MasterVersionStatus] = mapped_column(
+        Enum(MasterVersionStatus, values_callable=lambda e: [m.value for m in e]),
+        default=MasterVersionStatus.RELEASED,
+        nullable=False,
+    )
+    aliases: Mapped[list[str]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Alias tags for this version (e.g., latest)",
+    )
+    template_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Released template JSON snapshot",
+    )
+    variables: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Released variable definitions with resolved paths",
+    )
+    released_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    released_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    deprecation_message: Mapped[str | None] = mapped_column(Text)
+
+    master: Mapped["DPPMaster"] = relationship(back_populates="versions")
+
+    __table_args__ = (
+        UniqueConstraint("master_id", "version", name="uq_dpp_master_version"),
+        Index("ix_dpp_master_versions_master", "master_id"),
     )
 
 

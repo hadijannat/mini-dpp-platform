@@ -17,6 +17,8 @@ Create, manage, and publish Digital Product Passports with enterprise-grade auth
 - 🏢 **Multi‑Tenant by Design** — tenant-scoped APIs, UI switcher, and `tenant_admin` role
 - 🧩 **Template‑Driven Forms** — UI generated from IDTA Submodel Templates (SMT)
 - 📦 **DPP Lifecycle** — Draft → Edit → Publish → Archive, with revision history
+- 🧱 **DPP Masters & Versioned Templates** — product‑level masters with placeholders and `latest` alias
+- 🔁 **ERP‑Friendly Import** — one‑shot JSON import from released master templates
 - 🔗 **Catena‑X Ready** — DTR publishing with optional EDC DSP metadata
 - 📤 **Export & Data Carriers** — AASX, JSON, QR and GS1 Digital Link
 
@@ -45,7 +47,7 @@ docker exec dpp-backend alembic upgrade head
 | Service | URL | Notes |
 |---------|-----|-------|
 | Frontend | http://localhost:5173 | UI (tenant aware) |
-| API Docs | http://localhost:8000/api/v1/docs | Swagger UI |
+| API Docs | http://localhost:8000/api/v1/docs | Swagger UI (or `BACKEND_HOST_PORT` from `.env`) |
 | Keycloak | http://localhost:8081/admin | admin / admin |
 
 ### Default users
@@ -198,6 +200,28 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps" \
     "selected_templates": ["digital-nameplate", "technical-data"]
   }'
 ```
+
+### DPP Masters: fetch released template + variables
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/variables" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Import a DPP from a master template (single shot)
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_product_id=MOTOR-DRIVE-3000&master_version=latest" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @filled-template.json
+```
+
+> The UI now includes a “Import from Master Template” panel to load a released master,
+> fill placeholders, and import a serialized DPP without additional UI in the source system.
 
 ### Publish a DPP
 

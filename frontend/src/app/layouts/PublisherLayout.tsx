@@ -6,6 +6,7 @@ import {
   FileCode,
   Link2,
   QrCode,
+  Layers,
   LogOut,
   User,
   Settings,
@@ -16,6 +17,7 @@ import TenantSelector from '../components/TenantSelector';
 const baseNavigation = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
   { name: 'DPPs', href: '/console/dpps', icon: FileText },
+  { name: 'Masters', href: '/console/masters', icon: Layers },
   { name: 'Templates', href: '/console/templates', icon: FileCode },
   { name: 'Data Carriers', href: '/console/carriers', icon: QrCode },
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },

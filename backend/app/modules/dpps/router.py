@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 from app.core.identifiers import IdentifierValidationError
 from app.core.security import require_access
@@ -14,6 +14,7 @@ from app.core.tenancy import TenantAdmin, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
+from app.modules.masters.service import DPPMasterService
 from app.modules.templates.service import TemplateRegistryService
 
 router = APIRouter()
@@ -47,6 +48,10 @@ class CreateDPPRequest(BaseModel):
         description="List of template keys to include",
     )
     initial_data: dict[str, Any] | None = None
+
+
+class ImportDPPRequest(RootModel[dict[str, Any]]):
+    """Request model for importing a DPP from JSON."""
 
 
 class UpdateSubmodelRequest(BaseModel):
@@ -151,6 +156,92 @@ async def create_dpp(
             asset_ids=asset_ids_dict,
             selected_templates=request.selected_templates,
             initial_data=request.initial_data,
+        )
+    except IdentifierValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    await db.commit()
+    await db.refresh(dpp)
+
+    return DPPResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        owner_subject=dpp.owner_subject,
+        asset_ids=dpp.asset_ids,
+        qr_payload=dpp.qr_payload,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+    )
+
+
+@router.post("/import", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
+async def import_dpp(
+    request: ImportDPPRequest,
+    db: DbSession,
+    tenant: TenantPublisher,
+    master_product_id: str | None = Query(
+        None,
+        description="Validate against a master template by product ID",
+    ),
+    master_version: str = Query("latest", description="Master version or alias"),
+) -> DPPResponse:
+    """
+    Import a DPP from a JSON payload.
+
+    Accepts a raw AAS environment JSON or an export payload with `aasEnvironment`.
+    Optionally validates against a released master version.
+    """
+    await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
+    service = DPPService(db)
+
+    payload = request.root
+    aas_env = payload.get("aasEnvironment") if isinstance(payload, dict) else None
+    if aas_env is None:
+        aas_env = payload
+    if not isinstance(aas_env, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AAS environment payload must be a JSON object",
+        )
+
+    if master_product_id:
+        master_service = DPPMasterService(db)
+        result = await master_service.get_version_for_product(
+            tenant.tenant_id,
+            master_product_id,
+            master_version,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Master template not found",
+            )
+        _, release = result
+        aas_env, errors = master_service.validate_instance_payload(aas_env, release)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"errors": errors},
+            )
+
+    try:
+        asset_ids = service.extract_asset_ids_from_environment(aas_env)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    try:
+        dpp = await service.create_dpp_from_environment(
+            tenant_id=tenant.tenant_id,
+            tenant_slug=tenant.tenant_slug,
+            owner_subject=tenant.user.sub,
+            asset_ids=asset_ids,
+            aas_env=aas_env,
         )
     except IdentifierValidationError as exc:
         raise HTTPException(

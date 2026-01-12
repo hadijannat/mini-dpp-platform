@@ -16,6 +16,7 @@ from app.db.session import close_db, init_db
 from app.modules.connectors.router import router as connectors_router
 from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
+from app.modules.masters.router import router as masters_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
 from app.modules.settings.router import router as settings_router
@@ -113,6 +114,11 @@ def create_application() -> FastAPI:
         dpps_router,
         prefix=f"{tenant_prefix}/dpps",
         tags=["DPPs"],
+    )
+    app.include_router(
+        masters_router,
+        prefix=f"{tenant_prefix}/masters",
+        tags=["DPP Masters"],
     )
     app.include_router(
         policies_router,

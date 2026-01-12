@@ -175,6 +175,33 @@ decision := {
 }
 
 # =============================================================================
+# DPP Master Policies
+# =============================================================================
+
+# Tenant members can read master templates
+decision := {
+    "effect": "allow",
+    "policy_id": "master-read"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "dpp_master"
+    tenant_match
+}
+
+# Publishers can create/update/release master templates
+decision := {
+    "effect": "allow",
+    "policy_id": "master-write"
+} if {
+    not input.subject.is_admin
+    input.action in ["create", "update", "release", "archive"]
+    input.resource.type == "dpp_master"
+    input.subject.is_publisher
+    tenant_match
+}
+
+# =============================================================================
 # Submodel Element Policies
 # =============================================================================
 
