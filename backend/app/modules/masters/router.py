@@ -176,7 +176,9 @@ async def create_master(
             asset_ids=request.asset_ids,
             initial_data=request.initial_data,
             template_json=request.template_json,
-            variables=[var.model_dump() for var in request.variables] if request.variables else None,
+            variables=[var.model_dump() for var in request.variables]
+            if request.variables
+            else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
@@ -268,7 +270,9 @@ async def update_master(
             asset_ids=request.asset_ids,
             initial_data=request.initial_data,
             template_json=request.template_json,
-            variables=[var.model_dump() for var in request.variables] if request.variables else None,
+            variables=[var.model_dump() for var in request.variables]
+            if request.variables
+            else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

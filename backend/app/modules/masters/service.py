@@ -78,9 +78,7 @@ class DPPMasterService:
         )
         return result.scalar_one_or_none()
 
-    async def get_master_by_product(
-        self, tenant_id: UUID, product_id: str
-    ) -> DPPMaster | None:
+    async def get_master_by_product(self, tenant_id: UUID, product_id: str) -> DPPMaster | None:
         result = await self._session.execute(
             select(DPPMaster).where(
                 DPPMaster.tenant_id == tenant_id,
@@ -114,7 +112,9 @@ class DPPMasterService:
             if not asset_ids:
                 raise ValueError("asset_ids are required when template_json is not provided")
             if not selected_templates:
-                raise ValueError("selected_templates are required when template_json is not provided")
+                raise ValueError(
+                    "selected_templates are required when template_json is not provided"
+                )
             template_json = await self._builder.build_environment(
                 asset_ids=asset_ids,
                 selected_templates=selected_templates,
@@ -203,7 +203,9 @@ class DPPMasterService:
         elif "latest" in normalized_aliases:
             update_latest = True
 
-        variables = self._build_version_variables(master.draft_variables, master.draft_template_json)
+        variables = self._build_version_variables(
+            master.draft_variables, master.draft_template_json
+        )
 
         released = DPPMasterVersion(
             tenant_id=master.tenant_id,
@@ -310,9 +312,7 @@ class DPPMasterService:
         errors: list[str] = []
         unresolved = find_placeholders(payload)
         if unresolved:
-            errors.append(
-                "Unresolved placeholders detected: " + ", ".join(sorted(unresolved))
-            )
+            errors.append("Unresolved placeholders detected: " + ", ".join(sorted(unresolved)))
 
         variables = self._parse_variables(version.variables)
         for variable in variables:
@@ -322,14 +322,16 @@ class DPPMasterService:
                     continue
                 value = resolve_json_pointer(payload, pointer)
 
-                if _is_missing(value) and variable.allow_default and variable.default_value is not None:
+                if (
+                    _is_missing(value)
+                    and variable.allow_default
+                    and variable.default_value is not None
+                ):
                     set_json_pointer(payload, pointer, variable.default_value)
                     value = resolve_json_pointer(payload, pointer)
 
                 if variable.required and _is_missing(value):
-                    errors.append(
-                        f"Missing required value for '{variable.name}' at {pointer}"
-                    )
+                    errors.append(f"Missing required value for '{variable.name}' at {pointer}")
 
         return payload, errors
 
@@ -358,7 +360,9 @@ class DPPMasterService:
                 cleaned.append(normalized)
         return cleaned
 
-    def _default_variables_from_template(self, template_json: dict[str, Any]) -> list[dict[str, Any]]:
+    def _default_variables_from_template(
+        self, template_json: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         placeholders = extract_placeholder_paths(template_json)
         defaults: list[dict[str, Any]] = []
         for name in sorted(placeholders.keys()):
