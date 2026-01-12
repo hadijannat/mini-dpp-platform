@@ -36,6 +36,8 @@ htmlcov/
 .pytest_cache/
 coverage/
 backend/test-results/
+frontend/test-results/
+frontend/playwright-report/
 
 # Build artifacts
 *.aasx

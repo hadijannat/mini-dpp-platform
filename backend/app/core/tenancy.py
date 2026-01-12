@@ -103,10 +103,25 @@ async def resolve_tenant_context(
         )
         membership = membership_result.scalar_one_or_none()
         if not membership:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User is not a member of this tenant",
-            )
+            if settings.environment == "development" and tenant.slug == "default":
+                if "tenant_admin" in user.roles:
+                    inferred_role = TenantRole.TENANT_ADMIN
+                elif "publisher" in user.roles:
+                    inferred_role = TenantRole.PUBLISHER
+                else:
+                    inferred_role = TenantRole.VIEWER
+                membership = TenantMember(
+                    tenant_id=tenant.id,
+                    user_subject=user.sub,
+                    role=inferred_role,
+                )
+                db.add(membership)
+                await db.flush()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="User is not a member of this tenant",
+                )
         member_role = membership.role
         roles = _expand_roles(member_role)
 

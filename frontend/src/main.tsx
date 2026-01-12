@@ -15,8 +15,15 @@ const queryClient = new QueryClient({
   },
 });
 
+const internalKeycloakUrl = import.meta.env.VITE_KEYCLOAK_URL_INTERNAL;
+const internalHostnames = new Set(['dpp-frontend', 'frontend']);
+const resolvedKeycloakUrl =
+  internalKeycloakUrl && internalHostnames.has(window.location.hostname)
+    ? internalKeycloakUrl
+    : import.meta.env.VITE_KEYCLOAK_URL;
+
 const oidcConfig = {
-  authority: import.meta.env.VITE_KEYCLOAK_URL + '/realms/' + import.meta.env.VITE_KEYCLOAK_REALM,
+  authority: resolvedKeycloakUrl + '/realms/' + import.meta.env.VITE_KEYCLOAK_REALM,
   client_id: import.meta.env.VITE_KEYCLOAK_CLIENT_ID,
   redirect_uri: window.location.origin + '/callback',
   post_logout_redirect_uri: window.location.origin,

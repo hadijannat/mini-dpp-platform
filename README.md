@@ -60,6 +60,22 @@ docker exec dpp-backend alembic upgrade head
 
 > `tenant_admin` is a tenant‑scoped role you can assign via tenant membership.
 
+### Dockerized UI notes (Playwright/E2E)
+
+When the UI is accessed from another container (for example Playwright running in Docker),
+the frontend switches to internal service URLs if they are provided:
+
+- `VITE_API_BASE_URL_INTERNAL=http://backend:8000`
+- `VITE_KEYCLOAK_URL_INTERNAL=http://keycloak:8080`
+
+`docker-compose.yml` sets these for the frontend container.
+
+### Dev convenience
+
+In **development** mode only, users who access the `default` tenant and are not yet
+members are auto‑added to that tenant with a role inferred from their realm roles
+(`publisher` → tenant publisher, otherwise viewer).
+
 ---
 
 ## 🧭 Walkthroughs (Visual Storyboards)

@@ -153,7 +153,13 @@ class Settings(BaseSettings):
     )
 
     # CORS settings
-    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://localhost:3000"])
+    cors_origins: list[str] = Field(
+        default=[
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://dpp-frontend:5173",
+        ]
+    )
 
     # ==========================================================================
     # Template Registry Configuration

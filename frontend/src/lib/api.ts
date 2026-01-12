@@ -39,7 +39,14 @@ export async function apiFetch(
   options: RequestInit = {},
   token?: string
 ): Promise<Response> {
-  const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+  const internalApiBaseUrl = import.meta.env.VITE_API_BASE_URL_INTERNAL;
+  const internalHostnames = new Set(['dpp-frontend', 'frontend']);
+  const hostname = typeof window === 'undefined' ? '' : window.location.hostname;
+  const resolvedBaseUrl =
+    internalApiBaseUrl && internalHostnames.has(hostname)
+      ? internalApiBaseUrl
+      : import.meta.env.VITE_API_BASE_URL;
+  const baseUrl = resolvedBaseUrl?.replace(/\/+$/, '') ?? '';
   const resolvedUrl =
     baseUrl && !url.startsWith('http')
       ? `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`

@@ -6,14 +6,23 @@ const password = process.env.PLAYWRIGHT_PASSWORD ?? 'publisher123';
 async function ensureSignedIn(page: import('@playwright/test').Page) {
   await page.goto('/console/dpps');
 
-  if (page.url().includes('/login')) {
-    await page.getByRole('button', { name: /sign in with keycloak/i }).click();
-    await page.waitForURL(/\/realms\/dpp-platform\/protocol\/openid-connect\/auth/);
-    await page.fill('#username', username);
-    await page.fill('#password', password);
-    await page.click('#kc-login');
-    await page.waitForURL('**/console/**', { timeout: 60000 });
+  const signInButton = page.getByRole('button', { name: /sign in with keycloak/i });
+  const needsLogin = await signInButton.isVisible({ timeout: 5000 }).catch(() => false);
+
+  if (!needsLogin) {
+    await page.waitForURL(/\/console\//, { timeout: 60000 });
+    return;
   }
+
+  await signInButton.click();
+  await page.waitForURL(/\/realms\/dpp-platform\/protocol\/openid-connect\/auth/);
+  await page.fill('#username', username);
+  await page.fill('#password', password);
+  await page.click('#kc-login');
+  await page.waitForFunction(
+    () => window.location.pathname.startsWith('/console'),
+    { timeout: 60000 }
+  );
 }
 
 test('publisher navigation and action buttons work', async ({ page }) => {
@@ -28,8 +37,8 @@ test('publisher navigation and action buttons work', async ({ page }) => {
   await page.goto('/console/dpps');
   await page.getByTestId('dpp-create-open').click();
   await expect(page.getByTestId('dpp-create-modal')).toBeVisible();
-  await page.getByLabel('Manufacturer Part ID').fill(`pw-test-${Date.now()}`);
-  await page.getByLabel('Serial Number').fill('pw-serial-001');
+  await page.locator('input[name="manufacturerPartId"]').fill(`pw-test-${Date.now()}`);
+  await page.locator('input[name="serialNumber"]').fill('pw-serial-001');
   const templateCheckboxes = page.locator('input[type="checkbox"]');
   if (await templateCheckboxes.count()) {
     await templateCheckboxes.first().check();
