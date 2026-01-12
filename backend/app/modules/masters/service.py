@@ -322,10 +322,9 @@ class DPPMasterService:
                     continue
                 value = resolve_json_pointer(payload, pointer)
 
-                if _is_missing(value):
-                    if variable.allow_default and variable.default_value is not None:
-                        set_json_pointer(payload, pointer, variable.default_value)
-                        value = resolve_json_pointer(payload, pointer)
+                if _is_missing(value) and variable.allow_default and variable.default_value is not None:
+                    set_json_pointer(payload, pointer, variable.default_value)
+                    value = resolve_json_pointer(payload, pointer)
 
                 if variable.required and _is_missing(value):
                     errors.append(
@@ -388,7 +387,7 @@ class DPPMasterService:
             if spec["name"]:
                 normalized[spec["name"]] = spec
 
-        for name in placeholder_map.keys():
+        for name in placeholder_map:
             if name not in normalized:
                 normalized[name] = {
                     "name": name,
@@ -481,6 +480,4 @@ def _is_missing(value: Any) -> bool:
         return True
     if isinstance(value, str) and value.strip() == "":
         return True
-    if isinstance(value, (list, dict)) and not value:
-        return True
-    return False
+    return isinstance(value, (list, dict)) and not value

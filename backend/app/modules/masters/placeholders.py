@@ -33,7 +33,7 @@ def extract_placeholder_paths(payload: Any) -> dict[str, list[str]]:
 
     walk(payload, "")
 
-    return {name: sorted(list(pointer_set)) for name, pointer_set in paths.items()}
+    return {name: sorted(pointer_set) for name, pointer_set in paths.items()}
 
 
 def find_placeholders(payload: Any) -> set[str]:
