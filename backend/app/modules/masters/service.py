@@ -382,10 +382,10 @@ class DPPMasterService:
         if move_latest and "latest" not in normalized:
             normalized.append("latest")
 
-        result = await self._session.execute(
+        alias_result = await self._session.execute(
             select(DPPMasterAlias).where(DPPMasterAlias.master_id == master.id)
         )
-        existing = list(result.scalars().all())
+        existing = list(alias_result.scalars().all())
         by_alias = {row.alias: row for row in existing}
 
         # Assign aliases to this version, moving from other versions when needed.
@@ -406,23 +406,23 @@ class DPPMasterService:
         # Remove aliases from this version that are no longer desired.
         for row in existing:
             if row.version_id == version.id and row.alias not in normalized:
-                self._session.delete(row)
+                await self._session.delete(row)
 
         await self._refresh_aliases(master.id)
 
     async def _refresh_aliases(self, master_id: UUID) -> None:
-        result = await self._session.execute(
+        alias_result = await self._session.execute(
             select(DPPMasterAlias).where(DPPMasterAlias.master_id == master_id)
         )
-        alias_rows = list(result.scalars().all())
+        alias_rows = list(alias_result.scalars().all())
         alias_map: dict[UUID, list[str]] = {}
         for row in alias_rows:
             alias_map.setdefault(row.version_id, []).append(row.alias)
 
-        result = await self._session.execute(
+        version_result = await self._session.execute(
             select(DPPMasterVersion).where(DPPMasterVersion.master_id == master_id)
         )
-        versions = list(result.scalars().all())
+        versions = list(version_result.scalars().all())
         for version in versions:
             version.aliases = sorted(alias_map.get(version.id, []))
         await self._session.flush()
