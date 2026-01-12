@@ -248,6 +248,8 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_pr
 
 > If a DPP already exists for the same `manufacturerPartId` + `serialNumber`,
 > the API returns `409 Conflict` with the existing `dpp_id`.
+> If placeholders are still present or required values are missing, the API
+> returns `422` with a structured `errors` array (code, name, path).
 
 > The UI now includes a “Import from Master Template” panel to load a released master,
 > fill placeholders, and import a serialized DPP without additional UI in the source system.
