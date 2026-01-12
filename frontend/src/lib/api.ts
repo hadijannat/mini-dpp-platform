@@ -24,9 +24,55 @@ export async function getApiErrorMessage(
   const rawText = await response.text();
   if (contentType.includes('application/json')) {
     try {
-      const body = JSON.parse(rawText) as { detail?: string };
-      const detail = typeof body?.detail === 'string' ? body.detail : '';
-      return detail || rawText || fallback;
+      const body = JSON.parse(rawText) as {
+        detail?: string | { errors?: Array<Record<string, unknown>> };
+        errors?: Array<Record<string, unknown>>;
+      };
+      const detail = body?.detail;
+      if (typeof detail === 'string') {
+        return detail || rawText || fallback;
+      }
+      const errors = Array.isArray(body?.errors)
+        ? body.errors
+        : Array.isArray((detail as { errors?: Array<Record<string, unknown>> })?.errors)
+          ? (detail as { errors?: Array<Record<string, unknown>> }).errors ?? []
+          : [];
+      if (errors.length > 0) {
+        const messages = errors
+          .map((entry) => {
+            const name = typeof entry.name === 'string' ? entry.name : '';
+            const code = typeof entry.code === 'string' ? entry.code : '';
+            const path =
+              typeof entry.path === 'string'
+                ? entry.path
+                : Array.isArray(entry.paths)
+                  ? (entry.paths[0] as { jsonPointer?: string })?.jsonPointer ?? ''
+                  : '';
+            const suffix = [code, name, path].filter(Boolean).join(': ');
+            return suffix || JSON.stringify(entry);
+          })
+          .filter(Boolean)
+          .join(' | ');
+        return messages || rawText || fallback;
+      }
+      if (detail && typeof detail === 'object') {
+        const message =
+          typeof (detail as { message?: string }).message === 'string'
+            ? (detail as { message?: string }).message
+            : '';
+        const id =
+          typeof (detail as { dpp_id?: string }).dpp_id === 'string'
+            ? (detail as { dpp_id?: string }).dpp_id
+            : '';
+        if (message && id) {
+          return `${message} (DPP: ${id})`;
+        }
+        if (message) {
+          return message;
+        }
+        return JSON.stringify(detail);
+      }
+      return rawText || fallback;
     } catch {
       return rawText || fallback;
     }

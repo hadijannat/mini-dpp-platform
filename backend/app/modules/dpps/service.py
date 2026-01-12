@@ -220,6 +220,29 @@ class DPPService:
 
         return dpp
 
+    async def find_existing_dpp(
+        self,
+        tenant_id: UUID,
+        asset_ids: dict[str, Any],
+    ) -> DPP | None:
+        manufacturer = str(asset_ids.get("manufacturerPartId", "")).strip()
+        serial = str(asset_ids.get("serialNumber", "")).strip()
+        global_asset_id = str(asset_ids.get("globalAssetId", "")).strip()
+
+        query = select(DPP).where(DPP.tenant_id == tenant_id)
+        if manufacturer and serial:
+            query = query.where(
+                DPP.asset_ids["manufacturerPartId"].astext == manufacturer,
+                DPP.asset_ids["serialNumber"].astext == serial,
+            )
+        elif global_asset_id:
+            query = query.where(DPP.asset_ids["globalAssetId"].astext == global_asset_id)
+        else:
+            return None
+
+        result = await self._session.execute(query)
+        return result.scalar_one_or_none()
+
     async def get_dpp(
         self,
         dpp_id: UUID,

@@ -235,6 +235,16 @@ async def import_dpp(
             detail=str(exc),
         ) from exc
 
+    existing = await service.find_existing_dpp(tenant.tenant_id, asset_ids)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "DPP already exists for the provided asset identifiers",
+                "dpp_id": str(existing.id),
+            },
+        )
+
     try:
         dpp = await service.create_dpp_from_environment(
             tenant_id=tenant.tenant_id,

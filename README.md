@@ -225,6 +225,16 @@ curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOT
 
 curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/variables" \
   -H "Authorization: Bearer $TOKEN"
+
+# Optional: fetch raw template string (text/plain)
+curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template/raw" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Validate a filled template payload without creating a DPP
+curl -X POST "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/validate" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @filled-template.json
 ```
 
 ### Import a DPP from a master template (single shot)
@@ -235,6 +245,9 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_pr
   -H "Content-Type: application/json" \
   -d @filled-template.json
 ```
+
+> If a DPP already exists for the same `manufacturerPartId` + `serialNumber`,
+> the API returns `409 Conflict` with the existing `dpp_id`.
 
 > The UI now includes a “Import from Master Template” panel to load a released master,
 > fill placeholders, and import a serialized DPP without additional UI in the source system.
@@ -318,10 +331,26 @@ RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=htt
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/v1/tenants/{tenant}/dpps` | Create DPP |
+| POST | `/api/v1/tenants/{tenant}/dpps/import` | Import DPP from filled AAS JSON |
 | GET | `/api/v1/tenants/{tenant}/dpps` | List DPPs |
 | GET | `/api/v1/tenants/{tenant}/dpps/{id}` | Get DPP |
 | PUT | `/api/v1/tenants/{tenant}/dpps/{id}/submodel` | Update submodel data |
 | POST | `/api/v1/tenants/{tenant}/dpps/{id}/publish` | Publish DPP |
+
+### DPP Masters
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/tenants/{tenant}/masters` | List master templates |
+| POST | `/api/v1/tenants/{tenant}/masters` | Create master template |
+| GET | `/api/v1/tenants/{tenant}/masters/{id}` | Get master template |
+| PATCH | `/api/v1/tenants/{tenant}/masters/{id}` | Update master template |
+| GET | `/api/v1/tenants/{tenant}/masters/{id}/versions` | List master versions |
+| POST | `/api/v1/tenants/{tenant}/masters/{id}/versions` | Release master version |
+| PATCH | `/api/v1/tenants/{tenant}/masters/{id}/versions/{version}/aliases` | Update version aliases |
+| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/template` | Get released template package |
+| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/template/raw` | Get raw template string |
+| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/variables` | Get released variables |
+| POST | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/validate` | Validate filled payload |
 
 ### Export & Data Carriers
 | Method | Endpoint | Description |

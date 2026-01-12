@@ -6,7 +6,8 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel, Field, RootModel
 
 from app.core.security import require_access
 from app.core.tenancy import TenantContextDep, TenantPublisher
@@ -14,6 +15,8 @@ from app.db.session import DbSession
 from app.modules.masters.service import DPPMasterService
 
 router = APIRouter()
+
+SEMVER_PATTERN = r"^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$"
 
 
 class MasterVariableInput(BaseModel):
@@ -63,7 +66,7 @@ class MasterUpdateRequest(BaseModel):
 class MasterVersionCreateRequest(BaseModel):
     """Request model for releasing a master version."""
 
-    version: str = Field(..., min_length=1)
+    version: str = Field(..., min_length=1, pattern=SEMVER_PATTERN)
     aliases: list[str] = Field(default_factory=list)
     update_latest: bool = True
 
@@ -120,6 +123,18 @@ class TemplatePackageResponse(BaseModel):
     aliases: list[str]
     template_string: str
     variables: list[MasterVariableResponse]
+
+
+class MasterValidateRequest(RootModel[dict[str, Any]]):
+    """Request model for validating a filled template payload."""
+
+
+class MasterValidateResponse(BaseModel):
+    """Validation response for filled template payloads."""
+
+    valid: bool
+    errors: list[dict[str, Any]] = Field(default_factory=list)
+    normalized_payload: dict[str, Any] | None = None
 
 
 @router.get("", response_model=MasterListResponse)
@@ -395,6 +410,27 @@ async def get_template_by_product(
 
 
 @router.get(
+    "/by-product/{product_id}/versions/{version}/template/raw",
+    response_class=PlainTextResponse,
+)
+async def get_template_raw(
+    product_id: str,
+    version: str,
+    db: DbSession,
+    tenant: TenantContextDep,
+) -> PlainTextResponse:
+    await require_access(tenant.user, "read", {"type": "dpp_master"}, tenant=tenant)
+    service = DPPMasterService(db)
+    result = await service.get_version_for_product(tenant.tenant_id, product_id, version)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+
+    master, release = result
+    package = service.build_template_package(master, release)
+    return PlainTextResponse(package["template_string"])
+
+
+@router.get(
     "/by-product/{product_id}/versions/{version}/variables",
     response_model=list[MasterVariableResponse],
 )
@@ -412,3 +448,39 @@ async def get_variables_by_product(
 
     _, release = result
     return [MasterVariableResponse(**entry) for entry in release.variables]
+
+
+@router.post(
+    "/by-product/{product_id}/versions/{version}/validate",
+    response_model=MasterValidateResponse,
+)
+async def validate_template_payload(
+    product_id: str,
+    version: str,
+    request: MasterValidateRequest,
+    db: DbSession,
+    tenant: TenantContextDep,
+) -> MasterValidateResponse:
+    await require_access(tenant.user, "read", {"type": "dpp_master"}, tenant=tenant)
+    service = DPPMasterService(db)
+    result = await service.get_version_for_product(tenant.tenant_id, product_id, version)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
+
+    payload = request.root
+    aas_env = payload.get("aasEnvironment") if isinstance(payload, dict) else None
+    if aas_env is None:
+        aas_env = payload
+    if not isinstance(aas_env, dict):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AAS environment payload must be a JSON object",
+        )
+
+    _, release = result
+    normalized, errors = service.validate_instance_payload(aas_env, release)
+    return MasterValidateResponse(
+        valid=not errors,
+        errors=errors,
+        normalized_payload=normalized if not errors else None,
+    )

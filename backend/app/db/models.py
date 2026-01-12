@@ -694,10 +694,50 @@ class DPPMasterVersion(TenantScopedMixin, Base):
     deprecation_message: Mapped[str | None] = mapped_column(Text)
 
     master: Mapped["DPPMaster"] = relationship(back_populates="versions")
+    alias_links: Mapped[list["DPPMasterAlias"]] = relationship(
+        back_populates="version",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         UniqueConstraint("master_id", "version", name="uq_dpp_master_version"),
         Index("ix_dpp_master_versions_master", "master_id"),
+    )
+
+
+class DPPMasterAlias(TenantScopedMixin, Base):
+    """
+    Alias mapping for master versions.
+
+    Enforces uniqueness of aliases per master (e.g., only one "latest").
+    """
+
+    __tablename__ = "dpp_master_aliases"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    master_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpp_masters.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpp_master_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    alias: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    version: Mapped["DPPMasterVersion"] = relationship(back_populates="alias_links")
+
+    __table_args__ = (
+        UniqueConstraint("master_id", "alias", name="uq_dpp_master_alias"),
+        Index("ix_dpp_master_aliases_master", "master_id"),
+        Index("ix_dpp_master_aliases_alias", "alias"),
     )
 
 

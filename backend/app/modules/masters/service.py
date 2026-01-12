@@ -12,11 +12,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
-from app.db.models import DPPMaster, DPPMasterVersion, MasterVersionStatus
+from app.db.models import (
+    DPPMaster,
+    DPPMasterAlias,
+    DPPMasterVersion,
+    MasterVersionStatus,
+)
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.masters.placeholders import (
     extract_placeholder_paths,
-    find_placeholders,
     json_pointer_to_path,
     resolve_json_pointer,
     set_json_pointer,
@@ -220,8 +224,7 @@ class DPPMasterService:
         self._session.add(released)
         await self._session.flush()
 
-        if update_latest:
-            await self._move_alias(master.id, "latest", released.id)
+        await self._sync_aliases(master, released, normalized_aliases, update_latest)
 
         logger.info(
             "dpp_master_version_released",
@@ -240,8 +243,7 @@ class DPPMasterService:
         version.aliases = normalized
         await self._session.flush()
 
-        if "latest" in normalized:
-            await self._move_alias(master.id, "latest", version.id)
+        await self._sync_aliases(master, version, normalized, "latest" in normalized)
 
         logger.info(
             "dpp_master_aliases_updated",
@@ -255,10 +257,11 @@ class DPPMasterService:
         master_id: UUID,
         version_or_alias: str,
     ) -> DPPMasterVersion | None:
+        selector = version_or_alias.strip()
         result = await self._session.execute(
             select(DPPMasterVersion).where(
                 DPPMasterVersion.master_id == master_id,
-                DPPMasterVersion.version == version_or_alias,
+                DPPMasterVersion.version == selector,
             )
         )
         found = result.scalar_one_or_none()
@@ -266,13 +269,14 @@ class DPPMasterService:
             return found
 
         result = await self._session.execute(
-            select(DPPMasterVersion).where(DPPMasterVersion.master_id == master_id)
+            select(DPPMasterVersion)
+            .join(DPPMasterAlias, DPPMasterAlias.version_id == DPPMasterVersion.id)
+            .where(
+                DPPMasterVersion.master_id == master_id,
+                DPPMasterAlias.alias == selector.lower(),
+            )
         )
-        versions = list(result.scalars().all())
-        for candidate in versions:
-            if version_or_alias in (candidate.aliases or []):
-                return candidate
-        return None
+        return result.scalar_one_or_none()
 
     async def get_version_for_product(
         self,
@@ -308,11 +312,23 @@ class DPPMasterService:
 
     def validate_instance_payload(
         self, payload: dict[str, Any], version: DPPMasterVersion
-    ) -> tuple[dict[str, Any], list[str]]:
-        errors: list[str] = []
-        unresolved = find_placeholders(payload)
-        if unresolved:
-            errors.append("Unresolved placeholders detected: " + ", ".join(sorted(unresolved)))
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        errors: list[dict[str, Any]] = []
+        unresolved_map = extract_placeholder_paths(payload)
+        for name, pointers in unresolved_map.items():
+            errors.append(
+                {
+                    "code": "unresolved_placeholder",
+                    "name": name,
+                    "paths": [
+                        {
+                            "jsonPointer": pointer,
+                            "jsonPath": json_pointer_to_path(pointer),
+                        }
+                        for pointer in pointers
+                    ],
+                }
+            )
 
         variables = self._parse_variables(version.variables)
         for variable in variables:
@@ -322,32 +338,93 @@ class DPPMasterService:
                     continue
                 value = resolve_json_pointer(payload, pointer)
 
-                if (
-                    _is_missing(value)
-                    and variable.allow_default
-                    and variable.default_value is not None
-                ):
-                    set_json_pointer(payload, pointer, variable.default_value)
-                    value = resolve_json_pointer(payload, pointer)
+                if _is_missing(value):
+                    if variable.allow_default and variable.default_value is not None:
+                        set_json_pointer(payload, pointer, variable.default_value)
+                        value = resolve_json_pointer(payload, pointer)
+                    elif variable.required:
+                        errors.append(
+                            {
+                                "code": "missing_required",
+                                "name": variable.name,
+                                "path": pointer,
+                            }
+                        )
+                        continue
+                    else:
+                        continue
 
-                if variable.required and _is_missing(value):
-                    errors.append(f"Missing required value for '{variable.name}' at {pointer}")
+                coerced, error = _coerce_value(value, variable.expected_type)
+                if error:
+                    errors.append(
+                        {
+                            "code": "type_mismatch",
+                            "name": variable.name,
+                            "path": pointer,
+                            "expected_type": variable.expected_type,
+                            "message": error,
+                        }
+                    )
+                    continue
+                if coerced is not value:
+                    set_json_pointer(payload, pointer, coerced)
 
         return payload, errors
 
-    async def _move_alias(self, master_id: UUID, alias: str, version_id: UUID) -> None:
+    async def _sync_aliases(
+        self,
+        master: DPPMaster,
+        version: DPPMasterVersion,
+        aliases: list[str],
+        move_latest: bool,
+    ) -> None:
+        normalized = list(aliases)
+        if move_latest and "latest" not in normalized:
+            normalized.append("latest")
+
+        result = await self._session.execute(
+            select(DPPMasterAlias).where(DPPMasterAlias.master_id == master.id)
+        )
+        existing = list(result.scalars().all())
+        by_alias = {row.alias: row for row in existing}
+
+        # Assign aliases to this version, moving from other versions when needed.
+        for alias in normalized:
+            row = by_alias.get(alias)
+            if row:
+                row.version_id = version.id
+            else:
+                self._session.add(
+                    DPPMasterAlias(
+                        tenant_id=master.tenant_id,
+                        master_id=master.id,
+                        version_id=version.id,
+                        alias=alias,
+                    )
+                )
+
+        # Remove aliases from this version that are no longer desired.
+        for row in existing:
+            if row.version_id == version.id and row.alias not in normalized:
+                self._session.delete(row)
+
+        await self._refresh_aliases(master.id)
+
+    async def _refresh_aliases(self, master_id: UUID) -> None:
+        result = await self._session.execute(
+            select(DPPMasterAlias).where(DPPMasterAlias.master_id == master_id)
+        )
+        alias_rows = list(result.scalars().all())
+        alias_map: dict[UUID, list[str]] = {}
+        for row in alias_rows:
+            alias_map.setdefault(row.version_id, []).append(row.alias)
+
         result = await self._session.execute(
             select(DPPMasterVersion).where(DPPMasterVersion.master_id == master_id)
         )
         versions = list(result.scalars().all())
-        for candidate in versions:
-            aliases = list(candidate.aliases or [])
-            if candidate.id == version_id:
-                if alias not in aliases:
-                    aliases.append(alias)
-            else:
-                aliases = [value for value in aliases if value != alias]
-            candidate.aliases = aliases
+        for version in versions:
+            version.aliases = sorted(alias_map.get(version.id, []))
         await self._session.flush()
 
     def _normalize_aliases(self, aliases: list[str]) -> list[str]:
@@ -422,7 +499,7 @@ class DPPMasterService:
         description = raw.get("description")
         required = bool(raw.get("required", True))
         allow_default = bool(raw.get("allow_default", True))
-        expected_type = str(raw.get("expected_type", "string")).strip() or "string"
+        expected_type = str(raw.get("expected_type", "string")).strip().lower() or "string"
         constraints = raw.get("constraints")
         return {
             "name": name,
@@ -461,7 +538,7 @@ class DPPMasterService:
                     required=bool(raw.get("required", True)),
                     default_value=raw.get("default_value"),
                     allow_default=bool(raw.get("allow_default", True)),
-                    expected_type=str(raw.get("expected_type", "string")),
+                    expected_type=str(raw.get("expected_type", "string")).lower(),
                     constraints=raw.get("constraints"),
                     paths=parsed_paths,
                 )
@@ -485,3 +562,64 @@ def _is_missing(value: Any) -> bool:
     if isinstance(value, str) and value.strip() == "":
         return True
     return isinstance(value, (list, dict)) and not value
+
+
+def _coerce_value(value: Any, expected_type: str) -> tuple[Any, str | None]:
+    expected_type = expected_type.lower()
+    if expected_type == "string":
+        if isinstance(value, (dict, list)):
+            return value, "Expected string but received complex value"
+        if value is None:
+            return value, None
+        return str(value), None
+
+    if expected_type in {"number", "float"}:
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value), None
+        if isinstance(value, str):
+            try:
+                return float(value), None
+            except ValueError:
+                return value, "Expected number"
+        return value, "Expected number"
+
+    if expected_type == "integer":
+        if isinstance(value, int) and not isinstance(value, bool):
+            return value, None
+        if isinstance(value, float) and value.is_integer():
+            return int(value), None
+        if isinstance(value, str):
+            if value.strip() == "":
+                return value, "Expected integer"
+            try:
+                return int(value), None
+            except ValueError:
+                return value, "Expected integer"
+        return value, "Expected integer"
+
+    if expected_type == "boolean":
+        if isinstance(value, bool):
+            return value, None
+        if isinstance(value, (int, float)):
+            if value in (0, 1):
+                return bool(value), None
+            return value, "Expected boolean"
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "false"}:
+                return lowered == "true", None
+            if lowered in {"0", "1"}:
+                return lowered == "1", None
+        return value, "Expected boolean"
+
+    if expected_type == "object":
+        if isinstance(value, dict):
+            return value, None
+        return value, "Expected object"
+
+    if expected_type == "array":
+        if isinstance(value, list):
+            return value, None
+        return value, "Expected array"
+
+    return value, None
