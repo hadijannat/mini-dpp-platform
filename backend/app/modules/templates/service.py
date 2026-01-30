@@ -11,6 +11,9 @@ from typing import Any, cast
 from urllib.parse import quote, urlparse
 
 import httpx
+from basyx.aas import model
+from basyx.aas.adapter import aasx as basyx_aasx
+from basyx.aas.adapter import json as basyx_json
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -513,6 +516,10 @@ class TemplateRegistryService:
         """
         Extract and normalize AAS Environment from an AASX package.
         """
+        basyx_env = self._extract_from_basyx(aasx_bytes)
+        if basyx_env is not None and basyx_env.get("submodels"):
+            return self._normalize_aas_environment(basyx_env)
+
         aas_env: dict[str, Any] = {
             "assetAdministrationShells": [],
             "submodels": [],
@@ -537,6 +544,26 @@ class TemplateRegistryService:
             aas_env = self._extract_from_xml(aasx_bytes)
 
         return self._normalize_aas_environment(aas_env)
+
+    def _extract_from_basyx(self, aasx_bytes: bytes) -> dict[str, Any] | None:
+        store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
+        try:
+            with basyx_aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
+                files = basyx_aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+                reader.read_into(store, files)
+        except Exception as exc:
+            logger.warning("template_aasx_basyx_parse_failed", error=str(exc))
+            return None
+
+        if not any(isinstance(obj, model.Submodel) for obj in store):
+            return None
+
+        env_json = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
+        try:
+            return cast(dict[str, Any], json.loads(env_json))
+        except json.JSONDecodeError:
+            logger.warning("template_aasx_basyx_parse_invalid_json")
+            return None
 
     def _extract_from_xml(self, aasx_bytes: bytes) -> dict[str, Any]:
         """

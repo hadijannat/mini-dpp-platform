@@ -5,7 +5,6 @@ Supports AASX, JSON, and PDF export with integrity verification.
 
 import io
 import json
-import tempfile
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -70,17 +69,15 @@ class ExportService:
         """
         buffer = io.BytesIO()
 
-        with tempfile.NamedTemporaryFile(suffix=".json") as fp:
-            fp.write(
-                json.dumps(
-                    revision.aas_env_json,
-                    sort_keys=True,
-                    indent=2,
-                    ensure_ascii=False,
-                ).encode("utf-8")
-            )
-            fp.flush()
-            store = basyx_json.read_aas_json_file(fp.name)  # type: ignore[attr-defined]
+        payload = json.dumps(
+            revision.aas_env_json,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        )
+        store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+            io.StringIO(payload)
+        )
 
         files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
 

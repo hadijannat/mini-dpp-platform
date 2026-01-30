@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import copy
+import io
 import json
 import re
-import tempfile
 from collections.abc import Iterable
 from contextlib import suppress
 from typing import Any, cast
@@ -222,10 +222,10 @@ class BasyxDppBuilder:
     def _load_environment(
         self, aas_env_json: dict[str, Any]
     ) -> tuple[model.DictObjectStore[model.Identifiable], model.AssetAdministrationShell]:
-        with tempfile.NamedTemporaryFile(suffix=".json") as fp:
-            fp.write(json.dumps(aas_env_json).encode())
-            fp.flush()
-            store = basyx_json.read_aas_json_file(fp.name)  # type: ignore[attr-defined]
+        payload = json.dumps(aas_env_json, ensure_ascii=False)
+        store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+            io.StringIO(payload)
+        )
 
         aas = next((obj for obj in store if isinstance(obj, model.AssetAdministrationShell)), None)
         if aas is None:

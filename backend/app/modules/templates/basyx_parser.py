@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import tempfile
+import io
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,21 +25,16 @@ class BasyxTemplateParser:
         self, aasx_bytes: bytes, expected_semantic_id: str | None = None
     ) -> ParsedTemplate:
         store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
-        with tempfile.NamedTemporaryFile(suffix=".aasx") as fp:
-            fp.write(aasx_bytes)
-            fp.flush()
-            with aasx.AASXReader(fp) as reader:
-                file_store = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
-                reader.read_into(store, file_store)
+        with aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
+            file_store = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+            reader.read_into(store, file_store)
         return self._build_parsed(store, expected_semantic_id)
 
     def parse_json(
         self, json_bytes: bytes, expected_semantic_id: str | None = None
     ) -> ParsedTemplate:
-        with tempfile.NamedTemporaryFile(suffix=".json") as fp:
-            fp.write(json_bytes)
-            fp.flush()
-            store = basyx_json.read_aas_json_file(fp.name)  # type: ignore[attr-defined]
+        payload = json_bytes.decode("utf-8")
+        store = basyx_json.read_aas_json_file(io.StringIO(payload))  # type: ignore[attr-defined]
         return self._build_parsed(store, expected_semantic_id)
 
     def _build_parsed(
