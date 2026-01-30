@@ -222,10 +222,20 @@ class BasyxDppBuilder:
     def _load_environment(
         self, aas_env_json: dict[str, Any]
     ) -> tuple[model.DictObjectStore[model.Identifiable], model.AssetAdministrationShell]:
-        payload = json.dumps(aas_env_json, ensure_ascii=False)
-        store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-            io.StringIO(payload)
-        )
+        try:
+            payload = json.dumps(aas_env_json, ensure_ascii=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Failed to serialize AAS environment JSON: {exc}") from exc
+
+        string_io = io.StringIO(payload)
+        try:
+            store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                string_io
+            )
+        except Exception as exc:
+            raise ValueError(f"Failed to parse AAS environment: {exc}") from exc
+        finally:
+            string_io.close()
 
         aas = next((obj for obj in store if isinstance(obj, model.AssetAdministrationShell)), None)
         if aas is None:
@@ -582,7 +592,9 @@ class BasyxDppBuilder:
             keys = getattr(reference, "key", None)
         if not keys:
             return None
-        first = list(keys)[0]
+        first = next(iter(keys), None)
+        if first is None:
+            return None
         value = getattr(first, "value", None)
         return str(value) if value is not None else None
 

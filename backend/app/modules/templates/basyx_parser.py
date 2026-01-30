@@ -10,6 +10,10 @@ from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
 
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class ParsedTemplate:
@@ -33,8 +37,16 @@ class BasyxTemplateParser:
     def parse_json(
         self, json_bytes: bytes, expected_semantic_id: str | None = None
     ) -> ParsedTemplate:
-        payload = json_bytes.decode("utf-8")
-        store = basyx_json.read_aas_json_file(io.StringIO(payload))  # type: ignore[attr-defined]
+        try:
+            payload = json_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"JSON bytes are not valid UTF-8: {exc}") from exc
+
+        string_io = io.StringIO(payload)
+        try:
+            store = basyx_json.read_aas_json_file(string_io)  # type: ignore[attr-defined]
+        finally:
+            string_io.close()
         return self._build_parsed(store, expected_semantic_id)
 
     def _build_parsed(
@@ -77,6 +89,11 @@ class BasyxTemplateParser:
             ]
             if len(matching) == 1:
                 return matching[0]
+            if not matching:
+                raise ValueError(
+                    f"No submodel found with semantic_id containing '{expected_semantic_id}'"
+                )
+            # Multiple matches - log warning and continue to other selection
 
         template_kind = [
             sm for sm in submodels if getattr(sm, "kind", None) == model.ModellingKind.TEMPLATE
@@ -88,6 +105,11 @@ class BasyxTemplateParser:
             return submodels[0]
 
         if template_kind:
+            logger.warning(
+                "template_ambiguous_submodel_selection",
+                count=len(template_kind),
+                selected=template_kind[0].id_short,
+            )
             return template_kind[0]
 
         raise ValueError(f"Ambiguous template payload: {len(submodels)} submodels found")
@@ -100,6 +122,8 @@ class BasyxTemplateParser:
             keys = getattr(reference, "key", None)
         if not keys:
             return None
-        first = list(keys)[0]
+        first = next(iter(keys), None)
+        if first is None:
+            return None
         value = getattr(first, "value", None)
         return str(value) if value is not None else None

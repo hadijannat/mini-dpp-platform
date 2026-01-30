@@ -165,16 +165,26 @@ class TemplateRegistryService:
                 response = await client.get(aasx_url)
                 response.raise_for_status()
                 template_aasx = response.content
-                aas_env_json = self._extract_aas_environment(template_aasx)
-                source_url = aasx_url
-                if not aas_env_json.get("submodels"):
+                if not self._is_valid_aasx(template_aasx):
                     logger.warning(
-                        "template_empty_submodels",
+                        "template_aasx_invalid_format",
                         template_key=template_key,
                         version=version,
                         source_url=aasx_url,
+                        content_length=len(template_aasx),
                     )
-                    aas_env_json = None
+                    template_aasx = None
+                else:
+                    aas_env_json = self._extract_aas_environment(template_aasx)
+                    source_url = aasx_url
+                    if not aas_env_json.get("submodels"):
+                        logger.warning(
+                            "template_empty_submodels",
+                            template_key=template_key,
+                            version=version,
+                            source_url=aasx_url,
+                        )
+                        aas_env_json = None
             except Exception as e:
                 logger.warning(
                     "template_aasx_fetch_failed",
@@ -512,6 +522,13 @@ class TemplateRegistryService:
 
         return self._normalize_aas_environment(environment)
 
+    def _is_valid_aasx(self, data: bytes) -> bool:
+        """Check if data is a valid AASX (ZIP) file by verifying magic bytes."""
+        if len(data) < 4:
+            return False
+        # ZIP files start with PK (0x50 0x4B)
+        return data[:2] == b"PK"
+
     def _extract_aas_environment(self, aasx_bytes: bytes) -> dict[str, Any]:
         """
         Extract and normalize AAS Environment from an AASX package.
@@ -551,19 +568,42 @@ class TemplateRegistryService:
             with basyx_aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
                 files = basyx_aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
                 reader.read_into(store, files)
-        except Exception as exc:
-            logger.warning("template_aasx_basyx_parse_failed", error=str(exc))
+        except (ValueError, KeyError, AttributeError, TypeError, zipfile.BadZipFile) as exc:
+            logger.warning(
+                "template_aasx_basyx_parse_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
             return None
 
-        if not any(isinstance(obj, model.Submodel) for obj in store):
+        submodel_count = sum(1 for obj in store if isinstance(obj, model.Submodel))
+        if submodel_count == 0:
+            logger.warning("template_aasx_basyx_no_submodels", store_size=len(list(store)))
             return None
 
         env_json = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
-        try:
-            return cast(dict[str, Any], json.loads(env_json))
-        except json.JSONDecodeError:
-            logger.warning("template_aasx_basyx_parse_invalid_json")
+
+        # Handle both string and dict return types from object_store_to_json
+        if isinstance(env_json, str):
+            try:
+                result = cast(dict[str, Any], json.loads(env_json))
+            except json.JSONDecodeError:
+                logger.warning("template_aasx_basyx_parse_invalid_json")
+                return None
+        elif isinstance(env_json, dict):
+            result = cast(dict[str, Any], env_json)
+        else:
+            logger.warning(
+                "template_aasx_basyx_parse_invalid_type",
+                actual_type=type(env_json).__name__,
+            )
             return None
+
+        logger.debug(
+            "template_aasx_basyx_parse_success",
+            submodel_count=submodel_count,
+        )
+        return result
 
     def _extract_from_xml(self, aasx_bytes: bytes) -> dict[str, Any]:
         """

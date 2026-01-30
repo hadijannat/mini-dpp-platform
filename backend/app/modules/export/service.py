@@ -68,33 +68,42 @@ class ExportService:
         AASX is a ZIP archive with specific structure and relationships.
         """
         buffer = io.BytesIO()
+        try:
+            payload = json.dumps(
+                revision.aas_env_json,
+                sort_keys=True,
+                indent=2,
+                ensure_ascii=False,
+            )
+            string_io = io.StringIO(payload)
+            try:
+                store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                    string_io
+                )
+            finally:
+                string_io.close()
 
-        payload = json.dumps(
-            revision.aas_env_json,
-            sort_keys=True,
-            indent=2,
-            ensure_ascii=False,
-        )
-        store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-            io.StringIO(payload)
-        )
+            files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
 
-        files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+            with aasx.AASXWriter(buffer) as writer:
+                core_props = pyecma376_2.OPCCoreProperties()  # type: ignore[attr-defined, no-untyped-call]
+                core_props.created = revision.created_at
+                core_props.modified = datetime.now(UTC)
+                core_props.creator = "Mini DPP Platform"
+                core_props.title = f"DPP {dpp_id}"
+                core_props.description = f"AASX package containing DPP revision {revision.revision_no}"
+                core_props.version = self._settings.version
+                core_props.revision = str(revision.revision_no)
+                writer.write_core_properties(core_props)
+                writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
 
-        with aasx.AASXWriter(buffer) as writer:
-            core_props = pyecma376_2.OPCCoreProperties()  # type: ignore[attr-defined, no-untyped-call]
-            core_props.created = revision.created_at
-            core_props.modified = datetime.now(UTC)
-            core_props.creator = "Mini DPP Platform"
-            core_props.title = f"DPP {dpp_id}"
-            core_props.description = f"AASX package containing DPP revision {revision.revision_no}"
-            core_props.version = self._settings.version
-            core_props.revision = str(revision.revision_no)
-            writer.write_core_properties(core_props)
-            writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
-
-        buffer.seek(0)
-        return buffer.read()
+            buffer.seek(0)
+            return buffer.read()
+        except Exception as exc:
+            logger.error("aasx_export_failed", dpp_id=str(dpp_id), error=str(exc))
+            raise ValueError(f"Failed to export AASX: {exc}") from exc
+        finally:
+            buffer.close()
 
     def export_pdf(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
         """
