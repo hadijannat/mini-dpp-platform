@@ -91,7 +91,9 @@ class ExportService:
                 core_props.modified = datetime.now(UTC)
                 core_props.creator = "Mini DPP Platform"
                 core_props.title = f"DPP {dpp_id}"
-                core_props.description = f"AASX package containing DPP revision {revision.revision_no}"
+                core_props.description = (
+                    f"AASX package containing DPP revision {revision.revision_no}"
+                )
                 core_props.version = self._settings.version
                 core_props.revision = str(revision.revision_no)
                 writer.write_core_properties(core_props)
