@@ -90,10 +90,12 @@ class BasyxTemplateParser:
             if len(matching) == 1:
                 return matching[0]
             if not matching:
-                raise ValueError(
-                    f"No submodel found with semantic_id containing '{expected_semantic_id}'"
+                logger.warning(
+                    "template_semantic_id_mismatch",
+                    expected=expected_semantic_id,
+                    available=[self._reference_to_str(sm.semantic_id) for sm in submodels],
                 )
-            # Multiple matches - log warning and continue to other selection
+            # No match or multiple matches - fall through to other selection
 
         template_kind = [
             sm for sm in submodels if getattr(sm, "kind", None) == model.ModellingKind.TEMPLATE
