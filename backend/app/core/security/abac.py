@@ -153,8 +153,21 @@ def _opa_disabled_decision() -> PolicyDecision:
 def build_subject_context(
     user: TokenPayload, tenant: TenantContext | None = None
 ) -> dict[str, Any]:
-    """Build ABAC subject context from token payload."""
-    roles = list(tenant.roles) if tenant else user.roles
+    """Build ABAC subject context from token payload.
+
+    Merges tenant-specific roles with platform-level JWT roles to ensure
+    platform-wide capabilities (admin, auditor) are preserved across tenants.
+    """
+    # Platform-level roles that should be preserved regardless of tenant context
+    platform_roles = {"admin", "auditor"}
+
+    if tenant:
+        # Merge tenant roles with platform roles from JWT
+        merged_roles = set(tenant.roles) | (set(user.roles) & platform_roles)
+        roles = list(merged_roles)
+    else:
+        roles = user.roles
+
     return {
         "sub": user.sub,
         "email": user.email,

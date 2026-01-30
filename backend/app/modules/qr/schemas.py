@@ -51,10 +51,6 @@ class CarrierRequest(BaseModel):
         pattern=r"^#[0-9A-Fa-f]{6}$",
         description="Foreground (code) color in hex format",
     )
-    include_logo: bool = Field(
-        default=False,
-        description="Whether to embed a logo in the center",
-    )
     include_text: bool = Field(
         default=True,
         description="Whether to include product ID text below the code",

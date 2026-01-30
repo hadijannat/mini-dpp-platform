@@ -162,6 +162,20 @@ async def _decode_token(token: str) -> TokenPayload:
                 detail="Invalid token issuer",
             )
 
+        # Validate authorized party (azp) claim if present
+        # This ensures tokens are only accepted if issued for this specific client
+        token_azp = payload.get("azp")
+        if token_azp and token_azp != settings.keycloak_client_id:
+            logger.warning(
+                "token_azp_mismatch",
+                expected=settings.keycloak_client_id,
+                actual=token_azp,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token not authorized for this client",
+            )
+
         # Extract roles from various possible locations
         roles: list[str] = []
 

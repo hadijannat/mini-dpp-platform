@@ -135,6 +135,36 @@ decision := {
 }
 
 # =============================================================================
+# DPP List Policies
+# =============================================================================
+
+# Anyone in tenant can list published DPPs
+decision := {
+    "effect": "allow",
+    "policy_id": "dpp-list-published"
+} if {
+    not input.subject.is_admin
+    input.action == "list"
+    input.resource.type == "dpp"
+    input.resource.status == "published"
+    tenant_match
+}
+
+# Publishers can list their own drafts
+decision := {
+    "effect": "allow",
+    "policy_id": "dpp-list-own-draft"
+} if {
+    not input.subject.is_admin
+    input.action == "list"
+    input.resource.type == "dpp"
+    input.resource.status != "published"
+    input.resource.owner_subject == input.subject.sub
+    input.subject.is_publisher
+    tenant_match
+}
+
+# =============================================================================
 # Template Policies
 # =============================================================================
 

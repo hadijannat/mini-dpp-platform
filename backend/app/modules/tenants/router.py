@@ -258,7 +258,11 @@ async def add_member(
     )
 
 
-@router.delete("/{tenant_slug}/members/{user_subject}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{tenant_slug}/members/{user_subject}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 async def remove_member(
     user_subject: str,
     db: DbSession,

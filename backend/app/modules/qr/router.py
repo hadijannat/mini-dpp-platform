@@ -2,12 +2,13 @@
 API Router for QR Code and Data Carrier generation endpoints.
 """
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
+from app.core.security import require_access
 from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
@@ -21,6 +22,16 @@ from app.modules.qr.schemas import (
 from app.modules.qr.service import QRCodeService
 
 router = APIRouter()
+
+
+def _dpp_resource(dpp: Any) -> dict[str, Any]:
+    """Build ABAC resource context for a DPP."""
+    return {
+        "type": "dpp",
+        "id": str(dpp.id),
+        "owner_subject": dpp.owner_subject,
+        "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
+    }
 
 
 @router.get("/{dpp_id}")
@@ -46,6 +57,9 @@ async def generate_qr_code(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+
+    # Check access via ABAC
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
 
     # Only generate QR for published DPPs
     if dpp.status != DPPStatus.PUBLISHED:
@@ -107,6 +121,16 @@ async def generate_carrier(
             detail=f"DPP {dpp_id} not found",
         )
 
+    # Check access via ABAC
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+
+    # Only generate carriers for published DPPs
+    if dpp.status != DPPStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data carriers can only be generated for published DPPs",
+        )
+
     # Determine URL based on format
     if request.format == CarrierFormat.GS1_QR:
         # Use GS1 Digital Link format
@@ -125,15 +149,21 @@ async def generate_carrier(
         text_label = f"DPP: {part_id}"
 
     # Generate carrier
-    carrier_bytes = qr_service.generate_qr_code(
-        dpp_url=carrier_url,
-        format=request.output_type.value,
-        size=request.size,
-        foreground_color=request.foreground_color,
-        background_color=request.background_color,
-        include_text=request.include_text,
-        text_label=text_label,
-    )
+    try:
+        carrier_bytes = qr_service.generate_qr_code(
+            dpp_url=carrier_url,
+            format=request.output_type.value,
+            size=request.size,
+            foreground_color=request.foreground_color,
+            background_color=request.background_color,
+            include_text=request.include_text,
+            text_label=text_label,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        )
 
     # Determine media type and filename
     media_types = {
@@ -174,6 +204,16 @@ async def get_gs1_digital_link(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
+        )
+
+    # Check access via ABAC
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+
+    # Only generate GS1 links for published DPPs
+    if dpp.status != DPPStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GS1 Digital Links can only be generated for published DPPs",
         )
 
     # Extract GTIN and serial

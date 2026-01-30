@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field, RootModel
 
 from app.core.identifiers import IdentifierValidationError
-from app.core.security import require_access
+from app.core.security import check_access, require_access
 from app.core.tenancy import TenantAdmin, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
@@ -315,31 +315,29 @@ async def list_dpps(
     """
     List DPPs accessible to the current user.
 
-    Publishers see their own DPPs. Viewers see all published DPPs.
+    Access is controlled via ABAC policies. Typically:
+    - Tenant admins see all DPPs in tenant
+    - Publishers see their own DPPs
+    - Viewers see all published DPPs
     """
     service = DPPService(db)
 
-    if tenant.is_tenant_admin:
-        dpps = await service.get_dpps_for_tenant(
-            tenant_id=tenant.tenant_id,
-            status=status_filter,
-            limit=limit,
-            offset=offset,
-        )
-    elif tenant.is_publisher:
-        dpps = await service.get_dpps_for_owner(
-            tenant_id=tenant.tenant_id,
-            owner_subject=tenant.user.sub,
-            status=status_filter,
-            limit=limit,
-            offset=offset,
-        )
-    else:
-        dpps = await service.get_published_dpps(
-            tenant_id=tenant.tenant_id,
-            limit=limit,
-            offset=offset,
-        )
+    # Fetch candidate DPPs for the tenant (fetch extra for ABAC filtering)
+    candidate_dpps = await service.get_dpps_for_tenant(
+        tenant_id=tenant.tenant_id,
+        status=status_filter,
+        limit=limit * 2,  # Fetch extra to account for filtering
+        offset=offset,
+    )
+
+    # Apply ABAC filtering
+    accessible_dpps: list[Any] = []
+    for dpp in candidate_dpps:
+        decision = await check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
+        if decision.is_allowed:
+            accessible_dpps.append(dpp)
+        if len(accessible_dpps) >= limit:
+            break
 
     return DPPListResponse(
         dpps=[
@@ -352,9 +350,9 @@ async def list_dpps(
                 created_at=dpp.created_at.isoformat(),
                 updated_at=dpp.updated_at.isoformat(),
             )
-            for dpp in dpps
+            for dpp in accessible_dpps
         ],
-        count=len(dpps),
+        count=len(accessible_dpps),
         limit=limit,
         offset=offset,
     )

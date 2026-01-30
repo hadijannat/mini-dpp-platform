@@ -57,18 +57,7 @@ async def export_dpp(
         tenant=tenant,
     )
 
-    # Check access
-    if (
-        dpp.status != DPPStatus.PUBLISHED
-        and dpp.owner_subject != tenant.user.sub
-        and not tenant.is_publisher
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
-
-    # AASX export requires publisher role
+    # AASX export requires publisher role (explicit guard in addition to ABAC)
     if format == "aasx" and not tenant.is_publisher:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

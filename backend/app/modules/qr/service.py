@@ -44,7 +44,6 @@ class QRCodeService:
         dpp_url: str,
         format: QRFormat = "png",
         size: int = 400,
-        with_logo: bool = False,
         foreground_color: str = "#000000",
         background_color: str = "#FFFFFF",
         include_text: bool = False,
@@ -57,7 +56,6 @@ class QRCodeService:
             dpp_url: The URL to encode (DPP viewer endpoint)
             format: Output format (png, svg, or pdf)
             size: Image size in pixels (for PNG)
-            with_logo: Whether to embed a logo in center
             foreground_color: QR code foreground color (hex)
             background_color: QR code background color (hex)
             include_text: Whether to add text label below QR
@@ -82,24 +80,36 @@ class QRCodeService:
         qr.make(fit=True)
 
         if format == "png":
-            return self._generate_png(
-                qr, size, with_logo, fg_color, bg_color, include_text, text_label
-            )
+            return self._generate_png(qr, size, fg_color, bg_color, include_text, text_label)
         elif format == "pdf":
             return self._generate_pdf(qr, size, fg_color, bg_color, include_text, text_label)
         else:
             return self._generate_svg(qr, size)
 
     def _hex_to_rgb(self, hex_color: str) -> tuple[int, int, int]:
-        """Convert hex color to RGB tuple."""
+        """Convert hex color to RGB tuple.
+
+        Args:
+            hex_color: Hex color string (e.g., "#FF0000" or "FF0000")
+
+        Returns:
+            RGB tuple (r, g, b) with values 0-255
+
+        Raises:
+            ValueError: If hex_color is not a valid 6-character hex string
+        """
         hex_color = hex_color.lstrip("#")
-        return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore
+        if len(hex_color) != 6:
+            raise ValueError(f"Invalid hex color: must be 6 characters, got {len(hex_color)}")
+        try:
+            return tuple(int(hex_color[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore
+        except ValueError as e:
+            raise ValueError(f"Invalid hex color: {hex_color}") from e
 
     def _generate_png(
         self,
         qr: qrcode.QRCode,
         size: int,
-        _with_logo: bool,
         fg_color: tuple[int, int, int],
         bg_color: tuple[int, int, int],
         include_text: bool,
@@ -190,9 +200,7 @@ class QRCodeService:
     ) -> bytes:
         """Generate PDF with QR code for print-ready output."""
         # First generate PNG
-        png_bytes = self._generate_png(
-            qr, size, False, fg_color, bg_color, include_text, text_label
-        )
+        png_bytes = self._generate_png(qr, size, fg_color, bg_color, include_text, text_label)
 
         # Convert PNG to PDF using PIL
         img = Image.open(io.BytesIO(png_bytes))
