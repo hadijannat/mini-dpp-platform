@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import TenantSelector from '../components/TenantSelector';
+import { isAdmin as checkIsAdmin } from '@/lib/auth';
 
 const baseNavigation = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
@@ -26,9 +27,8 @@ const baseNavigation = [
 export default function PublisherLayout() {
   const auth = useAuth();
   const location = useLocation();
-  const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-  const isAdmin = userRoles.includes('admin');
-  const navigation = isAdmin
+  const userIsAdmin = checkIsAdmin(auth.user);
+  const navigation = userIsAdmin
     ? [
         ...baseNavigation,
         { name: 'Tenants', href: '/console/tenants', icon: Users },

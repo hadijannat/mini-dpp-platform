@@ -4,8 +4,9 @@ import { useAuth } from 'react-oidc-context';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
 
-async function fetchDPP(dppId: string, tenantSlug: string, token?: string) {
-  const response = await tenantApiFetch(`/dpps/${dppId}`, {}, token, tenantSlug);
+async function fetchDPP(dppId: string, tenantSlug: string, token?: string, isSlug = false) {
+  const endpoint = isSlug ? `/dpps/by-slug/${dppId}` : `/dpps/${dppId}`;
+  const response = await tenantApiFetch(endpoint, {}, token, tenantSlug);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
@@ -30,13 +31,14 @@ function formatElementValue(value: unknown): string {
 export default function DPPViewerPage() {
   const { dppId, slug, tenantSlug } = useParams();
   const id = dppId || slug;
+  const isSlug = !dppId && !!slug;
   const resolvedTenant = tenantSlug || getTenantSlug();
   const auth = useAuth();
   const token = auth.user?.access_token;
 
   const { data: dpp, isLoading, error } = useQuery({
-    queryKey: ['dpp', resolvedTenant, id],
-    queryFn: () => fetchDPP(id!, resolvedTenant, token),
+    queryKey: ['dpp', resolvedTenant, id, isSlug],
+    queryFn: () => fetchDPP(id!, resolvedTenant, token, isSlug),
     enabled: !!id && !!resolvedTenant,
   });
 

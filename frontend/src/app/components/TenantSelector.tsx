@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
+import { isAdmin as checkIsAdmin } from '@/lib/auth';
 
 interface TenantOption {
   slug: string;
@@ -13,8 +14,7 @@ interface TenantOption {
 export default function TenantSelector() {
   const auth = useAuth();
   const token = auth.user?.access_token;
-  const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-  const isAdmin = userRoles.includes('admin');
+  const userIsAdmin = checkIsAdmin(auth.user);
   const [tenantSlug, setTenantSlug] = useTenantSlug();
   const [tenants, setTenants] = useState<TenantOption[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export default function TenantSelector() {
           setTenants(body.tenants || []);
           return;
         }
-        if (isAdmin) {
+        if (userIsAdmin) {
           const adminResponse = await apiFetch('/api/v1/tenants', {}, token);
           if (adminResponse.ok) {
             const adminBody = await adminResponse.json();
@@ -54,7 +54,7 @@ export default function TenantSelector() {
       }
     };
     load();
-  }, [token, isAdmin]);
+  }, [token, userIsAdmin]);
 
   const handleChange = (value: string) => {
     setTenantSlug(value);

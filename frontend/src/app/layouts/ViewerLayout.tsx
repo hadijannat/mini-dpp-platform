@@ -1,12 +1,12 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { ArrowLeft, LayoutDashboard } from 'lucide-react';
+import { isPublisher } from '@/lib/auth';
 
 export default function ViewerLayout() {
   const navigate = useNavigate();
   const auth = useAuth();
-  const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-  const canAccessConsole = userRoles.includes('publisher') || userRoles.includes('admin');
+  const canAccessConsole = isPublisher(auth.user);
 
   const handleBack = () => {
     if (window.history.length > 1) {

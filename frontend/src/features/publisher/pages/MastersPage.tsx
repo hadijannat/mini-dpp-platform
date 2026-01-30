@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { Layers, Plus, RefreshCcw, Save, Tag } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { getTenantSlug } from '@/lib/tenant';
 
 interface MasterItem {
   id: string;
@@ -202,6 +203,7 @@ function coerceInputValue(value: unknown): string {
 export default function MastersPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const tenantSlug = getTenantSlug();
   const queryClient = useQueryClient();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -224,7 +226,7 @@ export default function MastersPage() {
   const templateTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const { data: mastersData, isLoading, isError, error } = useQuery({
-    queryKey: ['masters'],
+    queryKey: ['masters', tenantSlug],
     queryFn: () => fetchMasters(token),
   });
 
@@ -291,7 +293,7 @@ export default function MastersPage() {
   const createMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) => createMaster(payload, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['masters'] });
+      queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
       setShowCreateModal(false);
       setCreateError(null);
     },
@@ -301,7 +303,7 @@ export default function MastersPage() {
     mutationFn: (payload: Record<string, unknown>) =>
       updateMaster(selectedMasterId ?? '', payload, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['masters'] });
+      queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
       void refetchDetail();
     },
   });
@@ -312,7 +314,7 @@ export default function MastersPage() {
     onSuccess: () => {
       setReleaseVersion('');
       setReleaseAliases('');
-      queryClient.invalidateQueries({ queryKey: ['masters'] });
+      queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
       if (selectedMasterId) {
         queryClient.invalidateQueries({ queryKey: ['master', selectedMasterId] });
         queryClient.invalidateQueries({ queryKey: ['master-versions', selectedMasterId] });

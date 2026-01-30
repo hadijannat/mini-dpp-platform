@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { RefreshCw } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { isAdmin as checkIsAdmin } from '@/lib/auth';
+import { getTenantSlug } from '@/lib/tenant';
 
 type RebuildSummary = {
   total: number;
@@ -43,8 +45,8 @@ export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
-  const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-  const isAdmin = userRoles.includes('admin');
+  const userIsAdmin = checkIsAdmin(auth.user);
+  const tenantSlug = getTenantSlug();
   const [rebuildSummary, setRebuildSummary] = useState<RebuildSummary | null>(null);
 
   const {
@@ -69,7 +71,7 @@ export default function TemplatesPage() {
     onSuccess: (data: RebuildSummary) => {
       setRebuildSummary(data);
       queryClient.invalidateQueries({ queryKey: ['templates'] });
-      queryClient.invalidateQueries({ queryKey: ['dpps'] });
+      queryClient.invalidateQueries({ queryKey: ['dpps', tenantSlug] });
     },
   });
 
@@ -110,7 +112,7 @@ export default function TemplatesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {userIsAdmin && (
             <button
               onClick={() => rebuildMutation.mutate()}
               disabled={rebuildMutation.isPending}

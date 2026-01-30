@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { FileText, Plus, ArrowRight } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { getTenantSlug } from '@/lib/tenant';
 
 async function fetchDPPs(token?: string) {
   const response = await tenantApiFetch('/dpps', {}, token);
@@ -23,9 +24,10 @@ async function fetchTemplates(token?: string) {
 export default function DashboardPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const tenantSlug = getTenantSlug();
 
   const { data: dpps, isError: dppsError, error: dppsErrorObj } = useQuery({
-    queryKey: ['dpps'],
+    queryKey: ['dpps', tenantSlug],
     queryFn: () => fetchDPPs(token),
   });
 

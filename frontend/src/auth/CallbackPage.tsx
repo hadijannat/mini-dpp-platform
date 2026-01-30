@@ -2,13 +2,25 @@ import { useEffect } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { useNavigate } from 'react-router-dom';
 
+const REDIRECT_STORAGE_KEY = 'auth.redirectUrl';
+
 export default function CallbackPage() {
   const auth = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (auth.isAuthenticated) {
-      navigate('/console', { replace: true });
+      // Restore the original route if available
+      const redirectUrl = sessionStorage.getItem(REDIRECT_STORAGE_KEY);
+      sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
+
+      // Validate the redirect URL is a relative path (prevent open redirect)
+      const targetUrl =
+        redirectUrl && redirectUrl.startsWith('/') && !redirectUrl.startsWith('//')
+          ? redirectUrl
+          : '/console';
+
+      navigate(targetUrl, { replace: true });
     }
   }, [auth.isAuthenticated, navigate]);
 

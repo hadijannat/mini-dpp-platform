@@ -129,6 +129,10 @@ export default function DataCarriersPage() {
 
             if (response.ok) {
                 const blob = await response.blob();
+                // Revoke previous URL to prevent memory leak
+                if (previewUrl) {
+                    URL.revokeObjectURL(previewUrl);
+                }
                 const url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
             } else {
@@ -197,12 +201,25 @@ export default function DataCarriersPage() {
 
     const handleDppSelect = (dppId: string) => {
         setSelectedDpp(dppId);
+        // Revoke previous preview URL when changing DPP
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+        }
         setPreviewUrl(null);
         setGs1Link(null);
         if (dppId) {
             loadGS1Link(dppId);
         }
     };
+
+    // Cleanup blob URL on unmount
+    useEffect(() => {
+        return () => {
+            if (previewUrl) {
+                URL.revokeObjectURL(previewUrl);
+            }
+        };
+    }, [previewUrl]);
 
     const selectedDppData = dpps.find((d) => d.id === selectedDpp);
 

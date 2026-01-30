@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
@@ -514,6 +514,7 @@ export default function SubmodelEditorPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const queryClient = useQueryClient();
 
   const { data: dpp, isLoading: loadingDpp } = useQuery({
     queryKey: ['dpp', dppId],
@@ -577,6 +578,8 @@ export default function SubmodelEditorPage() {
         payload.rebuildFromTemplate ?? false,
       ),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
+      queryClient.invalidateQueries({ queryKey: ['submodel-definition', dppId, templateKey] });
       navigate(`/console/dpps/${dppId}`);
     },
   });
@@ -591,6 +594,11 @@ export default function SubmodelEditorPage() {
       setFormErrors({});
     }
   }, [initialData, hasEdited]);
+
+  // Reset edit state when navigating to a different DPP or template
+  useEffect(() => {
+    setHasEdited(false);
+  }, [dppId, templateKey]);
 
   const handleViewChange = (view: 'form' | 'json') => {
     if (view === activeView) return;

@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
+import { hasRoleLevel } from '@/lib/auth';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,33 +12,25 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   const location = useLocation();
 
   if (!auth.isAuthenticated) {
+    // Store the intended destination for post-login redirect
+    if (location.pathname !== '/login' && location.pathname !== '/callback') {
+      sessionStorage.setItem('auth.redirectUrl', location.pathname + location.search);
+    }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role if required
-  if (requiredRole) {
-    const userRoles = (auth.user?.profile as any)?.realm_access?.roles || [];
-    const roleHierarchy: Record<string, string[]> = {
-      viewer: ['viewer', 'publisher', 'tenant_admin', 'admin'],
-      publisher: ['publisher', 'tenant_admin', 'admin'],
-      tenant_admin: ['tenant_admin', 'admin'],
-      admin: ['admin'],
-    };
-    const allowed = roleHierarchy[requiredRole] || [requiredRole];
-    const hasRole = allowed.some((role) => userRoles.includes(role));
-
-    if (!hasRole) {
-      return (
-        <div className="flex h-screen items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
-            <p className="mt-2 text-gray-600">
-              You need the "{requiredRole}" role to access this page.
-            </p>
-          </div>
+  // Check role if required (extracts from both realm and client roles)
+  if (requiredRole && !hasRoleLevel(auth.user, requiredRole)) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600">Access Denied</h1>
+          <p className="mt-2 text-gray-600">
+            You need the "{requiredRole}" role to access this page.
+          </p>
         </div>
-      );
-    }
+      </div>
+    );
   }
 
   return <>{children}</>;

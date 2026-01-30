@@ -358,6 +358,47 @@ async def list_dpps(
     )
 
 
+@router.get("/by-slug/{slug}", response_model=DPPDetailResponse)
+async def get_dpp_by_slug(
+    slug: str,
+    db: DbSession,
+    tenant: TenantContextDep,
+) -> DPPDetailResponse:
+    """
+    Get a DPP by its short-link slug.
+
+    The slug is the first 8 hex characters of the DPP UUID,
+    as used in QR code short links (/p/{slug}).
+    """
+    service = DPPService(db)
+
+    dpp = await service.get_dpp_by_slug(slug, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP with slug {slug} not found",
+        )
+
+    # Check access via ABAC
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+
+    # Get latest revision
+    revision = await service.get_latest_revision(dpp.id, tenant.tenant_id)
+
+    return DPPDetailResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        owner_subject=dpp.owner_subject,
+        asset_ids=dpp.asset_ids,
+        qr_payload=dpp.qr_payload,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+        current_revision_no=revision.revision_no if revision else None,
+        aas_environment=revision.aas_env_json if revision else None,
+        digest_sha256=revision.digest_sha256 if revision else None,
+    )
+
+
 @router.get("/{dpp_id}", response_model=DPPDetailResponse)
 async def get_dpp(
     dpp_id: UUID,

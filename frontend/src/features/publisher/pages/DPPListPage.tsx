@@ -180,7 +180,7 @@ export default function DPPListPage() {
   const tenantSlug = getTenantSlug();
 
   const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
-    queryKey: ['dpps'],
+    queryKey: ['dpps', tenantSlug],
     queryFn: () => fetchDPPs(token),
   });
 
@@ -190,7 +190,7 @@ export default function DPPListPage() {
   });
 
   const { data: mastersData } = useQuery({
-    queryKey: ['masters'],
+    queryKey: ['masters', tenantSlug],
     queryFn: () => fetchMasters(token),
   });
 
@@ -222,7 +222,7 @@ export default function DPPListPage() {
   const createMutation = useMutation({
     mutationFn: (data: any) => createDPP(data, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dpps'] });
+      queryClient.invalidateQueries({ queryKey: ['dpps', tenantSlug] });
       setShowCreateModal(false);
       const available = templatesData?.templates?.map((template: any) => template.template_key) || [];
       setSelectedTemplates(available.length > 0 ? [available[0]] : []);
@@ -289,7 +289,7 @@ export default function DPPListPage() {
       const prepared = stripImportGlobalId ? stripGlobalAssetId(parsed) : parsed;
       const result = await importDPP(importProductId, importVersion, prepared, token);
       setImportSuccess(`Imported DPP ${result.id}`);
-      queryClient.invalidateQueries({ queryKey: ['dpps'] });
+      queryClient.invalidateQueries({ queryKey: ['dpps', tenantSlug] });
     } catch (err) {
       setImportError((err as Error)?.message ?? 'Failed to import DPP.');
     } finally {
