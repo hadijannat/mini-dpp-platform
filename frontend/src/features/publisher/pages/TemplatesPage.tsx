@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { RefreshCw } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
-import { isAdmin as checkIsAdmin } from '@/lib/auth';
+import { hasRoleLevel } from '@/lib/auth';
 import { getTenantSlug } from '@/lib/tenant';
 
 type RebuildSummary = {
@@ -45,7 +45,7 @@ export default function TemplatesPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
-  const userIsAdmin = checkIsAdmin(auth.user);
+  const canRebuildAll = hasRoleLevel(auth.user, 'tenant_admin');
   const tenantSlug = getTenantSlug();
   const [rebuildSummary, setRebuildSummary] = useState<RebuildSummary | null>(null);
 
@@ -112,7 +112,7 @@ export default function TemplatesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {userIsAdmin && (
+          {canRebuildAll && (
             <button
               onClick={() => rebuildMutation.mutate()}
               disabled={rebuildMutation.isPending}

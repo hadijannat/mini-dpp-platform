@@ -17,8 +17,11 @@ export async function getApiErrorMessage(
   response: Response,
   fallback: string
 ): Promise<string> {
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     return 'Session expired. Please sign in again.';
+  }
+  if (response.status === 403) {
+    return 'You do not have permission to perform this action.';
   }
   const contentType = response.headers.get('content-type') ?? '';
   const rawText = await response.text();

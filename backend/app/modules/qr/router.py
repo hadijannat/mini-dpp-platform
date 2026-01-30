@@ -16,7 +16,6 @@ from app.modules.dpps.service import DPPService
 from app.modules.qr.schemas import (
     CarrierFormat,
     CarrierRequest,
-    CarrierResponse,
     GS1DigitalLinkResponse,
 )
 from app.modules.qr.service import QRCodeService
@@ -97,7 +96,19 @@ async def generate_qr_code(
         )
 
 
-@router.post("/{dpp_id}/carrier", response_model=CarrierResponse)
+@router.post(
+    "/{dpp_id}/carrier",
+    responses={
+        200: {
+            "content": {
+                "image/png": {},
+                "image/svg+xml": {},
+                "application/pdf": {},
+            },
+            "description": "Generated data carrier image",
+        }
+    },
+)
 async def generate_carrier(
     dpp_id: UUID,
     request: CarrierRequest,
