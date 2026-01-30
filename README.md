@@ -5,22 +5,22 @@
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
 
-> **A production-ready Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 standards.**
+> **A Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 standards.**
 
-Create, manage, and publish Digital Product Passports with enterprise-grade auth, multi-tenant isolation, template-driven dynamic forms, and AASX/JSON exports.
+Create, manage, and publish Digital Product Passports with Keycloak auth, multi-tenant support, dynamic forms, and AASX/JSON exports.
 
 ---
 
 ## ✨ Highlights
 
-- 🔐 **Enterprise Auth + ABAC** — Keycloak OIDC + OPA policies
-- 🏢 **Multi‑Tenant by Design** — tenant-scoped APIs, UI switcher, and `tenant_admin` role
-- 🧩 **Template‑Driven Forms** — UI generated from IDTA Submodel Templates (SMT)
-- 📦 **DPP Lifecycle** — Draft → Edit → Publish → Archive, with revision history
-- 🧱 **DPP Masters & Versioned Templates** — product‑level masters with placeholders and `latest` alias
-- 🔁 **ERP‑Friendly Import** — one‑shot JSON import from released master templates
-- 🔗 **Catena‑X Ready** — DTR publishing with optional EDC DSP metadata
-- 📤 **Export & Data Carriers** — AASX, JSON, QR and GS1 Digital Link
+- 🔐 **Auth + Access Control** — Keycloak OIDC + OPA policies
+- 🏢 **Multi-tenant** — tenant-scoped APIs, UI switcher, `tenant_admin` role
+- 🧩 **Dynamic Forms** — UI generated from IDTA Submodel Templates
+- 📦 **DPP Lifecycle** — Draft → Edit → Publish → Archive with revision history
+- 🧱 **DPP Masters** — product-level masters with placeholders and `latest` alias
+- 🔁 **JSON Import** — one-shot import from released master templates
+- 🔗 **Catena-X Ready** — DTR publishing with optional EDC metadata
+- 📤 **Export** — AASX, JSON, QR, and GS1 Digital Link
 
 ---
 
@@ -58,7 +58,7 @@ docker exec dpp-backend alembic upgrade head
 | `publisher` | `publisher123` | publisher | Create/manage DPPs |
 | `viewer` | `viewer123` | viewer | View published DPPs |
 
-> `tenant_admin` is a tenant‑scoped role you can assign via tenant membership.
+> `tenant_admin` is a tenant-scoped role you can assign via tenant membership.
 
 ### Dockerized UI notes (Playwright/E2E)
 
@@ -73,78 +73,58 @@ the frontend switches to internal service URLs if they are provided:
 ### Dev convenience
 
 In **development** mode only, users who access the `default` tenant and are not yet
-members are auto‑added to that tenant with a role inferred from their realm roles
+members are auto-added to that tenant with a role inferred from their realm roles
 (`publisher` → tenant publisher, otherwise viewer).
 
 ---
 
-## 🧭 Walkthroughs (Visual Storyboards)
+## 🧭 Walkthrough
 
-### 🧭 Multi‑Tenant Walkthrough (Docker Demo)
+### Multi-tenant Demo (Docker)
 
-This walkthrough uses **two tenants** (`alpha` and `beta`). Create tenants as `admin`,
-assign the `publisher` to `alpha`, then build a tenant‑scoped DPP.
+Create two tenants (`alpha` and `beta`) as admin, assign publisher to `alpha`, then build a tenant-scoped DPP.
 
-**Step 1:** Login page
-![Multi‑tenant demo login page](docs/storyboard/01-login.png)
+<details>
+<summary>View all steps (11 screenshots)</summary>
 
-**Step 2:** Authenticate with Keycloak
-![Keycloak sign‑in](docs/storyboard/02-keycloak-login.png)
+| Step | Screenshot |
+|------|------------|
+| 1. Login page | ![Login](docs/storyboard/01-login.png) |
+| 2. Keycloak sign-in | ![Keycloak](docs/storyboard/02-keycloak-login.png) |
+| 3. Admin dashboard | ![Dashboard](docs/storyboard/03-admin-dashboard.png) |
+| 4. Tenants list | ![Tenants](docs/storyboard/04-tenants-list.png) |
+| 5. Create tenants | ![Create tenant](docs/storyboard/05-create-tenant.png) |
+| 6. Add publisher to `alpha` (use OIDC sub) | ![Add member](docs/storyboard/06-tenant-members.png) |
+| 7. Switch to `alpha` as publisher | ![Switcher](docs/storyboard/07-publisher-tenant-switcher.png) |
+| 8. Create DPP in `alpha` | ![Create DPP](docs/storyboard/08-create-dpp.png) |
+| 9. DPP list for `alpha` | ![Alpha DPPs](docs/storyboard/09-dpp-list-alpha.png) |
+| 10. `beta` is empty | ![Beta empty](docs/storyboard/10-dpp-list-beta-empty.png) |
+| 11. Viewer route (`/t/alpha/dpp/{id}`) | ![Viewer](docs/storyboard/11-viewer-route.png) |
 
-**Step 3:** Admin dashboard
-![Admin dashboard](docs/storyboard/03-admin-dashboard.png)
-
-**Step 4:** Open Tenants
-![Tenants list](docs/storyboard/04-tenants-list.png)
-
-**Step 5:** Create `alpha` and `beta`
-![Create tenant modal](docs/storyboard/05-create-tenant.png)
-
-**Step 6:** Add publisher membership to `alpha`
-Use the **publisher user subject (OIDC sub)** when adding members.
-![Add tenant member](docs/storyboard/06-tenant-members.png)
-
-**Step 7:** Switch to `alpha` as publisher
-![Tenant switcher](docs/storyboard/07-publisher-tenant-switcher.png)
-
-**Step 8:** Create a DPP in `alpha`
-![Create DPP modal](docs/storyboard/08-create-dpp.png)
-
-**Step 9:** Verify tenant‑scoped list (`alpha`)
-![DPP list for alpha](docs/storyboard/09-dpp-list-alpha.png)
-
-**Step 10:** Confirm `beta` is empty
-![DPP list for beta](docs/storyboard/10-dpp-list-beta-empty.png)
-
-**Step 11:** Open tenant viewer route
-Example route: `/t/alpha/dpp/{dpp_id}`
-![Viewer route](docs/storyboard/11-viewer-route.png)
+</details>
 
 ---
 
-### 🧩 Template‑Driven Editor (Dynamic Forms)
+### Dynamic Forms Demo
 
-Templates generate the UI. Select multiple templates, create a DPP, and edit each
-submodel with its own dynamic form.
+Templates generate the UI. Select templates, create a DPP, and edit each submodel with its generated form.
 
-**Step 12:** Select templates during DPP creation
-![Template selection modal](docs/storyboard/12-template-selection.png)
+<details>
+<summary>View all steps (5 screenshots)</summary>
 
-**Step 13:** DPP created in the list
-![DPP list with new draft](docs/storyboard/13-dpp-list-new.png)
+| Step | Screenshot |
+|------|------------|
+| 12. Select templates | ![Template selection](docs/storyboard/12-template-selection.png) |
+| 13. DPP in list | ![DPP list](docs/storyboard/13-dpp-list-new.png) |
+| 14. Submodel edit links | ![Edit links](docs/storyboard/14-dpp-submodels-edit.png) |
+| 15. Carbon Footprint form | ![Carbon form](docs/storyboard/15-carbon-footprint-form.png) |
+| 16. Nameplate form | ![Nameplate form](docs/storyboard/16-nameplate-form.png) |
 
-**Step 14:** Submodels with per‑template edit links
-![DPP detail with edit links](docs/storyboard/14-dpp-submodels-edit.png)
-
-**Step 15:** Carbon Footprint form (lists + nested sections)
-![Carbon footprint dynamic form](docs/storyboard/15-carbon-footprint-form.png)
-
-**Step 16:** Nameplate form (multi‑language + file inputs)
-![Nameplate dynamic form](docs/storyboard/16-nameplate-form.png)
+</details>
 
 ---
 
-### 🔧 Admin Walkthrough: Global Asset ID Prefix
+### Admin: Global Asset ID Prefix
 
 Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/asset/*`).
 
@@ -159,7 +139,7 @@ Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/ass
 
 ---
 
-### 📦 Data Carriers (QR / GS1 Digital Link)
+### Data Carriers (QR / GS1 Digital Link)
 
 ![Data Carriers page](docs/images/data_carriers.png)
 
@@ -169,14 +149,14 @@ Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/ass
 
 ---
 
-## 🧠 How Template‑Driven Forms Work
+## 🧠 How Dynamic Forms Work
 
-- Templates are fetched from the **IDTA Submodel Template repository** and cached.
-- The backend parses templates via **BaSyx SDK**, generating:
-  - a **definition AST** (submodel tree)
-  - a **JSON schema** for UI rendering
-- The frontend renders each submodel dynamically and enforces SMT qualifiers
-  (cardinality, allowed ranges, read‑only, required languages, etc.).
+- Templates are fetched from the **IDTA Submodel Template repository** and cached
+- The backend parses templates and generates:
+  - A **definition tree** (submodel structure)
+  - A **JSON schema** for UI rendering
+- The frontend renders each submodel dynamically and enforces template qualifiers
+  (cardinality, allowed ranges, read-only, required languages, etc.)
 
 ---
 
@@ -200,7 +180,7 @@ curl -X POST "http://localhost:8000/api/v1/templates/refresh" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-### Create a DPP (tenant‑scoped)
+### Create a DPP
 
 > Tenant APIs use `/api/v1/tenants/{tenant}`. Default tenant: `default`.
 
@@ -251,8 +231,7 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_pr
 > If placeholders are still present or required values are missing, the API
 > returns `422` with a structured `errors` array (code, name, path).
 
-> The UI now includes a “Import from Master Template” panel to load a released master,
-> fill placeholders, and import a serialized DPP without additional UI in the source system.
+> The UI includes an import panel to load a released master and fill placeholders.
 
 ### Publish a DPP
 
@@ -324,7 +303,7 @@ RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=htt
 |--------|----------|-------------|
 | GET | `/api/v1/templates` | List templates |
 | GET | `/api/v1/templates/{key}` | Template metadata |
-| GET | `/api/v1/templates/{key}/definition` | Template definition AST |
+| GET | `/api/v1/templates/{key}/definition` | Template definition |
 | GET | `/api/v1/templates/{key}/schema` | Template UI schema |
 | POST | `/api/v1/templates/refresh` | Refresh all templates |
 | POST | `/api/v1/templates/refresh/{key}` | Refresh a single template |
@@ -441,9 +420,3 @@ This platform is aligned with:
 ## 📄 License
 
 MIT License — see [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  <strong>Built for the circular economy 🌱</strong>
-</p>
