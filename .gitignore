@@ -30,6 +30,9 @@ node_modules/
 # Local Codex skills
 skills/code-nerd/
 
+# Codex
+.codex/
+
 # Testing
 .coverage
 htmlcov/
