@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 type TemplateDescriptor = {
@@ -160,10 +161,11 @@ export default function DPPEditorPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const [tenantSlug] = useTenantSlug();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: dpp, isLoading } = useQuery({
-    queryKey: ['dpp', dppId],
+    queryKey: ['dpp', tenantSlug, dppId],
     queryFn: () => fetchDPP(dppId!, token),
     enabled: !!dppId,
   });
@@ -176,7 +178,7 @@ export default function DPPEditorPage() {
   const publishMutation = useMutation({
     mutationFn: () => publishDPP(dppId!, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
+      queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
     },
   });
 
@@ -187,14 +189,19 @@ export default function DPPEditorPage() {
   const refreshRebuildMutation = useMutation({
     mutationFn: async () => {
       if (!dppId) return;
-      await refreshTemplates(token);
+      const refreshed = await refreshTemplates(token);
+      const refreshedTemplates = Array.isArray(refreshed?.templates)
+        ? (refreshed.templates as TemplateDescriptor[])
+        : [];
+      const templatesForRebuild =
+        refreshedTemplates.length > 0 ? refreshedTemplates : availableTemplates;
 
       const submodels = dpp?.aas_environment?.submodels || [];
       const seen = new Set<string>();
       const rebuildTasks: Promise<unknown>[] = [];
 
       for (const submodel of submodels) {
-        const templateKey = resolveTemplateKey(submodel, availableTemplates);
+        const templateKey = resolveTemplateKey(submodel, templatesForRebuild);
         if (!templateKey || seen.has(templateKey)) continue;
         seen.add(templateKey);
         const data = buildSubmodelData(submodel);
@@ -206,7 +213,7 @@ export default function DPPEditorPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
+      queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
       queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
   });

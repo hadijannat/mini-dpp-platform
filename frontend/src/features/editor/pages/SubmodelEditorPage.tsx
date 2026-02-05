@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 
 type TemplateResponse = {
@@ -514,10 +515,11 @@ export default function SubmodelEditorPage() {
   const navigate = useNavigate();
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const [tenantSlug] = useTenantSlug();
   const queryClient = useQueryClient();
 
   const { data: dpp, isLoading: loadingDpp } = useQuery({
-    queryKey: ['dpp', dppId],
+    queryKey: ['dpp', tenantSlug, dppId],
     queryFn: () => fetchDpp(dppId!, token),
     enabled: !!dppId,
   });
@@ -535,7 +537,7 @@ export default function SubmodelEditorPage() {
   });
 
   const { data: definition, isLoading: loadingDefinition } = useQuery<SubmodelDefinitionResponse>({
-    queryKey: ['submodel-definition', dppId, templateKey],
+    queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
     queryFn: () => fetchSubmodelDefinition(dppId!, templateKey!, token),
     enabled: !!templateKey && !!dppId,
   });
@@ -578,8 +580,10 @@ export default function SubmodelEditorPage() {
         payload.rebuildFromTemplate ?? false,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dpp', dppId] });
-      queryClient.invalidateQueries({ queryKey: ['submodel-definition', dppId, templateKey] });
+      queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
+      queryClient.invalidateQueries({
+        queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
+      });
       navigate(`/console/dpps/${dppId}`);
     },
   });

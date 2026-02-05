@@ -363,7 +363,9 @@ export default function DPPListPage() {
           </div>
           <button
             type="button"
-            onClick={() => { void queryClient.invalidateQueries({ queryKey: ['masters'] }); }}
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
+            }}
             className="inline-flex items-center text-xs text-gray-500 hover:text-gray-700"
           >
             <RefreshCcw className="h-3 w-3 mr-1" />
