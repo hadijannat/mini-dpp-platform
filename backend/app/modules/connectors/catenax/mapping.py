@@ -3,6 +3,7 @@ Mapping utilities for converting DPP data to Catena-X DTR descriptor format.
 """
 
 from typing import Any
+from urllib.parse import quote
 
 from app.core.config import get_settings
 from app.db.models import DPP, DPPRevision
@@ -75,7 +76,8 @@ def build_shell_descriptor(
 
         # Build endpoint URL
         # Catena-X requires $value serialization
-        endpoint_url = f"{submodel_base_url}/submodels/{submodel_id}/$value"
+        encoded_submodel_id = quote(str(submodel_id), safe="")
+        endpoint_url = f"{submodel_base_url}/submodels/{encoded_submodel_id}/$value"
 
         descriptor: dict[str, Any] = {
             "id": submodel_id,
@@ -107,7 +109,7 @@ def build_shell_descriptor(
             descriptor["endpoints"][0]["protocolInformation"].update(
                 {
                     "subprotocol": "DSP",
-                    "subprotocolBody": f"id={submodel_id};dspEndpoint={edc_dsp_endpoint}",
+                    "subprotocolBody": f"id={encoded_submodel_id};dspEndpoint={edc_dsp_endpoint}",
                     "subprotocolBodyEncoding": "plain",
                 }
             )

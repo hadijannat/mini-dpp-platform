@@ -61,9 +61,32 @@ class DTRClient:
         self._http_client: httpx.AsyncClient | None = None
         self._access_token: str | None = None
 
+    def _validate_config(self) -> None:
+        base_url = (self._config.base_url or "").strip()
+        if not base_url:
+            raise ValueError("DTR base URL is required")
+        normalized_base_url = base_url.rstrip("/")
+        if normalized_base_url != self._config.base_url:
+            self._config.base_url = normalized_base_url
+
+        auth_type = (self._config.auth_type or "").strip().lower()
+        if auth_type not in ("oidc", "token"):
+            raise ValueError("DTR auth_type must be 'oidc' or 'token'")
+        self._config.auth_type = auth_type
+
+        if auth_type == "token":
+            token = (self._config.token or "").strip()
+            if not token:
+                raise ValueError("DTR token is required for token auth")
+            self._config.token = token
+        else:
+            if not self._config.client_id or not self._config.client_secret:
+                raise ValueError("DTR client_id and client_secret are required for oidc auth")
+
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create authenticated HTTP client."""
         if self._http_client is None:
+            self._validate_config()
             headers = await self._get_auth_headers()
             self._http_client = httpx.AsyncClient(
                 base_url=self._config.base_url,
@@ -82,7 +105,7 @@ class DTRClient:
             token = await self._obtain_oidc_token()
             return {"Authorization": f"Bearer {token}"}
 
-        return {}
+        raise ValueError("Unsupported DTR auth type")
 
     async def _obtain_oidc_token(self) -> str:
         """Obtain OIDC token via client credentials flow."""

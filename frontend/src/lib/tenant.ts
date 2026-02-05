@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 const STORAGE_KEY = 'dpp.tenantSlug';
 const DEFAULT_TENANT = import.meta.env.VITE_DEFAULT_TENANT ?? 'default';
@@ -19,10 +19,11 @@ export function setTenantSlug(slug: string): void {
 
 export function useTenantSlug(): [string, (slug: string) => void] {
   const [tenantSlug, setTenantSlugState] = useState<string>(getTenantSlug());
+  const updateTenantSlug = (slug: string) => {
+    const normalized = slug.trim().toLowerCase();
+    setTenantSlugState(normalized);
+    setTenantSlug(normalized);
+  };
 
-  useEffect(() => {
-    setTenantSlug(tenantSlug);
-  }, [tenantSlug]);
-
-  return [tenantSlug, setTenantSlugState];
+  return [tenantSlug, updateTenantSlug];
 }

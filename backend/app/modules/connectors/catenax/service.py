@@ -125,22 +125,23 @@ class CatenaXConnectorService:
 
         try:
             result = await client.test_connection()
-
-            # Update connector status
-            connector.last_tested_at = datetime.now(UTC)
-            connector.last_test_result = result
-
-            if result.get("status") == "connected":
-                connector.status = ConnectorStatus.ACTIVE
-            else:
-                connector.status = ConnectorStatus.ERROR
-
-            await self._session.flush()
-
-            return result
-
+        except ValueError as exc:
+            result = {"status": "error", "error_message": str(exc)}
         finally:
             await client.close()
+
+        # Update connector status
+        connector.last_tested_at = datetime.now(UTC)
+        connector.last_test_result = result
+
+        if result.get("status") == "connected":
+            connector.status = ConnectorStatus.ACTIVE
+        else:
+            connector.status = ConnectorStatus.ERROR
+
+        await self._session.flush()
+
+        return result
 
     async def publish_dpp_to_dtr(
         self,

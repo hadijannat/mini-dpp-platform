@@ -10,6 +10,7 @@ Supports:
 
 import io
 from typing import Literal
+from urllib.parse import quote
 
 import qrcode  # type: ignore[import-untyped]
 from PIL import Image, ImageDraw, ImageFont
@@ -266,17 +267,26 @@ class QRCodeService:
         base_url = resolver_url or getattr(
             self._settings, "gs1_resolver_url", self.DEFAULT_GS1_RESOLVER
         )
+        base_url = base_url.rstrip("/")
 
         # Clean GTIN (remove any non-digits)
         clean_gtin = "".join(filter(str.isdigit, gtin))
+        if not clean_gtin:
+            raise ValueError("GTIN is required for GS1 Digital Link")
+        serial_value = str(serial).strip()
+        if not serial_value:
+            raise ValueError("Serial number is required for GS1 Digital Link")
 
         # Pad GTIN to 14 digits if needed
         if len(clean_gtin) < 14:
             clean_gtin = clean_gtin.zfill(14)
 
+        encoded_gtin = quote(clean_gtin, safe="")
+        encoded_serial = quote(serial_value, safe="")
+
         # Build GS1 Digital Link
         # Format: https://id.gs1.org/01/{GTIN}/21/{serial}
-        return f"{base_url}/01/{clean_gtin}/21/{serial}"
+        return f"{base_url}/01/{encoded_gtin}/21/{encoded_serial}"
 
     def extract_gtin_from_asset_ids(self, asset_ids: dict[str, str]) -> tuple[str, str]:
         """

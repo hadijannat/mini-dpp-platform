@@ -4,7 +4,11 @@ import { Navigate, useLocation } from 'react-router-dom';
 export default function LoginPage() {
   const auth = useAuth();
   const location = useLocation();
-  const from = (location.state as any)?.from?.pathname || '/console';
+  const fromState = (location.state as any)?.from;
+  const from =
+    fromState?.pathname || fromState?.search || fromState?.hash
+      ? `${fromState?.pathname ?? ''}${fromState?.search ?? ''}${fromState?.hash ?? ''}`
+      : '/console';
 
   if (auth.isAuthenticated) {
     return <Navigate to={from} replace />;

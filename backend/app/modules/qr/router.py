@@ -146,7 +146,13 @@ async def generate_carrier(
     if request.format == CarrierFormat.GS1_QR:
         # Use GS1 Digital Link format
         gtin, serial = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
-        carrier_url = qr_service.build_gs1_digital_link(gtin, serial)
+        try:
+            carrier_url = qr_service.build_gs1_digital_link(gtin, serial)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(e),
+            ) from e
     else:
         # Standard DPP viewer URL
         carrier_url = qr_service.build_dpp_url(
@@ -232,7 +238,13 @@ async def get_gs1_digital_link(
 
     # Build GS1 Digital Link
     resolver_url = qr_service.DEFAULT_GS1_RESOLVER
-    digital_link = qr_service.build_gs1_digital_link(gtin, serial, resolver_url)
+    try:
+        digital_link = qr_service.build_gs1_digital_link(gtin, serial, resolver_url)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e),
+        ) from e
 
     return GS1DigitalLinkResponse(
         dpp_id=dpp_id,

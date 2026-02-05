@@ -113,11 +113,14 @@ function renderTemplateString(
 ) {
   let rendered = template;
   variables.forEach((variable) => {
+    const rawValue = values[variable.name];
+    const hasValue = rawValue !== undefined && rawValue !== null && rawValue !== '';
     const candidate =
-      values[variable.name] ||
-      (variable.allow_default && variable.default_value != null
-        ? String(variable.default_value)
-        : '');
+      hasValue
+        ? rawValue
+        : variable.allow_default && variable.default_value != null
+          ? String(variable.default_value)
+          : '';
     const regex = new RegExp(`\\{\\{\\s*${escapeRegExp(variable.name)}\\s*\\}\\}`, 'g');
     rendered = rendered.replace(regex, candidate);
   });
@@ -296,7 +299,9 @@ export default function DPPListPage() {
     importTemplate?.variables?.filter(
       (variable) =>
         variable.required &&
-        !importValues[variable.name] &&
+        (importValues[variable.name] === undefined ||
+          importValues[variable.name] === null ||
+          importValues[variable.name] === '') &&
         !(variable.allow_default && variable.default_value != null)
     ) ?? [];
   const unresolvedPlaceholders = importTemplate

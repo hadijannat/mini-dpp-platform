@@ -274,6 +274,7 @@ class DPPService:
         # Validate slug format (8 hex characters)
         if not slug or len(slug) != 8:
             return None
+        slug = slug.lower()
         try:
             int(slug, 16)  # Validate hex
         except ValueError:
