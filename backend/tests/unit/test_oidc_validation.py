@@ -116,6 +116,7 @@ async def test_token_without_azp_accepted(mock_signing_key, valid_payload, monke
 
     # Remove azp from payload
     del valid_payload["azp"]
+    valid_payload["aud"] = "dpp-backend"
 
     with (
         patch("app.core.security.oidc._jwks_client") as mock_jwks,
@@ -130,6 +131,31 @@ async def test_token_without_azp_accepted(mock_signing_key, valid_payload, monke
 
         # Should succeed without azp
         assert result.sub == "test-user-123"
+
+
+@pytest.mark.asyncio
+async def test_token_without_azp_or_aud_rejected(mock_signing_key, valid_payload, monkeypatch):
+    """Token without azp or aud should be rejected when client IDs are enforced."""
+    monkeypatch.setenv("KEYCLOAK_CLIENT_ID", "dpp-backend")
+    get_settings.cache_clear()
+
+    del valid_payload["azp"]
+    valid_payload.pop("aud", None)
+
+    with (
+        patch("app.core.security.oidc._jwks_client") as mock_jwks,
+        patch("app.core.security.oidc.jwt.decode") as mock_decode,
+        patch("app.core.security.oidc.jwt.get_unverified_header") as mock_header,
+    ):
+        mock_header.return_value = {"kid": "test-key-id"}
+        mock_jwks.get_signing_key = AsyncMock(return_value=mock_signing_key)
+        mock_decode.return_value = valid_payload
+
+        with pytest.raises(HTTPException) as exc:
+            await _decode_token("no.azp.or.aud.token")
+
+        assert exc.value.status_code == 401
+        assert "Token not authorized for this client" in exc.value.detail
 
 
 @pytest.mark.asyncio
