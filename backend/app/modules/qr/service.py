@@ -264,8 +264,10 @@ class QRCodeService:
         Returns:
             GS1 Digital Link URL
         """
-        base_url = resolver_url or getattr(
-            self._settings, "gs1_resolver_url", self.DEFAULT_GS1_RESOLVER
+        base_url = str(
+            resolver_url
+            or getattr(self._settings, "gs1_resolver_url", None)
+            or self.DEFAULT_GS1_RESOLVER
         )
         base_url = base_url.rstrip("/")
 
