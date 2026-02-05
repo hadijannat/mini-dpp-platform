@@ -30,6 +30,21 @@ TEST_DATABASE_URL = (
 )
 
 
+@pytest.fixture(autouse=True)
+def ensure_test_allowed_issuers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure test env accepts both localhost Keycloak issuers."""
+    allowed = os.getenv("KEYCLOAK_ALLOWED_ISSUERS", "")
+    issuers = [item.strip() for item in allowed.split(",") if item.strip()]
+    for issuer in (
+        "http://localhost:8080/realms/dpp-platform",
+        "http://localhost:8081/realms/dpp-platform",
+    ):
+        if issuer not in issuers:
+            issuers.append(issuer)
+    monkeypatch.setenv("KEYCLOAK_ALLOWED_ISSUERS", ",".join(issuers))
+    get_settings.cache_clear()
+
+
 @pytest_asyncio.fixture
 async def test_engine():
     """Create test database engine."""
