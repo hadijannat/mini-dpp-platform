@@ -16,9 +16,12 @@ const queryClient = new QueryClient({
 });
 
 const internalKeycloakUrl = import.meta.env.VITE_KEYCLOAK_URL_INTERNAL;
-const internalHostnames = new Set(['dpp-frontend', 'frontend']);
+const useInternalKeycloak =
+  import.meta.env.VITE_USE_INTERNAL_KEYCLOAK === 'true' ||
+  (import.meta.env.VITE_USE_INTERNAL_KEYCLOAK === undefined &&
+    new Set(['dpp-frontend', 'frontend']).has(window.location.hostname));
 const resolvedKeycloakUrl =
-  internalKeycloakUrl && internalHostnames.has(window.location.hostname)
+  internalKeycloakUrl && useInternalKeycloak
     ? internalKeycloakUrl
     : import.meta.env.VITE_KEYCLOAK_URL;
 

@@ -56,8 +56,31 @@ async def test_token_with_correct_azp_accepted(mock_signing_key, valid_payload, 
 
         result = await _decode_token("valid.jwt.token")
 
+    assert result.sub == "test-user-123"
+    assert result.email == "test@example.com"
+
+
+@pytest.mark.asyncio
+async def test_token_with_allowed_azp_accepted(mock_signing_key, valid_payload, monkeypatch):
+    """Token with azp in allowed list should be accepted."""
+    monkeypatch.setenv("KEYCLOAK_CLIENT_ID", "dpp-backend")
+    monkeypatch.setenv("KEYCLOAK_ALLOWED_CLIENT_IDS", "dpp-frontend")
+    get_settings.cache_clear()
+
+    valid_payload["azp"] = "dpp-frontend"
+
+    with (
+        patch("app.core.security.oidc._jwks_client") as mock_jwks,
+        patch("app.core.security.oidc.jwt.decode") as mock_decode,
+        patch("app.core.security.oidc.jwt.get_unverified_header") as mock_header,
+    ):
+        mock_header.return_value = {"kid": "test-key-id"}
+        mock_jwks.get_signing_key = AsyncMock(return_value=mock_signing_key)
+        mock_decode.return_value = valid_payload
+
+        result = await _decode_token("allowed.azp.token")
+
         assert result.sub == "test-user-123"
-        assert result.email == "test@example.com"
 
 
 @pytest.mark.asyncio

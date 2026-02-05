@@ -6,6 +6,15 @@ import future.keywords.if
 import future.keywords.in
 import future.keywords.contains
 
+# Tenant isolation helper: allow when resource is unscoped or tenant matches
+tenant_match if {
+    not input.resource.tenant_id
+}
+
+tenant_match if {
+    input.resource.tenant_id == input.subject.tenant_id
+}
+
 # Default deny
 default decision := {
     "effect": "deny",
@@ -21,7 +30,7 @@ decision := {
 }
 
 # Tenant admin override within tenant boundary
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "tenant-admin-override"
 } if {
@@ -30,21 +39,12 @@ decision := {
     tenant_match
 }
 
-# Tenant isolation helper: allow when resource is unscoped or tenant matches
-tenant_match if {
-    not input.resource.tenant_id
-}
-
-tenant_match if {
-    input.resource.tenant_id == input.subject.tenant_id
-}
-
 # =============================================================================
 # Route-Level Policies
 # =============================================================================
 
 # Publishers can access all publisher routes
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "route-publisher-access"
 } if {
@@ -56,7 +56,7 @@ decision := {
 }
 
 # Viewers can access viewer routes
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "route-viewer-access"
 } if {
@@ -67,7 +67,7 @@ decision := {
 }
 
 # Deny viewer access to publisher routes
-decision := {
+else := {
     "effect": "deny",
     "reason": "Publisher role required",
     "policy_id": "route-publisher-deny"
@@ -84,7 +84,7 @@ decision := {
 # =============================================================================
 
 # Publishers can create DPPs
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-create"
 } if {
@@ -96,7 +96,7 @@ decision := {
 }
 
 # Owners can edit their own DPPs
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-edit-owner"
 } if {
@@ -109,7 +109,7 @@ decision := {
 }
 
 # Viewers can only read published DPPs
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-read-published"
 } if {
@@ -121,7 +121,7 @@ decision := {
 }
 
 # Publishers can read their own drafts
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-read-own-draft"
 } if {
@@ -139,7 +139,7 @@ decision := {
 # =============================================================================
 
 # Anyone in tenant can list published DPPs
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-list-published"
 } if {
@@ -151,7 +151,7 @@ decision := {
 }
 
 # Publishers can list their own drafts
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "dpp-list-own-draft"
 } if {
@@ -169,7 +169,7 @@ decision := {
 # =============================================================================
 
 # All authenticated users can read templates
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "template-read"
 } if {
@@ -180,7 +180,7 @@ decision := {
 }
 
 # Publishers can refresh templates
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "template-refresh"
 } if {
@@ -192,7 +192,7 @@ decision := {
 }
 
 # Deny template refresh for non-publishers
-decision := {
+else := {
     "effect": "deny",
     "reason": "Publisher role required",
     "policy_id": "template-refresh-deny"
@@ -209,7 +209,7 @@ decision := {
 # =============================================================================
 
 # Tenant members can read master templates
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "master-read"
 } if {
@@ -220,7 +220,7 @@ decision := {
 }
 
 # Publishers can create/update/release master templates
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "master-write"
 } if {
@@ -236,7 +236,7 @@ decision := {
 # =============================================================================
 
 # Public elements are always visible
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "element-public"
 } if {
@@ -248,7 +248,7 @@ decision := {
 }
 
 # Internal elements are masked for viewers
-decision := {
+else := {
     "effect": "mask",
     "masked_value": "[INTERNAL]",
     "policy_id": "element-internal-mask"
@@ -262,7 +262,7 @@ decision := {
 }
 
 # Internal elements visible to publishers
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "element-internal-publisher"
 } if {
@@ -275,7 +275,7 @@ decision := {
 }
 
 # Confidential elements are hidden from viewers
-decision := {
+else := {
     "effect": "hide",
     "policy_id": "element-confidential-hide"
 } if {
@@ -288,7 +288,7 @@ decision := {
 }
 
 # Confidential elements visible to publishers with clearance
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "element-confidential-cleared"
 } if {
@@ -302,7 +302,7 @@ decision := {
 }
 
 # Encrypted elements require explicit decrypt authorization
-decision := {
+else := {
     "effect": "decrypt",
     "policy_id": "element-encrypted-authorized"
 } if {
@@ -320,7 +320,7 @@ decision := {
 # =============================================================================
 
 # Publishers can read connectors
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "connector-read"
 } if {
@@ -332,7 +332,7 @@ decision := {
 }
 
 # Publishers can manage connectors
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "connector-manage"
 } if {
@@ -344,7 +344,7 @@ decision := {
 }
 
 # Only owners can publish to connectors
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "connector-publish"
 } if {
@@ -361,7 +361,7 @@ decision := {
 # =============================================================================
 
 # Publishers can export any format for their own DPPs
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "export-owner"
 } if {
@@ -374,7 +374,7 @@ decision := {
 }
 
 # Viewers can export published DPPs in limited formats
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "export-viewer-published"
 } if {
@@ -388,7 +388,7 @@ decision := {
 }
 
 # AASX export only for publishers
-decision := {
+else := {
     "effect": "deny",
     "reason": "AASX export requires publisher role",
     "policy_id": "export-aasx-deny"
@@ -405,7 +405,7 @@ decision := {
 # =============================================================================
 
 # Same BPN can access shared resources
-decision := {
+else := {
     "effect": "allow",
     "policy_id": "bpn-shared-access"
 } if {

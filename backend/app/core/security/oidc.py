@@ -165,10 +165,11 @@ async def _decode_token(token: str) -> TokenPayload:
         # Validate authorized party (azp) claim if present
         # This ensures tokens are only accepted if issued for this specific client
         token_azp = payload.get("azp")
-        if token_azp and token_azp != settings.keycloak_client_id:
+        allowed_client_ids = set(settings.keycloak_allowed_client_ids_all)
+        if token_azp and allowed_client_ids and token_azp not in allowed_client_ids:
             logger.warning(
                 "token_azp_mismatch",
-                expected=settings.keycloak_client_id,
+                expected=list(allowed_client_ids),
                 actual=token_azp,
             )
             raise HTTPException(
@@ -185,8 +186,10 @@ async def _decode_token(token: str) -> TokenPayload:
 
         # Resource roles (client-specific)
         if "resource_access" in payload:
-            client_access = payload["resource_access"].get(settings.keycloak_client_id, {})
-            roles.extend(client_access.get("roles", []))
+            resource_access = payload["resource_access"]
+            for client_id in settings.keycloak_allowed_client_ids_all:
+                client_access = resource_access.get(client_id, {})
+                roles.extend(client_access.get("roles", []))
 
         # Flat roles claim (some configurations)
         if "roles" in payload:

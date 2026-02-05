@@ -158,6 +158,7 @@ services:
       - KEYCLOAK_REALM=dpp-platform
       - KEYCLOAK_CLIENT_ID=dpp-backend
       - KEYCLOAK_CLIENT_SECRET=backend-secret-dev
+      - KEYCLOAK_ALLOWED_CLIENT_IDS=${KEYCLOAK_ALLOWED_CLIENT_IDS:-dpp-backend,dpp-frontend}
       - KEYCLOAK_ISSUER_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform
       - KEYCLOAK_JWKS_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform/protocol/openid-connect/certs
       - KEYCLOAK_ALLOWED_ISSUERS=http://localhost:${KEYCLOAK_HOST_PORT:-8080}/realms/dpp-platform

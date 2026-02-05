@@ -65,6 +65,13 @@ class Settings(BaseSettings):
     keycloak_realm: str = Field(default="dpp-platform")
     keycloak_client_id: str = Field(default="dpp-backend")
     keycloak_client_secret: str = Field(default="")
+    keycloak_allowed_client_ids: str | None = Field(
+        default=None,
+        description=(
+            "Optional list of additional client IDs accepted for token validation. "
+            "Supports comma-separated values or a JSON array string."
+        ),
+    )
     keycloak_issuer_url_override: str | None = Field(
         default=None,
         description="Override issuer URL when Keycloak is accessed via a different hostname",
@@ -102,6 +109,17 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
+    def keycloak_allowed_client_ids_all(self) -> list[str]:
+        """All allowed client IDs for azp validation."""
+        clients = [self.keycloak_client_id, *self._parse_allowed_client_ids()]
+        deduped: list[str] = []
+        for client_id in clients:
+            if client_id and client_id not in deduped:
+                deduped.append(client_id)
+        return deduped
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def keycloak_jwks_url(self) -> str:
         """Construct the JWKS endpoint URL for token verification."""
         if self.keycloak_jwks_url_override:
@@ -110,6 +128,22 @@ class Settings(BaseSettings):
 
     def _parse_allowed_issuers(self) -> list[str]:
         raw = self.keycloak_allowed_issuers
+        if raw is None:
+            return []
+        raw = raw.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in raw.split(",") if item.strip()]
+
+    def _parse_allowed_client_ids(self) -> list[str]:
+        raw = self.keycloak_allowed_client_ids
         if raw is None:
             return []
         raw = raw.strip()
