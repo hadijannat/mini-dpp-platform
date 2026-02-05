@@ -83,6 +83,7 @@ export default function TenantsPage() {
   const { data: tenantsData, isLoading, error } = useQuery({
     queryKey: ['tenants'],
     queryFn: () => fetchTenants(token),
+    enabled: Boolean(token),
   });
 
   const createMutation = useMutation({
@@ -96,7 +97,7 @@ export default function TenantsPage() {
   const membersQuery = useQuery({
     queryKey: ['tenant-members', selectedTenant?.slug],
     queryFn: () => fetchMembers(selectedTenant!.slug, token),
-    enabled: !!selectedTenant?.slug,
+    enabled: Boolean(token && selectedTenant?.slug),
   });
 
   const addMemberMutation = useMutation({

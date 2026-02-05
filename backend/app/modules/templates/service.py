@@ -60,13 +60,6 @@ class TemplateRegistryService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._settings = get_settings()
-        self._http_client: httpx.AsyncClient | None = None
-
-    async def _get_http_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client for template fetching."""
-        if self._http_client is None:
-            self._http_client = httpx.AsyncClient(timeout=30.0)
-        return self._http_client
 
     async def get_all_templates(self) -> list[Template]:
         """
@@ -134,65 +127,64 @@ class TemplateRegistryService:
         template_aasx: bytes | None = None
         source_url: str | None = None
 
-        client = await self._get_http_client()
-
-        if json_url:
-            try:
-                response = await client.get(json_url)
-                response.raise_for_status()
-                payload = response.json()
-                aas_env_json = self._normalize_template_json(payload, template_key)
-                source_url = json_url
-                if not aas_env_json.get("submodels"):
-                    logger.warning(
-                        "template_empty_submodels",
-                        template_key=template_key,
-                        version=version,
-                        source_url=json_url,
-                    )
-                    aas_env_json = None
-            except Exception as e:
-                logger.warning(
-                    "template_json_fetch_failed",
-                    template_key=template_key,
-                    version=version,
-                    source_url=json_url,
-                    error=str(e),
-                )
-
-        if aas_env_json is None and aasx_url:
-            try:
-                response = await client.get(aasx_url)
-                response.raise_for_status()
-                template_aasx = response.content
-                if not self._is_valid_aasx(template_aasx):
-                    logger.warning(
-                        "template_aasx_invalid_format",
-                        template_key=template_key,
-                        version=version,
-                        source_url=aasx_url,
-                        content_length=len(template_aasx),
-                    )
-                    template_aasx = None
-                else:
-                    aas_env_json = self._extract_aas_environment(template_aasx)
-                    source_url = aasx_url
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if json_url:
+                try:
+                    response = await client.get(json_url)
+                    response.raise_for_status()
+                    payload = response.json()
+                    aas_env_json = self._normalize_template_json(payload, template_key)
+                    source_url = json_url
                     if not aas_env_json.get("submodels"):
                         logger.warning(
                             "template_empty_submodels",
                             template_key=template_key,
                             version=version,
-                            source_url=aasx_url,
+                            source_url=json_url,
                         )
                         aas_env_json = None
-            except Exception as e:
-                logger.warning(
-                    "template_aasx_fetch_failed",
-                    template_key=template_key,
-                    version=version,
-                    source_url=aasx_url,
-                    error=str(e),
-                )
+                except Exception as e:
+                    logger.warning(
+                        "template_json_fetch_failed",
+                        template_key=template_key,
+                        version=version,
+                        source_url=json_url,
+                        error=str(e),
+                    )
+
+            if aas_env_json is None and aasx_url:
+                try:
+                    response = await client.get(aasx_url)
+                    response.raise_for_status()
+                    template_aasx = response.content
+                    if not self._is_valid_aasx(template_aasx):
+                        logger.warning(
+                            "template_aasx_invalid_format",
+                            template_key=template_key,
+                            version=version,
+                            source_url=aasx_url,
+                            content_length=len(template_aasx),
+                        )
+                        template_aasx = None
+                    else:
+                        aas_env_json = self._extract_aas_environment(template_aasx)
+                        source_url = aasx_url
+                        if not aas_env_json.get("submodels"):
+                            logger.warning(
+                                "template_empty_submodels",
+                                template_key=template_key,
+                                version=version,
+                                source_url=aasx_url,
+                            )
+                            aas_env_json = None
+                except Exception as e:
+                    logger.warning(
+                        "template_aasx_fetch_failed",
+                        template_key=template_key,
+                        version=version,
+                        source_url=aasx_url,
+                        error=str(e),
+                    )
 
         if aas_env_json is None:
             logger.error(
@@ -398,10 +390,10 @@ class TemplateRegistryService:
         api_url = f"{api_base}/{folder_name}/{major}/{minor}/{patch}?ref={ref}"
 
         try:
-            client = await self._get_http_client()
-            response = await client.get(api_url, headers=self._github_headers())
-            response.raise_for_status()
-            payload = response.json()
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(api_url, headers=self._github_headers())
+                response.raise_for_status()
+                payload = response.json()
         except Exception as e:
             logger.warning(
                 "template_resolve_failed",

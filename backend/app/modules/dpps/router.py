@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, RootModel
 
 from app.core.identifiers import IdentifierValidationError
 from app.core.security import check_access, require_access
-from app.core.tenancy import TenantAdmin, TenantContextDep, TenantPublisher
+from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -28,6 +28,20 @@ def _dpp_resource(dpp: Any) -> dict[str, Any]:
         "owner_subject": dpp.owner_subject,
         "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
     }
+
+
+def _can_view_drafts(dpp: Any, tenant: TenantContext) -> bool:
+    return dpp.owner_subject == tenant.user.sub or tenant.is_publisher
+
+
+async def _resolve_revision(
+    service: DPPService,
+    dpp: Any,
+    tenant: TenantContext,
+) -> Any | None:
+    if dpp.status == DPPStatus.PUBLISHED and not _can_view_drafts(dpp, tenant):
+        return await service.get_published_revision(dpp.id, tenant.tenant_id)
+    return await service.get_latest_revision(dpp.id, tenant.tenant_id)
 
 
 class AssetIdsInput(BaseModel):
@@ -322,21 +336,30 @@ async def list_dpps(
     """
     service = DPPService(db)
 
-    # Fetch candidate DPPs for the tenant (fetch extra for ABAC filtering)
-    candidate_dpps = await service.get_dpps_for_tenant(
-        tenant_id=tenant.tenant_id,
-        status=status_filter,
-        limit=limit * 2,  # Fetch extra to account for filtering
-        offset=offset,
-    )
-
-    # Apply ABAC filtering
+    # Fetch candidate DPPs for the tenant in batches to account for ABAC filtering
     accessible_dpps: list[Any] = []
-    for dpp in candidate_dpps:
-        decision = await check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
-        if decision.is_allowed:
-            accessible_dpps.append(dpp)
-        if len(accessible_dpps) >= limit:
+    batch_size = limit
+    current_offset = offset
+
+    while len(accessible_dpps) < limit:
+        candidate_dpps = await service.get_dpps_for_tenant(
+            tenant_id=tenant.tenant_id,
+            status=status_filter,
+            limit=batch_size,
+            offset=current_offset,
+        )
+        if not candidate_dpps:
+            break
+
+        for dpp in candidate_dpps:
+            decision = await check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
+            if decision.is_allowed:
+                accessible_dpps.append(dpp)
+            if len(accessible_dpps) >= limit:
+                break
+
+        current_offset += len(candidate_dpps)
+        if len(candidate_dpps) < batch_size:
             break
 
     return DPPListResponse(
@@ -372,7 +395,13 @@ async def get_dpp_by_slug(
     """
     service = DPPService(db)
 
-    dpp = await service.get_dpp_by_slug(slug, tenant.tenant_id)
+    try:
+        dpp = await service.get_dpp_by_slug(slug, tenant.tenant_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     if not dpp:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -382,8 +411,7 @@ async def get_dpp_by_slug(
     # Check access via ABAC
     await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
 
-    # Get latest revision
-    revision = await service.get_latest_revision(dpp.id, tenant.tenant_id)
+    revision = await _resolve_revision(service, dpp, tenant)
 
     return DPPDetailResponse(
         id=dpp.id,
@@ -422,8 +450,7 @@ async def get_dpp(
     # Check access via ABAC
     await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
 
-    # Get latest revision
-    revision = await service.get_latest_revision(dpp_id, tenant.tenant_id)
+    revision = await _resolve_revision(service, dpp, tenant)
 
     return DPPDetailResponse(
         id=dpp.id,

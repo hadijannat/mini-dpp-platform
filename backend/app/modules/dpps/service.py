@@ -53,10 +53,10 @@ class DPPService:
         user = result.scalar_one_or_none()
 
         if user is None:
-            # Auto-provision user with publisher role
+            # Auto-provision user with viewer role; access is enforced via ABAC/tenant roles.
             user = User(
                 subject=subject,
-                role=UserRole.PUBLISHER,
+                role=UserRole.VIEWER,
                 attrs={},
             )
             self._session.add(user)
@@ -286,11 +286,14 @@ class DPPService:
                 cast(DPP.id, String).like(f"{slug[:8]}%"),
                 DPP.tenant_id == tenant_id,
             )
-            .limit(1)
+            .limit(2)
         )
 
         result = await self._session.execute(query)
-        return result.scalar_one_or_none()
+        matches = list(result.scalars().all())
+        if len(matches) > 1:
+            raise ValueError("Slug collision detected")
+        return matches[0] if matches else None
 
     async def get_dpps_for_owner(
         self,

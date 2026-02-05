@@ -228,25 +228,27 @@ export default function MastersPage() {
   const { data: mastersData, isLoading, isError, error } = useQuery({
     queryKey: ['masters', tenantSlug],
     queryFn: () => fetchMasters(token),
+    enabled: Boolean(token),
   });
 
   const { data: templatesData } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
+    enabled: Boolean(token),
   });
 
   const templates: TemplateOption[] = templatesData?.templates ?? [];
 
   const { data: masterDetail, refetch: refetchDetail } = useQuery({
-    queryKey: ['master', selectedMasterId],
+    queryKey: ['master', tenantSlug, selectedMasterId],
     queryFn: () => fetchMasterDetail(selectedMasterId ?? '', token),
-    enabled: Boolean(selectedMasterId),
+    enabled: Boolean(token && selectedMasterId),
   });
 
   const { data: masterVersions } = useQuery({
-    queryKey: ['master-versions', selectedMasterId],
+    queryKey: ['master-versions', tenantSlug, selectedMasterId],
     queryFn: () => fetchMasterVersions(selectedMasterId ?? '', token),
-    enabled: Boolean(selectedMasterId),
+    enabled: Boolean(token && selectedMasterId),
   });
 
   const applyMasterDetail = useCallback((detail: MasterDetail) => {
@@ -316,8 +318,8 @@ export default function MastersPage() {
       setReleaseAliases('');
       queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
       if (selectedMasterId) {
-        queryClient.invalidateQueries({ queryKey: ['master', selectedMasterId] });
-        queryClient.invalidateQueries({ queryKey: ['master-versions', selectedMasterId] });
+        queryClient.invalidateQueries({ queryKey: ['master', tenantSlug, selectedMasterId] });
+        queryClient.invalidateQueries({ queryKey: ['master-versions', tenantSlug, selectedMasterId] });
       }
     },
   });

@@ -29,11 +29,13 @@ export default function DashboardPage() {
   const { data: dpps, isError: dppsError, error: dppsErrorObj } = useQuery({
     queryKey: ['dpps', tenantSlug],
     queryFn: () => fetchDPPs(token),
+    enabled: Boolean(token),
   });
 
   const { data: templates, isError: templatesError, error: templatesErrorObj } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
+    enabled: Boolean(token),
   });
 
   const pageError =

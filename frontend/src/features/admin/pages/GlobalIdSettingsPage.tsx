@@ -57,6 +57,7 @@ export default function GlobalIdSettingsPage() {
   } = useQuery<GlobalIdSettingsResponse>({
     queryKey: ['settings', 'global-asset-id-base-uri'],
     queryFn: () => fetchGlobalAssetIdBaseUri(token),
+    enabled: Boolean(token),
   });
 
   useEffect(() => {

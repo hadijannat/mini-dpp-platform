@@ -76,21 +76,7 @@ async function createDPP(data: any, token?: string) {
     body: JSON.stringify(data),
   }, token);
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Session expired. Please sign in again.');
-    }
-    const contentType = response.headers.get('content-type') ?? '';
-    const rawText = await response.text();
-    if (contentType.includes('application/json')) {
-      try {
-        const body = JSON.parse(rawText) as { detail?: string };
-        const detail = typeof body?.detail === 'string' ? body.detail : '';
-        throw new Error(detail || rawText || 'Failed to create DPP');
-      } catch {
-        throw new Error(rawText || 'Failed to create DPP');
-      }
-    }
-    throw new Error(rawText || 'Failed to create DPP');
+    throw new Error(await getApiErrorMessage(response, 'Failed to create DPP'));
   }
   return response.json();
 }
@@ -182,16 +168,19 @@ export default function DPPListPage() {
   const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
     queryKey: ['dpps', tenantSlug],
     queryFn: () => fetchDPPs(token),
+    enabled: Boolean(token),
   });
 
   const { data: templatesData, isError: templatesError, error: templatesErrorObj } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
+    enabled: Boolean(token),
   });
 
   const { data: mastersData } = useQuery({
     queryKey: ['masters', tenantSlug],
     queryFn: () => fetchMasters(token),
+    enabled: Boolean(token),
   });
 
   useEffect(() => {

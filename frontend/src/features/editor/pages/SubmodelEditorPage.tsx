@@ -521,25 +521,25 @@ export default function SubmodelEditorPage() {
   const { data: dpp, isLoading: loadingDpp } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
     queryFn: () => fetchDpp(dppId!, token),
-    enabled: !!dppId,
+    enabled: Boolean(token && dppId),
   });
 
   const { data: template, isLoading: loadingTemplate } = useQuery<TemplateResponse>({
     queryKey: ['template', templateKey],
     queryFn: () => fetchTemplate(templateKey!, token),
-    enabled: !!templateKey,
+    enabled: Boolean(token && templateKey),
   });
 
   const { data: schema, isLoading: loadingSchema } = useQuery({
     queryKey: ['template-schema', templateKey],
     queryFn: () => fetchTemplateSchema(templateKey!, token),
-    enabled: !!templateKey,
+    enabled: Boolean(token && templateKey),
   });
 
   const { data: definition, isLoading: loadingDefinition } = useQuery<SubmodelDefinitionResponse>({
     queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
     queryFn: () => fetchSubmodelDefinition(dppId!, templateKey!, token),
-    enabled: !!templateKey && !!dppId,
+    enabled: Boolean(token && templateKey && dppId),
   });
 
   const submodel = useMemo(() => {

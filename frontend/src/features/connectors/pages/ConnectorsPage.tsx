@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { Plus, TestTube, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { useTenantSlug } from '@/lib/tenant';
 
 async function fetchConnectors(token?: string) {
   const response = await tenantApiFetch('/connectors', {}, token);
@@ -39,16 +40,18 @@ export default function ConnectorsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const auth = useAuth();
   const token = auth.user?.access_token;
+  const [tenantSlug] = useTenantSlug();
 
   const { data: connectors, isLoading, isError, error } = useQuery({
-    queryKey: ['connectors'],
+    queryKey: ['connectors', tenantSlug],
     queryFn: () => fetchConnectors(token),
+    enabled: Boolean(token),
   });
 
   const createMutation = useMutation({
     mutationFn: (data: any) => createConnector(data, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connectors'] });
+      queryClient.invalidateQueries({ queryKey: ['connectors', tenantSlug] });
       setShowCreateModal(false);
     },
   });
@@ -56,7 +59,7 @@ export default function ConnectorsPage() {
   const testMutation = useMutation({
     mutationFn: (connectorId: string) => testConnector(connectorId, token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['connectors'] });
+      queryClient.invalidateQueries({ queryKey: ['connectors', tenantSlug] });
     },
   });
 
@@ -69,14 +72,19 @@ export default function ConnectorsPage() {
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const name = String(formData.get('name') ?? '').trim();
+    const dtrBaseUrl = String(formData.get('dtr_base_url') ?? '').trim();
+    const accessToken = String(formData.get('token') ?? '').trim();
+    const bpn = String(formData.get('bpn') ?? '').trim();
+    const submodelBaseUrl = String(formData.get('submodel_base_url') ?? '').trim();
     createMutation.mutate({
-      name: formData.get('name'),
+      name,
       config: {
-        dtr_base_url: formData.get('dtr_base_url'),
+        dtr_base_url: dtrBaseUrl,
         auth_type: 'token',
-        token: formData.get('token'),
-        bpn: formData.get('bpn'),
-        submodel_base_url: formData.get('submodel_base_url'),
+        token: accessToken,
+        bpn: bpn || undefined,
+        submodel_base_url: submodelBaseUrl || undefined,
       },
     });
   };

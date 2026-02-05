@@ -167,12 +167,13 @@ export default function DPPEditorPage() {
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
     queryFn: () => fetchDPP(dppId!, token),
-    enabled: !!dppId,
+    enabled: Boolean(token && dppId),
   });
 
   const { data: templatesData } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
+    enabled: Boolean(token),
   });
 
   const publishMutation = useMutation({

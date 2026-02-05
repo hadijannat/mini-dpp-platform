@@ -166,16 +166,36 @@ async def _decode_token(token: str) -> TokenPayload:
         # This ensures tokens are only accepted if issued for this specific client
         token_azp = payload.get("azp")
         allowed_client_ids = set(settings.keycloak_allowed_client_ids_all)
-        if token_azp and allowed_client_ids and token_azp not in allowed_client_ids:
-            logger.warning(
-                "token_azp_mismatch",
-                expected=list(allowed_client_ids),
-                actual=token_azp,
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token not authorized for this client",
-            )
+        if allowed_client_ids:
+            if token_azp:
+                if token_azp not in allowed_client_ids:
+                    logger.warning(
+                        "token_azp_mismatch",
+                        expected=list(allowed_client_ids),
+                        actual=token_azp,
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token not authorized for this client",
+                    )
+            else:
+                token_aud = payload.get("aud")
+                aud_values: set[str] = set()
+                if isinstance(token_aud, str):
+                    aud_values.add(token_aud)
+                elif isinstance(token_aud, list):
+                    aud_values.update(str(entry) for entry in token_aud if entry)
+
+                if not aud_values or aud_values.isdisjoint(allowed_client_ids):
+                    logger.warning(
+                        "token_audience_mismatch",
+                        expected=list(allowed_client_ids),
+                        actual=sorted(aud_values),
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Token not authorized for this client",
+                    )
 
         # Extract roles from various possible locations
         roles: list[str] = []

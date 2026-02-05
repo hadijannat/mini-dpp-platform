@@ -57,6 +57,7 @@ export default function TemplatesPage() {
   } = useQuery({
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
+    enabled: Boolean(token),
   });
 
   const refreshMutation = useMutation({
