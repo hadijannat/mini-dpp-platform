@@ -2,9 +2,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
+import { ChevronRight } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
+import { PageHeader } from '@/components/page-header';
+import { ErrorBanner } from '@/components/error-banner';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import type {
   TemplateResponse,
   TemplateDefinition,
@@ -16,7 +30,6 @@ import { validateSchema, validateReadOnly } from '../utils/validation';
 import { useSubmodelForm } from '../hooks/useSubmodelForm';
 import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
 import { AASRendererList } from '../components/AASRenderer';
-import { FormJsonToggle } from '../components/FormJsonToggle';
 import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
 
@@ -271,17 +284,13 @@ export default function SubmodelEditorPage() {
   const isLoading = loadingDpp || loadingTemplate || loadingSchema || loadingDefinition;
 
   if (isLoading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   if (!dpp || !templateKey) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Submodel not found</p>
+        <p className="text-muted-foreground">Submodel not found</p>
       </div>
     );
   }
@@ -296,139 +305,158 @@ export default function SubmodelEditorPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Submodel</h1>
-          <p className="text-sm text-gray-500">Template: {templateKey}</p>
-          {definition && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-                Revision #{definition.revision_no}
-              </span>
-              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5">
-                {definition.state}
-              </span>
+      <PageHeader
+        title="Edit Submodel"
+        description={`Template: ${templateKey}`}
+        breadcrumb={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(`/console/dpps/${dppId}`)}
+            data-testid="submodel-back"
+          >
+            Back
+          </Button>
+        }
+        actions={
+          definition ? (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">Revision #{definition.revision_no}</Badge>
+              <Badge variant="secondary">{definition.state}</Badge>
             </div>
-          )}
-        </div>
-        <button
-          onClick={() => navigate(`/console/dpps/${dppId}`)}
-          className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-          data-testid="submodel-back"
-        >
-          Back
-        </button>
-      </div>
+          ) : undefined
+        }
+      />
 
       {/* Editor Card */}
-      <div className="bg-white shadow rounded-lg p-6 space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Submodel Data</label>
-            <p className="text-xs text-gray-500">
-              {activeView === 'form'
-                ? 'Edit values using the schema-driven form.'
-                : 'Edit raw JSON for advanced tweaks.'}
-            </p>
-          </div>
-          <FormJsonToggle
-            activeView={activeView}
-            onViewChange={handleViewChange}
-            formDisabled={!uiSchema}
-          />
-        </div>
-
-        {!submodel && (
-          <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-800">
-            This template is not initialized yet. Saving will add it to the DPP.
-          </div>
-        )}
-
-        {activeView === 'form' ? (
-          hasDefinitionElements ? (
-            <AASRendererList
-              nodes={templateDefinition!.submodel!.elements!}
-              basePath=""
-              depth={0}
-              rootSchema={uiSchema}
-              control={form.control}
-            />
-          ) : hasSchemaForm ? (
-            <AASRendererList
-              nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
-                modelType: 'Property',
-                idShort: key,
-              }))}
-              basePath=""
-              depth={0}
-              rootSchema={uiSchema}
-              control={form.control}
-            />
-          ) : (
-            <div className="rounded-md border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-              Form view is unavailable for this template. Switch to JSON.
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-base">Submodel Data</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                {activeView === 'form'
+                  ? 'Edit values using the schema-driven form.'
+                  : 'Edit raw JSON for advanced tweaks.'}
+              </p>
             </div>
-          )
-        ) : (
-          <JsonEditor
-            value={rawJson}
-            onChange={(val) => {
-              setRawJson(val);
-              setHasEdited(true);
-            }}
-          />
-        )}
-
-        {/* Error banners */}
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {sessionExpired && (
-          <div className="flex items-center justify-between rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            <span>Session expired. Please sign in again.</span>
-            <button
-              type="button"
-              className="text-sm font-medium text-red-700 underline"
-              onClick={() => {
-                void auth.signinRedirect();
-              }}
-            >
-              Sign in
-            </button>
           </div>
-        )}
-        {updateMutation.isError && !sessionExpired && (
-          <p className="text-sm text-red-600">
-            {updateError?.message || 'Failed to save changes.'}
-          </p>
-        )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!submodel && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                This template is not initialized yet. Saving will add it to the DPP.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        <FormToolbar
-          onSave={handleSave}
-          onReset={handleReset}
-          onRebuild={handleRebuild}
-          isSaving={updateMutation.isPending}
-        />
-      </div>
+          <Tabs value={activeView} onValueChange={(v) => handleViewChange(v as 'form' | 'json')}>
+            <TabsList>
+              <TabsTrigger value="form" disabled={!uiSchema}>Form</TabsTrigger>
+              <TabsTrigger value="json">JSON</TabsTrigger>
+            </TabsList>
+            <TabsContent value="form">
+              {hasDefinitionElements ? (
+                <AASRendererList
+                  nodes={templateDefinition!.submodel!.elements!}
+                  basePath=""
+                  depth={0}
+                  rootSchema={uiSchema}
+                  control={form.control}
+                />
+              ) : hasSchemaForm ? (
+                <AASRendererList
+                  nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
+                    modelType: 'Property',
+                    idShort: key,
+                  }))}
+                  basePath=""
+                  depth={0}
+                  rootSchema={uiSchema}
+                  control={form.control}
+                />
+              ) : (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Form view is unavailable for this template. Switch to JSON.
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="json">
+              <JsonEditor
+                value={rawJson}
+                onChange={(val) => {
+                  setRawJson(val);
+                  setHasEdited(true);
+                }}
+              />
+            </TabsContent>
+          </Tabs>
+
+          {/* Error banners */}
+          {error && (
+            <ErrorBanner message={error} />
+          )}
+          {sessionExpired && (
+            <ErrorBanner
+              message="Session expired. Please sign in again."
+              showSignIn
+              onSignIn={() => { void auth.signinRedirect(); }}
+            />
+          )}
+          {updateMutation.isError && !sessionExpired && (
+            <ErrorBanner
+              message={updateError?.message || 'Failed to save changes.'}
+            />
+          )}
+
+          <FormToolbar
+            onSave={handleSave}
+            onReset={handleReset}
+            onRebuild={handleRebuild}
+            isSaving={updateMutation.isPending}
+          />
+        </CardContent>
+      </Card>
 
       {/* Debug panels */}
       {schema?.schema && (
-        <details className="bg-white shadow rounded-lg p-6">
-          <summary className="cursor-pointer text-sm font-medium text-gray-700">
-            Template Schema (read-only)
-          </summary>
-          <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto">
-            {JSON.stringify(schema.schema, null, 2)}
-          </pre>
-        </details>
+        <Card>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between p-6">
+                Template Schema (read-only)
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto">
+                  {JSON.stringify(schema.schema, null, 2)}
+                </pre>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
       )}
       {templateDefinition && (
-        <details className="bg-white shadow rounded-lg p-6">
-          <summary className="cursor-pointer text-sm font-medium text-gray-700">
-            Template Definition (read-only)
-          </summary>
-          <pre className="mt-4 text-xs bg-gray-50 p-3 rounded overflow-auto">
-            {JSON.stringify(templateDefinition, null, 2)}
-          </pre>
-        </details>
+        <Card>
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" className="w-full justify-between p-6">
+                Template Definition (read-only)
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto">
+                  {JSON.stringify(templateDefinition, null, 2)}
+                </pre>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
       )}
     </div>
   );

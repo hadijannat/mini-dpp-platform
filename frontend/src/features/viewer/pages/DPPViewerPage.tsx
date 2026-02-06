@@ -3,6 +3,17 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { ErrorBanner } from '@/components/error-banner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { ChevronDown } from 'lucide-react';
+import { DPPHeader } from '../components/DPPHeader';
+import { ESPRTabs } from '../components/ESPRTabs';
+import { RawSubmodelTree } from '../components/RawSubmodelTree';
+import { IntegrityCard } from '../components/IntegrityCard';
+import { classifySubmodelElements } from '../utils/esprCategories';
 
 async function fetchDPP(dppId: string, tenantSlug: string, token?: string, isSlug = false) {
   const endpoint = isSlug ? `/dpps/by-slug/${dppId}` : `/dpps/${dppId}`;
@@ -11,21 +22,6 @@ async function fetchDPP(dppId: string, tenantSlug: string, token?: string, isSlu
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
   return response.json();
-}
-
-function formatElementValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  if (Array.isArray(value)) {
-    return `[${value.length} items]`;
-  }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '[object]';
-  }
 }
 
 export default function DPPViewerPage() {
@@ -42,118 +38,70 @@ export default function DPPViewerPage() {
     enabled: !!id && !!resolvedTenant,
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">
-          {(error as Error)?.message || 'Error loading Digital Product Passport'}
-        </p>
-      </div>
+      <ErrorBanner
+        message={(error as Error)?.message || 'Error loading Digital Product Passport'}
+      />
     );
   }
 
   if (!dpp) {
-    return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-yellow-800">Digital Product Passport not found</p>
-      </div>
-    );
+    return <ErrorBanner message="Digital Product Passport not found" />;
   }
 
-  const submodels = dpp.aas_environment?.submodels || [];
+  const submodels = (dpp.aas_environment?.submodels || []) as Array<Record<string, unknown>>;
+  const classified = classifySubmodelElements(submodels);
+  const productName =
+    (dpp.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Digital Product Passport
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          ID: {dpp.id}
-        </p>
-        <div className="mt-4 flex items-center space-x-4">
-          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            dpp.status === 'published'
-              ? 'bg-green-100 text-green-800'
-              : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {dpp.status}
-          </span>
-        </div>
-      </div>
+      <DPPHeader
+        productName={productName}
+        dppId={dpp.id}
+        status={dpp.status}
+        assetIds={dpp.asset_ids}
+      />
 
-      {/* Asset Information */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Asset Information
-        </h2>
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {Object.entries(dpp.asset_ids || {}).map(([key, value]) => (
-            <div key={key}>
-              <dt className="text-sm font-medium text-gray-500">{key}</dt>
-              <dd className="mt-1 text-sm text-gray-900">{String(value)}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      {/* ESPR Category Tabs */}
+      {submodels.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Product Information</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Organized per EU ESPR (European Sustainability Product Regulation) categories
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ESPRTabs classified={classified} />
+          </CardContent>
+        </Card>
+      )}
 
-      {/* AAS Environment */}
-      {dpp.aas_environment && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Submodels
-          </h2>
-          <div className="space-y-4">
-            {submodels.length === 0 && (
-              <p className="text-sm text-gray-500">
-                No submodels yet. Add templates in the console to initialize this DPP.
-              </p>
-            )}
-            {submodels.map((submodel: any, index: number) => (
-              <div key={index} className="border rounded-lg p-4">
-                <h3 className="font-medium text-gray-900">{submodel.idShort}</h3>
-                <p className="text-sm text-gray-500">{submodel.id}</p>
-                {submodel.submodelElements && (
-                  <div className="mt-4 space-y-2">
-                    {submodel.submodelElements.map((element: any, idx: number) => (
-                      <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-gray-600">{element.idShort}</span>
-                        <span className="text-gray-900">
-                          {formatElementValue(element.value)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Raw Data (for advanced users/regulators) */}
+      {submodels.length > 0 && (
+        <Collapsible>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="w-full justify-between text-muted-foreground">
+              Raw Submodel Data (Advanced)
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <Card className="mt-2">
+              <CardContent className="p-4">
+                <RawSubmodelTree submodels={submodels} />
+              </CardContent>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
       )}
 
       {/* Integrity */}
-      {dpp.digest_sha256 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Integrity
-          </h2>
-          <div>
-            <dt className="text-sm font-medium text-gray-500">SHA-256 Digest</dt>
-            <dd className="mt-1 text-xs font-mono text-gray-900 break-all">
-              {dpp.digest_sha256}
-            </dd>
-          </div>
-        </div>
-      )}
+      {dpp.digest_sha256 && <IntegrityCard digest={dpp.digest_sha256} />}
     </div>
   );
 }

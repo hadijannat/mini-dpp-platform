@@ -2,6 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { ErrorBanner } from '@/components/error-banner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type GlobalIdSettingsResponse = {
   global_asset_id_base_uri: string;
@@ -81,114 +89,107 @@ export default function GlobalIdSettingsPage() {
 
   if (isError) {
     return (
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-900">Unable to load settings</h2>
-        <p className="mt-2 text-sm text-gray-600">
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold">Unable to load settings</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
           {(error as Error)?.message || 'Something went wrong.'}
         </p>
         <div className="mt-4 flex gap-3">
-          <button
-            type="button"
+          <Button
             onClick={() => auth.signinRedirect()}
-            className="px-4 py-2 rounded-md text-sm text-white bg-primary-600 hover:bg-primary-700"
           >
             Sign in again
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outline"
             onClick={() =>
               queryClient.invalidateQueries({ queryKey: ['settings', 'global-asset-id-base-uri'] })
             }
-            className="px-4 py-2 rounded-md text-sm text-gray-700 border border-gray-300 hover:bg-gray-50"
           >
             Retry
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Identifier Settings</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Configure the base URI used for global asset identifiers.
-        </p>
-      </div>
+      <PageHeader
+        title="Identifier Settings"
+        description="Configure the base URI used for global asset identifiers."
+      />
 
-      <div className="bg-white shadow rounded-lg p-6">
-        {isLoading ? (
-          <div className="flex items-center gap-3 text-sm text-gray-600">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-500" />
-            Loading settings...
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              setTouched(true);
-              if (!validationError) {
-                mutation.mutate(value.trim());
-              }
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Global Asset ID Base URI
-              </label>
-              <input
-                type="text"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                onBlur={() => setTouched(true)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                placeholder="http://example.org/asset/"
-              />
-              {touched && validationError && (
-                <p className="mt-2 text-sm text-red-600">{validationError}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Global Asset ID Base URI</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                setTouched(true);
+                if (!validationError) {
+                  mutation.mutate(value.trim());
+                }
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="base-uri">Base URI</Label>
+                <Input
+                  id="base-uri"
+                  type="text"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value)}
+                  onBlur={() => setTouched(true)}
+                  placeholder="http://example.org/asset/"
+                />
+                {touched && validationError && (
+                  <p className="text-sm text-destructive">{validationError}</p>
+                )}
+                {!validationError && (
+                  <p className="text-xs text-muted-foreground">
+                    Must start with http://, end with /, and contain no query or fragment.
+                  </p>
+                )}
+              </div>
+
+              <Alert>
+                <AlertTitle className="text-sm">Preview</AlertTitle>
+                <AlertDescription>
+                  <div className="mt-1 text-xs font-mono">
+                    {value.trim() ? `${value.trim()}${previewSuffix}` : `http://example.org/asset/${previewSuffix}`}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Composite suffix uses manufacturerPartId, serialNumber, and batchId when present.
+                  </div>
+                </AlertDescription>
+              </Alert>
+
+              {mutation.isError && (
+                <ErrorBanner
+                  message={(mutation.error as Error)?.message || 'Failed to update settings.'}
+                />
               )}
-              {!validationError && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Must start with http://, end with /, and contain no query or fragment.
-                </p>
+              {mutation.isSuccess && !mutation.isPending && (
+                <Alert className="border-green-200 bg-green-50 text-green-700">
+                  <AlertDescription>Settings updated successfully.</AlertDescription>
+                </Alert>
               )}
-            </div>
 
-            <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
-              <div className="font-medium text-gray-600">Preview</div>
-              <div className="mt-1">
-                {value.trim() ? `${value.trim()}${previewSuffix}` : `http://example.org/asset/${previewSuffix}`}
+              <div className="flex justify-end">
+                <Button type="submit" disabled={!canSubmit}>
+                  {mutation.isPending ? 'Saving...' : 'Save changes'}
+                </Button>
               </div>
-              <div className="mt-1 text-gray-500">
-                Composite suffix uses manufacturerPartId, serialNumber, and batchId when present.
-              </div>
-            </div>
-
-            {mutation.isError && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {(mutation.error as Error)?.message || 'Failed to update settings.'}
-              </div>
-            )}
-            {mutation.isSuccess && !mutation.isPending && (
-              <div className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                Settings updated successfully.
-              </div>
-            )}
-
-            <div className="flex justify-end">
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
-              >
-                {mutation.isPending ? 'Saving...' : 'Save changes'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -91,7 +91,7 @@ export function ReferenceField({ name, control, node, schema }: FieldProps) {
                 ))}
                 <button
                   type="button"
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm text-primary hover:text-primary/80"
                   onClick={() => {
                     const next = [...keys, { type: '', value: '' }];
                     field.onChange({ ...current, keys: next });

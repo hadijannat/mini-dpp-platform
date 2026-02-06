@@ -93,7 +93,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
                 />
                 <button
                   type="button"
-                  className="text-sm text-primary-600 hover:text-primary-700"
+                  className="text-sm text-primary hover:text-primary/80"
                   onClick={addLanguage}
                 >
                   Add language

@@ -29,16 +29,26 @@ describe('FieldWrapper', () => {
         <span>content</span>
       </FieldWrapper>,
     );
-    expect(container.querySelector('.text-red-500')).toBeNull();
+    expect(container.querySelector('.text-destructive')).toBeNull();
   });
 
-  it('renders description', () => {
-    render(
+  it('renders description info icon', () => {
+    const { container } = render(
       <FieldWrapper label="Field" description="Some helpful text">
         <span>content</span>
       </FieldWrapper>,
     );
-    expect(screen.getByText('Some helpful text')).toBeTruthy();
+    // Description is now inside a Tooltip (shown on hover); the info icon is always rendered
+    expect(container.querySelector('svg.lucide-info')).toBeTruthy();
+  });
+
+  it('does not render info icon when no description', () => {
+    const { container } = render(
+      <FieldWrapper label="Field">
+        <span>content</span>
+      </FieldWrapper>,
+    );
+    expect(container.querySelector('svg.lucide-info')).toBeNull();
   });
 
   it('renders unit in label', () => {
@@ -77,8 +87,9 @@ describe('FieldWrapper', () => {
         <span>content</span>
       </FieldWrapper>,
     );
-    // No description, error, unit, or formUrl
+    // No description (no info icon), no error, no links
     expect(container.querySelectorAll('a')).toHaveLength(0);
-    expect(container.querySelectorAll('.text-red-600')).toHaveLength(0);
+    expect(container.querySelector('svg.lucide-info')).toBeNull();
+    expect(container.querySelector('.text-destructive')).toBeNull();
   });
 });

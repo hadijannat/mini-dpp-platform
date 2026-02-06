@@ -1,3 +1,6 @@
+import { Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
 type FormToolbarProps = {
   onSave: () => void;
   onReset: () => void;
@@ -13,30 +16,18 @@ export function FormToolbar({
 }: FormToolbarProps) {
   return (
     <div className="flex justify-end gap-3">
-      <button
-        type="button"
-        onClick={onReset}
-        className="px-4 py-2 border border-gray-300 rounded-md text-sm text-gray-700 hover:bg-gray-50"
-      >
+      <Button variant="outline" onClick={onReset}>
         Reset
-      </button>
+      </Button>
       {!isSaving && (
-        <button
-          type="button"
-          onClick={onRebuild}
-          className="px-4 py-2 border border-primary-200 text-primary-700 rounded-md text-sm hover:bg-primary-50"
-        >
+        <Button variant="ghost" onClick={onRebuild}>
           Rebuild from template
-        </button>
+        </Button>
       )}
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={isSaving}
-        className="px-4 py-2 rounded-md text-sm text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50"
-      >
-        {isSaving ? 'Saving\u2026' : 'Save Changes'}
-      </button>
+      <Button onClick={onSave} disabled={isSaving}>
+        {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+        {isSaving ? 'Saving...' : 'Save Changes'}
+      </Button>
     </div>
   );
 }

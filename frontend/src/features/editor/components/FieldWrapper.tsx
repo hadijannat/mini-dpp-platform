@@ -1,3 +1,11 @@
+import { Info } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { FieldWrapperProps } from '../types/formTypes';
 
 export function FieldWrapper({
@@ -11,19 +19,30 @@ export function FieldWrapper({
 }: FieldWrapperProps) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700">
-        {label}
-        {unit && (
-          <span className="ml-1 font-normal text-gray-500">({unit})</span>
+      <div className="flex items-center gap-1.5">
+        <Label>
+          {label}
+          {unit && (
+            <span className="ml-1 font-normal text-muted-foreground">({unit})</span>
+          )}
+          {required && <span className="text-destructive ml-1">*</span>}
+        </Label>
+        {description && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="text-xs">{description}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
-        {required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      {description && (
-        <p className="text-xs text-gray-500">{description}</p>
-      )}
+      </div>
       {formUrl && (
         <a
-          className="text-xs text-primary-600 hover:text-primary-700 inline-block"
+          className="text-xs text-primary hover:text-primary/80 inline-block"
           href={formUrl}
           target="_blank"
           rel="noreferrer"
@@ -32,7 +51,9 @@ export function FieldWrapper({
         </a>
       )}
       {children}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
     </div>
   );
 }
