@@ -5,10 +5,11 @@ API Router for Policy management endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.core.audit import emit_audit_event
 from app.core.tenancy import TenantAdmin, TenantPublisher
 from app.db.models import DPP, Policy, PolicyEffect, PolicyType
 from app.db.session import DbSession
@@ -105,6 +106,7 @@ async def create_policy(
     request: PolicyCreateRequest,
     db: DbSession,
     tenant: TenantAdmin,
+    http_request: Request,
 ) -> PolicyResponse:
     """
     Create a new policy.
@@ -136,6 +138,19 @@ async def create_policy(
     )
 
     db.add(policy)
+    await db.flush()
+
+    await emit_audit_event(
+        db_session=db,
+        action="create_policy",
+        resource_type="policy",
+        resource_id=policy.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=http_request,
+        metadata={"policy_type": request.policy_type.value, "effect": request.effect.value},
+    )
+
     await db.commit()
     await db.refresh(policy)
 
@@ -195,6 +210,7 @@ async def delete_policy(
     policy_id: UUID,
     db: DbSession,
     tenant: TenantAdmin,
+    request: Request,
 ) -> None:
     """
     Delete a policy.
@@ -214,6 +230,16 @@ async def delete_policy(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Policy {policy_id} not found",
         )
+
+    await emit_audit_event(
+        db_session=db,
+        action="delete_policy",
+        resource_type="policy",
+        resource_id=policy_id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+    )
 
     await db.delete(policy)
     await db.commit()
