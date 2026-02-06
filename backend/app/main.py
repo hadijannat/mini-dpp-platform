@@ -9,14 +9,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import SecurityHeadersMiddleware
-from app.core.rate_limit import RateLimitMiddleware, close_redis
+from app.core.rate_limit import RateLimitMiddleware, close_redis, get_redis
 from app.core.security.abac import close_opa_client
-from app.db.session import close_db, init_db
+from app.db.session import close_db, get_db_session, init_db
 from app.modules.connectors.router import router as connectors_router
+from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
 from app.modules.masters.router import router as masters_router
@@ -106,10 +108,39 @@ def create_application() -> FastAPI:
 
     # Health check endpoint (no auth required)
     @app.get("/health", tags=["Health"])
-    async def health_check() -> dict[str, str]:
-        return {"status": "healthy", "version": settings.version}
+    async def health_check() -> dict[str, object]:
+        checks: dict[str, str] = {}
 
-    # API v1 routers
+        # Probe PostgreSQL
+        try:
+            async for session in get_db_session():
+                await session.execute(text("SELECT 1"))
+            checks["db"] = "ok"
+        except Exception:
+            checks["db"] = "unavailable"
+
+        # Probe Redis
+        try:
+            r = await get_redis()
+            if r is not None:
+                await r.ping()  # type: ignore[misc,unused-ignore]
+                checks["redis"] = "ok"
+            else:
+                checks["redis"] = "unavailable"
+        except Exception:
+            checks["redis"] = "unavailable"
+
+        overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
+        return {"status": overall, "version": settings.version, "checks": checks}
+
+    # Public API (no authentication required)
+    app.include_router(
+        public_dpps_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public DPPs"],
+    )
+
+    # API v1 routers (authenticated)
     app.include_router(
         tenants_router,
         prefix=f"{settings.api_v1_prefix}/tenants",

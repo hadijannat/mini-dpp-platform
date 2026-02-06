@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
@@ -26,11 +26,14 @@ async function fetchDPP(dppId: string, tenantSlug: string, token?: string, isSlu
 
 export default function DPPViewerPage() {
   const { dppId, slug, tenantSlug } = useParams();
+  const navigate = useNavigate();
   const id = dppId || slug;
   const isSlug = !dppId && !!slug;
   const resolvedTenant = tenantSlug || getTenantSlug();
   const auth = useAuth();
-  const token = auth.user?.access_token;
+  // Token is optional -- unauthenticated visitors can view published DPPs
+  // once the backend public endpoint is available.
+  const token = auth.isAuthenticated ? auth.user?.access_token : undefined;
 
   const { data: dpp, isLoading, error } = useQuery({
     queryKey: ['dpp', resolvedTenant, id, isSlug],
@@ -41,9 +44,17 @@ export default function DPPViewerPage() {
   if (isLoading) return <LoadingSpinner />;
 
   if (error) {
+    const message = (error as Error)?.message || '';
+    const isAuthError = message.includes('Session expired') || message.includes('401');
     return (
       <ErrorBanner
-        message={(error as Error)?.message || 'Error loading Digital Product Passport'}
+        message={
+          isAuthError
+            ? 'This passport requires authentication to view. Please sign in.'
+            : message || 'Error loading Digital Product Passport'
+        }
+        showSignIn={isAuthError}
+        onSignIn={isAuthError ? () => navigate('/login') : undefined}
       />
     );
   }

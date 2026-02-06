@@ -65,6 +65,10 @@ class GS1DigitalLinkResponse(BaseModel):
     gtin: str = Field(description="Global Trade Item Number")
     serial: str = Field(description="Serial number")
     resolver_url: str = Field(description="GS1 resolver base URL")
+    is_pseudo_gtin: bool = Field(
+        default=False,
+        description="True if the GTIN was generated from the manufacturer part ID (not a real GS1 GTIN)",
+    )
 
 
 class CarrierBatchRequest(BaseModel):

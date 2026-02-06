@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Controller } from 'react-hook-form';
 import type { FieldProps } from '../../types/formTypes';
 import { FieldWrapper } from '../FieldWrapper';
@@ -37,6 +38,7 @@ function resolveInputType(
 
 export function PropertyField(props: FieldProps) {
   const { name, control, node, schema } = props;
+  const fieldId = useId();
 
   // Delegate to BooleanField
   if (node.valueType === 'xs:boolean' || schema?.type === 'boolean') {
@@ -73,10 +75,14 @@ export function PropertyField(props: FieldProps) {
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldId={fieldId}
           >
             <input
+              id={fieldId}
               type={inputType}
               step={step}
+              aria-describedby={fieldState.error ? `${fieldId}-error` : undefined}
+              aria-invalid={fieldState.error ? true : undefined}
               className={`w-full border rounded-md px-3 py-2 text-sm ${
                 fieldState.error ? 'border-red-500' : ''
               }`}

@@ -15,8 +15,8 @@ export function LoadingSpinner({ className, size = 'md' }: LoadingSpinnerProps) 
   };
 
   return (
-    <div className={cn('flex items-center justify-center py-12', className)}>
-      <Loader2 className={cn('animate-spin text-muted-foreground', sizeClasses[size])} />
+    <div className={cn('flex items-center justify-center py-12', className)} role="status" aria-label="Loading">
+      <Loader2 className={cn('animate-spin text-muted-foreground', sizeClasses[size])} aria-hidden="true" />
     </div>
   );
 }

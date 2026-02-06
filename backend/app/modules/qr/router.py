@@ -145,7 +145,7 @@ async def generate_carrier(
     # Determine URL based on format
     if request.format == CarrierFormat.GS1_QR:
         # Use GS1 Digital Link format
-        gtin, serial = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
+        gtin, serial, _is_pseudo = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
         try:
             carrier_url = qr_service.build_gs1_digital_link(gtin, serial)
         except ValueError as e:
@@ -234,7 +234,7 @@ async def get_gs1_digital_link(
         )
 
     # Extract GTIN and serial
-    gtin, serial = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
+    gtin, serial, is_pseudo_gtin = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
 
     # Build GS1 Digital Link
     resolver_url = qr_service.DEFAULT_GS1_RESOLVER
@@ -252,4 +252,5 @@ async def get_gs1_digital_link(
         gtin=gtin,
         serial=serial,
         resolver_url=resolver_url,
+        is_pseudo_gtin=is_pseudo_gtin,
     )

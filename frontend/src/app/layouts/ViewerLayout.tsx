@@ -1,6 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, LayoutDashboard } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, LogIn } from 'lucide-react';
 import { isPublisher } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +15,8 @@ import {
 export default function ViewerLayout() {
   const navigate = useNavigate();
   const auth = useAuth();
-  const canAccessConsole = isPublisher(auth.user);
+  const isAuthenticated = auth.isAuthenticated;
+  const canAccessConsole = isAuthenticated && isPublisher(auth.user);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -26,11 +27,19 @@ export default function ViewerLayout() {
       navigate('/console/dpps');
       return;
     }
-    navigate('/login');
+    navigate('/');
   };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip to content link for keyboard users */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:ring-2 focus:ring-ring"
+      >
+        Skip to content
+      </a>
+
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex items-center gap-4">
@@ -81,11 +90,23 @@ export default function ViewerLayout() {
                 Dashboard
               </Button>
             )}
+
+            {!isAuthenticated && !auth.isLoading && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/login')}
+                data-testid="viewer-sign-in"
+              >
+                <LogIn className="mr-1 h-4 w-4" />
+                Sign in
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <main id="main-content" className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
         <Outlet />
       </main>
     </div>

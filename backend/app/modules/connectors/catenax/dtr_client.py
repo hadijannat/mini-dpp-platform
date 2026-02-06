@@ -4,6 +4,7 @@ Handles shell descriptor registration and management.
 """
 
 import base64
+import time
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -56,10 +57,14 @@ class DTRClient:
     Tractus-X Digital Twin KIT specifications.
     """
 
+    # Refresh token 60 seconds before actual expiry
+    _TOKEN_EXPIRY_BUFFER_SECS = 60
+
     def __init__(self, config: DTRConfig) -> None:
         self._config = config
         self._http_client: httpx.AsyncClient | None = None
         self._access_token: str | None = None
+        self._token_expires_at: float = 0.0
 
     def _validate_config(self) -> None:
         base_url = (self._config.base_url or "").strip()
@@ -84,26 +89,34 @@ class DTRClient:
                 raise ValueError("DTR client_id and client_secret are required for oidc auth")
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create authenticated HTTP client."""
+        """Get or create authenticated HTTP client, refreshing tokens as needed."""
         if self._http_client is None:
             self._validate_config()
-            headers = await self._get_auth_headers()
             self._http_client = httpx.AsyncClient(
                 base_url=self._config.base_url,
-                headers=headers,
                 timeout=30.0,
             )
+
+        # Ensure auth headers are current
+        await self._ensure_valid_token()
+
         return self._http_client
 
-    async def _get_auth_headers(self) -> dict[str, str]:
-        """Get authentication headers based on config."""
+    async def _ensure_valid_token(self) -> None:
+        """Refresh the access token if expired or about to expire."""
         if self._config.auth_type == "token":
-            return {"Authorization": f"Bearer {self._config.token}"}
+            if self._http_client is not None:
+                self._http_client.headers["Authorization"] = f"Bearer {self._config.token}"
+            return
 
-        elif self._config.auth_type == "oidc":
-            # Obtain token via client credentials flow
+        if self._config.auth_type == "oidc":
+            if self._access_token and time.monotonic() < self._token_expires_at:
+                return  # Token still valid
             token = await self._obtain_oidc_token()
-            return {"Authorization": f"Bearer {token}"}
+            self._access_token = token
+            if self._http_client is not None:
+                self._http_client.headers["Authorization"] = f"Bearer {token}"
+            return
 
         raise ValueError("Unsupported DTR auth type")
 
@@ -122,7 +135,13 @@ class DTRClient:
             )
             response.raise_for_status()
             payload = cast(dict[str, Any], response.json())
-            return str(payload.get("access_token", ""))
+            token = str(payload.get("access_token", ""))
+
+            # Track expiry from the token response
+            expires_in = int(payload.get("expires_in", 300))
+            self._token_expires_at = time.monotonic() + expires_in - self._TOKEN_EXPIRY_BUFFER_SECS
+
+            return token
 
     async def register_shell(self, descriptor: ShellDescriptor) -> dict[str, Any]:
         """

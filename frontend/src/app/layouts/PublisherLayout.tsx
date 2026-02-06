@@ -130,6 +130,14 @@ export default function PublisherLayout() {
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background">
+        {/* Skip to content link for keyboard users */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-md focus:ring-2 focus:ring-ring"
+        >
+          Skip to content
+        </a>
+
         {/* Desktop sidebar */}
         <aside
           className="fixed inset-y-0 left-0 z-30 hidden border-r border-sidebar-border transition-[width] duration-200 ease-in-out md:block"
@@ -142,6 +150,7 @@ export default function PublisherLayout() {
             variant="ghost"
             size="icon"
             onClick={toggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             className="absolute -right-3 top-[18px] z-40 h-6 w-6 rounded-full border bg-background shadow-sm"
           >
             {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
@@ -221,7 +230,7 @@ export default function PublisherLayout() {
           </header>
 
           {/* Page content */}
-          <main className="p-6 md:p-8">
+          <main id="main-content" className="p-6 md:p-8">
             <Outlet />
           </main>
         </div>

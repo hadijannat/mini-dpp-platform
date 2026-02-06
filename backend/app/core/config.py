@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # Redis Configuration
     # ==========================================================================
     redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
+    redis_rate_limit_url: RedisDsn | None = Field(
+        default=None,
+        description="Separate Redis URL for rate limiting (defaults to DB 1 of redis_url)",
+    )
     redis_cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
 
     # ==========================================================================
@@ -187,6 +191,13 @@ class Settings(BaseSettings):
         default="", description="Base64-encoded 256-bit master key for envelope encryption"
     )
 
+    # Trusted proxy CIDRs for X-Forwarded-For / X-Real-IP header trust.
+    # Only requests arriving from these CIDRs will have proxy headers honoured.
+    trusted_proxy_cidrs: list[str] = Field(
+        default=["172.16.0.0/12", "10.0.0.0/8", "127.0.0.0/8"],
+        description="CIDRs from which X-Forwarded-For is trusted (Docker bridge, loopback)",
+    )
+
     # CORS settings
     cors_origins: list[str] = Field(
         default=[
@@ -227,7 +238,34 @@ class Settings(BaseSettings):
             "carbon-footprint": "1.0.1",
             "handover-documentation": "2.0.1",
             "hierarchical-structures": "1.1.1",
+            # IDTA 02035 Battery Passport (7 parts)
+            "battery-general-product-info": "1.0.0",
+            "battery-performance-durability": "1.0.0",
+            "battery-materials": "1.0.0",
+            "battery-supply-chain": "1.0.0",
+            "battery-end-of-life": "1.0.0",
+            "battery-labels-compliance": "1.0.0",
+            "battery-condition": "1.0.0",
         }
+    )
+
+    # ==========================================================================
+    # DPP Integrity / JWS Signing Configuration
+    # ==========================================================================
+    dpp_signing_key: str = Field(
+        default="",
+        description=(
+            "PEM-encoded private key (RSA or EC) for JWS signing of published DPP digests. "
+            "If empty, published revisions will not be signed."
+        ),
+    )
+    dpp_signing_algorithm: str = Field(
+        default="RS256",
+        description="JWS algorithm for DPP digest signing (RS256, ES256, etc.)",
+    )
+    dpp_signing_key_id: str = Field(
+        default="dpp-platform-key-1",
+        description="Key ID (kid) included in JWS header for key rotation support",
     )
 
     # ==========================================================================

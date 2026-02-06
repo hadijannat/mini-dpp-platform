@@ -11,6 +11,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 from xml.etree import ElementTree as ET
 
+import defusedxml.ElementTree as DefusedET
 import pyecma376_2
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
@@ -49,6 +50,10 @@ class ExportService:
                 "revisionNo": revision.revision_no,
                 "digestSha256": revision.digest_sha256,
                 "signedJws": revision.signed_jws,
+                "signingKeyId": self._settings.dpp_signing_key_id if revision.signed_jws else None,
+                "signingAlgorithm": (
+                    self._settings.dpp_signing_algorithm if revision.signed_jws else None
+                ),
             },
         }
 
@@ -60,12 +65,22 @@ class ExportService:
             ensure_ascii=False,
         ).encode("utf-8")
 
-    def export_aasx(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
+    def export_aasx(
+        self,
+        revision: DPPRevision,
+        dpp_id: UUID,
+        write_json: bool = True,
+    ) -> bytes:
         """
         Export DPP as AASX package.
 
         Creates an AASX file following IDTA Part 5 specification.
         AASX is a ZIP archive with specific structure and relationships.
+
+        Args:
+            revision: The DPP revision to export
+            dpp_id: DPP identifier for metadata
+            write_json: If True (default) serialize as JSON, if False as XML
         """
         buffer = io.BytesIO()
         try:
@@ -94,10 +109,14 @@ class ExportService:
                 core_props.description = (
                     f"AASX package containing DPP revision {revision.revision_no}"
                 )
+                core_props.subject = "Digital Product Passport (IDTA DPP4.0)"
+                core_props.category = "AAS Package"
+                core_props.identifier = str(dpp_id)
                 core_props.version = self._settings.version
                 core_props.revision = str(revision.revision_no)
                 writer.write_core_properties(core_props)
-                writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
+                data_path = "/aasx/data.json" if write_json else "/aasx/data.xml"
+                writer.write_all_aas_objects(data_path, store, files, write_json=write_json)
 
             buffer.seek(0)
             return buffer.read()
@@ -146,51 +165,6 @@ class ExportService:
             return bytes(output)
         return output.encode("latin-1")
 
-    def _create_content_types(self) -> str:
-        """Create AASX content types XML."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-    <Default Extension="json" ContentType="application/json"/>
-    <Default Extension="xml" ContentType="application/xml"/>
-    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-    <Override PartName="/metadata/core-properties.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-</Types>"""
-
-    def _create_root_rels(self) -> str:
-        """Create root relationships file."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId1" Type="http://www.admin-shell.io/aasx/relationships/aas-spec" Target="/aasx/aas.json"/>
-    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/metadata/core-properties.xml"/>
-</Relationships>"""
-
-    def _create_aas_rels(self) -> str:
-        """Create AAS relationships file."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId1" Type="http://www.admin-shell.io/aasx/relationships/aasx-origin" Target="aasx-origin"/>
-</Relationships>"""
-
-    def _create_core_properties(
-        self,
-        revision: DPPRevision,
-        dpp_id: UUID,
-    ) -> str:
-        """Create Dublin Core metadata file."""
-        now = datetime.now(UTC).isoformat()
-
-        return f"""<?xml version="1.0" encoding="UTF-8"?>
-<coreProperties xmlns="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-                xmlns:dc="http://purl.org/dc/elements/1.1/"
-                xmlns:dcterms="http://purl.org/dc/terms/">
-    <dc:title>Digital Product Passport</dc:title>
-    <dc:identifier>{dpp_id}</dc:identifier>
-    <dc:creator>Mini DPP Platform</dc:creator>
-    <dcterms:created>{revision.created_at.isoformat()}</dcterms:created>
-    <dcterms:modified>{now}</dcterms:modified>
-    <dc:description>AASX package containing DPP revision {revision.revision_no}</dc:description>
-</coreProperties>"""
-
     def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
         """
         Validate an AASX package structure.
@@ -223,7 +197,7 @@ class ExportService:
                 if "[Content_Types].xml" in names:
                     try:
                         content_types = zf.read("[Content_Types].xml")
-                        ET.fromstring(content_types)
+                        DefusedET.fromstring(content_types)
                     except ET.ParseError as e:
                         errors.append(f"Invalid Content_Types.xml: {e}")
 
@@ -231,7 +205,7 @@ class ExportService:
                 if "_rels/.rels" in names:
                     try:
                         rels = zf.read("_rels/.rels")
-                        ET.fromstring(rels)
+                        DefusedET.fromstring(rels)
                     except ET.ParseError as e:
                         errors.append(f"Invalid _rels/.rels: {e}")
 

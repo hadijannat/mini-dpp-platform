@@ -118,6 +118,7 @@ warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
+exclude = ["app/db/migrations/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -126,5 +127,15 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
+[tool.bandit]
+targets = ["app"]
+exclude_dirs = ["tests"]
+skips = ["B101"]  # Allow assert in non-test code (used by Pydantic validators)
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[dependency-groups]
+dev = [
+    "types-defusedxml>=0.7.0.20250822",
+]

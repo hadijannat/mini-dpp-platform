@@ -35,6 +35,8 @@ export type FieldWrapperProps = {
   formUrl?: string;
   error?: string;
   unit?: string;
+  /** Optional ID to associate label with input via htmlFor */
+  fieldId?: string;
   children: React.ReactNode;
 };
 

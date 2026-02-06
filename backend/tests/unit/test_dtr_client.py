@@ -231,7 +231,7 @@ class TestShellOperations:
 
     @pytest.mark.asyncio
     async def test_token_auth_sets_bearer_header(self, token_config: DTRConfig):
-        """Token auth populates the Authorization: Bearer header."""
+        """Token auth populates the Authorization: Bearer header on the client."""
         dtr = DTRClient(token_config)
-        headers = await dtr._get_auth_headers()
-        assert headers["Authorization"] == f"Bearer {token_config.token}"
+        client = await dtr._get_client()
+        assert client.headers["Authorization"] == f"Bearer {token_config.token}"

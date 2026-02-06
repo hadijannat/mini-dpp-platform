@@ -24,6 +24,9 @@ async def export_dpp(
     db: DbSession,
     tenant: TenantContextDep,
     format: Literal["json", "aasx", "pdf"] = Query("json", description="Export format"),
+    aasx_serialization: Literal["json", "xml"] = Query(
+        "json", description="Serialization format inside AASX package (json or xml)"
+    ),
 ) -> Response:
     """
     Export a DPP in the specified format.
@@ -87,7 +90,9 @@ async def export_dpp(
             },
         )
     elif format == "aasx":
-        content = export_service.export_aasx(revision, dpp_id)
+        content = export_service.export_aasx(
+            revision, dpp_id, write_json=(aasx_serialization == "json")
+        )
         return Response(
             content=content,
             media_type="application/asset-administration-shell-package+xml",
