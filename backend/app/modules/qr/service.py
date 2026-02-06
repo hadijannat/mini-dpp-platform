@@ -288,8 +288,7 @@ class QRCodeService:
         if not self.validate_gtin(clean_gtin):
             expected = self._compute_gtin_check_digit(clean_gtin[:-1])
             raise ValueError(
-                f"GTIN {clean_gtin} has an invalid check digit. "
-                f"Expected check digit: {expected}"
+                f"GTIN {clean_gtin} has an invalid check digit. Expected check digit: {expected}"
             )
 
         encoded_gtin = quote(clean_gtin, safe="")
@@ -299,9 +298,7 @@ class QRCodeService:
         # Format: https://id.gs1.org/01/{GTIN}/21/{serial}
         return f"{base_url}/01/{encoded_gtin}/21/{encoded_serial}"
 
-    def extract_gtin_from_asset_ids(
-        self, asset_ids: dict[str, str]
-    ) -> tuple[str, str, bool]:
+    def extract_gtin_from_asset_ids(self, asset_ids: dict[str, str]) -> tuple[str, str, bool]:
         """
         Extract GTIN and serial from DPP asset identifiers.
 

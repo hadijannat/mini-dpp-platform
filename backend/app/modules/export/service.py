@@ -11,6 +11,7 @@ from typing import Any, Literal, cast
 from uuid import UUID
 from xml.etree import ElementTree as ET
 
+import defusedxml.ElementTree as DefusedET
 import pyecma376_2
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
@@ -196,7 +197,7 @@ class ExportService:
                 if "[Content_Types].xml" in names:
                     try:
                         content_types = zf.read("[Content_Types].xml")
-                        ET.fromstring(content_types)
+                        DefusedET.fromstring(content_types)
                     except ET.ParseError as e:
                         errors.append(f"Invalid Content_Types.xml: {e}")
 
@@ -204,7 +205,7 @@ class ExportService:
                 if "_rels/.rels" in names:
                     try:
                         rels = zf.read("_rels/.rels")
-                        ET.fromstring(rels)
+                        DefusedET.fromstring(rels)
                     except ET.ParseError as e:
                         errors.append(f"Invalid _rels/.rels: {e}")
 

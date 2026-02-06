@@ -139,9 +139,7 @@ class DTRClient:
 
             # Track expiry from the token response
             expires_in = int(payload.get("expires_in", 300))
-            self._token_expires_at = (
-                time.monotonic() + expires_in - self._TOKEN_EXPIRY_BUFFER_SECS
-            )
+            self._token_expires_at = time.monotonic() + expires_in - self._TOKEN_EXPIRY_BUFFER_SECS
 
             return token
 

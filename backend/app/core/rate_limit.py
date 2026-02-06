@@ -63,8 +63,7 @@ def _is_trusted_proxy(remote_ip: str) -> bool:
     except ValueError:
         return False
     return any(
-        addr in ipaddress.ip_network(cidr, strict=False)
-        for cidr in settings.trusted_proxy_cidrs
+        addr in ipaddress.ip_network(cidr, strict=False) for cidr in settings.trusted_proxy_cidrs
     )
 
 
