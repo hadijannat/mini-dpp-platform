@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Info } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import {
@@ -15,12 +16,16 @@ export function FieldWrapper({
   formUrl,
   error,
   unit,
+  fieldId,
   children,
 }: FieldWrapperProps) {
+  const generatedId = useId();
+  const inputId = fieldId ?? generatedId;
+
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-1.5">
-        <Label>
+        <Label htmlFor={inputId}>
           {label}
           {unit && (
             <span className="ml-1 font-normal text-muted-foreground">({unit})</span>
@@ -52,7 +57,7 @@ export function FieldWrapper({
       )}
       {children}
       {error && (
-        <p className="text-xs text-destructive">{error}</p>
+        <p id={`${inputId}-error`} className="text-xs text-destructive" role="alert">{error}</p>
       )}
     </div>
   );

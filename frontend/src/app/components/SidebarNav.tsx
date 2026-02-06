@@ -31,6 +31,7 @@ export default function SidebarNav({ navigation, collapsed, pathname }: SidebarN
           <Link
             key={item.name}
             to={item.href}
+            aria-current={isActive ? 'page' : undefined}
             className={cn(
               'flex items-center rounded-md text-sm font-medium transition-colors',
               collapsed ? 'justify-center px-2 py-2' : 'px-4 py-2',
