@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     if (location.pathname !== '/login' && location.pathname !== '/callback') {
       sessionStorage.setItem('auth.redirectUrl', location.pathname + location.search);
     }
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   // Check role if required (extracts from both realm and client roles)

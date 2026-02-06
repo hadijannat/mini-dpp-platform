@@ -8,11 +8,12 @@ import ViewerLayout from './app/layouts/ViewerLayout';
 import PublisherLayout from './app/layouts/PublisherLayout';
 
 // Auth (kept static -- needed on initial navigation)
-import LoginPage from './auth/LoginPage';
 import CallbackPage from './auth/CallbackPage';
 import ProtectedRoute from './auth/ProtectedRoute';
 
 // Lazy-loaded pages
+const LandingPage = lazy(() => import('./features/landing/LandingPage'));
+const LoginPage = lazy(() => import('./auth/LoginPage'));
 const DPPViewerPage = lazy(() => import('./features/viewer/pages/DPPViewerPage'));
 const DashboardPage = lazy(() => import('./features/publisher/pages/DashboardPage'));
 const DPPListPage = lazy(() => import('./features/publisher/pages/DPPListPage'));
@@ -85,9 +86,9 @@ function App() {
           />
         </Route>
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/console" replace />} />
-        <Route path="*" element={<Navigate to="/console" replace />} />
+        {/* Landing page */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );
