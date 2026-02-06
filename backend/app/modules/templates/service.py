@@ -94,6 +94,28 @@ class TemplateRegistryService:
         )
         return result.scalar_one_or_none()
 
+    async def list_template_versions(self, template_key: str) -> list[dict[str, Any]]:
+        """
+        List all stored versions for a template, indicating which is the pinned default.
+
+        Returns a list of dicts with version, is_pinned, and created_at.
+        """
+        result = await self._session.execute(
+            select(Template.idta_version, Template.created_at)
+            .where(Template.template_key == template_key)
+            .order_by(Template.idta_version)
+        )
+        rows = result.all()
+        pinned = self._settings.template_versions.get(template_key)
+        return [
+            {
+                "version": row.idta_version,
+                "is_pinned": row.idta_version == pinned,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+            }
+            for row in rows
+        ]
+
     async def refresh_template(self, template_key: str) -> Template:
         """
         Fetch or update a template from IDTA repository.

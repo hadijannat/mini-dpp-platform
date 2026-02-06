@@ -8,6 +8,7 @@ import json
 from typing import Any
 from uuid import UUID
 
+from jose import JWSError, jws  # type: ignore[import-untyped]
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -616,6 +617,9 @@ class DPPService:
         if not latest_revision:
             raise ValueError(f"No revision found for DPP {dpp_id}")
 
+        # Sign the digest on publish for tamper-evidence
+        signed_jws = self._sign_digest(latest_revision.digest_sha256)
+
         if latest_revision.state == RevisionState.PUBLISHED:
             # Already published, create new revision
             new_revision_no = latest_revision.revision_no + 1
@@ -626,6 +630,7 @@ class DPPService:
                 state=RevisionState.PUBLISHED,
                 aas_env_json=latest_revision.aas_env_json,
                 digest_sha256=latest_revision.digest_sha256,
+                signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
             )
             self._session.add(revision)
@@ -633,6 +638,7 @@ class DPPService:
         else:
             # Mark current draft as published
             latest_revision.state = RevisionState.PUBLISHED
+            latest_revision.signed_jws = signed_jws
             revision = latest_revision
 
         # Update DPP status and pointer
@@ -1119,3 +1125,54 @@ class DPPService:
         # Canonical JSON: sorted keys, no extra whitespace
         canonical = json.dumps(aas_env, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def _sign_digest(self, digest: str) -> str | None:
+        """
+        Sign a SHA-256 digest using JWS (JSON Web Signature).
+
+        Returns a compact JWS string, or None if no signing key is configured.
+        The JWS payload is the hex digest string. The header includes a key ID
+        (kid) for key rotation support.
+        """
+        signing_key = self._settings.dpp_signing_key
+        if not signing_key:
+            return None
+        algorithm = self._settings.dpp_signing_algorithm
+        kid = self._settings.dpp_signing_key_id
+        try:
+            return str(
+                jws.sign(
+                    digest.encode("utf-8"),
+                    signing_key,
+                    algorithm=algorithm,
+                    headers={"kid": kid},
+                )
+            )
+        except Exception as exc:
+            logger.error("jws_signing_failed", error=str(exc))
+            return None
+
+    @staticmethod
+    def verify_jws(signed_jws: str, expected_digest: str, public_key: str) -> bool:
+        """
+        Verify a JWS signature against an expected digest.
+
+        Args:
+            signed_jws: The compact JWS string from a published revision
+            expected_digest: The SHA-256 hex digest to verify against
+            public_key: PEM-encoded public key (RSA or EC)
+
+        Returns:
+            True if the signature is valid and the payload matches the expected digest
+        """
+        try:
+            payload = jws.verify(
+                signed_jws,
+                public_key,
+                algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+            )
+            return bool(payload.decode("utf-8") == expected_digest)
+        except JWSError:
+            return False
+        except Exception:
+            return False

@@ -17,7 +17,8 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
     description: 'Product identification, manufacturer, and traceability information',
     patterns: [
       'nameplate', 'manufacturer', 'serial', 'batch', 'product', 'gtin',
-      'identification', 'asset', 'part', 'model', 'brand', 'name',
+      'identification', 'assetid', 'partid', 'partnumber', 'modelnumber',
+      'brand', 'trademark', 'traceability',
     ],
   },
   {
@@ -26,8 +27,9 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
     icon: FlaskConical,
     description: 'Material composition, recyclate content, and critical raw materials',
     patterns: [
-      'material', 'bill', 'recyclate', 'substance', 'chemical', 'composition',
-      'raw', 'component', 'ingredient', 'alloy', 'polymer',
+      'material', 'billofmaterial', 'recyclate', 'substance', 'chemical',
+      'composition', 'rawmaterial', 'ingredient', 'alloy', 'polymer',
+      'criticalraw', 'hazardous',
     ],
   },
   {
@@ -46,8 +48,8 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
     icon: ShieldCheck,
     description: 'Technical standards, CE marking, and conformity declarations',
     patterns: [
-      'technical', 'compliance', 'conformity', 'certification', 'standard',
-      'regulation', 'marking', 'declaration', 'ce', 'reach', 'rohs',
+      'technicaldata', 'compliance', 'conformity', 'certification', 'standard',
+      'regulation', 'marking', 'declaration', 'cemarking', 'reach', 'rohs',
     ],
   },
   {
@@ -56,8 +58,9 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
     icon: Wrench,
     description: 'Repair instructions, spare parts, and end-of-life handling',
     patterns: [
-      'repair', 'maintenance', 'spare', 'handover', 'documentation', 'end',
-      'disassembly', 'recycling', 'disposal', 'lifetime', 'warranty', 'instruction',
+      'repair', 'maintenance', 'sparepart', 'handover', 'documentation',
+      'endoflife', 'disassembly', 'recycling', 'disposal', 'lifetime',
+      'warranty', 'instruction', 'durability',
     ],
   },
 ];

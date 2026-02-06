@@ -125,13 +125,34 @@ class TemplateDefinitionBuilder:
             node["statements"] = [
                 self._element_definition(child, parent_path=statement_path) for child in statements
             ]
+        elif isinstance(element, model.ReferenceElement):
+            node["valueType"] = "reference"
+        elif isinstance(element, model.RelationshipElement):
+            node["first"] = self._reference_to_str(getattr(element, "first", None))
+            node["second"] = self._reference_to_str(getattr(element, "second", None))
         elif isinstance(element, model.AnnotatedRelationshipElement):
+            node["first"] = self._reference_to_str(getattr(element, "first", None))
+            node["second"] = self._reference_to_str(getattr(element, "second", None))
             annotations = self._iterable_attr(element, "annotation", "annotations")
             annotation_path = f"{path}/annotations" if path else "annotations"
             node["annotations"] = [
                 self._element_definition(child, parent_path=annotation_path)
                 for child in annotations
             ]
+        elif isinstance(element, model.Operation):
+            for var_kind in ("input_variable", "output_variable", "in_output_variable"):
+                variables = getattr(element, var_kind, None)
+                if variables:
+                    var_path = f"{path}/{var_kind}" if path else var_kind
+                    node[var_kind] = [
+                        self._element_definition(v, parent_path=var_path) for v in variables
+                    ]
+        elif isinstance(element, model.Capability):
+            pass  # Capability has no additional structural fields
+        elif isinstance(element, model.BasicEventElement):
+            node["observed"] = self._reference_to_str(getattr(element, "observed", None))
+            node["direction"] = self._enum_to_str(getattr(element, "direction", None))
+            node["state"] = self._enum_to_str(getattr(element, "state", None))
 
         return node
 

@@ -8,6 +8,7 @@ Supports:
 - Multiple output formats (PNG, SVG, PDF)
 """
 
+import hashlib
 import io
 from typing import Literal
 from urllib.parse import quote
@@ -283,6 +284,14 @@ class QRCodeService:
         if len(clean_gtin) < 14:
             clean_gtin = clean_gtin.zfill(14)
 
+        # Validate check digit per GS1 General Specifications Section 7.9
+        if not self.validate_gtin(clean_gtin):
+            expected = self._compute_gtin_check_digit(clean_gtin[:-1])
+            raise ValueError(
+                f"GTIN {clean_gtin} has an invalid check digit. "
+                f"Expected check digit: {expected}"
+            )
+
         encoded_gtin = quote(clean_gtin, safe="")
         encoded_serial = quote(serial_value, safe="")
 
@@ -290,7 +299,9 @@ class QRCodeService:
         # Format: https://id.gs1.org/01/{GTIN}/21/{serial}
         return f"{base_url}/01/{encoded_gtin}/21/{encoded_serial}"
 
-    def extract_gtin_from_asset_ids(self, asset_ids: dict[str, str]) -> tuple[str, str]:
+    def extract_gtin_from_asset_ids(
+        self, asset_ids: dict[str, str]
+    ) -> tuple[str, str, bool]:
         """
         Extract GTIN and serial from DPP asset identifiers.
 
@@ -301,7 +312,7 @@ class QRCodeService:
             asset_ids: Dictionary with manufacturerPartId and serialNumber
 
         Returns:
-            Tuple of (gtin, serial)
+            Tuple of (gtin, serial, is_pseudo_gtin)
         """
         manufacturer_part_id = asset_ids.get("manufacturerPartId", "")
         serial = asset_ids.get("serialNumber", "")
@@ -313,16 +324,55 @@ class QRCodeService:
             if isinstance(candidate, str) and candidate.isdigit():
                 gtin = candidate
 
-        # If no GTIN, create a pseudo-GTIN from part ID
+        # If no GTIN, create a pseudo-GTIN from part ID with valid check digit
         if not gtin:
-            # Generate a 13-digit hash-based identifier
-            import hashlib
-
             hash_input = manufacturer_part_id.encode()
             hash_digest = hashlib.sha256(hash_input).hexdigest()
-            # Take first 13 digits and add check digit position
-            gtin = hash_digest[:12].upper()
-            # Ensure it's numeric (convert hex to decimal representation)
-            gtin = str(int(gtin, 16) % 10**13).zfill(13)
+            # Generate 13 digits from hash, then append valid check digit for GTIN-14
+            digits_13 = str(int(hash_digest[:12], 16) % 10**13).zfill(13)
+            check_digit = self._compute_gtin_check_digit(digits_13)
+            gtin = digits_13 + check_digit
+            return gtin, serial, True
 
-        return gtin, serial
+        return gtin, serial, False
+
+    @staticmethod
+    def _compute_gtin_check_digit(digits: str) -> str:
+        """
+        Compute GS1 check digit using mod-10 weight-3 algorithm.
+
+        Per GS1 General Specifications Section 7.9: starting from the
+        rightmost digit, alternate weights of 3 and 1 are applied.
+        The check digit makes the total sum a multiple of 10.
+
+        Args:
+            digits: The GTIN digits WITHOUT the check digit (7, 11, 12, or 13 digits)
+
+        Returns:
+            Single character check digit ('0'-'9')
+        """
+        total = 0
+        for i, ch in enumerate(reversed(digits)):
+            weight = 3 if i % 2 == 0 else 1
+            total += int(ch) * weight
+        return str((10 - (total % 10)) % 10)
+
+    @staticmethod
+    def validate_gtin(gtin: str) -> bool:
+        """
+        Validate a GTIN check digit.
+
+        Supports GTIN-8, GTIN-12, GTIN-13, and GTIN-14 formats.
+
+        Args:
+            gtin: Complete GTIN string (digits only)
+
+        Returns:
+            True if the check digit is valid
+        """
+        clean = "".join(filter(str.isdigit, gtin))
+        if len(clean) not in (8, 12, 13, 14):
+            return False
+        payload = clean[:-1]
+        expected = QRCodeService._compute_gtin_check_digit(payload)
+        return clean[-1] == expected
