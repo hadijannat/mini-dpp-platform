@@ -21,6 +21,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
+        csp_directives = [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "font-src 'self'",
+            "connect-src 'self' https://auth.dpp-platform.dev",
+            "frame-ancestors 'none'",
+        ]
+        response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
+
         settings = get_settings()
         if settings.environment in ("production", "staging"):
             response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"

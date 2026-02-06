@@ -7,6 +7,7 @@ Only DPPs with status=PUBLISHED are served; drafts/archived return 404.
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,25 @@ from sqlalchemy import select
 
 from app.db.models import DPP, DPPRevision, DPPStatus, Tenant, TenantStatus
 from app.db.session import DbSession
+
+
+def _filter_public_aas_environment(aas_env: dict[str, Any]) -> dict[str, Any]:
+    """Remove non-public elements from AAS environment for unauthenticated access."""
+    filtered = copy.deepcopy(aas_env)
+    for submodel in filtered.get("submodels", []):
+        elements = submodel.get("submodelElements", [])
+        submodel["submodelElements"] = [el for el in elements if _element_is_public(el)]
+    return filtered
+
+
+def _element_is_public(element: dict[str, Any]) -> bool:
+    """Check if an element's confidentiality qualifiers allow public access."""
+    qualifiers = element.get("qualifiers", [])
+    for q in qualifiers:
+        if q.get("type") == "Confidentiality":
+            return str(q.get("value", "public")).lower() == "public"
+    return True
+
 
 router = APIRouter()
 
@@ -89,7 +109,7 @@ async def get_published_dpp(
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
         current_revision_no=revision.revision_no if revision else None,
-        aas_environment=revision.aas_env_json if revision else None,
+        aas_environment=_filter_public_aas_environment(revision.aas_env_json) if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
     )
 
@@ -143,7 +163,7 @@ async def get_published_dpp_by_slug(
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
         current_revision_no=revision.revision_no if revision else None,
-        aas_environment=revision.aas_env_json if revision else None,
+        aas_environment=_filter_public_aas_environment(revision.aas_env_json) if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
     )
 

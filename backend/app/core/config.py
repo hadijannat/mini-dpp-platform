@@ -267,6 +267,10 @@ class Settings(BaseSettings):
         default="dpp-platform-key-1",
         description="Key ID (kid) included in JWS header for key rotation support",
     )
+    dpp_max_draft_revisions: int = Field(
+        default=10,
+        description="Maximum number of draft revisions to keep per DPP. Published revisions are always kept.",
+    )
 
     # ==========================================================================
     # Data Carrier / GS1 Configuration
@@ -302,6 +306,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"encryption_master_key must be set in {self.environment} environment"
                 )
+            if not self.dpp_signing_key:
+                raise ValueError(f"dpp_signing_key must be set in {self.environment} environment")
             if self.debug:
                 raise ValueError(f"debug must be False in {self.environment} environment")
             if self.cors_origins == self._DEFAULT_CORS_ORIGINS:
@@ -313,6 +319,12 @@ class Settings(BaseSettings):
                 warnings.warn(
                     "encryption_master_key is empty — encrypted fields "
                     "will not work. Set it before deploying.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if not self.dpp_signing_key:
+                warnings.warn(
+                    "dpp_signing_key is empty — published DPPs will not be signed.",
                     UserWarning,
                     stacklevel=2,
                 )

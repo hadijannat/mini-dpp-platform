@@ -209,19 +209,50 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install aas-core3.0-testgen (optional)
-        run: |
-          pip install aas-core3.0-testgen || echo "aas-core3.0-testgen not available on PyPI; skipping."
+      - name: Install BaSyx Python SDK
+        run: pip install basyx-python-sdk
 
-      - name: Validate AAS schemas
+      - name: Validate AAS golden fixtures
         run: |
-          echo "AAS schema validation would run here"
-          echo "Checking for valid AAS JSON structures in test fixtures"
+          python -c "
+          import io, json, pathlib, sys
+          from basyx.aas import model
+          from basyx.aas.adapter import json as basyx_json
+
+          goldens_dir = pathlib.Path('backend/tests/goldens/templates')
+          if not goldens_dir.exists():
+              print('No goldens directory found, skipping')
+              sys.exit(0)
+          errors = []
+          count = 0
+          for f in sorted(goldens_dir.glob('*.json')):
+              data = json.loads(f.read_text())
+              definition = data.get('definition', {})
+              aas_env = definition.get('aas_environment')
+              if not aas_env:
+                  continue
+              count += 1
+              try:
+                  store = model.DictObjectStore()
+                  basyx_json.read_aas_json_file_into(
+                      io.BytesIO(json.dumps(aas_env).encode()),
+                      store,
+                      failsafe=False,
+                  )
+                  basyx_json.object_store_to_json(store)
+              except Exception as e:
+                  errors.append(f'{f.name}: {e}')
+          if errors:
+              for e in errors:
+                  print(f'FAIL: {e}', file=sys.stderr)
+              sys.exit(1)
+          print(f'Validated {count} golden fixtures successfully')
+          "
 
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation]
     steps:
       - uses: actions/checkout@v4
 
