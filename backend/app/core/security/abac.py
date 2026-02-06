@@ -81,11 +81,25 @@ class OPAClient:
     Client for Open Policy Agent (OPA) policy decisions.
 
     Sends ABAC context to OPA and interprets decisions.
+    Uses a persistent HTTP client to avoid per-request connection overhead.
     """
 
     def __init__(self) -> None:
         self._settings = get_settings()
         self._policy_url = f"{self._settings.opa_url}/{self._settings.opa_policy_path}"
+        self._client: httpx.AsyncClient | None = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        """Lazily create a persistent HTTP client."""
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self._settings.opa_timeout)
+        return self._client
+
+    async def close(self) -> None:
+        """Close the persistent HTTP client."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def evaluate(self, context: ABACContext) -> PolicyDecision:
         """
@@ -94,14 +108,13 @@ class OPAClient:
         Returns a PolicyDecision indicating the effect and any transformations.
         """
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    self._policy_url,
-                    json=context.to_opa_input(),
-                    timeout=self._settings.opa_timeout,
-                )
-                response.raise_for_status()
-                result = response.json()
+            client = self._get_client()
+            response = await client.post(
+                self._policy_url,
+                json=context.to_opa_input(),
+            )
+            response.raise_for_status()
+            result = response.json()
 
             # Parse OPA result
             decision_data = result.get("result", {})
@@ -139,6 +152,11 @@ class OPAClient:
 
 # Singleton OPA client
 _opa_client = OPAClient()
+
+
+async def close_opa_client() -> None:
+    """Close the singleton OPA client (call at shutdown)."""
+    await _opa_client.close()
 
 
 def _opa_disabled_decision() -> PolicyDecision:

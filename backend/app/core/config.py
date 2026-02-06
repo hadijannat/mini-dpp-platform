@@ -4,10 +4,11 @@ All configuration is loaded from environment variables with sensible defaults.
 """
 
 import json
+import warnings
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, PostgresDsn, RedisDsn, computed_field
+from pydantic import Field, PostgresDsn, RedisDsn, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -244,6 +245,40 @@ class Settings(BaseSettings):
         default="http://localhost:8000/asset/",
         description="Default base URI for globalAssetId generation",
     )
+
+    # ==========================================================================
+    # Production Safety Checks
+    # ==========================================================================
+
+    _DEFAULT_CORS_ORIGINS = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://dpp-frontend:5173",
+    ]
+
+    @model_validator(mode="after")
+    def _validate_production_settings(self) -> Self:
+        """Enforce critical security settings in production/staging."""
+        if self.environment in ("production", "staging"):
+            if not self.encryption_master_key:
+                raise ValueError(
+                    f"encryption_master_key must be set in {self.environment} environment"
+                )
+            if self.debug:
+                raise ValueError(f"debug must be False in {self.environment} environment")
+            if self.cors_origins == self._DEFAULT_CORS_ORIGINS:
+                raise ValueError(
+                    f"cors_origins must be explicitly configured in {self.environment} environment"
+                )
+        else:
+            if not self.encryption_master_key:
+                warnings.warn(
+                    "encryption_master_key is empty — encrypted fields "
+                    "will not work. Set it before deploying.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+        return self
 
 
 @lru_cache
