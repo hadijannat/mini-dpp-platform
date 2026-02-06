@@ -2,6 +2,7 @@
 API Router for DPP (Digital Product Passport) endpoints.
 """
 
+import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -104,6 +105,7 @@ class DPPListResponse(BaseModel):
 
     dpps: list[DPPResponse]
     count: int
+    total_count: int
     limit: int
     offset: int
 
@@ -336,6 +338,11 @@ async def list_dpps(
     """
     service = DPPService(db)
 
+    total_count = await service.count_dpps_for_tenant(
+        tenant_id=tenant.tenant_id,
+        status=status_filter,
+    )
+
     # Fetch candidate DPPs for the tenant in batches to account for ABAC filtering
     accessible_dpps: list[Any] = []
     batch_size = limit
@@ -351,8 +358,15 @@ async def list_dpps(
         if not candidate_dpps:
             break
 
-        for dpp in candidate_dpps:
-            decision = await check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
+        # Evaluate OPA decisions concurrently for the batch
+        decisions = await asyncio.gather(
+            *(
+                check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
+                for dpp in candidate_dpps
+            )
+        )
+
+        for dpp, decision in zip(candidate_dpps, decisions, strict=True):
             if decision.is_allowed:
                 accessible_dpps.append(dpp)
             if len(accessible_dpps) >= limit:
@@ -376,6 +390,7 @@ async def list_dpps(
             for dpp in accessible_dpps
         ],
         count=len(accessible_dpps),
+        total_count=total_count,
         limit=limit,
         offset=offset,
     )

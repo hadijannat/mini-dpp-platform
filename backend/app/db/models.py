@@ -402,6 +402,7 @@ class DPP(TenantScopedMixin, Base):
         Index("ix_dpps_owner_subject", "owner_subject"),
         Index("ix_dpps_status", "status"),
         Index("ix_dpps_asset_ids", "asset_ids", postgresql_using="gin"),
+        Index("ix_dpps_tenant_updated", "tenant_id", "updated_at"),
     )
 
 

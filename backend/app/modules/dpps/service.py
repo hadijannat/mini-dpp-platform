@@ -8,7 +8,7 @@ import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, cast, select
+from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -320,6 +320,18 @@ class DPPService:
 
         result = await self._session.execute(query)
         return list(result.scalars().all())
+
+    async def count_dpps_for_tenant(
+        self,
+        tenant_id: UUID,
+        status: DPPStatus | None = None,
+    ) -> int:
+        """Count all DPPs for a tenant (pre-ABAC)."""
+        query = select(func.count()).select_from(DPP).where(DPP.tenant_id == tenant_id)
+        if status:
+            query = query.where(DPP.status == status)
+        result = await self._session.execute(query)
+        return result.scalar_one()
 
     async def get_dpps_for_tenant(
         self,

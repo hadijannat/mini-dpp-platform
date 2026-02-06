@@ -12,6 +12,9 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.core.middleware import SecurityHeadersMiddleware
+from app.core.rate_limit import RateLimitMiddleware, close_redis
+from app.core.security.abac import close_opa_client
 from app.db.session import close_db, init_db
 from app.modules.connectors.router import router as connectors_router
 from app.modules.dpps.router import router as dpps_router
@@ -50,6 +53,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
     # Shutdown: Clean up connections
+    await close_opa_client()
+    await close_redis()
     await close_db()
     logger.info("application_shutdown_complete")
 
@@ -81,10 +86,16 @@ def create_application() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Request-ID"],
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining"],
     )
+
+    # Rate limiting (skipped in development)
+    app.add_middleware(RateLimitMiddleware)
+
+    # Security headers on every response
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # Gzip compression for responses
     app.add_middleware(GZipMiddleware, minimum_size=1000)

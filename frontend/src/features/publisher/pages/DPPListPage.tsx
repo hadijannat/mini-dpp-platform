@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { Plus, Eye, Edit, Upload, RefreshCcw } from 'lucide-react';
+import { Plus, Eye, Edit, Upload, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
 
@@ -29,8 +29,15 @@ interface TemplatePackage {
   variables: TemplateVariable[];
 }
 
-async function fetchDPPs(token?: string) {
-  const response = await tenantApiFetch('/dpps', {}, token);
+const PAGE_SIZE = 50;
+
+async function fetchDPPs(token?: string, page = 0) {
+  const offset = page * PAGE_SIZE;
+  const response = await tenantApiFetch(
+    `/dpps?limit=${PAGE_SIZE}&offset=${offset}`,
+    {},
+    token,
+  );
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPPs'));
   }
@@ -153,6 +160,7 @@ function stripGlobalAssetId(payload: Record<string, unknown>) {
 
 export default function DPPListPage() {
   const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [importProductId, setImportProductId] = useState('');
@@ -169,8 +177,8 @@ export default function DPPListPage() {
   const tenantSlug = getTenantSlug();
 
   const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
-    queryKey: ['dpps', tenantSlug],
-    queryFn: () => fetchDPPs(token),
+    queryKey: ['dpps', tenantSlug, page],
+    queryFn: () => fetchDPPs(token, page),
     enabled: Boolean(token),
   });
 
@@ -668,6 +676,31 @@ export default function DPPListPage() {
           {(!dpps?.dpps || dpps.dpps.length === 0) && (
             <div className="text-center py-12 text-gray-500">
               No DPPs yet. Create your first one!
+            </div>
+          )}
+          {dpps?.total_count != null && dpps.total_count > 0 && (
+            <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-600">
+              <span>
+                Showing {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + (dpps.dpps?.length ?? 0)} of {dpps.total_count}
+              </span>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="inline-flex items-center px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </button>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={(page + 1) * PAGE_SIZE >= dpps.total_count}
+                  className="inline-flex items-center px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           )}
         </div>
