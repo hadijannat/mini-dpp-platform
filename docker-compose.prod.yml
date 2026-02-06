@@ -60,10 +60,12 @@ services:
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -127,7 +129,7 @@ services:
       - run
       - --server
       - --addr=0.0.0.0:8181
-      - --log-level=warn
+      - --log-level=info
       - /policies
     volumes:
       - ./infra/opa/policies:/policies:ro
