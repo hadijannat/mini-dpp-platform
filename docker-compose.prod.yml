@@ -92,7 +92,7 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_HEALTH_ENABLED: true
       KC_PROXY_HEADERS: xforwarded
-      KC_HOSTNAME: https://auth.dpp-platform.dev
+      KC_HOSTNAME: auth.dpp-platform.dev
       KC_HTTP_ENABLED: true
       KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
     volumes:
