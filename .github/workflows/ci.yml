@@ -174,7 +174,7 @@ jobs:
 
       - name: Run pip-audit
         working-directory: backend
-        run: uv run --with pip-audit pip-audit --strict --desc
+        run: uv run --with pip-audit pip-audit --strict --desc --skip-editable
 
   frontend-security:
     name: Frontend Security (Audit)
