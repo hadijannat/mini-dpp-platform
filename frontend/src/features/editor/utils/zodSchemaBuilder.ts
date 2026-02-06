@@ -1,0 +1,245 @@
+import { z, type ZodTypeAny } from 'zod';
+import type { DefinitionNode, TemplateDefinition } from '../types/definition';
+import type { UISchema } from '../types/uiSchema';
+
+/**
+ * Builds a Zod schema from a DefinitionNode tree and UISchema.
+ * Used with zodResolver to power React Hook Form validation.
+ */
+export function buildZodSchema(
+  definition?: TemplateDefinition,
+  uiSchema?: UISchema,
+): ZodTypeAny {
+  const elements = definition?.submodel?.elements;
+  if (elements && elements.length > 0) {
+    return buildFromDefinition(elements, uiSchema);
+  }
+  if (uiSchema) {
+    return buildFromUISchema(uiSchema);
+  }
+  return z.record(z.string(), z.unknown());
+}
+
+function buildFromDefinition(
+  nodes: DefinitionNode[],
+  rootSchema?: UISchema,
+): ZodTypeAny {
+  const shape: Record<string, ZodTypeAny> = {};
+  for (const node of nodes) {
+    const key = node.idShort;
+    if (!key) continue;
+    const fieldSchema = rootSchema?.properties?.[key];
+    shape[key] = buildNodeSchema(node, fieldSchema);
+  }
+  return z.object(shape).passthrough();
+}
+
+function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  switch (node.modelType) {
+    case 'SubmodelElementCollection':
+      return buildCollectionSchema(node, schema);
+    case 'SubmodelElementList':
+      return buildListSchema(node, schema);
+    case 'MultiLanguageProperty':
+      return buildMultiLangSchema(node, schema);
+    case 'Range':
+      return buildRangeSchema();
+    case 'File':
+      return z.object({ contentType: z.string(), value: z.string() }).passthrough();
+    case 'ReferenceElement':
+      return z.object({
+        type: z.string(),
+        keys: z.array(z.object({ type: z.string(), value: z.string() }).passthrough()),
+      }).passthrough();
+    case 'Entity':
+      return z.object({
+        entityType: z.string(),
+        globalAssetId: z.string(),
+        statements: z.record(z.string(), z.unknown()),
+      }).passthrough();
+    case 'RelationshipElement':
+      return z.object({ first: z.unknown().nullable(), second: z.unknown().nullable() });
+    case 'AnnotatedRelationshipElement':
+      return z.object({
+        first: z.unknown().nullable(),
+        second: z.unknown().nullable(),
+        annotations: z.record(z.string(), z.unknown()),
+      });
+    case 'Property':
+    default:
+      return buildPropertySchema(node, schema);
+  }
+}
+
+function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const valueType = node.valueType;
+
+  // Integer types
+  if (valueType === 'xs:integer' || valueType === 'xs:long' || valueType === 'xs:short' || valueType === 'xs:int') {
+    let s = z.number().int();
+    const range = node.smt?.allowed_range;
+    if (range?.min !== undefined) s = s.min(range.min);
+    if (range?.max !== undefined) s = s.max(range.max);
+    if (schema?.minimum !== undefined) s = s.min(schema.minimum);
+    if (schema?.maximum !== undefined) s = s.max(schema.maximum);
+    return s.nullable();
+  }
+
+  // Decimal types
+  if (valueType === 'xs:decimal' || valueType === 'xs:double' || valueType === 'xs:float') {
+    let s = z.number();
+    const range = node.smt?.allowed_range;
+    if (range?.min !== undefined) s = s.min(range.min);
+    if (range?.max !== undefined) s = s.max(range.max);
+    if (schema?.minimum !== undefined) s = s.min(schema.minimum);
+    if (schema?.maximum !== undefined) s = s.max(schema.maximum);
+    return s.nullable();
+  }
+
+  // Boolean
+  if (valueType === 'xs:boolean' || schema?.type === 'boolean') {
+    return z.boolean();
+  }
+
+  // Enum from form_choices or schema
+  const choices = node.smt?.form_choices ?? schema?.enum;
+  if (choices && choices.length > 0) {
+    return z.enum(choices as [string, ...string[]]);
+  }
+
+  // String with optional pattern
+  let strSchema = z.string();
+  const regex = node.smt?.allowed_value_regex;
+  if (regex) {
+    try {
+      strSchema = strSchema.regex(new RegExp(regex), 'Invalid format');
+    } catch {
+      // Ignore invalid regex from upstream templates
+    }
+  }
+  if (schema?.pattern) {
+    try {
+      strSchema = strSchema.regex(new RegExp(schema.pattern), 'Invalid format');
+    } catch {
+      // Ignore invalid patterns
+    }
+  }
+
+  return strSchema;
+}
+
+function buildCollectionSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const children = node.children ?? [];
+  if (children.length === 0) {
+    return schema?.properties
+      ? buildFromUISchema(schema)
+      : z.record(z.string(), z.unknown());
+  }
+  const shape: Record<string, ZodTypeAny> = {};
+  for (const child of children) {
+    const key = child.idShort;
+    if (!key) continue;
+    const childSchema = schema?.properties?.[key];
+    shape[key] = buildNodeSchema(child, childSchema);
+  }
+  return z.object(shape).passthrough();
+}
+
+function buildListSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const itemDef = node.items;
+  const itemSchema = schema?.items;
+  const itemZod = itemDef
+    ? buildNodeSchema(itemDef, itemSchema)
+    : itemSchema
+      ? buildFromUISchema(itemSchema)
+      : z.unknown();
+
+  let arr = z.array(itemZod);
+
+  // Cardinality-based min/max
+  const cardinality = node.smt?.cardinality;
+  if (cardinality === 'OneToMany' || cardinality === 'One') {
+    arr = arr.min(1);
+  }
+  if (schema?.minItems !== undefined) {
+    arr = arr.min(schema.minItems);
+  }
+  return arr;
+}
+
+function buildMultiLangSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const requiredLangs = node.smt?.required_lang ?? schema?.['x-required-languages'] ?? [];
+  let s = z.record(z.string(), z.string());
+  if (requiredLangs.length > 0) {
+    s = s.refine(
+      (obj) => requiredLangs.every((lang) => obj[lang] && obj[lang].trim() !== ''),
+      { message: `Missing required languages: ${requiredLangs.join(', ')}` },
+    ) as unknown as typeof s;
+  }
+  return s;
+}
+
+function buildRangeSchema(): ZodTypeAny {
+  return z
+    .object({
+      min: z.number().nullable(),
+      max: z.number().nullable(),
+    })
+    .refine(
+      (data) => {
+        if (data.min !== null && data.max !== null) return data.min <= data.max;
+        return true;
+      },
+      { message: 'Min cannot exceed max' },
+    );
+}
+
+/** Fallback: build Zod schema from UISchema alone */
+function buildFromUISchema(schema: UISchema): ZodTypeAny {
+  if (schema['x-multi-language']) return z.record(z.string(), z.string());
+  if (schema['x-range']) return buildRangeSchema();
+  if (schema['x-file-upload']) return z.object({ contentType: z.string(), value: z.string() });
+  if (schema['x-reference']) return z.object({ type: z.string(), keys: z.array(z.unknown()) });
+  if (schema['x-readonly'] || schema['x-blob']) return z.unknown();
+
+  if (schema.enum && schema.enum.length > 0) {
+    return z.enum(schema.enum as [string, ...string[]]);
+  }
+
+  switch (schema.type) {
+    case 'object': {
+      if (!schema.properties) return z.record(z.string(), z.unknown());
+      const shape: Record<string, ZodTypeAny> = {};
+      for (const [key, propSchema] of Object.entries(schema.properties)) {
+        shape[key] = buildFromUISchema(propSchema);
+      }
+      return z.object(shape).passthrough();
+    }
+    case 'array': {
+      const itemSchema = schema.items ? buildFromUISchema(schema.items) : z.unknown();
+      let arr = z.array(itemSchema);
+      if (schema.minItems !== undefined) arr = arr.min(schema.minItems);
+      return arr;
+    }
+    case 'number':
+    case 'integer': {
+      let num = schema.type === 'integer' ? z.number().int() : z.number();
+      if (schema.minimum !== undefined) num = num.min(schema.minimum);
+      if (schema.maximum !== undefined) num = num.max(schema.maximum);
+      return num.nullable();
+    }
+    case 'boolean':
+      return z.boolean();
+    default: {
+      let str = z.string();
+      if (schema.pattern) {
+        try {
+          str = str.regex(new RegExp(schema.pattern), 'Invalid format');
+        } catch {
+          // Ignore
+        }
+      }
+      return str;
+    }
+  }
+}

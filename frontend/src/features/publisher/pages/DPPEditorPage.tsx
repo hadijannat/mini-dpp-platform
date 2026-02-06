@@ -12,15 +12,6 @@ type TemplateDescriptor = {
   semantic_id: string;
 };
 
-const ID_SHORT_TO_TEMPLATE_KEY: Record<string, string> = {
-  Nameplate: 'digital-nameplate',
-  ContactInformations: 'contact-information',
-  TechnicalData: 'technical-data',
-  CarbonFootprint: 'carbon-footprint',
-  HandoverDocumentation: 'handover-documentation',
-  HierarchicalStructures: 'hierarchical-structures',
-};
-
 function extractSemanticId(submodel: any): string | null {
   const semanticId = submodel?.semanticId;
   if (semanticId && Array.isArray(semanticId.keys) && semanticId.keys[0]?.value) {
@@ -30,18 +21,24 @@ function extractSemanticId(submodel: any): string | null {
 }
 
 function resolveTemplateKey(submodel: any, templates: TemplateDescriptor[]): string | null {
-  const semanticId = extractSemanticId(submodel);
-  if (!semanticId) return null;
   if (!Array.isArray(templates)) return null;
-  const direct = templates.find((template) => template.semantic_id === semanticId);
-  if (direct) return direct.template_key;
-  const partial = templates.find((template) =>
-    semanticId.includes(template.semantic_id) || template.semantic_id.includes(semanticId)
-  );
-  if (partial) return partial.template_key;
-  const idShort = submodel?.idShort;
-  if (idShort && ID_SHORT_TO_TEMPLATE_KEY[idShort]) {
-    return ID_SHORT_TO_TEMPLATE_KEY[idShort];
+  const semanticId = extractSemanticId(submodel);
+  if (semanticId) {
+    const direct = templates.find((template) => template.semantic_id === semanticId);
+    if (direct) return direct.template_key;
+    const partial = templates.find((template) =>
+      semanticId.includes(template.semantic_id) || template.semantic_id.includes(semanticId)
+    );
+    if (partial) return partial.template_key;
+  }
+  // Dynamic idShort fallback: match idShort against template keys (kebab-case)
+  const idShort = submodel?.idShort as string | undefined;
+  if (idShort) {
+    const kebab = idShort.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+    const byKey = templates.find((t) =>
+      t.template_key === kebab || t.template_key.includes(kebab) || kebab.includes(t.template_key)
+    );
+    if (byKey) return byKey.template_key;
   }
   return null;
 }
