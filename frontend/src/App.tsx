@@ -1,93 +1,95 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
+import { LoadingSpinner } from './components/loading-spinner';
 
-// Layouts
+// Layouts (kept as static imports -- lightweight, always needed for route groups)
 import ViewerLayout from './app/layouts/ViewerLayout';
 import PublisherLayout from './app/layouts/PublisherLayout';
 
-// Viewer pages
-import DPPViewerPage from './features/viewer/pages/DPPViewerPage';
-
-// Publisher pages
-import DashboardPage from './features/publisher/pages/DashboardPage';
-import DPPListPage from './features/publisher/pages/DPPListPage';
-import DPPEditorPage from './features/publisher/pages/DPPEditorPage';
-import TemplatesPage from './features/publisher/pages/TemplatesPage';
-import DataCarriersPage from './features/publisher/pages/DataCarriersPage';
-import MastersPage from './features/publisher/pages/MastersPage';
-import ConnectorsPage from './features/connectors/pages/ConnectorsPage';
-import SubmodelEditorPage from './features/editor/pages/SubmodelEditorPage';
-import GlobalIdSettingsPage from './features/admin/pages/GlobalIdSettingsPage';
-import TenantsPage from './features/admin/pages/TenantsPage';
-
-// Auth
+// Auth (kept static -- needed on initial navigation)
 import LoginPage from './auth/LoginPage';
 import CallbackPage from './auth/CallbackPage';
 import ProtectedRoute from './auth/ProtectedRoute';
+
+// Lazy-loaded pages
+const DPPViewerPage = lazy(() => import('./features/viewer/pages/DPPViewerPage'));
+const DashboardPage = lazy(() => import('./features/publisher/pages/DashboardPage'));
+const DPPListPage = lazy(() => import('./features/publisher/pages/DPPListPage'));
+const DPPEditorPage = lazy(() => import('./features/publisher/pages/DPPEditorPage'));
+const TemplatesPage = lazy(() => import('./features/publisher/pages/TemplatesPage'));
+const DataCarriersPage = lazy(() => import('./features/publisher/pages/DataCarriersPage'));
+const MastersPage = lazy(() => import('./features/publisher/pages/MastersPage'));
+const ConnectorsPage = lazy(() => import('./features/connectors/pages/ConnectorsPage'));
+const SubmodelEditorPage = lazy(() => import('./features/editor/pages/SubmodelEditorPage'));
+const GlobalIdSettingsPage = lazy(() => import('./features/admin/pages/GlobalIdSettingsPage'));
+const TenantsPage = lazy(() => import('./features/admin/pages/TenantsPage'));
 
 function App() {
   const auth = useAuth();
 
   return (
-    <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/callback" element={<CallbackPage />} />
+    <Suspense fallback={<LoadingSpinner size="lg" />}>
+      <Routes>
+        {/* Public routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/callback" element={<CallbackPage />} />
 
-      {/* Viewer routes (public -- no auth required for published DPPs) */}
-      <Route element={<ViewerLayout />}>
-        <Route path="/t/:tenantSlug/dpp/:dppId" element={<DPPViewerPage />} />
-        <Route path="/t/:tenantSlug/p/:slug" element={<DPPViewerPage />} />
-        <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
-        <Route path="/p/:slug" element={<DPPViewerPage />} />
-      </Route>
+        {/* Viewer routes (public -- no auth required for published DPPs) */}
+        <Route element={<ViewerLayout />}>
+          <Route path="/t/:tenantSlug/dpp/:dppId" element={<DPPViewerPage />} />
+          <Route path="/t/:tenantSlug/p/:slug" element={<DPPViewerPage />} />
+          <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
+          <Route path="/p/:slug" element={<DPPViewerPage />} />
+        </Route>
 
-      {/* Publisher routes (authenticated, publisher role) */}
-      {/* Show loading spinner while OIDC discovery is in progress for auth routes */}
-      <Route
-        path="/console"
-        element={
-          auth.isLoading ? (
-            <div className="flex h-screen items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-          ) : (
-            <ProtectedRoute requiredRole="publisher">
-              <PublisherLayout />
-            </ProtectedRoute>
-          )
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="dpps" element={<DPPListPage />} />
-        <Route path="masters" element={<MastersPage />} />
-        <Route path="dpps/:dppId" element={<DPPEditorPage />} />
-        <Route path="dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
-        <Route path="templates" element={<TemplatesPage />} />
-        <Route path="carriers" element={<DataCarriersPage />} />
-        <Route path="connectors" element={<ConnectorsPage />} />
+        {/* Publisher routes (authenticated, publisher role) */}
+        {/* Show loading spinner while OIDC discovery is in progress for auth routes */}
         <Route
-          path="settings"
+          path="/console"
           element={
-            <ProtectedRoute requiredRole="admin">
-              <GlobalIdSettingsPage />
-            </ProtectedRoute>
+            auth.isLoading ? (
+              <div className="flex h-screen items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <ProtectedRoute requiredRole="publisher">
+                <PublisherLayout />
+              </ProtectedRoute>
+            )
           }
-        />
-        <Route
-          path="tenants"
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <TenantsPage />
-            </ProtectedRoute>
-          }
-        />
-      </Route>
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="dpps" element={<DPPListPage />} />
+          <Route path="masters" element={<MastersPage />} />
+          <Route path="dpps/:dppId" element={<DPPEditorPage />} />
+          <Route path="dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
+          <Route path="templates" element={<TemplatesPage />} />
+          <Route path="carriers" element={<DataCarriersPage />} />
+          <Route path="connectors" element={<ConnectorsPage />} />
+          <Route
+            path="settings"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <GlobalIdSettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="tenants"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <TenantsPage />
+              </ProtectedRoute>
+            }
+          />
+        </Route>
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/console" replace />} />
-      <Route path="*" element={<Navigate to="/console" replace />} />
-    </Routes>
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/console" replace />} />
+        <Route path="*" element={<Navigate to="/console" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 
