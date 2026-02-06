@@ -15,10 +15,11 @@ jobs:
   deploy:
     name: Build & Deploy to Production
     runs-on: ubuntu-latest
-    # Only deploy when CI passed on main
+    # Deploy on manual trigger OR when CI passed on main
     if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     permissions:
       contents: read
       packages: write
