@@ -1,3 +1,4 @@
+# ruff: noqa: ARG002  — pytest fixtures are used via parameter name injection
 """
 Unit tests for Catena-X DTR shell descriptor mapping utilities.
 """

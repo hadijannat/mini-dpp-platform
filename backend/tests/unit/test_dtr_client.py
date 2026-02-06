@@ -3,7 +3,7 @@ Unit tests for the DTR (Digital Twin Registry) client.
 """
 
 import base64
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -135,9 +135,7 @@ class TestShellOperations:
     ):
         """register_shell sends POST /shell-descriptors with descriptor JSON."""
         mock_http = AsyncMock(spec=httpx.AsyncClient)
-        mock_http.post.return_value = _mock_response(
-            201, {"id": sample_descriptor.id}
-        )
+        mock_http.post.return_value = _mock_response(201, {"id": sample_descriptor.id})
         client._http_client = mock_http
 
         result = await client.register_shell(sample_descriptor)
@@ -208,9 +206,7 @@ class TestShellOperations:
         assert await client.delete_shell("urn:uuid:already-gone") is True
 
     @pytest.mark.asyncio
-    async def test_test_connection_returns_error_on_http_failure(
-        self, client: DTRClient
-    ):
+    async def test_test_connection_returns_error_on_http_failure(self, client: DTRClient):
         """test_connection returns structured error dict on HTTPStatusError."""
         resp_401 = _mock_response(401, {"error": "unauthorized"})
         mock_http = AsyncMock(spec=httpx.AsyncClient)

@@ -42,12 +42,34 @@ async def close_redis() -> None:
         _redis = None
 
 
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, respecting proxy headers when behind a reverse proxy.
+
+    Checks X-Forwarded-For and X-Real-IP headers. For X-Forwarded-For, the
+    leftmost IP is the original client (proxies append to the right).
+    Falls back to the direct connection IP.
+    """
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        # X-Forwarded-For: client, proxy1, proxy2 — leftmost is the real client
+        client_ip = forwarded_for.split(",")[0].strip()
+        if client_ip:
+            return client_ip
+
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+
+    return request.client.host if request.client else "unknown"
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Sliding window rate limiter backed by Redis.
 
     Applies per-IP limits to API paths only.
-    Fails open if Redis is unavailable.
+    Fails open if Redis is unavailable — rate limiting is defense-in-depth,
+    not the sole authentication/authorization mechanism.
     """
 
     AUTHENTICATED_LIMIT = 200  # requests per minute
@@ -65,7 +87,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith(settings.api_v1_prefix):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _get_client_ip(request)
+        # Auth presence check determines rate tier only — actual authentication
+        # is enforced by the OIDC dependency in route handlers.
         has_auth = "authorization" in request.headers
         limit = self.AUTHENTICATED_LIMIT if has_auth else self.UNAUTHENTICATED_LIMIT
 
@@ -77,9 +101,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         key = f"rl:{client_ip}:{int(time.time()) // self.WINDOW_SECONDS}"
 
         try:
-            current = await r.incr(key)
-            if current == 1:
-                await r.expire(key, self.WINDOW_SECONDS)
+            pipe = r.pipeline()
+            pipe.incr(key)
+            pipe.expire(key, self.WINDOW_SECONDS)
+            results: list[int | bool] = await pipe.execute()
+            current = int(results[0])
             remaining = max(0, limit - current)
         except Exception:
             logger.warning("rate_limit_redis_error", client_ip=client_ip)

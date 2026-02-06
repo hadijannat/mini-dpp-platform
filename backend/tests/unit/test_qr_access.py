@@ -234,7 +234,5 @@ class TestAssetIdExtraction:
 
     def test_missing_serial_returns_empty(self):
         """When serialNumber key is absent, serial is empty string."""
-        _, serial = self.service.extract_gtin_from_asset_ids(
-            {"gtin": "01234567890123"}
-        )
+        _, serial = self.service.extract_gtin_from_asset_ids({"gtin": "01234567890123"})
         assert serial == ""

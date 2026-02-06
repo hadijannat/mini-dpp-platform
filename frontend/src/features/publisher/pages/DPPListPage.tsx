@@ -681,7 +681,7 @@ export default function DPPListPage() {
           {dpps?.total_count != null && dpps.total_count > 0 && (
             <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-600">
               <span>
-                Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, dpps.total_count)} of {dpps.total_count}
+                Showing {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + (dpps.dpps?.length ?? 0)} of {dpps.total_count}
               </span>
               <div className="flex items-center space-x-2">
                 <button
