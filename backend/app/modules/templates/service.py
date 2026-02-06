@@ -101,7 +101,7 @@ class TemplateRegistryService:
         Returns a list of dicts with version, is_pinned, and created_at.
         """
         result = await self._session.execute(
-            select(Template.idta_version, Template.created_at)
+            select(Template.idta_version, Template.fetched_at)
             .where(Template.template_key == template_key)
             .order_by(Template.idta_version)
         )
