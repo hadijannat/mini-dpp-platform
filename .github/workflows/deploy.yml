@@ -65,6 +65,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Scan backend image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/backend:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+
+      - name: Scan frontend image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/frontend:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: 1
+          ignore-unfixed: true
+
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -73,6 +91,39 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           command_timeout: 20m
           script: |
+            set -euo pipefail
             cd ~/mini-dpp-platform
+
+            # Record current state for rollback
+            PREV_SHA=$(git rev-parse HEAD)
+
+            # Pull latest code
             git pull origin main
-            docker compose -f docker-compose.prod.yml up -d --build
+
+            # Build images (does not restart running containers)
+            docker compose -f docker-compose.prod.yml build
+
+            # Run migrations as a separate one-off container
+            docker compose -f docker-compose.prod.yml --profile migrate run --rm migrate || {
+              echo "Migration failed — rolling back"
+              git checkout "$PREV_SHA"
+              exit 1
+            }
+
+            # Restart application services
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy
+
+            # Verify backend health
+            for i in $(seq 1 30); do
+              if docker compose -f docker-compose.prod.yml exec -T backend curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
+                echo "Backend healthy"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "Backend unhealthy — rolling back"
+                git checkout "$PREV_SHA"
+                docker compose -f docker-compose.prod.yml up -d --build backend
+                exit 1
+              fi
+              sleep 10
+            done

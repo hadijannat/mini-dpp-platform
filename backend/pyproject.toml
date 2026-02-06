@@ -126,5 +126,10 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
+[tool.bandit]
+targets = ["app"]
+exclude_dirs = ["tests"]
+skips = ["B101"]  # Allow assert in non-test code (used by Pydantic validators)
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

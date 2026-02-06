@@ -6,6 +6,11 @@ services:
     image: caddy:2-alpine
     container_name: dpp-caddy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
     ports:
       - "80:80"
       - "443:443"
@@ -18,7 +23,7 @@ services:
       frontend:
         condition: service_started
       backend:
-        condition: service_started
+        condition: service_healthy
     networks:
       - dpp-network
 
@@ -29,6 +34,19 @@ services:
     image: postgres:16-alpine
     container_name: dpp-postgres
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=100
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -48,17 +66,53 @@ services:
       - dpp-network
 
   # =============================================================================
+  # PostgreSQL Backup - Automated daily pg_dump with retention
+  # =============================================================================
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: dpp-postgres-backup
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-dpp_platform},keycloak
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_ON_START: "true"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 3
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
   # Redis - Caching and Rate Limiting
   # =============================================================================
   redis:
     image: redis:7-alpine
     container_name: dpp-redis
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+          cpus: "0.5"
     command: >
       redis-server
       --appendonly yes
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy volatile-lru
       --requirepass ${REDIS_PASSWORD}
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD}
@@ -82,6 +136,11 @@ services:
     image: dpp-keycloak:prod
     container_name: dpp-keycloak
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
     command: start --import-realm --optimized
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
@@ -125,6 +184,11 @@ services:
     image: dpp-opa:prod
     container_name: dpp-opa
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
     command:
       - run
       - --server
@@ -149,6 +213,11 @@ services:
     image: minio/minio:RELEASE.2024-01-16T16-07-38Z
     container_name: dpp-minio
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
@@ -166,18 +235,16 @@ services:
   # =============================================================================
   # Backend API - FastAPI Application (Production)
   # =============================================================================
-  backend:
+  # One-off migration runner (use: docker compose run --rm migrate)
+  migrate:
     build:
       context: ./backend
       dockerfile: Dockerfile
       target: production
     image: dpp-backend:prod
-    container_name: dpp-backend
-    restart: unless-stopped
-    command: >
-      sh -c "python -m alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4"
-    environment:
+    container_name: dpp-migrate
+    command: python -m alembic upgrade head
+    environment: &backend-env
       - ENVIRONMENT=production
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dpp_platform}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -198,6 +265,35 @@ services:
       - LOG_LEVEL=INFO
       - IDTA_TEMPLATES_GITHUB_TOKEN=${IDTA_TEMPLATES_GITHUB_TOKEN:-}
       - IDTA_TEMPLATES_REPO_REF=${IDTA_TEMPLATES_REPO_REF:-1d4e0b45469f9260228ca6e99ff907c670476e2a}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpp-network
+    profiles:
+      - migrate
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: dpp-backend:prod
+    container_name: dpp-backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "2.0"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment: *backend-env
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -226,6 +322,11 @@ services:
     image: dpp-frontend:prod
     container_name: dpp-frontend
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
     depends_on:
       - backend
     networks:
@@ -237,6 +338,7 @@ networks:
 
 volumes:
   postgres_data:
+  postgres_backups:
   redis_data:
   minio_data:
   caddy_data:
