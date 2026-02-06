@@ -28,28 +28,14 @@ import ProtectedRoute from './auth/ProtectedRoute';
 function App() {
   const auth = useAuth();
 
-  if (auth.isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
   return (
     <Routes>
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/callback" element={<CallbackPage />} />
 
-      {/* Viewer routes (auth required) */}
-      <Route
-        element={
-          <ProtectedRoute>
-            <ViewerLayout />
-          </ProtectedRoute>
-        }
-      >
+      {/* Viewer routes (public -- no auth required for published DPPs) */}
+      <Route element={<ViewerLayout />}>
         <Route path="/t/:tenantSlug/dpp/:dppId" element={<DPPViewerPage />} />
         <Route path="/t/:tenantSlug/p/:slug" element={<DPPViewerPage />} />
         <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
@@ -57,12 +43,19 @@ function App() {
       </Route>
 
       {/* Publisher routes (authenticated, publisher role) */}
+      {/* Show loading spinner while OIDC discovery is in progress for auth routes */}
       <Route
         path="/console"
         element={
-          <ProtectedRoute requiredRole="publisher">
-            <PublisherLayout />
-          </ProtectedRoute>
+          auth.isLoading ? (
+            <div className="flex h-screen items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            <ProtectedRoute requiredRole="publisher">
+              <PublisherLayout />
+            </ProtectedRoute>
+          )
         }
       >
         <Route index element={<DashboardPage />} />
