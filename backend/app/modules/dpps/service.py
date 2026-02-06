@@ -30,6 +30,10 @@ from app.modules.templates.service import TemplateRegistryService
 logger = get_logger(__name__)
 
 
+class SigningError(Exception):
+    """Raised when JWS signing is configured but fails."""
+
+
 class DPPService:
     """
     Core service for Digital Product Passport operations.
@@ -548,6 +552,7 @@ class DPPService:
             revision_no=new_revision_no,
         )
 
+        await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
         return revision
 
     async def rebuild_all_from_templates(
@@ -699,6 +704,7 @@ class DPPService:
             revision_no=new_revision_no,
         )
 
+        await self._cleanup_old_draft_revisions(dpp.id, dpp.tenant_id)
         return True
 
     async def archive_dpp(self, dpp_id: UUID, tenant_id: UUID) -> DPP:
@@ -715,6 +721,26 @@ class DPPService:
         logger.info("dpp_archived", dpp_id=str(dpp_id))
 
         return dpp
+
+    async def _cleanup_old_draft_revisions(self, dpp_id: UUID, tenant_id: UUID) -> int:
+        """Delete oldest draft revisions beyond the retention limit. Returns count deleted."""
+        from sqlalchemy import delete
+
+        max_drafts = self._settings.dpp_max_draft_revisions
+        result = await self._session.execute(
+            select(DPPRevision.id)
+            .where(
+                DPPRevision.dpp_id == dpp_id,
+                DPPRevision.tenant_id == tenant_id,
+                DPPRevision.state == RevisionState.DRAFT,
+            )
+            .order_by(DPPRevision.revision_no.desc())
+            .offset(max_drafts)
+        )
+        old_ids = list(result.scalars().all())
+        if old_ids:
+            await self._session.execute(delete(DPPRevision).where(DPPRevision.id.in_(old_ids)))
+        return len(old_ids)
 
     async def _build_initial_environment(
         self,
@@ -1149,8 +1175,7 @@ class DPPService:
                 )
             )
         except Exception as exc:
-            logger.error("jws_signing_failed", error=str(exc))
-            return None
+            raise SigningError(f"JWS signing failed: {exc}") from exc
 
     @staticmethod
     def verify_jws(signed_jws: str, expected_digest: str, public_key: str) -> bool:

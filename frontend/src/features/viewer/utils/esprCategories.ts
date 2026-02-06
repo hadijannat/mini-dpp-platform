@@ -1,5 +1,27 @@
 import { Fingerprint, FlaskConical, Leaf, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
 
+/**
+ * Maps IDTA/Catena-X semantic IDs to ESPR category IDs.
+ * This is the primary classification mechanism — pattern matching on idShort
+ * is used as a fallback when no semantic ID is available.
+ */
+const SEMANTIC_ID_TO_CATEGORY: Record<string, string> = {
+  // Nameplate → Identity
+  'https://admin-shell.io/zvei/nameplate/2/0/Nameplate': 'identity',
+  'https://admin-shell.io/zvei/nameplate/3/0/Nameplate': 'identity',
+  '0173-1#01-AHF578#001': 'identity',
+  // Technical Data → Compliance
+  'https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2': 'compliance',
+  // Carbon Footprint → Environmental
+  'https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/0/9': 'environmental',
+  // Hierarchical Structures → Materials (BOM)
+  'https://admin-shell.io/idta/HierarchicalStructures/1/0/Submodel': 'materials',
+  // Handover Documentation → End-of-Life
+  'https://admin-shell.io/ZVEI/HandoverDocumentation/Submodel/1/2': 'endoflife',
+  // Battery Passport submodels (Catena-X)
+  'urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass': 'identity',
+};
+
 export type ESPRCategory = {
   id: string;
   label: string;
@@ -66,10 +88,21 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
 ];
 
 /**
- * Classify a submodel element into an ESPR category by matching
- * its idShort against category patterns.
+ * Classify a submodel element into an ESPR category.
+ * Primary: semantic ID lookup. Fallback: pattern matching on idShort.
  */
-export function classifyElement(idShort: string): ESPRCategory | null {
+export function classifyElement(
+  idShort: string,
+  semanticId?: string,
+): ESPRCategory | null {
+  // Primary: semantic ID lookup
+  if (semanticId) {
+    const categoryId = SEMANTIC_ID_TO_CATEGORY[semanticId];
+    if (categoryId) {
+      return ESPR_CATEGORIES.find(c => c.id === categoryId) ?? null;
+    }
+  }
+  // Fallback: pattern matching on idShort
   const lower = idShort.toLowerCase();
   for (const category of ESPR_CATEGORIES) {
     if (category.patterns.some(pattern => lower.includes(pattern))) {
@@ -96,11 +129,20 @@ export function classifySubmodelElements(
 
   for (const submodel of submodels) {
     const elements = (submodel.submodelElements || []) as Array<Record<string, unknown>>;
+    const submodelSemanticId = _extractSemanticId(submodel);
+
     // First, try to classify the entire submodel
-    const submodelCategory = classifyElement((submodel.idShort as string) || '');
+    const submodelCategory = classifyElement(
+      (submodel.idShort as string) || '',
+      submodelSemanticId,
+    );
 
     for (const element of elements) {
-      const elementCategory = classifyElement((element.idShort as string) || '');
+      const elementSemanticId = _extractSemanticId(element);
+      const elementCategory = classifyElement(
+        (element.idShort as string) || '',
+        elementSemanticId,
+      );
       const category = elementCategory || submodelCategory;
 
       if (category) {
@@ -112,4 +154,15 @@ export function classifySubmodelElements(
   }
 
   return result;
+}
+
+/**
+ * Extract the first semantic ID value from an AAS element's semanticId reference.
+ */
+function _extractSemanticId(element: Record<string, unknown>): string | undefined {
+  const semanticId = element.semanticId as Record<string, unknown> | undefined;
+  if (!semanticId) return undefined;
+  const keys = semanticId.keys as Array<Record<string, unknown>> | undefined;
+  if (!keys || keys.length === 0) return undefined;
+  return keys[0].value as string | undefined;
 }

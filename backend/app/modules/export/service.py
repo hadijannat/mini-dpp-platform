@@ -222,8 +222,8 @@ class ExportService:
         }
 
     def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
-        """Validate AASX — delegates to :meth:`validate_aasx_structure`."""
-        return self.validate_aasx_structure(aasx_bytes)
+        """Validate AASX — full compliance check including BaSyx round-trip."""
+        return self.validate_aasx_compliance(aasx_bytes)
 
     def validate_aasx_compliance(self, aasx_bytes: bytes) -> dict[str, Any]:
         """

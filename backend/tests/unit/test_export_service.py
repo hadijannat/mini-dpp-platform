@@ -115,13 +115,13 @@ def test_export_aasx_compliance_roundtrip() -> None:
     assert result["valid"] is True, f"Compliance errors: {result['errors']}"
 
 
-def test_validate_aasx_structure_delegates() -> None:
-    """validate_aasx() delegates to validate_aasx_structure()."""
+def test_validate_aasx_delegates_to_compliance() -> None:
+    """validate_aasx() delegates to validate_aasx_compliance()."""
     export_service = ExportService()
     dpp_id = uuid4()
     revision = _make_revision(dpp_id)
     aasx_bytes = export_service.export_aasx(revision, dpp_id)
 
-    result_old = export_service.validate_aasx(aasx_bytes)
-    result_new = export_service.validate_aasx_structure(aasx_bytes)
-    assert result_old == result_new
+    result = export_service.validate_aasx(aasx_bytes)
+    result_compliance = export_service.validate_aasx_compliance(aasx_bytes)
+    assert result == result_compliance
