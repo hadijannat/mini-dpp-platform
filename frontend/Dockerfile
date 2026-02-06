@@ -32,6 +32,12 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 # =============================================================================
 FROM base as build
 
+# Accept build-time env vars for Vite (baked into the JS bundle)
+ARG VITE_API_BASE_URL
+ARG VITE_KEYCLOAK_URL
+ARG VITE_KEYCLOAK_REALM
+ARG VITE_KEYCLOAK_CLIENT_ID
+
 # Copy package files
 COPY package*.json ./
 
@@ -41,7 +47,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
 
 # =============================================================================

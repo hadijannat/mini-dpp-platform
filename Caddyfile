@@ -1,0 +1,21 @@
+# Caddy reverse proxy configuration for production deployment.
+# Automatically obtains and renews Let's Encrypt TLS certificates.
+
+dpp-platform.dev {
+	# API requests → FastAPI backend
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else → frontend (nginx serving the React SPA)
+	handle {
+		reverse_proxy frontend:80
+	}
+}
+
+auth.dpp-platform.dev {
+	reverse_proxy keycloak:8080
+}
