@@ -71,7 +71,6 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            cd /opt/dpp-platform
+            cd ~/mini-dpp-platform
             git pull origin main
-            docker compose -f docker-compose.prod.yml pull backend frontend 2>/dev/null || true
             docker compose -f docker-compose.prod.yml up -d --build
