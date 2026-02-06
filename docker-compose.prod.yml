@@ -96,7 +96,7 @@ services:
       KC_HTTP_ENABLED: true
       KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
     volumes:
-      - ./infra/keycloak/realm-export/dpp-platform-realm-prod.json:/opt/keycloak/data/import/dpp-platform-realm.json:ro
+      - ./infra/keycloak/realm-export-prod/dpp-platform-realm-prod.json:/opt/keycloak/data/import/dpp-platform-realm.json:ro
     depends_on:
       postgres:
         condition: service_healthy
