@@ -538,4 +538,3 @@ class BasyxDppBuilder:
             except (TypeError, ValueError):
                 return value
         return value
-

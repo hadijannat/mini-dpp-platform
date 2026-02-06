@@ -109,9 +109,7 @@ class TemplateDefinitionBuilder:
         elif isinstance(element, (model.File, model.Blob)):
             node["contentType"] = element.content_type
         elif isinstance(element, model.SubmodelElementCollection):
-            children = iterable_attr(
-                element, "value", "submodel_element", "submodel_elements"
-            )
+            children = iterable_attr(element, "value", "submodel_element", "submodel_elements")
             node["children"] = [
                 self._element_definition(child, parent_path=path) for child in children
             ]
@@ -253,4 +251,3 @@ class TemplateDefinitionBuilder:
             "value": getattr(qualifier, "value", None),
             "semanticId": reference_to_dict(getattr(qualifier, "semantic_id", None)),
         }
-

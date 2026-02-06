@@ -147,5 +147,3 @@ def build_shell_descriptor(
         specific_asset_ids=specific_asset_ids,
         submodel_descriptors=submodel_descriptors,
     )
-
-

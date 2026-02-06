@@ -257,5 +257,3 @@ def _string_bool(value: Any) -> bool | None:
         if normalized in {"false", "no", "0"}:
             return False
     return None
-
-
