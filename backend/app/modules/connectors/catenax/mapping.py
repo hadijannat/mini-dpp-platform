@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 from app.core.config import get_settings
 from app.db.models import DPP, DPPRevision
+from app.modules.aas.references import extract_semantic_id_str
 from app.modules.connectors.catenax.dtr_client import ShellDescriptor
 
 # Mapping from IDTA AAS semantic IDs to Catena-X SAMM URNs.
@@ -94,7 +95,7 @@ def build_shell_descriptor(
     for submodel in aas_env.get("submodels", []):
         submodel_id = submodel.get("id", "")
         id_short = submodel.get("idShort", "")
-        aas_semantic_id = _extract_semantic_id(submodel)
+        aas_semantic_id = extract_semantic_id_str(submodel)
         semantic_id = translate_semantic_id_for_catenax(aas_semantic_id)
 
         # Build endpoint URL
@@ -148,13 +149,3 @@ def build_shell_descriptor(
     )
 
 
-def _extract_semantic_id(submodel: dict[str, Any]) -> str:
-    """Extract semantic ID from submodel structure."""
-    semantic_id = submodel.get("semanticId", {})
-
-    if isinstance(semantic_id, dict):
-        keys = semantic_id.get("keys", [])
-        if keys and isinstance(keys, list):
-            return str(keys[0].get("value", ""))
-
-    return ""

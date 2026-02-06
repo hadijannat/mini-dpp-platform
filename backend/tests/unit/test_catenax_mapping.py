@@ -9,8 +9,8 @@ from uuid import uuid4
 
 import pytest
 
+from app.modules.aas.references import extract_semantic_id_str
 from app.modules.connectors.catenax.mapping import (
-    _extract_semantic_id,
     build_shell_descriptor,
 )
 
@@ -174,14 +174,14 @@ class TestExtractSemanticId:
                 "keys": [{"value": "urn:samm:io.catenax.pcf:6.0.0#Pcf"}],
             }
         }
-        assert _extract_semantic_id(submodel) == "urn:samm:io.catenax.pcf:6.0.0#Pcf"
+        assert extract_semantic_id_str(submodel) == "urn:samm:io.catenax.pcf:6.0.0#Pcf"
 
     def test_extract_semantic_id_missing_keys(self):
         """Returns empty string when keys list is empty."""
         submodel = {"semanticId": {"keys": []}}
-        assert _extract_semantic_id(submodel) == ""
+        assert extract_semantic_id_str(submodel) == ""
 
     def test_extract_semantic_id_missing_semantic_id(self):
         """Returns empty string when semanticId key is absent."""
         submodel = {"idShort": "Nameplate"}
-        assert _extract_semantic_id(submodel) == ""
+        assert extract_semantic_id_str(submodel) == ""

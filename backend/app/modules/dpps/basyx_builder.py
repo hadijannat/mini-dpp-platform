@@ -14,6 +14,8 @@ from basyx.aas import model
 from basyx.aas.adapter import json as basyx_json
 
 from app.core.logging import get_logger
+from app.modules.aas.model_utils import clear_parent, clone_identifiable
+from app.modules.aas.references import reference_from_dict, reference_to_dict, reference_to_str
 from app.modules.templates.basyx_parser import BasyxTemplateParser
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.definition import TemplateDefinitionBuilder
@@ -73,7 +75,7 @@ class BasyxDppBuilder:
             store.add(submodel)
             for cd in parsed.concept_descriptions:
                 with suppress(KeyError):
-                    store.add(self._clone_identifiable(cd))
+                    store.add(clone_identifiable(cd))
 
             aas.submodel.add(model.ModelReference.from_referable(submodel))
 
@@ -121,7 +123,7 @@ class BasyxDppBuilder:
 
         for cd in parsed.concept_descriptions:
             with suppress(KeyError):
-                store.add(self._clone_identifiable(cd))
+                store.add(clone_identifiable(cd))
 
         env_json_str = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
         return cast(dict[str, Any], json.loads(env_json_str))
@@ -188,7 +190,7 @@ class BasyxDppBuilder:
             store.add(new_submodel)
             for cd in parsed.concept_descriptions:
                 with suppress(KeyError):
-                    store.add(self._clone_identifiable(cd))
+                    store.add(clone_identifiable(cd))
 
             changed = True
 
@@ -250,7 +252,7 @@ class BasyxDppBuilder:
         for obj in store:
             if not isinstance(obj, model.Submodel):
                 continue
-            candidate = self._reference_to_str(obj.semantic_id)
+            candidate = reference_to_str(obj.semantic_id)
             if candidate and semantic_id in candidate:
                 return obj
         return None
@@ -258,7 +260,7 @@ class BasyxDppBuilder:
     def _match_template_for_submodel(
         self, submodel: model.Submodel, templates: list[Any]
     ) -> Any | None:
-        submodel_semantic = self._reference_to_str(submodel.semantic_id) or ""
+        submodel_semantic = reference_to_str(submodel.semantic_id) or ""
         for template in templates:
             if template.semantic_id and template.semantic_id in submodel_semantic:
                 return template
@@ -333,7 +335,7 @@ class BasyxDppBuilder:
         value: Any,
     ) -> model.SubmodelElement:
         element = copy.deepcopy(template_element)
-        self._clear_parent(element)
+        clear_parent(element)
         element_value = value
 
         if isinstance(element, model.Property):
@@ -365,21 +367,21 @@ class BasyxDppBuilder:
                 element.value = cast(Any, self._hydrate_list_items(element, element_value))
         elif isinstance(element, model.ReferenceElement):
             if isinstance(element_value, dict):
-                reference = self._reference_from_dict(element_value)
+                reference = reference_from_dict(element_value)
                 if reference is not None:
                     element.value = reference
         elif isinstance(element, model.RelationshipElement):
             if isinstance(element_value, dict):
-                first = self._reference_from_dict(element_value.get("first"))
-                second = self._reference_from_dict(element_value.get("second"))
+                first = reference_from_dict(element_value.get("first"))
+                second = reference_from_dict(element_value.get("second"))
                 if first is not None:
                     element.first = first
                 if second is not None:
                     element.second = second
         elif isinstance(element, model.AnnotatedRelationshipElement):
             if isinstance(element_value, dict):
-                first = self._reference_from_dict(element_value.get("first"))
-                second = self._reference_from_dict(element_value.get("second"))
+                first = reference_from_dict(element_value.get("first"))
+                second = reference_from_dict(element_value.get("second"))
                 if first is not None:
                     element.first = first
                 if second is not None:
@@ -428,7 +430,7 @@ class BasyxDppBuilder:
         if isinstance(element, model.Blob):
             return {"contentType": element.content_type, "value": element.value}
         if isinstance(element, model.ReferenceElement):
-            return self._reference_to_dict(element.value)
+            return reference_to_dict(element.value)
         if isinstance(element, model.Entity):
             return {
                 "entityType": element.entity_type.name
@@ -439,13 +441,13 @@ class BasyxDppBuilder:
             }
         if isinstance(element, model.RelationshipElement):
             return {
-                "first": self._reference_to_dict(element.first),
-                "second": self._reference_to_dict(element.second),
+                "first": reference_to_dict(element.first),
+                "second": reference_to_dict(element.second),
             }
         if isinstance(element, model.AnnotatedRelationshipElement):
             return {
-                "first": self._reference_to_dict(element.first),
-                "second": self._reference_to_dict(element.second),
+                "first": reference_to_dict(element.first),
+                "second": reference_to_dict(element.second),
                 "annotations": self._extract_elements(element.annotation),
             }
         if isinstance(element, model.Property):
@@ -499,14 +501,14 @@ class BasyxDppBuilder:
                 value_type=value_type,
                 value=self._coerce_property_value(value, value_type, None),
             )
-            self._clear_parent(instance)
+            clear_parent(instance)
             return instance
         if item_type is model.MultiLanguageProperty and isinstance(value, dict):
             instance = model.MultiLanguageProperty(
                 id_short=None,
                 value=cast(Any, model.LangStringSet(value)),
             )
-            self._clear_parent(instance)
+            clear_parent(instance)
             return instance
         if item_type is model.SubmodelElementCollection and isinstance(value, dict):
             instance = model.SubmodelElementCollection(
@@ -516,63 +518,16 @@ class BasyxDppBuilder:
                     for child in list_element.value
                 ],
             )
-            self._clear_parent(instance)
+            clear_parent(instance)
             return instance
 
         instance = item_type(id_short=None)
-        self._clear_parent(instance)
+        clear_parent(instance)
         return instance
 
     def _strip_list_item_id_short(self, element: model.SubmodelElement) -> None:
         if hasattr(element, "id_short"):
             element.id_short = None
-
-    def _clone_identifiable(self, identifiable: model.Identifiable) -> model.Identifiable:
-        cloned = copy.deepcopy(identifiable)
-        if hasattr(cloned, "parent"):
-            cloned.parent = None
-        return cloned
-
-    def _clear_parent(self, element: model.SubmodelElement) -> None:
-        if hasattr(element, "parent"):
-            element.parent = None
-
-        if isinstance(element, (model.SubmodelElementCollection, model.SubmodelElementList)):
-            for child in element.value:
-                self._clear_parent(child)
-        elif isinstance(element, model.AnnotatedRelationshipElement):
-            for child in element.annotation:
-                self._clear_parent(child)
-        elif isinstance(element, model.Entity):
-            for child in element.statement:
-                self._clear_parent(child)
-
-    def _reference_from_dict(self, payload: Any) -> model.Reference | None:
-        if not isinstance(payload, dict):
-            return None
-        keys = payload.get("keys")
-        if not isinstance(keys, list):
-            return None
-        key_objs: list[model.Key] = []
-        for entry in keys:
-            if not isinstance(entry, dict):
-                continue
-            key_type_value = str(entry.get("type", "")).upper().replace(" ", "_")
-            if not key_type_value:
-                continue
-            try:
-                key_type = model.KeyTypes[key_type_value]
-            except KeyError:
-                continue
-            key_value = str(entry.get("value", ""))
-            key_objs.append(model.Key(key_type, key_value))
-        if not key_objs:
-            return None
-        reference_type = str(payload.get("type", "")).lower()
-        if reference_type == "modelreference":
-            # ModelReference requires a concrete referred type; fall back to external reference.
-            return model.ExternalReference(tuple(key_objs))
-        return model.ExternalReference(tuple(key_objs))
 
     def _coerce_property_value(self, value: Any, value_type: Any, fallback: Any) -> Any:
         if value is None:
@@ -584,36 +539,3 @@ class BasyxDppBuilder:
                 return value
         return value
 
-    def _reference_to_str(self, reference: model.Reference | None) -> str | None:
-        if reference is None:
-            return None
-        keys = getattr(reference, "keys", None)
-        if keys is None:
-            keys = getattr(reference, "key", None)
-        if not keys:
-            return None
-        first = next(iter(keys), None)
-        if first is None:
-            return None
-        value = getattr(first, "value", None)
-        return str(value) if value is not None else None
-
-    def _reference_to_dict(self, reference: model.Reference | None) -> dict[str, Any] | None:
-        if reference is None:
-            return None
-        keys = getattr(reference, "keys", None)
-        if keys is None:
-            keys = getattr(reference, "key", None)
-        if not keys:
-            return None
-        key_dicts = [
-            {
-                "type": key.type.name if hasattr(key.type, "name") else str(key.type),
-                "value": key.value,
-            }
-            for key in keys
-        ]
-        return {
-            "type": reference.__class__.__name__,
-            "keys": key_dicts,
-        }

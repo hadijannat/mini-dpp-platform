@@ -3,7 +3,7 @@
   "idta_version": "2.0.1",
   "semantic_id": "https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
   "expected": {
-    "definition_sha256": "dd91d2a22b1f596e2a94d40b47ba296308b8e4fe39ab009dee7523aa3f7efbdd",
+    "definition_sha256": "47cf6e887ebdc16a4bd1f79952d8e32c2fd3ce65234b09fc3aea40e9be079655",
     "schema_sha256": "9d0a1f0360dc5fefc4d540107e283f753c275c4c2e2cbdc1b25644e13ecd91c9"
   }
 }

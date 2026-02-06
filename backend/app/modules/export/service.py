@@ -13,6 +13,7 @@ from xml.etree import ElementTree as ET
 
 import defusedxml.ElementTree as DefusedET
 import pyecma376_2
+from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
 
@@ -165,7 +166,7 @@ class ExportService:
             return bytes(output)
         return output.encode("latin-1")
 
-    def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
+    def validate_aasx_structure(self, aasx_bytes: bytes) -> dict[str, Any]:
         """
         Validate an AASX package structure.
 
@@ -213,6 +214,58 @@ class ExportService:
             errors.append("Invalid ZIP archive")
         except Exception as e:
             errors.append(f"Validation error: {e}")
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+        }
+
+    def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """Validate AASX — delegates to :meth:`validate_aasx_structure`."""
+        return self.validate_aasx_structure(aasx_bytes)
+
+    def validate_aasx_compliance(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """
+        Validate AASX compliance via BaSyx round-trip deserialization.
+
+        Attempts to read the AASX package back through BaSyx's AASXReader
+        and then re-serialize. Any deserialization errors indicate the package
+        is not fully compliant with the AAS metamodel.
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        # First run structural validation
+        structural = self.validate_aasx_structure(aasx_bytes)
+        errors.extend(structural["errors"])
+        warnings.extend(structural["warnings"])
+
+        if errors:
+            return {"valid": False, "errors": errors, "warnings": warnings}
+
+        # Round-trip: read AASX → object store → serialize back to JSON
+        try:
+            store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
+            files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+            with aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
+                reader.read_into(store, files)
+
+            identifiables = list(store)
+            if not identifiables:
+                # BaSyx's lenient mode may skip objects it can't fully parse;
+                # this is a warning rather than a hard error since the AASX
+                # structure itself is valid.
+                warnings.append(
+                    "BaSyx could not deserialize any identifiable objects from the AASX "
+                    "(lenient mode may have skipped non-compliant entries)"
+                )
+            else:
+                # Verify we can serialize back to JSON without errors
+                basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
+
+        except Exception as exc:
+            errors.append(f"BaSyx compliance check failed: {exc}")
 
         return {
             "valid": len(errors) == 0,

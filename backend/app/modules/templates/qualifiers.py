@@ -11,6 +11,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.modules.aas.references import extract_semantic_id_str
+
 CARDINALITY_VALUES = {"One", "ZeroToOne", "ZeroToMany", "OneToMany"}
 
 CARDINALITY_SEMANTIC_IDS = {
@@ -106,7 +108,7 @@ def parse_smt_qualifiers(qualifiers: Iterable[dict[str, Any]] | None) -> SmtQual
 
     for qual in qualifiers:
         qtype = str(qual.get("type", "")).strip()
-        semantic_id = _extract_semantic_id(qual)
+        semantic_id = extract_semantic_id_str(qual)
         value = qual.get("value")
 
         if qtype in {"SMT/Cardinality", "Cardinality", "SMT/Multiplicity", "Multiplicity"} or (
@@ -257,12 +259,3 @@ def _string_bool(value: Any) -> bool | None:
     return None
 
 
-def _extract_semantic_id(qualifier: dict[str, Any]) -> str | None:
-    semantic_id = qualifier.get("semanticId") or qualifier.get("semanticID")
-    if isinstance(semantic_id, dict):
-        keys = semantic_id.get("keys", [])
-        if isinstance(keys, list) and keys:
-            key_value = keys[0].get("value")
-            if key_value:
-                return str(key_value)
-    return None
