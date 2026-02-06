@@ -27,7 +27,7 @@ async def get_redis() -> redis.Redis | None:
         settings = get_settings()
         try:
             _redis = redis.from_url(str(settings.redis_url), decode_responses=True)  # type: ignore[no-untyped-call]
-            _ok: object = await _redis.ping()
+            await _redis.ping()  # type: ignore[misc,unused-ignore]
         except Exception:
             logger.warning("rate_limit_redis_unavailable")
             _redis = None
