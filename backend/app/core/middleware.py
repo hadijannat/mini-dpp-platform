@@ -27,7 +27,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if path in ("/api/v1/docs", "/api/v1/redoc"):
             csp_directives = [
                 "default-src 'self'",
-                "script-src 'self' https://cdn.jsdelivr.net",
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
                 "img-src 'self' data: https://fastapi.tiangolo.com",
                 "font-src 'self'",
