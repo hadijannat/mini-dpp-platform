@@ -3,6 +3,7 @@
 Fetches templates from the IDTA GitHub repo, parses with BaSyx,
 builds definitions and schemas, and updates golden files in-place.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,10 +18,10 @@ import httpx
 backend_dir = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(backend_dir))
 
-from app.modules.templates.basyx_parser import BasyxTemplateParser
-from app.modules.templates.catalog import TEMPLATE_CATALOG, TemplateDescriptor
-from app.modules.templates.definition import TemplateDefinitionBuilder
-from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter
+from app.modules.templates.basyx_parser import BasyxTemplateParser  # noqa: E402
+from app.modules.templates.catalog import TEMPLATE_CATALOG, TemplateDescriptor  # noqa: E402
+from app.modules.templates.definition import TemplateDefinitionBuilder  # noqa: E402
+from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter  # noqa: E402
 
 GOLDENS_DIR = backend_dir / "tests" / "goldens" / "templates"
 REPO_API = "https://api.github.com/repos/admin-shell-io/submodel-templates/contents/published"
@@ -140,7 +141,7 @@ def main() -> None:
 
         aas_env = fetch_template_json(descriptor, version)
         if aas_env is None:
-            print(f"  FAILED to fetch template JSON")
+            print("  FAILED to fetch template JSON")
             continue
 
         # Parse with BaSyx
@@ -168,12 +169,12 @@ def main() -> None:
         if def_hash != old_def:
             print(f"  definition_sha256: {old_def} -> {def_hash}")
         else:
-            print(f"  definition_sha256: unchanged")
+            print("  definition_sha256: unchanged")
 
         if schema_hash != old_schema:
             print(f"  schema_sha256:     {old_schema} -> {schema_hash}")
         else:
-            print(f"  schema_sha256:     unchanged")
+            print("  schema_sha256:     unchanged")
 
         # Update golden file
         golden["expected"]["definition_sha256"] = def_hash
