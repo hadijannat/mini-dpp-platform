@@ -10,7 +10,7 @@ const standards = [
     title: 'EU ESPR',
     badge: 'Regulation',
     description:
-      'The Ecodesign for Sustainable Products Regulation establishes the legislative framework requiring Digital Product Passports for products sold in the EU market, starting 2027.',
+      'The Ecodesign for Sustainable Products Regulation (in force since July 2024) establishes the framework for Digital Product Passports in the EU. First product categories — batteries, textiles, and furniture — require DPPs from 2027, with additional sectors phasing in through 2030.',
   },
   {
     icon: BookOpen,
@@ -60,7 +60,7 @@ export default function StandardsSection() {
             Built on Industry Standards
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-muted-foreground">
-            Full compliance with EU regulations and interoperability with leading
+            Designed for EU regulatory alignment and interoperability with leading
             industry frameworks and ecosystems.
           </p>
         </div>
