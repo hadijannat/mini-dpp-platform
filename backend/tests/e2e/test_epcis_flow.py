@@ -5,7 +5,7 @@ Requires a running backend stack (docker compose up).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -40,7 +40,7 @@ def epcis_base(tenant_slug: str) -> str:
     return f"/api/v1/tenants/{tenant_slug}/epcis"
 
 
-NOW_ISO = datetime.now(tz=timezone.utc).isoformat()
+NOW_ISO = datetime.now(tz=UTC).isoformat()
 
 
 class TestEPCISCapture:
