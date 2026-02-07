@@ -493,9 +493,7 @@ class TestApplySMT:
         schema = converter._node_to_schema(node)
         assert schema["x-form-url"] == "https://example.com/help"
 
-    def test_form_choices_sets_enum_on_string(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_form_choices_sets_enum_on_string(self, converter: DefinitionToSchemaConverter) -> None:
         node = {
             "idShort": "Color",
             "modelType": "Property",
@@ -561,9 +559,7 @@ class TestApplySMT:
         assert schema["minimum"] == -40.0
         assert schema["maximum"] == 85.0
 
-    def test_allowed_range_string_fallback(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_allowed_range_string_fallback(self, converter: DefinitionToSchemaConverter) -> None:
         node = {
             "idShort": "X",
             "modelType": "Property",
@@ -664,17 +660,13 @@ class TestCoerceValue:
     def test_integer_coercion(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._coerce_value("42", "integer") == 42
 
-    def test_integer_invalid_returns_string(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_integer_invalid_returns_string(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._coerce_value("notanumber", "integer") == "notanumber"
 
     def test_number_coercion(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._coerce_value("3.14", "number") == 3.14
 
-    def test_number_invalid_returns_string(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_number_invalid_returns_string(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._coerce_value("abc", "number") == "abc"
 
     def test_boolean_true_variants(self, converter: DefinitionToSchemaConverter) -> None:
@@ -746,14 +738,10 @@ class TestIsRequired:
     def test_one_to_many_is_required(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._is_required({"smt": {"cardinality": "OneToMany"}}) is True
 
-    def test_zero_to_one_is_not_required(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_zero_to_one_is_not_required(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._is_required({"smt": {"cardinality": "ZeroToOne"}}) is False
 
-    def test_zero_to_many_is_not_required(
-        self, converter: DefinitionToSchemaConverter
-    ) -> None:
+    def test_zero_to_many_is_not_required(self, converter: DefinitionToSchemaConverter) -> None:
         assert converter._is_required({"smt": {"cardinality": "ZeroToMany"}}) is False
 
     def test_missing_cardinality_is_not_required(
