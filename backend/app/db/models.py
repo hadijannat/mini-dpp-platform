@@ -99,6 +99,16 @@ class LifecyclePhase(str, PyEnum):
     END_OF_LIFE = "end_of_life"
 
 
+class EPCISEventType(str, PyEnum):
+    """EPCIS 2.0 event type discriminator."""
+
+    OBJECT = "ObjectEvent"
+    AGGREGATION = "AggregationEvent"
+    TRANSACTION = "TransactionEvent"
+    TRANSFORMATION = "TransformationEvent"
+    ASSOCIATION = "AssociationEvent"
+
+
 class ConnectorType(str, PyEnum):
     """Type of external connector."""
 
@@ -1269,4 +1279,91 @@ class LCACalculation(TenantScopedMixin, Base):
     __table_args__ = (
         Index("ix_lca_calculations_tenant_dpp", "tenant_id", "dpp_id"),
         Index("ix_lca_calculations_dpp_revision", "dpp_id", "revision_no"),
+    )
+
+
+# =============================================================================
+# EPCIS 2.0 Event Model
+# =============================================================================
+
+
+class EPCISEvent(TenantScopedMixin, Base):
+    """
+    EPCIS 2.0 supply-chain event linked to a DPP.
+
+    Captures standardised GS1 EPCIS events (commissioning, shipping,
+    transformation, etc.) with type-specific data in a JSONB payload.
+    Append-only — corrections use error_declaration referencing the
+    erroneous event.
+    """
+
+    __tablename__ = "epcis_events"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_id: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
+        comment="Unique EPCIS event URI (urn:uuid:...)",
+    )
+    event_type: Mapped[EPCISEventType] = mapped_column(
+        Enum(EPCISEventType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="When the event occurred",
+    )
+    event_time_zone_offset: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        comment="Timezone offset, e.g. +01:00",
+    )
+    action: Mapped[str | None] = mapped_column(
+        String(20),
+        comment="ADD, OBSERVE, or DELETE (NULL for TransformationEvent)",
+    )
+    biz_step: Mapped[str | None] = mapped_column(
+        String(100),
+        comment="CBV business step short name",
+    )
+    disposition: Mapped[str | None] = mapped_column(
+        String(100),
+        comment="CBV disposition short name",
+    )
+    read_point: Mapped[str | None] = mapped_column(
+        String(512),
+        comment="Where the event was observed (URI)",
+    )
+    biz_location: Mapped[str | None] = mapped_column(
+        String(512),
+        comment="Business location where objects reside after event (URI)",
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Type-specific data: epcList, parentID, childEPCs, sensor data, etc.",
+    )
+    error_declaration: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        comment="EPCIS error declaration for event corrections",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_epcis_events_tenant_dpp_time", "tenant_id", "dpp_id", "event_time"),
+        Index("ix_epcis_events_event_id", "event_id", unique=True),
+        Index("ix_epcis_events_biz_step", "biz_step"),
+        Index("ix_epcis_events_payload", "payload", postgresql_using="gin"),
     )

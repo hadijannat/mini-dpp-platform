@@ -24,6 +24,7 @@ from app.modules.connectors.router import router as connectors_router
 from app.modules.digital_thread.router import router as digital_thread_router
 from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
+from app.modules.epcis.router import router as epcis_router
 from app.modules.export.router import router as export_router
 from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
@@ -268,6 +269,11 @@ window.onload = function() {{
         lca_router,
         prefix=f"{tenant_prefix}/lca",
         tags=["LCA"],
+    )
+    app.include_router(
+        epcis_router,
+        prefix=f"{tenant_prefix}/epcis",
+        tags=["EPCIS"],
     )
 
     # Prometheus metrics endpoint
