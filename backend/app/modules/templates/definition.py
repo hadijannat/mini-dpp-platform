@@ -59,7 +59,9 @@ class TemplateDefinitionBuilder:
 
     def _submodel_definition(self, submodel: model.Submodel) -> dict[str, Any]:
         qualifiers = self._qualifiers_to_dicts(submodel)
-        elements = self._sorted_elements(iterable_attr(submodel, "submodel_element", "submodel_elements"))
+        elements = self._sorted_elements(
+            iterable_attr(submodel, "submodel_element", "submodel_elements")
+        )
         return {
             "id": submodel.id,
             "idShort": submodel.id_short,

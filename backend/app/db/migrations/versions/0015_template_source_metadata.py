@@ -23,7 +23,9 @@ def upgrade() -> None:
     op.add_column("templates", sa.Column("source_kind", sa.String(length=16), nullable=True))
     op.add_column("templates", sa.Column("selection_strategy", sa.String(length=32), nullable=True))
 
-    op.execute("UPDATE templates SET resolved_version = idta_version WHERE resolved_version IS NULL")
+    op.execute(
+        "UPDATE templates SET resolved_version = idta_version WHERE resolved_version IS NULL"
+    )
 
 
 def downgrade() -> None:

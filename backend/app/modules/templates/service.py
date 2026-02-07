@@ -123,8 +123,9 @@ class TemplateRegistryService:
         Returns a list of dicts with version, is_default, and created_at.
         """
         result = await self._session.execute(
-            select(Template.idta_version, Template.fetched_at)
-            .where(Template.template_key == template_key)
+            select(Template.idta_version, Template.fetched_at).where(
+                Template.template_key == template_key
+            )
         )
         rows = list(result.all())
         rows.sort(key=lambda row: self._version_key(str(row.idta_version)), reverse=True)
@@ -185,8 +186,12 @@ class TemplateRegistryService:
                     aas_env_json = self._normalize_template_json(payload, template_key)
                     source_url = json_url
                     source_kind = "json"
-                    source_file_path = cast(str | None, json_asset.get("path")) if json_asset else None
-                    source_file_sha = cast(str | None, json_asset.get("sha")) if json_asset else None
+                    source_file_path = (
+                        cast(str | None, json_asset.get("path")) if json_asset else None
+                    )
+                    source_file_sha = (
+                        cast(str | None, json_asset.get("sha")) if json_asset else None
+                    )
                     if json_asset:
                         selection_strategy = SELECTION_STRATEGY
                     if not aas_env_json.get("submodels"):
