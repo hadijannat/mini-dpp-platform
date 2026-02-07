@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse
 from sqlalchemy import text
 
 from app.core.config import get_settings
@@ -76,10 +77,45 @@ def create_application() -> FastAPI:
         title=settings.project_name,
         version=settings.version,
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
-        docs_url=f"{settings.api_v1_prefix}/docs",
+        docs_url=None,  # Custom docs endpoint below
         redoc_url=f"{settings.api_v1_prefix}/redoc",
         lifespan=lifespan,
     )
+
+    # Custom Swagger UI endpoint — FastAPI's built-in version has a timing
+    # issue with swagger-ui v5 where the inline init script fires before the
+    # bundle's internal React setup completes, producing a blank page. This
+    # defers initialization to window.onload to guarantee readiness.
+    @app.get(f"{settings.api_v1_prefix}/docs", include_in_schema=False)
+    async def custom_swagger_ui() -> HTMLResponse:
+        return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+<head>
+<link type="text/css" rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+<title>{settings.project_name} - Swagger UI</title>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+window.onload = function() {{
+    SwaggerUIBundle({{
+        url: "{settings.api_v1_prefix}/openapi.json",
+        dom_id: "#swagger-ui",
+        layout: "BaseLayout",
+        deepLinking: true,
+        showExtensions: true,
+        showCommonExtensions: true,
+        presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+    }});
+}};
+</script>
+</body>
+</html>""")
 
     # ==========================================================================
     # Middleware Configuration
