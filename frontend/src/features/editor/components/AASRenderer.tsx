@@ -86,13 +86,13 @@ export function AASRenderer({ node, basePath, depth, schema, control }: AASRende
       return <ReferenceField {...fieldProps} />;
 
     case 'Entity':
-      return <EntityField {...fieldProps} />;
+      return <EntityField {...fieldProps} renderNode={renderNode} />;
 
     case 'RelationshipElement':
       return <RelationshipField {...fieldProps} />;
 
     case 'AnnotatedRelationshipElement':
-      return <AnnotatedRelationshipField {...fieldProps} />;
+      return <AnnotatedRelationshipField {...fieldProps} renderNode={renderNode} />;
 
     case 'Blob':
     case 'Operation':

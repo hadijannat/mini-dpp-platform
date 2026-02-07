@@ -22,7 +22,6 @@ import {
 import type {
   TemplateResponse,
   TemplateDefinition,
-  SubmodelDefinitionResponse,
   TemplateContractResponse,
 } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
@@ -48,26 +47,6 @@ async function fetchTemplate(templateKey: string, token?: string) {
   const response = await apiFetch(`/api/v1/templates/${templateKey}`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch template'));
-  }
-  return response.json();
-}
-
-async function fetchTemplateSchema(templateKey: string, token?: string) {
-  const response = await apiFetch(`/api/v1/templates/${templateKey}/schema`, {}, token);
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, 'Failed to fetch template schema'));
-  }
-  return response.json();
-}
-
-async function fetchSubmodelDefinition(dppId: string, templateKey: string, token?: string) {
-  const response = await tenantApiFetch(
-    `/dpps/${dppId}/submodels/${templateKey}/definition`,
-    {},
-    token,
-  );
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, 'Failed to fetch submodel definition'));
   }
   return response.json();
 }
@@ -115,7 +94,6 @@ export default function SubmodelEditorPage() {
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const queryClient = useQueryClient();
-  const useTemplateContractV2 = import.meta.env.VITE_TEMPLATE_CONTRACT_V2 === 'true';
 
   // ── Data fetching ──
 
@@ -131,23 +109,10 @@ export default function SubmodelEditorPage() {
     enabled: Boolean(token && templateKey),
   });
 
-  const { data: schema, isLoading: loadingSchema } = useQuery({
-    queryKey: ['template-schema', templateKey],
-    queryFn: () => fetchTemplateSchema(templateKey!, token),
-    enabled: Boolean(token && templateKey && !useTemplateContractV2),
-  });
-
-  const { data: definition, isLoading: loadingDefinition } =
-    useQuery<SubmodelDefinitionResponse>({
-      queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
-      queryFn: () => fetchSubmodelDefinition(dppId!, templateKey!, token),
-      enabled: Boolean(token && templateKey && dppId && !useTemplateContractV2),
-    });
-
   const { data: contract, isLoading: loadingContract } = useQuery<TemplateContractResponse>({
     queryKey: ['template-contract', templateKey],
     queryFn: () => fetchTemplateContract(templateKey!, token),
-    enabled: Boolean(token && templateKey && useTemplateContractV2),
+    enabled: Boolean(token && templateKey),
   });
 
   // ── Derived state ──
@@ -162,8 +127,7 @@ export default function SubmodelEditorPage() {
       );
       if (bySemantic) return bySemantic;
     }
-    const definitionIdShort =
-      contract?.definition?.submodel?.idShort ?? definition?.definition?.submodel?.idShort;
+    const definitionIdShort = contract?.definition?.submodel?.idShort;
     if (definitionIdShort) {
       const byIdShort = submodels.find(
         (sm: Record<string, unknown>) => sm?.idShort === definitionIdShort,
@@ -175,7 +139,6 @@ export default function SubmodelEditorPage() {
     dpp,
     template?.semantic_id,
     contract?.semantic_id,
-    definition?.definition?.submodel?.idShort,
     contract?.definition?.submodel?.idShort,
   ]);
 
@@ -184,10 +147,8 @@ export default function SubmodelEditorPage() {
     return buildSubmodelData(submodel);
   }, [submodel]);
 
-  const uiSchema = (contract?.schema ?? schema?.schema) as UISchema | undefined;
-  const templateDefinition = (
-    contract?.definition ?? definition?.definition
-  ) as TemplateDefinition | undefined;
+  const uiSchema = contract?.schema as UISchema | undefined;
+  const templateDefinition = contract?.definition as TemplateDefinition | undefined;
 
   // ── React Hook Form ──
 
@@ -220,9 +181,6 @@ export default function SubmodelEditorPage() {
       updateSubmodel(dppId!, templateKey!, payload.data, token, payload.rebuildFromTemplate ?? false),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
-      queryClient.invalidateQueries({
-        queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
-      });
       navigate(`/console/dpps/${dppId}`);
     },
   });
@@ -306,11 +264,7 @@ export default function SubmodelEditorPage() {
 
   // ── Loading / error states ──
 
-  const isLoading =
-    loadingDpp ||
-    loadingTemplate ||
-    (!useTemplateContractV2 && (loadingSchema || loadingDefinition)) ||
-    (useTemplateContractV2 && loadingContract);
+  const isLoading = loadingDpp || loadingTemplate || loadingContract;
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -348,11 +302,8 @@ export default function SubmodelEditorPage() {
           </Button>
         }
         actions={
-          definition ? (
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">Revision #{definition.revision_no}</Badge>
-              <Badge variant="secondary">{definition.state}</Badge>
-            </div>
+          contract ? (
+            <Badge variant="secondary">{contract.idta_version}</Badge>
           ) : undefined
         }
       />
@@ -449,25 +400,6 @@ export default function SubmodelEditorPage() {
       </Card>
 
       {/* Debug panels */}
-      {schema?.schema && (
-        <Card>
-          <Collapsible>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between p-6">
-                Template Schema (read-only)
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent>
-                <pre className="text-xs bg-muted p-3 rounded overflow-auto">
-                  {JSON.stringify(schema.schema, null, 2)}
-                </pre>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-      )}
       {templateDefinition && (
         <Card>
           <Collapsible>

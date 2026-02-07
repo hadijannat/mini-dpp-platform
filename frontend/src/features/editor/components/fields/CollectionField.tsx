@@ -57,9 +57,17 @@ export function CollectionField({
         );
       })}
       {children.length === 0 && schema?.properties && (
-        <p className="text-xs text-gray-400">
-          No definition children. Schema-driven fields available in JSON view.
-        </p>
+        Object.entries(schema.properties).map(([key, childSchema]) => (
+          <div key={name ? `${name}.${key}` : key}>
+            {renderNode({
+              node: { modelType: 'Property', idShort: key },
+              basePath: name ? `${name}.${key}` : key,
+              depth: depth + 1,
+              schema: childSchema,
+              control,
+            })}
+          </div>
+        ))
       )}
     </CollapsibleSection>
   );

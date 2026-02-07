@@ -1,14 +1,34 @@
-import { Controller } from 'react-hook-form';
-import type { FieldProps } from '../../types/formTypes';
+import { Controller, type Control } from 'react-hook-form';
+import type { DefinitionNode } from '../../types/definition';
+import type { UISchema } from '../../types/uiSchema';
 import { FieldWrapper } from '../FieldWrapper';
+import { CollapsibleSection } from '../CollapsibleSection';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
 
-export function EntityField({ name, control, node }: FieldProps) {
+type EntityFieldProps = {
+  name: string;
+  control: Control<Record<string, unknown>>;
+  node: DefinitionNode;
+  schema?: UISchema;
+  depth: number;
+  readOnly?: boolean;
+  renderNode: (props: {
+    node: DefinitionNode;
+    basePath: string;
+    depth: number;
+    schema?: UISchema;
+    control: Control<Record<string, unknown>>;
+  }) => React.ReactNode;
+};
+
+export function EntityField({ name, control, node, schema, depth, renderNode }: EntityFieldProps) {
   const label = getNodeLabel(node, name.split('.').pop() ?? name);
   const description = getNodeDescription(node);
   const required = isNodeRequired(node);
   const formUrl = node.smt?.form_url ?? undefined;
   const defaultEntityType = node.entityType ?? 'SelfManagedEntity';
+  const statements = node.statements ?? [];
+  const statementsSchema = schema?.properties?.statements;
 
   return (
     <Controller
@@ -53,16 +73,41 @@ export function EntityField({ name, control, node }: FieldProps) {
                   }}
                 />
               </div>
-              {Boolean(current.statements &&
-                typeof current.statements === 'object' &&
-                Object.keys(current.statements as Record<string, unknown>).length > 0) && (
-                  <div className="border rounded-md p-3 bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-2">Statements</p>
-                    <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-                      {JSON.stringify(current.statements, null, 2)}
-                    </pre>
-                  </div>
-                )}
+              {statements.length > 0 ? (
+                <CollapsibleSection
+                  title="Statements"
+                  depth={depth + 1}
+                  childCount={statements.length}
+                >
+                  {statements.map((stmt, index) => {
+                    const stmtId = stmt.idShort ?? `Statement${index + 1}`;
+                    const stmtPath = `${name}.statements.${stmtId}`;
+                    const stmtSchema = statementsSchema?.properties?.[stmtId];
+                    return (
+                      <div key={stmtPath}>
+                        {renderNode({
+                          node: stmt,
+                          basePath: stmtPath,
+                          depth: depth + 2,
+                          schema: stmtSchema,
+                          control,
+                        })}
+                      </div>
+                    );
+                  })}
+                </CollapsibleSection>
+              ) : (
+                Boolean(current.statements &&
+                  typeof current.statements === 'object' &&
+                  Object.keys(current.statements as Record<string, unknown>).length > 0) && (
+                    <div className="border rounded-md p-3 bg-muted/50">
+                      <p className="text-xs text-muted-foreground mb-2">Statements</p>
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap">
+                        {JSON.stringify(current.statements, null, 2)}
+                      </pre>
+                    </div>
+                  )
+              )}
             </div>
           </FieldWrapper>
         );

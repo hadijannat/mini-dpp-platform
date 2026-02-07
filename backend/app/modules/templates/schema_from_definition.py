@@ -99,11 +99,37 @@ class DefinitionToSchemaConverter:
 
     def _list_schema(self, node: dict[str, Any]) -> dict[str, Any]:
         item = node.get("items")
+        items_schema: dict[str, Any]
+        if isinstance(item, dict):
+            items_schema = self._node_to_schema(item)
+        else:
+            # Synthesize item schema from list's type hints when no sample item exists
+            type_hint = node.get("typeValueListElement")
+            if type_hint == "SubmodelElementCollection":
+                items_schema = {"type": "object", "properties": {}}
+            elif type_hint in {
+                "Property",
+                "MultiLanguageProperty",
+                "Range",
+                "File",
+                "Blob",
+                "ReferenceElement",
+                "Entity",
+                "RelationshipElement",
+                "AnnotatedRelationshipElement",
+            }:
+                synthetic_node: dict[str, Any] = {
+                    "modelType": type_hint,
+                    "valueType": node.get("valueTypeListElement") or "xs:string",
+                }
+                items_schema = self._node_to_schema(synthetic_node)
+            else:
+                items_schema = {"type": "string"}
         schema: dict[str, Any] = {
             "type": "array",
             "title": node.get("idShort") or "",
             "description": self._pick_text(node.get("description")),
-            "items": self._node_to_schema(item) if isinstance(item, dict) else {"type": "string"},
+            "items": items_schema,
         }
         cardinality = ((node.get("smt") or {}).get("cardinality") or "").strip()
         if cardinality == "OneToMany":
