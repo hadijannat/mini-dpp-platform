@@ -31,10 +31,7 @@ router = APIRouter()
 def _has_hash_columns() -> bool:
     """Check whether the AuditEvent model has crypto hash chain columns."""
     mapper = AuditEvent.__table__
-    return all(
-        col in mapper.columns
-        for col in ("event_hash", "prev_event_hash", "chain_sequence")
-    )
+    return all(col in mapper.columns for col in ("event_hash", "prev_event_hash", "chain_sequence"))
 
 
 def _get_crypto_attr(event: AuditEvent, name: str) -> Any:
@@ -77,9 +74,7 @@ async def list_audit_events(
     _user: Admin,
     tenant_id: UUID | None = Query(None, description="Filter by tenant"),
     action: str | None = Query(None, description="Filter by action"),
-    resource_type: str | None = Query(
-        None, description="Filter by resource type"
-    ),
+    resource_type: str | None = Query(None, description="Filter by resource type"),
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(50, ge=1, le=200, description="Items per page"),
 ) -> AuditEventListResponse:
@@ -95,17 +90,13 @@ async def list_audit_events(
         count_query = count_query.where(AuditEvent.action == action)
     if resource_type is not None:
         query = query.where(AuditEvent.resource_type == resource_type)
-        count_query = count_query.where(
-            AuditEvent.resource_type == resource_type
-        )
+        count_query = count_query.where(AuditEvent.resource_type == resource_type)
 
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
     query = (
-        query.order_by(desc(AuditEvent.created_at))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
+        query.order_by(desc(AuditEvent.created_at)).offset((page - 1) * page_size).limit(page_size)
     )
     result = await db.execute(query)
     events = result.scalars().all()
@@ -148,10 +139,7 @@ async def verify_chain(
     if not _has_hash_columns():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=(
-                "Hash chain columns not available. "
-                "Apply the migration first."
-            ),
+            detail=("Hash chain columns not available. Apply the migration first."),
         )
 
     query = (
@@ -188,10 +176,7 @@ async def verify_single_event(
     if not _has_hash_columns():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=(
-                "Hash chain columns not available. "
-                "Apply the migration first."
-            ),
+            detail=("Hash chain columns not available. Apply the migration first."),
         )
 
     event = await db.get(AuditEvent, event_id)
@@ -244,10 +229,7 @@ async def anchor_merkle_root(
     if not _has_hash_columns():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=(
-                "Hash chain columns not available. "
-                "Apply the migration first."
-            ),
+            detail=("Hash chain columns not available. Apply the migration first."),
         )
 
     query = (
@@ -267,9 +249,7 @@ async def anchor_merkle_root(
         )
 
     hashes = [str(_get_crypto_attr(e, "event_hash")) for e in events]
-    sequences = [
-        int(_get_crypto_attr(e, "chain_sequence")) for e in events
-    ]
+    sequences = [int(_get_crypto_attr(e, "chain_sequence")) for e in events]
 
     tree = MerkleTree(leaves=hashes)
 
@@ -281,9 +261,7 @@ async def anchor_merkle_root(
             logger.warning("merkle_signing_failed", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Failed to sign Merkle root. Check the signing key."
-                ),
+                detail=("Failed to sign Merkle root. Check the signing key."),
             )
 
     return AnchorResponse(

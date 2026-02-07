@@ -59,9 +59,7 @@ def compute_merkle_root(hashes: list[str]) -> str:
     return level[0]
 
 
-def compute_inclusion_proof(
-    hashes: list[str], index: int
-) -> list[tuple[str, str]]:
+def compute_inclusion_proof(hashes: list[str], index: int) -> list[tuple[str, str]]:
     """Compute an inclusion proof for the leaf at ``index``.
 
     The proof is a list of ``(sibling_hash, side)`` tuples where ``side``
@@ -87,9 +85,7 @@ def compute_inclusion_proof(
     if not hashes:
         raise ValueError("Cannot compute proof from empty list")
     if index < 0 or index >= len(hashes):
-        raise ValueError(
-            f"Index {index} out of range for {len(hashes)} hashes"
-        )
+        raise ValueError(f"Index {index} out of range for {len(hashes)} hashes")
 
     if len(hashes) == 1:
         return []

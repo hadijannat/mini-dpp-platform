@@ -38,10 +38,14 @@ def generate_signing_keypair() -> tuple[str, str]:
         format=PrivateFormat.PKCS8,
         encryption_algorithm=NoEncryption(),
     ).decode("utf-8")
-    public_pem = private_key.public_key().public_bytes(
-        encoding=Encoding.PEM,
-        format=PublicFormat.SubjectPublicKeyInfo,
-    ).decode("utf-8")
+    public_pem = (
+        private_key.public_key()
+        .public_bytes(
+            encoding=Encoding.PEM,
+            format=PublicFormat.SubjectPublicKeyInfo,
+        )
+        .decode("utf-8")
+    )
     return private_pem, public_pem
 
 
@@ -60,18 +64,14 @@ def sign_merkle_root(root_hash: str, private_key_pem: str) -> str:
     str
         Base64-encoded Ed25519 signature.
     """
-    private_key = load_pem_private_key(
-        private_key_pem.encode("utf-8"), password=None
-    )
+    private_key = load_pem_private_key(private_key_pem.encode("utf-8"), password=None)
     if not isinstance(private_key, Ed25519PrivateKey):
         raise TypeError("Expected an Ed25519 private key")
     signature = private_key.sign(root_hash.encode("utf-8"))
     return base64.b64encode(signature).decode("utf-8")
 
 
-def verify_signature(
-    root_hash: str, signature: str, public_key_pem: str
-) -> bool:
+def verify_signature(root_hash: str, signature: str, public_key_pem: str) -> bool:
     """Verify an Ed25519 signature on a Merkle root hash.
 
     Parameters

@@ -156,9 +156,7 @@ class EDCContractService:
     # internal helpers
     # ------------------------------------------------------------------
 
-    async def _get_connector(
-        self, connector_id: UUID, tenant_id: UUID
-    ) -> Connector | None:
+    async def _get_connector(self, connector_id: UUID, tenant_id: UUID) -> Connector | None:
         result = await self._session.execute(
             select(Connector).where(
                 Connector.id == connector_id,

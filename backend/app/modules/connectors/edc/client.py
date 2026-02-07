@@ -147,9 +147,7 @@ class EDCManagementClient:
     # Contract Definitions
     # ------------------------------------------------------------------
 
-    async def create_contract_definition(
-        self, contract: ContractDefinition
-    ) -> dict[str, Any]:
+    async def create_contract_definition(self, contract: ContractDefinition) -> dict[str, Any]:
         """Create a contract definition linking assets to policies."""
         client = await self._get_client()
 

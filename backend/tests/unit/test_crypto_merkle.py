@@ -31,9 +31,7 @@ class TestComputeMerkleRoot:
         h1 = _sha256_hex("leaf1")
         root = compute_merkle_root([h0, h1])
         # Manually compute expected
-        expected = hashlib.sha256(
-            (h0 + h1).encode()
-        ).hexdigest()
+        expected = hashlib.sha256((h0 + h1).encode()).hexdigest()
         assert root == expected
 
     def test_four_leaves(self) -> None:

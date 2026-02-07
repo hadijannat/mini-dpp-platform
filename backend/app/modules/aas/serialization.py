@@ -38,9 +38,7 @@ _MODEL_TYPE_TO_RDF: dict[str, str] = {
     "Entity": f"{_AAS_NAMESPACE}Entity",
     "ReferenceElement": f"{_AAS_NAMESPACE}ReferenceElement",
     "RelationshipElement": f"{_AAS_NAMESPACE}RelationshipElement",
-    "AnnotatedRelationshipElement": (
-        f"{_AAS_NAMESPACE}AnnotatedRelationshipElement"
-    ),
+    "AnnotatedRelationshipElement": (f"{_AAS_NAMESPACE}AnnotatedRelationshipElement"),
     "Operation": f"{_AAS_NAMESPACE}Operation",
     "Capability": f"{_AAS_NAMESPACE}Capability",
     "BasicEventElement": f"{_AAS_NAMESPACE}BasicEventElement",
@@ -79,9 +77,7 @@ def aas_to_jsonld(aas_env: dict[str, Any]) -> dict[str, Any]:
         node = _identifiable_to_node(sm, "Submodel")
         elements = sm.get("submodelElements", [])
         if elements:
-            node["aas:submodelElements"] = [
-                _element_to_node(el) for el in elements
-            ]
+            node["aas:submodelElements"] = [_element_to_node(el) for el in elements]
         graph.append(node)
 
     # Process concept descriptions
@@ -114,10 +110,8 @@ def aas_to_xml(aas_env: dict[str, Any]) -> bytes:
     payload = json.dumps(aas_env, sort_keys=True, ensure_ascii=False)
     string_io = io.StringIO(payload)
     try:
-        store: model.DictObjectStore[model.Identifiable] = (
-            basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io
-            )
+        store: model.DictObjectStore[model.Identifiable] = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+            string_io
         )
     finally:
         string_io.close()
@@ -154,9 +148,7 @@ def _identifiable_to_node(
 def _element_to_node(element: dict[str, Any]) -> dict[str, Any]:
     """Build a JSON-LD node for a submodel element."""
     model_type = element.get("modelType", "SubmodelElement")
-    rdf_type = _MODEL_TYPE_TO_RDF.get(
-        model_type, f"{_AAS_NAMESPACE}{model_type}"
-    )
+    rdf_type = _MODEL_TYPE_TO_RDF.get(model_type, f"{_AAS_NAMESPACE}{model_type}")
     node: dict[str, Any] = {
         "@type": rdf_type,
     }

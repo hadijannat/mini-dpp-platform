@@ -98,23 +98,16 @@ def _validate_structure(
     # Validate each AAS shell
     shells = aas_env.get("assetAdministrationShells", [])
     if not isinstance(shells, list):
-        result.errors.append(
-            "'assetAdministrationShells' must be a list"
-        )
+        result.errors.append("'assetAdministrationShells' must be a list")
         return
 
     for idx, shell in enumerate(shells):
         if not isinstance(shell, dict):
-            result.errors.append(
-                f"assetAdministrationShells[{idx}] must be an object"
-            )
+            result.errors.append(f"assetAdministrationShells[{idx}] must be an object")
             continue
         missing_aas = _REQUIRED_AAS_KEYS - set(shell.keys())
         for key in sorted(missing_aas):
-            result.errors.append(
-                f"assetAdministrationShells[{idx}]: "
-                f"missing required key '{key}'"
-            )
+            result.errors.append(f"assetAdministrationShells[{idx}]: missing required key '{key}'")
 
         # Validate assetInformation
         asset_info = shell.get("assetInformation")
@@ -122,8 +115,7 @@ def _validate_structure(
             missing_ai = _REQUIRED_ASSET_INFO_KEYS - set(asset_info.keys())
             for key in sorted(missing_ai):
                 result.warnings.append(
-                    f"assetAdministrationShells[{idx}]."
-                    f"assetInformation: missing '{key}'"
+                    f"assetAdministrationShells[{idx}].assetInformation: missing '{key}'"
                 )
 
     # Validate submodels
@@ -138,14 +130,9 @@ def _validate_structure(
             continue
         missing_sm = _REQUIRED_SUBMODEL_KEYS - set(sm.keys())
         for key in sorted(missing_sm):
-            result.errors.append(
-                f"submodels[{idx}]: missing required key '{key}'"
-            )
+            result.errors.append(f"submodels[{idx}]: missing required key '{key}'")
         if "semanticId" not in sm:
-            result.warnings.append(
-                f"submodels[{idx}] (id={sm.get('id', '?')}): "
-                f"missing semanticId"
-            )
+            result.warnings.append(f"submodels[{idx}] (id={sm.get('id', '?')}): missing semanticId")
 
 
 def _validate_basyx_roundtrip(
@@ -162,10 +149,8 @@ def _validate_basyx_roundtrip(
     # Lenient pass — collects objects even if some entries are malformed
     string_io = io.StringIO(payload)
     try:
-        store: model.DictObjectStore[model.Identifiable] = (
-            basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io
-            )
+        store: model.DictObjectStore[model.Identifiable] = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+            string_io
         )
     except Exception as exc:
         result.errors.append(f"BaSyx deserialization failed: {exc}")
@@ -201,9 +186,7 @@ def _validate_basyx_roundtrip(
     try:
         basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
     except Exception as exc:
-        result.errors.append(
-            f"BaSyx re-serialization failed (round-trip broken): {exc}"
-        )
+        result.errors.append(f"BaSyx re-serialization failed (round-trip broken): {exc}")
 
     return store
 
@@ -219,9 +202,7 @@ def _validate_semantics(
         sm_id = sm.id or sm.id_short or "?"
         sem_id = reference_to_str(sm.semantic_id)
         if not sem_id:
-            result.warnings.append(
-                f"Submodel '{sm_id}' has no semanticId"
-            )
+            result.warnings.append(f"Submodel '{sm_id}' has no semanticId")
 
         for element in walk_submodel_deep(sm):
             _check_element_semantic(element, sm_id, result)
@@ -239,8 +220,7 @@ def _check_element_semantic(
     # Properties should ideally have a semantic ID
     if isinstance(element, model.Property) and not sem_id:
         result.warnings.append(
-            f"Property '{id_short}' in submodel '{submodel_id}' "
-            f"has no semanticId"
+            f"Property '{id_short}' in submodel '{submodel_id}' has no semanticId"
         )
 
     # Properties with empty value_type are suspicious
@@ -248,6 +228,5 @@ def _check_element_semantic(
         vt = getattr(element, "value_type", None)
         if vt is None:
             result.warnings.append(
-                f"Property '{id_short}' in submodel '{submodel_id}' "
-                f"has no valueType"
+                f"Property '{id_short}' in submodel '{submodel_id}' has no valueType"
             )

@@ -73,9 +73,7 @@ class CategoryValidator:
             if submodel.get("idShort") != submodel_id_short:
                 continue
             # Optionally filter by semantic ID
-            if rule.semantic_id and not self._semantic_id_matches(
-                submodel, rule.semantic_id
-            ):
+            if rule.semantic_id and not self._semantic_id_matches(submodel, rule.semantic_id):
                 continue
             # Walk into submodelElements
             return self._walk_elements(
@@ -187,9 +185,7 @@ class CategoryValidator:
                 return self._violation(rule, value)
         elif condition == "regex":
             pattern = rule.params.get("pattern", "")
-            if self._is_empty(value) or (
-                isinstance(value, str) and not re.search(pattern, value)
-            ):
+            if self._is_empty(value) or (isinstance(value, str) and not re.search(pattern, value)):
                 return self._violation(rule, value)
         elif condition == "enum":
             allowed = rule.params.get("allowed_values", [])

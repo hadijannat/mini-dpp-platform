@@ -31,21 +31,23 @@ def _build_ts_request(digest: bytes) -> bytes:
     bytes
         DER-encoded TimeStampReq.
     """
-    message_imprint = tsp.MessageImprint({
-        "hash_algorithm": algos.DigestAlgorithm(
-            {"algorithm": "sha256"}
-        ),
-        "hashed_message": core.OctetString(digest),
-    })
+    message_imprint = tsp.MessageImprint(
+        {
+            "hash_algorithm": algos.DigestAlgorithm({"algorithm": "sha256"}),
+            "hashed_message": core.OctetString(digest),
+        }
+    )
 
     nonce = int.from_bytes(os.urandom(8))
 
-    ts_request = tsp.TimeStampReq({
-        "version": 1,
-        "message_imprint": message_imprint,
-        "nonce": nonce,
-        "cert_req": True,
-    })
+    ts_request = tsp.TimeStampReq(
+        {
+            "version": 1,
+            "message_imprint": message_imprint,
+            "nonce": nonce,
+            "cert_req": True,
+        }
+    )
 
     return bytes(ts_request.dump())
 

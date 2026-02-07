@@ -43,9 +43,7 @@ def _make_property(id_short: str, value: Any = None) -> dict[str, Any]:
 
 
 def _make_mlp(id_short: str, values: dict[str, str] | None = None) -> dict[str, Any]:
-    lang_values = [
-        {"language": lang, "text": text} for lang, text in (values or {}).items()
-    ]
+    lang_values = [{"language": lang, "text": text} for lang, text in (values or {}).items()]
     return {
         "idShort": id_short,
         "modelType": "MultiLanguageProperty",
@@ -53,9 +51,7 @@ def _make_mlp(id_short: str, values: dict[str, str] | None = None) -> dict[str, 
     }
 
 
-def _make_collection(
-    id_short: str, children: list[dict[str, Any]] | None = None
-) -> dict[str, Any]:
+def _make_collection(id_short: str, children: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "idShort": id_short,
         "modelType": "SubmodelElementCollection",
@@ -171,10 +167,13 @@ class TestBaseValidatorFieldResolution:
                     "Performance",
                     "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0",
                     [
-                        _make_collection("RatedCapacity", [
-                            _make_property("Value", "100"),
-                            _make_property("Unit", "Ah"),
-                        ]),
+                        _make_collection(
+                            "RatedCapacity",
+                            [
+                                _make_property("Value", "100"),
+                                _make_property("Unit", "Ah"),
+                            ],
+                        ),
                     ],
                 ),
             ],
@@ -371,8 +370,7 @@ class TestComplianceEngine:
             "submodels": [
                 _make_submodel(
                     "GeneralProductInformation",
-                    "https://admin-shell.io/idta/BatteryPassport/"
-                    "GeneralProductInformation/1/0",
+                    "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0",
                     [],
                 ),
             ],
@@ -440,8 +438,7 @@ class TestComplianceEngine:
             "submodels": [
                 _make_submodel(
                     "GeneralProductInformation",
-                    "https://admin-shell.io/idta/BatteryPassport/"
-                    "GeneralProductInformation/1/0",
+                    "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0",
                     [],
                 ),
             ],

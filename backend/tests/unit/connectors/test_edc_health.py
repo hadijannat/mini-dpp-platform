@@ -14,9 +14,7 @@ async def test_health_ok() -> None:
     client = MagicMock()
     client.check_health = AsyncMock(
         return_value={
-            "componentResults": [
-                {"component": "default", "isSystemHealthy": True}
-            ],
+            "componentResults": [{"component": "default", "isSystemHealthy": True}],
             "version": "0.7.3",
         }
     )

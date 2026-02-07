@@ -158,8 +158,7 @@ class TestComplianceServicePrePublish:
             "submodels": [
                 _make_submodel(
                     "GeneralProductInformation",
-                    "https://admin-shell.io/idta/BatteryPassport/"
-                    "GeneralProductInformation/1/0",
+                    "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0",
                     [],
                 ),
             ],

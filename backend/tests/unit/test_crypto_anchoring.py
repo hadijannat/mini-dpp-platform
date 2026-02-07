@@ -75,9 +75,7 @@ class TestRequestTimestamp:
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_cls.return_value = mock_client
 
-            result = await request_timestamp(
-                digest, "https://tsa.example.com"
-            )
+            result = await request_timestamp(digest, "https://tsa.example.com")
             assert result is None
 
 

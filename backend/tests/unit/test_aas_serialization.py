@@ -95,58 +95,40 @@ class TestAASToJsonLD:
 
     def test_aas_shell_in_graph(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        shells = [
-            n
-            for n in result["@graph"]
-            if "AssetAdministrationShell" in n.get("@type", "")
-        ]
+        shells = [n for n in result["@graph"] if "AssetAdministrationShell" in n.get("@type", "")]
         assert len(shells) == 1
         assert shells[0]["@id"] == "urn:aas:1"
         assert shells[0]["aas:idShort"] == "TestAAS"
 
     def test_submodel_in_graph(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        submodels = [
-            n for n in result["@graph"] if "Submodel" in n.get("@type", "")
-        ]
+        submodels = [n for n in result["@graph"] if "Submodel" in n.get("@type", "")]
         assert len(submodels) == 1
         assert submodels[0]["@id"] == "urn:sm:1"
         assert submodels[0]["aas:idShort"] == "Nameplate"
 
     def test_submodel_has_semantic_id(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        submodels = [
-            n for n in result["@graph"] if "Submodel" in n.get("@type", "")
-        ]
+        submodels = [n for n in result["@graph"] if "Submodel" in n.get("@type", "")]
         assert submodels[0]["aas:semanticId"] == (
             "https://admin-shell.io/zvei/nameplate/2/0/Nameplate"
         )
 
     def test_submodel_elements_included(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        submodels = [
-            n for n in result["@graph"] if "Submodel" in n.get("@type", "")
-        ]
+        submodels = [n for n in result["@graph"] if "Submodel" in n.get("@type", "")]
         elements = submodels[0].get("aas:submodelElements", [])
         assert len(elements) == 2
 
     def test_concept_description_in_graph(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        cds = [
-            n
-            for n in result["@graph"]
-            if "ConceptDescription" in n.get("@type", "")
-        ]
+        cds = [n for n in result["@graph"] if "ConceptDescription" in n.get("@type", "")]
         assert len(cds) == 1
         assert cds[0]["@id"] == "0173-1#02-AAO677#002"
 
     def test_aas_asset_information(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        shells = [
-            n
-            for n in result["@graph"]
-            if "AssetAdministrationShell" in n.get("@type", "")
-        ]
+        shells = [n for n in result["@graph"] if "AssetAdministrationShell" in n.get("@type", "")]
         ai = shells[0].get("aas:assetInformation")
         assert ai is not None
         assert ai["aas:assetKind"] == "Instance"
@@ -163,9 +145,7 @@ class TestAASToJsonLD:
 
     def test_property_value_in_element(self) -> None:
         result = aas_to_jsonld(_minimal_aas_env())
-        submodels = [
-            n for n in result["@graph"] if "Submodel" in n.get("@type", "")
-        ]
+        submodels = [n for n in result["@graph"] if "Submodel" in n.get("@type", "")]
         elements = submodels[0].get("aas:submodelElements", [])
         prop = [e for e in elements if e.get("aas:idShort") == "SerialNumber"]
         assert len(prop) == 1

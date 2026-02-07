@@ -38,7 +38,7 @@ backend:
     KEYCLOAK_REALM: dpp-platform
     KEYCLOAK_CLIENT_ID: dpp-backend
     KEYCLOAK_ALLOWED_CLIENT_IDS: dpp-backend,dpp-frontend
-    OPA_URL: http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "opa") }}:8181
+    OPA_URL: ""  # Set via deployment template using service discovery
     LOG_LEVEL: INFO
   # Secret references — actual values come from secrets.yaml
   secretRef: dpp-platform-backend
@@ -209,6 +209,26 @@ monitoring:
     enabled: true
   grafana:
     enabled: true
+
+# -- Secrets (override via --set or sealed-secrets/external-secrets in production)
+# These placeholders allow helm lint to pass; replace with real values at deploy time
+secrets:
+  postgresUser: "CHANGE_ME"
+  postgresPassword: "CHANGE_ME"
+  redisPassword: "CHANGE_ME"
+  keycloakAdminUser: "admin"
+  keycloakAdminPassword: "CHANGE_ME"
+  keycloakClientSecret: "CHANGE_ME"
+  keycloakDbUser: "keycloak"
+  keycloakDbPassword: "CHANGE_ME"
+  minioAccessKey: "CHANGE_ME"
+  minioSecretKey: "CHANGE_ME"
+  encryptionMasterKey: "CHANGE_ME"
+  dppSigningKey: "CHANGE_ME"
+  edcDatasourceUrl: ""
+  edcDatasourceUser: ""
+  edcDatasourcePassword: ""
+  edcApiAuthKey: ""
 
 # -- Network policies
 networkPolicy:

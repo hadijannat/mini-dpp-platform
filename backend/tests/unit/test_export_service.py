@@ -211,6 +211,6 @@ def test_export_aasx_xml_mode() -> None:
         names = set(zf.namelist())
 
     assert "[Content_Types].xml" in names
-    assert any(
-        name.endswith(".xml") and "data" in name.lower() for name in names
-    ), f"Expected XML data file, got: {sorted(names)}"
+    assert any(name.endswith(".xml") and "data" in name.lower() for name in names), (
+        f"Expected XML data file, got: {sorted(names)}"
+    )

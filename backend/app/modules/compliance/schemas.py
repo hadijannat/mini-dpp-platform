@@ -13,9 +13,7 @@ class RuleDefinition(BaseModel):
     """A single compliance rule loaded from YAML."""
 
     id: str = Field(description="Unique rule identifier, e.g. BAT-001")
-    field_path: str = Field(
-        description="Dot-separated path into the AAS submodel element tree"
-    )
+    field_path: str = Field(description="Dot-separated path into the AAS submodel element tree")
     condition: str = Field(
         description="Condition to evaluate: required, min_length, regex, enum, range"
     )

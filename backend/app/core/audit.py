@@ -29,10 +29,7 @@ logger = get_logger(__name__)
 def _has_hash_columns() -> bool:
     """Check whether the AuditEvent model has crypto hash chain columns."""
     mapper = AuditEvent.__table__
-    return all(
-        col in mapper.columns
-        for col in ("event_hash", "prev_event_hash", "chain_sequence")
-    )
+    return all(col in mapper.columns for col in ("event_hash", "prev_event_hash", "chain_sequence"))
 
 
 def _build_event_data(

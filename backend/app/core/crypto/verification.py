@@ -104,17 +104,11 @@ def verify_hash_chain(
         if stored_hash is None:
             result.is_valid = False
             result.first_break_at = i
-            result.errors.append(
-                f"Event at index {i}: missing event_hash"
-            )
+            result.errors.append(f"Event at index {i}: missing event_hash")
             break
 
         # Determine expected prev_hash
-        expected_prev = (
-            GENESIS_HASH
-            if i == 0
-            else events[i - 1].get("event_hash", GENESIS_HASH)
-        )
+        expected_prev = GENESIS_HASH if i == 0 else events[i - 1].get("event_hash", GENESIS_HASH)
 
         # Check prev_hash linkage
         if stored_prev is not None and stored_prev != expected_prev:

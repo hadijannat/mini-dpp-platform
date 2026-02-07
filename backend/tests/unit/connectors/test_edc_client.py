@@ -75,9 +75,7 @@ class TestEDCManagementClientConfig:
 
 class TestEDCManagementClientAssets:
     @pytest.mark.asyncio
-    async def test_create_asset(
-        self, edc_config: EDCConfig, sample_asset: EDCAsset
-    ) -> None:
+    async def test_create_asset(self, edc_config: EDCConfig, sample_asset: EDCAsset) -> None:
         client = EDCManagementClient(edc_config)
 
         mock_response = httpx.Response(

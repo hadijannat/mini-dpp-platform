@@ -23,9 +23,7 @@ def _extract_dpp_id(payload: Any) -> str:
 
 
 @pytest.mark.e2e
-def test_compliance_check_on_dpp(
-    runtime, api_client: httpx.Client, test_results_dir: Path
-) -> None:
+def test_compliance_check_on_dpp(runtime, api_client: httpx.Client, test_results_dir: Path) -> None:
     """Create a DPP, then run a compliance check and verify the report shape."""
     artifacts = test_results_dir / "compliance"
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -76,9 +74,7 @@ def test_compliance_check_on_dpp(
 
 
 @pytest.mark.e2e
-def test_compliance_rules_listing(
-    runtime, api_client: httpx.Client
-) -> None:
+def test_compliance_rules_listing(runtime, api_client: httpx.Client) -> None:
     """Verify that rule categories are available."""
     response = api_client.get(
         f"/api/v1/tenants/{runtime.tenant_slug}/compliance/rules",
@@ -96,9 +92,7 @@ def test_compliance_rules_listing(
 
 
 @pytest.mark.e2e
-def test_compliance_rules_for_category(
-    runtime, api_client: httpx.Client
-) -> None:
+def test_compliance_rules_for_category(runtime, api_client: httpx.Client) -> None:
     """Verify category-specific rules can be fetched."""
     response = api_client.get(
         f"/api/v1/tenants/{runtime.tenant_slug}/compliance/rules/battery",

@@ -19,12 +19,14 @@ def _build_chain(events_data: list[dict[str, object]]) -> list[dict[str, object]
             dict(data.items()),
             prev_hash,
         )
-        chain.append({
-            **data,
-            "event_hash": event_hash,
-            "prev_event_hash": prev_hash,
-            "chain_sequence": i,
-        })
+        chain.append(
+            {
+                **data,
+                "event_hash": event_hash,
+                "prev_event_hash": prev_hash,
+                "chain_sequence": i,
+            }
+        )
         prev_hash = event_hash
     return chain
 
@@ -106,11 +108,13 @@ class TestVerifyHashChain:
         assert result.errors == []
 
     def test_tampered_event_data(self) -> None:
-        chain = _build_chain([
-            {"action": "create"},
-            {"action": "update"},
-            {"action": "publish"},
-        ])
+        chain = _build_chain(
+            [
+                {"action": "create"},
+                {"action": "update"},
+                {"action": "publish"},
+            ]
+        )
         # Tamper with middle event's data
         chain[1]["action"] = "tampered"
         result = verify_hash_chain(chain)
@@ -121,21 +125,25 @@ class TestVerifyHashChain:
         assert "hash mismatch" in result.errors[0]
 
     def test_tampered_hash(self) -> None:
-        chain = _build_chain([
-            {"action": "create"},
-            {"action": "update"},
-        ])
+        chain = _build_chain(
+            [
+                {"action": "create"},
+                {"action": "update"},
+            ]
+        )
         chain[0]["event_hash"] = "f" * 64
         result = verify_hash_chain(chain)
         assert not result.is_valid
         assert result.first_break_at == 0
 
     def test_broken_prev_hash_linkage(self) -> None:
-        chain = _build_chain([
-            {"action": "create"},
-            {"action": "update"},
-            {"action": "publish"},
-        ])
+        chain = _build_chain(
+            [
+                {"action": "create"},
+                {"action": "update"},
+                {"action": "publish"},
+            ]
+        )
         # Break the linkage by changing prev_event_hash
         chain[2]["prev_event_hash"] = "b" * 64
         result = verify_hash_chain(chain)
@@ -153,9 +161,7 @@ class TestVerifyHashChain:
 
     def test_stops_at_first_break(self) -> None:
         """Verification stops at the first integrity violation."""
-        chain = _build_chain([
-            {"action": f"event_{i}"} for i in range(5)
-        ])
+        chain = _build_chain([{"action": f"event_{i}"} for i in range(5)])
         # Tamper with event 2
         chain[2]["action"] = "tampered"
         result = verify_hash_chain(chain)

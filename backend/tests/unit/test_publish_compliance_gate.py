@@ -73,15 +73,11 @@ class TestPublishComplianceGate:
             patch.object(service, "_settings") as mock_settings,
             patch.object(service, "get_dpp", return_value=dpp),
             patch.object(service, "get_latest_revision", return_value=rev),
-            patch(
-                "app.modules.dpps.service.ComplianceService"
-            ) as MockComplianceSvc,
+            patch("app.modules.dpps.service.ComplianceService") as MockComplianceSvc,
         ):
             mock_settings.compliance_check_on_publish = True
             mock_instance = MockComplianceSvc.return_value
-            mock_instance.check_pre_publish = AsyncMock(
-                return_value=_non_compliant_report()
-            )
+            mock_instance.check_pre_publish = AsyncMock(return_value=_non_compliant_report())
 
             with pytest.raises(ValueError, match="Publish blocked"):
                 await service.publish_dpp(dpp.id, dpp.tenant_id, "user-sub")
@@ -99,15 +95,11 @@ class TestPublishComplianceGate:
             patch.object(service, "get_dpp", return_value=dpp),
             patch.object(service, "get_latest_revision", return_value=rev),
             patch.object(service, "_sign_digest", return_value=None),
-            patch(
-                "app.modules.dpps.service.ComplianceService"
-            ) as MockComplianceSvc,
+            patch("app.modules.dpps.service.ComplianceService") as MockComplianceSvc,
         ):
             mock_settings.compliance_check_on_publish = True
             mock_instance = MockComplianceSvc.return_value
-            mock_instance.check_pre_publish = AsyncMock(
-                return_value=_compliant_report()
-            )
+            mock_instance.check_pre_publish = AsyncMock(return_value=_compliant_report())
 
             result = await service.publish_dpp(dpp.id, dpp.tenant_id, "user-sub")
             assert result is not None
@@ -126,9 +118,7 @@ class TestPublishComplianceGate:
             patch.object(service, "get_dpp", return_value=dpp),
             patch.object(service, "get_latest_revision", return_value=rev),
             patch.object(service, "_sign_digest", return_value=None),
-            patch(
-                "app.modules.dpps.service.ComplianceService"
-            ) as MockComplianceSvc,
+            patch("app.modules.dpps.service.ComplianceService") as MockComplianceSvc,
         ):
             mock_settings.compliance_check_on_publish = False
 

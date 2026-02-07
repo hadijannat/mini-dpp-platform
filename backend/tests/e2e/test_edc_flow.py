@@ -51,9 +51,7 @@ def test_health_endpoint_includes_edc(runtime) -> None:
 
 
 @pytest.mark.e2e
-def test_edc_connector_health(
-    runtime, api_client: httpx.Client
-) -> None:
+def test_edc_connector_health(runtime, api_client: httpx.Client) -> None:
     """Check EDC health through a connector, skipping if no connectors exist."""
     # List connectors
     response = api_client.get(
@@ -82,9 +80,7 @@ def test_edc_connector_health(
 
 
 @pytest.mark.e2e
-def test_edc_publish_flow(
-    runtime, api_client: httpx.Client
-) -> None:
+def test_edc_publish_flow(runtime, api_client: httpx.Client) -> None:
     """Publish a DPP to EDC dataspace, skipping if no EDC connectors."""
     # List connectors to find an EDC one
     response = api_client.get(

@@ -65,12 +65,8 @@ class TestSignAndVerify:
             PrivateFormat,
         )
 
-        rsa_key = rsa.generate_private_key(
-            public_exponent=65537, key_size=2048
-        )
-        rsa_pem = rsa_key.private_bytes(
-            Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()
-        ).decode()
+        rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        rsa_pem = rsa_key.private_bytes(Encoding.PEM, PrivateFormat.PKCS8, NoEncryption()).decode()
         with pytest.raises(TypeError, match="Ed25519"):
             sign_merkle_root("a" * 64, rsa_pem)
 
@@ -81,11 +77,11 @@ class TestSignAndVerify:
             PublicFormat,
         )
 
-        rsa_key = rsa.generate_private_key(
-            public_exponent=65537, key_size=2048
+        rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        rsa_pub_pem = (
+            rsa_key.public_key()
+            .public_bytes(Encoding.PEM, PublicFormat.SubjectPublicKeyInfo)
+            .decode()
         )
-        rsa_pub_pem = rsa_key.public_key().public_bytes(
-            Encoding.PEM, PublicFormat.SubjectPublicKeyInfo
-        ).decode()
         with pytest.raises(TypeError, match="Ed25519"):
             verify_signature("a" * 64, "sig", rsa_pub_pem)
