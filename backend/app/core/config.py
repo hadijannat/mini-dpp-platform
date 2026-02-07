@@ -298,6 +298,27 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Digital Thread
+    # ==========================================================================
+    digital_thread_enabled: bool = Field(
+        default=False, description="Enable digital thread event recording"
+    )
+    digital_thread_auto_record: bool = Field(
+        default=True, description="Auto-record thread events on DPP lifecycle changes"
+    )
+
+    # ==========================================================================
+    # LCA / PCF Calculation
+    # ==========================================================================
+    lca_enabled: bool = Field(default=False, description="Enable LCA/PCF calculation service")
+    lca_default_scope: str = Field(
+        default="cradle-to-gate", description="Default LCA scope boundary"
+    )
+    lca_factor_database_path: str = Field(
+        default="", description="Custom emission factors YAML path (empty = built-in)"
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(
