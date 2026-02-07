@@ -1,5 +1,6 @@
 """Shared AAS/BaSyx utilities for reference handling, model operations, and traversal."""
 
+from app.modules.aas.conformance import AASValidationResult, validate_aas_environment
 from app.modules.aas.model_utils import (
     clear_parent,
     clone_identifiable,
@@ -14,8 +15,12 @@ from app.modules.aas.references import (
     reference_to_dict,
     reference_to_str,
 )
+from app.modules.aas.serialization import aas_to_jsonld, aas_to_xml
 
 __all__ = [
+    "AASValidationResult",
+    "aas_to_jsonld",
+    "aas_to_xml",
     "clear_parent",
     "clone_identifiable",
     "enum_to_str",
@@ -25,5 +30,6 @@ __all__ = [
     "reference_from_dict",
     "reference_to_dict",
     "reference_to_str",
+    "validate_aas_environment",
     "walk_submodel_deep",
 ]

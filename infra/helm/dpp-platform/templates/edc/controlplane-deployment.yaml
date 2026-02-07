@@ -1,0 +1,108 @@
+{{- if .Values.edc.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-controlplane
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "edc-controlplane") | nindent 4 }}
+spec:
+  replicas: {{ .Values.edc.controlplane.replicas }}
+  selector:
+    matchLabels:
+      {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "edc-controlplane") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dpp-platform.componentLabels" (dict "context" . "component" "edc-controlplane") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/edc/configmap.yaml") . | sha256sum }}
+    spec:
+      {{- include "dpp-platform.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: controlplane
+          image: "{{ .Values.edc.controlplane.image.repository }}:{{ .Values.edc.controlplane.image.tag }}"
+          imagePullPolicy: {{ .Values.edc.controlplane.image.pullPolicy }}
+          ports:
+            - name: default
+              containerPort: {{ .Values.edc.controlplane.defaultPort }}
+              protocol: TCP
+            - name: management
+              containerPort: {{ .Values.edc.controlplane.managementPort }}
+              protocol: TCP
+            - name: protocol
+              containerPort: {{ .Values.edc.controlplane.protocolPort }}
+              protocol: TCP
+            - name: public
+              containerPort: {{ .Values.edc.controlplane.publicPort }}
+              protocol: TCP
+            - name: control
+              containerPort: {{ .Values.edc.controlplane.controlPort }}
+              protocol: TCP
+          env:
+            - name: EDC_FS_CONFIG
+              value: /app/config.properties
+            - name: JAVA_TOOL_OPTIONS
+              value: -Djava.util.logging.config.file=/app/logging.properties
+            - name: EDC_PARTICIPANT_ID
+              value: {{ .Values.edc.participantId | quote }}
+            - name: EDC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: edc-api-auth-key
+            - name: EDC_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: edc-datasource-url
+            - name: EDC_DATASOURCE_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: edc-datasource-user
+            - name: EDC_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: edc-datasource-password
+            - name: VAULT_URL
+              value: "http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-vault:8200"
+            - name: VAULT_DEV_ROOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: edc-vault-token
+                  optional: true
+          volumeMounts:
+            - name: edc-config
+              mountPath: /app/config.properties
+              subPath: config.properties
+              readOnly: true
+            - name: edc-config
+              mountPath: /app/logging.properties
+              subPath: logging.properties
+              readOnly: true
+          resources:
+            {{- toYaml .Values.edc.controlplane.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /api/check/health
+              port: default
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /api/check/health
+              port: default
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: edc-config
+          configMap:
+            name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-config
+{{- end }}

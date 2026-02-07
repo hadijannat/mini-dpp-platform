@@ -1,0 +1,61 @@
+groups:
+  - name: edc.rules
+    rules:
+      # EDC controlplane unhealthy
+      - alert: EDCControlplaneUnhealthy
+        expr: up{job="edc-controlplane"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EDC controlplane is unhealthy"
+          description: "EDC controlplane has been unreachable for more than 5 minutes. Contract negotiations and transfers will fail."
+
+      # EDC dataplane unhealthy
+      - alert: EDCDataplaneUnhealthy
+        expr: up{job="edc-dataplane"} == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "EDC dataplane is unhealthy"
+          description: "EDC dataplane has been unreachable for more than 5 minutes. Data transfers will fail."
+
+      # High negotiation failure rate
+      - alert: EDCNegotiationFailureRateHigh
+        expr: |
+          (
+            sum(rate(edc_contract_negotiation_failed_total[10m]))
+            /
+            (sum(rate(edc_contract_negotiation_initiated_total[10m])) > 0)
+          ) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High EDC contract negotiation failure rate"
+          description: "More than 30% of contract negotiations are failing. Current failure rate: {{ $value | humanizePercentage }}"
+
+      # Transfer process failures
+      - alert: EDCTransferProcessFailure
+        expr: |
+          increase(edc_transfer_process_failed_total[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EDC transfer process failures detected"
+          description: "{{ $value }} transfer process failures in the last 15 minutes."
+
+      # EDC controlplane high latency
+      - alert: EDCControlplaneHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(edc_http_request_duration_seconds_bucket{job="edc-controlplane"}[5m])) by (le)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "EDC controlplane p95 latency is high"
+          description: "EDC controlplane 95th percentile latency exceeds 5 seconds. Current p95: {{ $value | humanizeDuration }}"

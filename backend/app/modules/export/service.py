@@ -16,6 +16,7 @@ import pyecma376_2
 from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
+from basyx.aas.adapter import xml as basyx_xml
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -23,7 +24,7 @@ from app.db.models import DPPRevision
 
 logger = get_logger(__name__)
 
-ExportFormat = Literal["json", "aasx", "pdf"]
+ExportFormat = Literal["json", "aasx", "xml", "pdf"]
 
 
 class ExportService:
@@ -65,6 +66,31 @@ class ExportService:
             indent=2,
             ensure_ascii=False,
         ).encode("utf-8")
+
+    def export_xml(self, revision: DPPRevision) -> bytes:
+        """Export DPP as AAS XML.
+
+        Serializes the AAS environment to XML format using BaSyx's
+        built-in XML serializer with proper AAS Part 1 namespaces.
+        """
+        payload = json.dumps(
+            revision.aas_env_json,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        )
+        string_io = io.StringIO(payload)
+        try:
+            store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                string_io
+            )
+        finally:
+            string_io.close()
+
+        xml_buffer = io.BytesIO()
+        basyx_xml.write_aas_xml_file(xml_buffer, store)  # type: ignore[attr-defined]
+        xml_buffer.seek(0)
+        return xml_buffer.read()
 
     def export_aasx(
         self,
@@ -189,10 +215,12 @@ class ExportService:
                     if req not in names:
                         errors.append(f"Missing required file: {req}")
 
-                # Check for AAS content
-                aas_files = [n for n in names if n.endswith(".json") and "aas" in n.lower()]
+                # Check for AAS content (JSON or XML)
+                aas_json = [n for n in names if n.endswith(".json") and "aas" in n.lower()]
+                aas_xml_files = [n for n in names if n.endswith(".xml") and "data" in n.lower()]
+                aas_files = aas_json or aas_xml_files
                 if not aas_files:
-                    errors.append("No AAS JSON file found")
+                    errors.append("No AAS data file found (JSON or XML)")
 
                 # Validate Content_Types.xml
                 if "[Content_Types].xml" in names:

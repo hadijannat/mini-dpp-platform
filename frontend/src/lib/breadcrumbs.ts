@@ -12,6 +12,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   templates: 'Templates',
   carriers: 'Data Carriers',
   connectors: 'Connectors',
+  compliance: 'Compliance',
+  audit: 'Audit Trail',
   tenants: 'Tenants',
   settings: 'Settings',
   edit: 'Edit',

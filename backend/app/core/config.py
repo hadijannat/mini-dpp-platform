@@ -273,6 +273,31 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Eclipse Dataspace Connector (EDC)
+    # ==========================================================================
+    edc_management_url: str = Field(default="", description="EDC Management API URL")
+    edc_management_api_key: str = Field(default="", description="EDC Management API key")
+    edc_dsp_endpoint: str = Field(default="", description="EDC DSP protocol endpoint")
+    edc_participant_id: str = Field(default="", description="EDC participant BPN")
+
+    # ==========================================================================
+    # Audit Cryptographic Integrity
+    # ==========================================================================
+    audit_signing_key: str = Field(
+        default="", description="PEM Ed25519 private key for audit signing"
+    )
+    audit_signing_public_key: str = Field(default="", description="PEM Ed25519 public key")
+    tsa_url: str = Field(default="", description="RFC 3161 TSA endpoint URL")
+    audit_merkle_batch_size: int = Field(default=100, description="Events per Merkle batch")
+
+    # ==========================================================================
+    # ESPR Compliance Engine
+    # ==========================================================================
+    compliance_check_on_publish: bool = Field(
+        default=False, description="Run compliance check before publish"
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(

@@ -22,6 +22,8 @@ const TemplatesPage = lazy(() => import('./features/publisher/pages/TemplatesPag
 const DataCarriersPage = lazy(() => import('./features/publisher/pages/DataCarriersPage'));
 const MastersPage = lazy(() => import('./features/publisher/pages/MastersPage'));
 const ConnectorsPage = lazy(() => import('./features/connectors/pages/ConnectorsPage'));
+const CompliancePage = lazy(() => import('./features/compliance/pages/CompliancePage'));
+const AuditPage = lazy(() => import('./features/audit/pages/AuditPage'));
 const SubmodelEditorPage = lazy(() => import('./features/editor/pages/SubmodelEditorPage'));
 const GlobalIdSettingsPage = lazy(() => import('./features/admin/pages/GlobalIdSettingsPage'));
 const TenantsPage = lazy(() => import('./features/admin/pages/TenantsPage'));
@@ -68,6 +70,15 @@ function App() {
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="carriers" element={<DataCarriersPage />} />
           <Route path="connectors" element={<ConnectorsPage />} />
+          <Route path="compliance" element={<CompliancePage />} />
+          <Route
+            path="audit"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <AuditPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="settings"
             element={

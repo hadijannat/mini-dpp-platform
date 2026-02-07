@@ -6,6 +6,10 @@ Provides ``emit_audit_event()`` for recording security-relevant actions
 
 Audit writes use a **separate short-lived session** so that a failure to write
 an audit record does not roll back the business transaction.
+
+When cryptographic hash chain columns are available (``event_hash``,
+``prev_event_hash``, ``chain_sequence``), each event is chained to the
+previous event in the same tenant for tamper-evident integrity.
 """
 
 from __future__ import annotations
@@ -20,6 +24,46 @@ from app.core.security.oidc import TokenPayload
 from app.db.models import AuditEvent
 
 logger = get_logger(__name__)
+
+
+def _has_hash_columns() -> bool:
+    """Check whether the AuditEvent model has crypto hash chain columns."""
+    mapper = AuditEvent.__table__
+    return all(col in mapper.columns for col in ("event_hash", "prev_event_hash", "chain_sequence"))
+
+
+def _build_event_data(
+    *,
+    action: str,
+    resource_type: str,
+    resource_id: str | None,
+    tenant_id: str | None,
+    subject: str | None,
+    decision: str | None,
+    ip_address: str | None,
+    user_agent: str | None,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build the canonical dict used for hash computation."""
+    data: dict[str, Any] = {
+        "action": action,
+        "resource_type": resource_type,
+    }
+    if resource_id is not None:
+        data["resource_id"] = resource_id
+    if tenant_id is not None:
+        data["tenant_id"] = tenant_id
+    if subject is not None:
+        data["subject"] = subject
+    if decision is not None:
+        data["decision"] = decision
+    if ip_address is not None:
+        data["ip_address"] = ip_address
+    if user_agent is not None:
+        data["user_agent"] = user_agent
+    if metadata is not None:
+        data["metadata"] = metadata
+    return data
 
 
 async def emit_audit_event(
@@ -78,6 +122,59 @@ async def emit_audit_event(
         user_agent=user_agent,
         metadata_=metadata,
     )
+
+    # Compute hash chain fields if the columns exist
+    if _has_hash_columns():
+        try:
+            from sqlalchemy import desc, select
+
+            from app.core.crypto.hash_chain import GENESIS_HASH, compute_event_hash
+
+            # Get the previous event hash for this tenant
+            prev_query = (
+                select(
+                    AuditEvent.event_hash,
+                    AuditEvent.chain_sequence,
+                )
+                .where(AuditEvent.tenant_id == tenant_id)
+                .where(AuditEvent.chain_sequence.is_not(None))
+                .order_by(desc(AuditEvent.chain_sequence))
+                .limit(1)
+            )
+            result = await db_session.execute(prev_query)
+            row = result.first()
+
+            if row is not None:
+                prev_hash = str(row[0]) if row[0] else GENESIS_HASH
+                prev_seq = int(row[1]) if row[1] is not None else 0
+            else:
+                prev_hash = GENESIS_HASH
+                prev_seq = -1
+
+            event_data = _build_event_data(
+                action=action,
+                resource_type=resource_type,
+                resource_id=str(resource_id) if resource_id is not None else None,
+                tenant_id=str(tenant_id) if tenant_id is not None else None,
+                subject=user.sub if user else None,
+                decision=decision,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                metadata=metadata,
+            )
+            event_hash = compute_event_hash(event_data, prev_hash)
+
+            event.event_hash = event_hash
+            event.prev_event_hash = prev_hash
+            event.chain_sequence = prev_seq + 1
+        except Exception:
+            # If hash computation fails for any reason (missing columns,
+            # migration not applied, etc.), log and continue without hashing
+            logger.debug(
+                "audit_hash_chain_skipped",
+                reason="hash computation failed",
+                exc_info=True,
+            )
 
     try:
         db_session.add(event)

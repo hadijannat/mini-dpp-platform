@@ -22,6 +22,7 @@ from app.core.identifiers import (
 from app.core.logging import get_logger
 from app.core.settings_service import SettingsService
 from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
+from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.qr.service import QRCodeService
 from app.modules.templates.catalog import get_template_descriptor
@@ -612,10 +613,25 @@ class DPPService:
 
         Creates a published revision from the latest draft and updates
         the DPP status and current_published_revision_id.
+
+        When ``compliance_check_on_publish`` is enabled, runs an ESPR
+        compliance check first and blocks publish if critical violations
+        are found (Contract C).
         """
         dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
+
+        # Compliance pre-publish gate (Contract C)
+        if self._settings.compliance_check_on_publish:
+            compliance_svc = ComplianceService(self._session)
+            report = await compliance_svc.check_pre_publish(dpp_id, tenant_id)
+            if not report.is_compliant:
+                violations = report.summary.critical_violations
+                raise ValueError(
+                    f"Publish blocked: {violations} critical compliance "
+                    f"violation(s) in category '{report.category}'"
+                )
 
         # Get latest draft revision
         latest_revision = await self.get_latest_revision(dpp_id, tenant_id)
