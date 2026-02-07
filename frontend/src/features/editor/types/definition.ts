@@ -19,12 +19,17 @@ export type DefinitionNode = {
   modelType: string;
   semanticId?: string | null;
   valueType?: string;
+  contentType?: string;
   displayName?: LangStringSet;
   description?: LangStringSet;
   smt?: SmtQualifiers;
   children?: DefinitionNode[];
   items?: DefinitionNode | null;
   entityType?: string;
+  statements?: DefinitionNode[];
+  first?: string;
+  second?: string;
+  annotations?: DefinitionNode[];
 };
 
 export type TemplateDefinition = {

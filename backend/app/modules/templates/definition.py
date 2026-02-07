@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from typing import Any
 
@@ -12,6 +13,8 @@ from app.modules.aas.model_utils import enum_to_str, iterable_attr, lang_string_
 from app.modules.aas.references import reference_to_dict, reference_to_str
 from app.modules.templates.basyx_parser import ParsedTemplate
 from app.modules.templates.qualifiers import parse_smt_qualifiers
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateDefinitionBuilder:
@@ -225,6 +228,7 @@ class TemplateDefinitionBuilder:
         if not value:
             return None
         if value.startswith("generated_submodel_list_hack_"):
+            logger.debug("stripped_generated_id_short: %s", value)
             return None
         return value
 

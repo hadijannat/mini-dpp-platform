@@ -52,19 +52,11 @@ function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
         keys: z.array(z.object({ type: z.string(), value: z.string() }).passthrough()),
       }).passthrough();
     case 'Entity':
-      return z.object({
-        entityType: z.string(),
-        globalAssetId: z.string(),
-        statements: z.record(z.string(), z.unknown()),
-      }).passthrough();
+      return buildEntitySchema(node, schema);
     case 'RelationshipElement':
       return z.object({ first: z.unknown().nullable(), second: z.unknown().nullable() });
     case 'AnnotatedRelationshipElement':
-      return z.object({
-        first: z.unknown().nullable(),
-        second: z.unknown().nullable(),
-        annotations: z.record(z.string(), z.unknown()),
-      });
+      return buildAnnotatedRelationshipSchema(node, schema);
     case 'Property':
     default:
       return buildPropertySchema(node, schema);
@@ -204,6 +196,40 @@ function buildRangeSchema(): ZodTypeAny {
       },
       { message: 'Min cannot exceed max' },
     );
+}
+
+function buildEntitySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const statementsShape: Record<string, ZodTypeAny> = {};
+  for (const stmt of node.statements ?? []) {
+    if (stmt.idShort) {
+      const stmtSchema = schema?.properties?.statements?.properties?.[stmt.idShort];
+      statementsShape[stmt.idShort] = buildNodeSchema(stmt, stmtSchema);
+    }
+  }
+  return z.object({
+    entityType: z.string(),
+    globalAssetId: z.string(),
+    statements: Object.keys(statementsShape).length > 0
+      ? z.object(statementsShape).passthrough()
+      : z.record(z.string(), z.unknown()),
+  }).passthrough();
+}
+
+function buildAnnotatedRelationshipSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
+  const annotationsShape: Record<string, ZodTypeAny> = {};
+  for (const ann of node.annotations ?? []) {
+    if (ann.idShort) {
+      const annSchema = schema?.properties?.annotations?.properties?.[ann.idShort];
+      annotationsShape[ann.idShort] = buildNodeSchema(ann, annSchema);
+    }
+  }
+  return z.object({
+    first: z.unknown().nullable(),
+    second: z.unknown().nullable(),
+    annotations: Object.keys(annotationsShape).length > 0
+      ? z.object(annotationsShape).passthrough()
+      : z.record(z.string(), z.unknown()),
+  });
 }
 
 /** Fallback: build Zod schema from UISchema alone */
