@@ -21,15 +21,29 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
-        csp_directives = [
-            "default-src 'self'",
-            "script-src 'self'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob:",
-            "font-src 'self'",
-            "connect-src 'self' https://auth.dpp-platform.dev",
-            "frame-ancestors 'none'",
-        ]
+        # Swagger UI and ReDoc load JS/CSS from cdn.jsdelivr.net — use a
+        # relaxed CSP for those pages so the CDN assets aren't blocked.
+        path = request.url.path
+        if path in ("/api/v1/docs", "/api/v1/redoc"):
+            csp_directives = [
+                "default-src 'self'",
+                "script-src 'self' https://cdn.jsdelivr.net",
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                "img-src 'self' data: https://fastapi.tiangolo.com",
+                "font-src 'self'",
+                "connect-src 'self'",
+                "frame-ancestors 'none'",
+            ]
+        else:
+            csp_directives = [
+                "default-src 'self'",
+                "script-src 'self'",
+                "style-src 'self' 'unsafe-inline'",
+                "img-src 'self' data: blob:",
+                "font-src 'self'",
+                "connect-src 'self' https://auth.dpp-platform.dev",
+                "frame-ancestors 'none'",
+            ]
         response.headers["Content-Security-Policy"] = "; ".join(csp_directives)
 
         settings = get_settings()
