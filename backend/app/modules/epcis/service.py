@@ -6,11 +6,13 @@ linked to DPPs within a tenant context.
 
 from __future__ import annotations
 
+import json
 import uuid
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import cast, select
+from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -151,11 +153,8 @@ class EPCISService:
 
         if filters.match_epc is not None:
             # JSONB containment: payload @> '{"epcList": ["<epc>"]}'
-            stmt = stmt.where(
-                EPCISEvent.payload.op("@>")(
-                    f'{{"epcList": ["{filters.match_epc}"]}}'
-                )
-            )
+            pattern = json.dumps({"epcList": [filters.match_epc]})
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(pattern, JSONB_TYPE)))
 
         stmt = stmt.limit(filters.limit).offset(filters.offset)
 

@@ -190,7 +190,7 @@ class EPCISBody(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    event_list: list[EPCISEventUnion] = Field(alias="eventList")
+    event_list: list[EPCISEventUnion] = Field(alias="eventList", max_length=10000)
 
 
 class EPCISDocumentCreate(BaseModel):
