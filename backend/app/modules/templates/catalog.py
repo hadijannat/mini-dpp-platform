@@ -16,6 +16,8 @@ class TemplateDescriptor:
     semantic_id: str
     template_uri: str
     repo_folder: str
+    baseline_major: int
+    baseline_minor: int
     aasx_pattern: str
     json_pattern: str | None = None
 
@@ -32,6 +34,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
         template_uri="https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
         repo_folder="Digital nameplate",
+        baseline_major=3,
+        baseline_minor=0,
         aasx_pattern="IDTA 02006-{major}-{minor}-{patch}_Template_Digital Nameplate.aasx",
     ),
     "contact-information": TemplateDescriptor(
@@ -40,6 +44,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
         template_uri="https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
         repo_folder="Contact Information",
+        baseline_major=1,
+        baseline_minor=0,
         aasx_pattern="IDTA 02002-{major}-{minor}-{patch}_Template_ContactInformation.aasx",
     ),
     "technical-data": TemplateDescriptor(
@@ -48,6 +54,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
         template_uri="https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
         repo_folder="Technical_Data",
+        baseline_major=2,
+        baseline_minor=0,
         aasx_pattern="IDTA 02003_{major}-{minor}-{patch}_Template_TechnicalData.aasx",
     ),
     "carbon-footprint": TemplateDescriptor(
@@ -56,6 +64,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
         template_uri="https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
         repo_folder="Carbon Footprint",
+        baseline_major=1,
+        baseline_minor=0,
         aasx_pattern="IDTA 02023-{major}-{minor}-{patch} _Template_CarbonFootprint.aasx",
     ),
     "handover-documentation": TemplateDescriptor(
@@ -64,6 +74,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
         template_uri="https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
         repo_folder="Handover Documentation",
+        baseline_major=2,
+        baseline_minor=0,
         aasx_pattern="IDTA 02004-{major}-{minor}-{patch}_Template_HandoverDocumentation.aasx",
     ),
     "hierarchical-structures": TemplateDescriptor(
@@ -72,68 +84,20 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         semantic_id="https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
         template_uri="https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
         repo_folder="Hierarchical Structures enabling Bills of Material",
+        baseline_major=1,
+        baseline_minor=1,
         aasx_pattern="IDTA 02011-{major}-{minor}-{patch}_Template_HSEBoM.aasx",
     ),
-    # ──────────────────────────────────────────────────────────────────────
-    # IDTA 02035 Battery Passport (7 Parts, EU Battery Regulation 2023/1542)
-    # ──────────────────────────────────────────────────────────────────────
-    "battery-general-product-info": TemplateDescriptor(
-        key="battery-general-product-info",
-        title="Battery Passport – General Product Information",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part1.aasx",
-    ),
-    "battery-performance-durability": TemplateDescriptor(
-        key="battery-performance-durability",
-        title="Battery Passport – Performance & Durability",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part2.aasx",
-    ),
-    "battery-materials": TemplateDescriptor(
-        key="battery-materials",
-        title="Battery Passport – Battery Materials & Composition",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/BatteryMaterials/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/BatteryMaterials/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part3.aasx",
-    ),
-    "battery-supply-chain": TemplateDescriptor(
-        key="battery-supply-chain",
-        title="Battery Passport – Supply Chain Due Diligence",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/SupplyChainDueDiligence/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/SupplyChainDueDiligence/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part4.aasx",
-    ),
-    "battery-end-of-life": TemplateDescriptor(
-        key="battery-end-of-life",
-        title="Battery Passport – End of Life Management",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/EndOfLifeManagement/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/EndOfLifeManagement/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part5.aasx",
-    ),
-    "battery-labels-compliance": TemplateDescriptor(
-        key="battery-labels-compliance",
-        title="Battery Passport – Labels & Compliance",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/LabelsAndCompliance/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/LabelsAndCompliance/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part6.aasx",
-    ),
-    "battery-condition": TemplateDescriptor(
-        key="battery-condition",
-        title="Battery Passport – Battery Condition",
-        semantic_id="https://admin-shell.io/idta/BatteryPassport/BatteryCondition/1/0",
-        template_uri="https://admin-shell.io/idta/BatteryPassport/BatteryCondition/1/0",
-        repo_folder="Battery Passport",
-        aasx_pattern="IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport_Part7.aasx",
-    ),
 }
+
+CORE_TEMPLATE_KEYS: tuple[str, ...] = (
+    "carbon-footprint",
+    "contact-information",
+    "digital-nameplate",
+    "handover-documentation",
+    "hierarchical-structures",
+    "technical-data",
+)
 
 
 def get_template_descriptor(template_key: str) -> TemplateDescriptor | None:
@@ -141,4 +105,8 @@ def get_template_descriptor(template_key: str) -> TemplateDescriptor | None:
 
 
 def list_template_keys() -> list[str]:
-    return list(TEMPLATE_CATALOG.keys())
+    return list(CORE_TEMPLATE_KEYS)
+
+
+def list_template_descriptors() -> list[TemplateDescriptor]:
+    return [TEMPLATE_CATALOG[key] for key in CORE_TEMPLATE_KEYS]

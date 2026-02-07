@@ -4,6 +4,6 @@
   "semantic_id": "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
   "expected": {
     "definition_sha256": "247cb10c0b4440a7acbf61fecd2b89c28fd9471a6122de292d27339e19feeb26",
-    "schema_sha256": "f6d8e32e33c989bc8b48d1f8bb1ee214a586c37b7e50015935dac9e3f6759b06"
+    "schema_sha256": "aa53af27e3cce4bc7f6e73e35020347a30984ec9a69c504b89bc2b5c94106232"
   }
 }

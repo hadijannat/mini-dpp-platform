@@ -568,12 +568,36 @@ class Template(Base):
         nullable=False,
         comment="IDTA published version: 3.0.1, 1.0.1, etc.",
     )
+    resolved_version: Mapped[str | None] = mapped_column(
+        String(20),
+        comment="Resolved upstream version used when refreshing the template",
+    )
     semantic_id: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         comment="Full semantic ID (IRI) of the template",
     )
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_repo_ref: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Git ref used for template resolution (branch/tag/sha)",
+    )
+    source_file_path: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Resolved upstream file path in source repository",
+    )
+    source_file_sha: Mapped[str | None] = mapped_column(
+        String(128),
+        comment="Resolved upstream file blob SHA",
+    )
+    source_kind: Mapped[str | None] = mapped_column(
+        String(16),
+        comment="Resolved template source kind (json or aasx)",
+    )
+    selection_strategy: Mapped[str | None] = mapped_column(
+        String(32),
+        comment="Deterministic file selection strategy identifier",
+    )
     template_aasx: Mapped[bytes | None] = mapped_column(
         LargeBinary,
         comment="Original AASX package bytes",

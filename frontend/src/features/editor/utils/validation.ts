@@ -117,26 +117,33 @@ export function validateSchema(
   }
 
   if (typeof data === 'number') {
-    if (schema.minimum !== undefined && data < schema.minimum) {
-      errors[pathKey] = `Must be ≥ ${schema.minimum}`;
+    const range = getSchemaRange(schema);
+    const minimum = range?.min ?? schema.minimum;
+    const maximum = range?.max ?? schema.maximum;
+
+    if (minimum !== undefined && data < minimum) {
+      errors[pathKey] = `Must be ≥ ${minimum}`;
     }
-    if (schema.maximum !== undefined && data > schema.maximum) {
-      errors[pathKey] = `Must be ≤ ${schema.maximum}`;
+    if (maximum !== undefined && data > maximum) {
+      errors[pathKey] = `Must be ≤ ${maximum}`;
     }
   }
 
   if (schema['x-range'] && data && typeof data === 'object' && !Array.isArray(data)) {
-    const range = data as { min?: number | null; max?: number | null };
-    const min = typeof range.min === 'number' ? range.min : null;
-    const max = typeof range.max === 'number' ? range.max : null;
+    const bounds = getSchemaRange(schema);
+    const minimum = bounds?.min ?? schema.minimum;
+    const maximum = bounds?.max ?? schema.maximum;
+    const rangeValue = data as { min?: number | null; max?: number | null };
+    const minValue = typeof rangeValue.min === 'number' ? rangeValue.min : null;
+    const maxValue = typeof rangeValue.max === 'number' ? rangeValue.max : null;
 
-    if (min !== null && schema.minimum !== undefined && min < schema.minimum) {
-      errors[pathKey] = `Min must be ≥ ${schema.minimum}`;
+    if (minValue !== null && minimum !== undefined && minValue < minimum) {
+      errors[pathKey] = `Min must be ≥ ${minimum}`;
     }
-    if (max !== null && schema.maximum !== undefined && max > schema.maximum) {
-      errors[pathKey] = `Max must be ≤ ${schema.maximum}`;
+    if (maxValue !== null && maximum !== undefined && maxValue > maximum) {
+      errors[pathKey] = `Max must be ≤ ${maximum}`;
     }
-    if (min !== null && max !== null && min > max) {
+    if (minValue !== null && maxValue !== null && minValue > maxValue) {
       errors[pathKey] = 'Min cannot exceed max';
     }
   }
@@ -191,4 +198,12 @@ export function validateSchema(
   }
 
   return errors;
+}
+
+function getSchemaRange(schema: UISchema): { min?: number; max?: number } | undefined {
+  const raw = schema['x-allowed-range'];
+  if (!raw) return undefined;
+  const match = raw.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*\.\.\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  if (!match) return undefined;
+  return { min: Number(match[1]), max: Number(match[2]) };
 }
