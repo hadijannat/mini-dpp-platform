@@ -1,9 +1,9 @@
 {
   "key": "handover-documentation",
   "idta_version": "2.0.1",
-  "semantic_id": "https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
+  "semantic_id": "0173-1#01-AHF578#003",
   "expected": {
-    "definition_sha256": "47cf6e887ebdc16a4bd1f79952d8e32c2fd3ce65234b09fc3aea40e9be079655",
+    "definition_sha256": "396738e41a28a4997eb9054546aef4c28afb50f04337ab0a73d73773af832290",
     "schema_sha256": "575f1d5b5e47db5f009b340d502e78f1a63f55ac52586d8584d7bbd024aa13d6"
   }
 }

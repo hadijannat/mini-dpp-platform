@@ -25,7 +25,7 @@ class TestTemplateRegistryService:
         assert list_template_keys() == expected
         for template_key in expected:
             descriptor = TEMPLATE_CATALOG[template_key]
-            assert descriptor.semantic_id.startswith("https://")
+            assert descriptor.semantic_id  # URL or ECLASS IRI
             assert descriptor.repo_folder
             assert descriptor.baseline_major >= 1
 

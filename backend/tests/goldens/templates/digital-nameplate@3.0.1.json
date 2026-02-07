@@ -1,9 +1,9 @@
 {
   "key": "digital-nameplate",
   "idta_version": "3.0.1",
-  "semantic_id": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
+  "semantic_id": "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
   "expected": {
-    "definition_sha256": "26f15663d4c6a3e5e8a323ceca6bf78c39eb025971547da2f07ecc39e934e770",
+    "definition_sha256": "93639ea724510dfd0da333391c3535b1dfdfab26d402a5c815da4b9e2bb520b3",
     "schema_sha256": "401527bdb6576bdbf8289ea9e675c40d1029f0a85bfc313888857ce65edec2a7"
   }
 }

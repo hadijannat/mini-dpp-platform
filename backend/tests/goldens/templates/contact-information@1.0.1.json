@@ -3,7 +3,7 @@
   "idta_version": "1.0.1",
   "semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
   "expected": {
-    "definition_sha256": "edc85aec34cc18e503294696d6cbc10e2a40d752de5cf3c2dc84e389c511d5c2",
+    "definition_sha256": "1d14ea0faa51ea03ccc140c0543d20ddda355f8db1de9032b9dbb62103993557",
     "schema_sha256": "06e8045327edd32cfdd11f22931dd7c4308d064922226be44053f46304973bf0"
   }
 }

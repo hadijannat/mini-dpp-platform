@@ -17,7 +17,7 @@ def enum_to_str(value: Any) -> str | None:
     if value is None:
         return None
     if isinstance(value, type):
-        return str(value)
+        return value.__name__
     if hasattr(value, "value"):
         return str(value.value)
     return str(value)
