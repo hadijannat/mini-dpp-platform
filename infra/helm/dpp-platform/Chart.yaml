@@ -1,0 +1,13 @@
+apiVersion: v2
+name: dpp-platform
+description: Digital Product Passport Platform — AAS/IDTA DPP4.0 compliant
+version: 0.1.0
+appVersion: "0.1.0"
+type: application
+maintainers:
+  - name: DPP Platform Team
+keywords:
+  - digital-product-passport
+  - aas
+  - catena-x
+  - edc

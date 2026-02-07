@@ -148,6 +148,56 @@ jobs:
         working-directory: frontend
         run: npm test -- --run
 
+  backend-security:
+    name: Backend Security (SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --frozen --extra dev
+
+      - name: Run Bandit security linter
+        working-directory: backend
+        run: |
+          uv run --with bandit bandit -r app -ll -ii --exit-zero -f txt
+          uv run --with bandit bandit -r app -ll -ii
+
+      - name: Run pip-audit
+        working-directory: backend
+        continue-on-error: true
+        run: uv run --with pip-audit pip-audit --desc --skip-editable
+
+  frontend-security:
+    name: Frontend Security (Audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run npm audit (production dependencies)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
   aas-validation:
     name: AAS Schema Validation
     runs-on: ubuntu-latest
@@ -159,19 +209,83 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install aas-core3.0-testgen (optional)
-        run: |
-          pip install aas-core3.0-testgen || echo "aas-core3.0-testgen not available on PyPI; skipping."
+      - name: Install BaSyx Python SDK
+        run: pip install basyx-python-sdk
 
-      - name: Validate AAS schemas
+      - name: Validate AAS golden fixtures
         run: |
-          echo "AAS schema validation would run here"
-          echo "Checking for valid AAS JSON structures in test fixtures"
+          python -c "
+          import io, json, pathlib, sys
+          from basyx.aas import model
+          from basyx.aas.adapter import json as basyx_json
+
+          goldens_dir = pathlib.Path('backend/tests/goldens/templates')
+          if not goldens_dir.exists():
+              print('No goldens directory found, skipping')
+              sys.exit(0)
+          errors = []
+          count = 0
+          for f in sorted(goldens_dir.glob('*.json')):
+              data = json.loads(f.read_text())
+              definition = data.get('definition', {})
+              aas_env = definition.get('aas_environment')
+              if not aas_env:
+                  continue
+              count += 1
+              try:
+                  store = model.DictObjectStore()
+                  basyx_json.read_aas_json_file_into(
+                      io.BytesIO(json.dumps(aas_env).encode()),
+                      store,
+                      failsafe=False,
+                  )
+                  basyx_json.object_store_to_json(store)
+              except Exception as e:
+                  errors.append(f'{f.name}: {e}')
+          if errors:
+              for e in errors:
+                  print(f'FAIL: {e}', file=sys.stderr)
+              sys.exit(1)
+          print(f'Validated {count} golden fixtures successfully')
+          "
+
+  helm-lint:
+    name: Helm Lint & Template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Helm lint
+        run: helm lint infra/helm/dpp-platform/
+
+      - name: Helm template (default values)
+        run: helm template dpp-platform infra/helm/dpp-platform/ --values infra/helm/dpp-platform/values.yaml
+
+      - name: Helm template (prod values)
+        run: |
+          helm template dpp-platform infra/helm/dpp-platform/ \
+            --values infra/helm/dpp-platform/values.yaml \
+            --values infra/helm/dpp-platform/values-prod.yaml \
+            --set secrets.postgresUser=test \
+            --set secrets.postgresPassword=test \
+            --set secrets.redisPassword=test \
+            --set secrets.keycloakAdminPassword=test \
+            --set secrets.keycloakClientSecret=test \
+            --set secrets.keycloakDbPassword=test \
+            --set secrets.minioAccessKey=test \
+            --set secrets.minioSecretKey=test \
+            --set secrets.encryptionMasterKey=test \
+            --set secrets.dppSigningKey=test
 
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, frontend-lint, frontend-test]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation, helm-lint]
     steps:
       - uses: actions/checkout@v4
 

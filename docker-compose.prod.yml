@@ -1,0 +1,408 @@
+services:
+  # =============================================================================
+  # Caddy - Reverse Proxy with Automatic HTTPS
+  # =============================================================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: dpp-caddy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # PostgreSQL - Primary Data Store
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: dpp-postgres
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - max_connections=100
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-dpp_platform}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init/01-extensions.sql:/docker-entrypoint-initdb.d/01-extensions.sql:ro
+      - ./infra/postgres/init-prod/02-keycloak.sh:/docker-entrypoint-initdb.d/02-keycloak.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-dpp_platform}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # PostgreSQL Backup - Automated daily pg_dump with retention
+  # =============================================================================
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    container_name: dpp-postgres-backup
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-dpp_platform},keycloak
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_ON_START: "true"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 3
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Redis - Caching and Rate Limiting
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: dpp-redis
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 300m
+          cpus: "0.5"
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy volatile-lru
+      --requirepass ${REDIS_PASSWORD}
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Keycloak - Identity Provider (OIDC)
+  # =============================================================================
+  keycloak:
+    build:
+      context: ./infra/keycloak
+      dockerfile: Dockerfile
+    image: dpp-keycloak:prod
+    container_name: dpp-keycloak
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    command: start --import-realm --optimized
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME:-keycloak}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HEALTH_ENABLED: true
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: auth.dpp-platform.dev
+      KC_HTTP_ENABLED: true
+      KEYCLOAK_BACKEND_CLIENT_SECRET: ${KEYCLOAK_BACKEND_CLIENT_SECRET}
+    volumes:
+      - ./infra/keycloak/realm-export-prod/dpp-platform-realm-prod.json:/opt/keycloak/data/import/dpp-platform-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-lc",
+          "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Open Policy Agent - ABAC Policy Decision Point
+  # =============================================================================
+  opa:
+    build:
+      context: ./infra/opa
+      dockerfile: Dockerfile
+    image: dpp-opa:prod
+    container_name: dpp-opa
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    command:
+      - run
+      - --server
+      - --addr=0.0.0.0:8181
+      - --log-level=info
+      - /policies
+    volumes:
+      - ./infra/opa/policies:/policies:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8181/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # MinIO - Object Storage
+  # =============================================================================
+  minio:
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    container_name: dpp-minio
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Backend API - FastAPI Application (Production)
+  # =============================================================================
+  # One-off migration runner (use: docker compose run --rm migrate)
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: dpp-backend:prod
+    container_name: dpp-migrate
+    command: python -m alembic upgrade head
+    environment: &backend-env
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-dpp_platform}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - KEYCLOAK_SERVER_URL=http://keycloak:8080
+      - KEYCLOAK_REALM=dpp-platform
+      - KEYCLOAK_CLIENT_ID=dpp-backend
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_BACKEND_CLIENT_SECRET}
+      - KEYCLOAK_ALLOWED_CLIENT_IDS=dpp-backend,dpp-frontend
+      - KEYCLOAK_ISSUER_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform
+      - KEYCLOAK_JWKS_URL_OVERRIDE=http://keycloak:8080/realms/dpp-platform/protocol/openid-connect/certs
+      - KEYCLOAK_ALLOWED_ISSUERS=https://auth.dpp-platform.dev/realms/dpp-platform
+      - OPA_URL=http://opa:8181
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
+      - DPP_SIGNING_KEY=${DPP_SIGNING_KEY}
+      - AUDIT_SIGNING_KEY=${AUDIT_SIGNING_KEY:-}
+      - AUDIT_SIGNING_PUBLIC_KEY=${AUDIT_SIGNING_PUBLIC_KEY:-}
+      - TSA_URL=${TSA_URL:-}
+      - AUDIT_MERKLE_BATCH_SIZE=${AUDIT_MERKLE_BATCH_SIZE:-100}
+      - COMPLIANCE_CHECK_ON_PUBLISH=${COMPLIANCE_CHECK_ON_PUBLISH:-false}
+      - EDC_MANAGEMENT_URL=${EDC_MANAGEMENT_URL:-}
+      - EDC_MANAGEMENT_API_KEY=${EDC_MANAGEMENT_API_KEY:-}
+      - EDC_DSP_ENDPOINT=${EDC_DSP_ENDPOINT:-}
+      - EDC_PARTICIPANT_ID=${EDC_PARTICIPANT_ID:-}
+      - CORS_ORIGINS=["https://dpp-platform.dev"]
+      - LOG_LEVEL=INFO
+      - IDTA_TEMPLATES_GITHUB_TOKEN=${IDTA_TEMPLATES_GITHUB_TOKEN:-}
+      - IDTA_TEMPLATES_REPO_REF=${IDTA_TEMPLATES_REPO_REF:-1d4e0b45469f9260228ca6e99ff907c670476e2a}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dpp-network
+    profiles:
+      - migrate
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    image: dpp-backend:prod
+    container_name: dpp-backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "2.0"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment: *backend-env
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      opa:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Frontend - React Application (Production via nginx)
+  # =============================================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        - VITE_API_BASE_URL=https://dpp-platform.dev
+        - VITE_KEYCLOAK_URL=https://auth.dpp-platform.dev
+        - VITE_KEYCLOAK_REALM=dpp-platform
+        - VITE_KEYCLOAK_CLIENT_ID=dpp-frontend
+    image: dpp-frontend:prod
+    container_name: dpp-frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    depends_on:
+      - backend
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Prometheus - Metrics Collection
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: dpp-prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Grafana - Metrics Dashboards
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: dpp-grafana
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/monitoring/grafana:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+networks:
+  dpp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  postgres_backups:
+  redis_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+  prometheus_data:
+  grafana_data:

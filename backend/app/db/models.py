@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Double,
     Enum,
     ForeignKey,
     Index,
@@ -86,12 +87,25 @@ class PolicyEffect(str, PyEnum):
     ENCRYPT_REQUIRED = "encrypt_required"
 
 
+class LifecyclePhase(str, PyEnum):
+    """Product lifecycle phase for digital thread events."""
+
+    DESIGN = "design"
+    MANUFACTURE = "manufacture"
+    LOGISTICS = "logistics"
+    DEPLOY = "deploy"
+    OPERATE = "operate"
+    MAINTAIN = "maintain"
+    END_OF_LIFE = "end_of_life"
+
+
 class ConnectorType(str, PyEnum):
     """Type of external connector."""
 
     CATENA_X = "catena_x"
     REST = "rest"
     FILE = "file"
+    EDC = "edc"
 
 
 class ConnectorStatus(str, PyEnum):
@@ -554,12 +568,36 @@ class Template(Base):
         nullable=False,
         comment="IDTA published version: 3.0.1, 1.0.1, etc.",
     )
+    resolved_version: Mapped[str | None] = mapped_column(
+        String(20),
+        comment="Resolved upstream version used when refreshing the template",
+    )
     semantic_id: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         comment="Full semantic ID (IRI) of the template",
     )
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_repo_ref: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Git ref used for template resolution (branch/tag/sha)",
+    )
+    source_file_path: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Resolved upstream file path in source repository",
+    )
+    source_file_sha: Mapped[str | None] = mapped_column(
+        String(128),
+        comment="Resolved upstream file blob SHA",
+    )
+    source_kind: Mapped[str | None] = mapped_column(
+        String(16),
+        comment="Resolved template source kind (json or aasx)",
+    )
+    selection_strategy: Mapped[str | None] = mapped_column(
+        String(32),
+        comment="Deterministic file selection strategy identifier",
+    )
     template_aasx: Mapped[bytes | None] = mapped_column(
         LargeBinary,
         comment="Original AASX package bytes",
@@ -900,6 +938,11 @@ class AuditEvent(TenantScopedMixin, Base):
     metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
+    event_hash: Mapped[str | None] = mapped_column(String(64), comment="SHA-256 hash")
+    prev_event_hash: Mapped[str | None] = mapped_column(String(64), comment="Previous event hash")
+    chain_sequence: Mapped[int | None] = mapped_column(
+        Integer, comment="Monotonic sequence per tenant"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -910,4 +953,320 @@ class AuditEvent(TenantScopedMixin, Base):
         Index("ix_audit_events_action", "action"),
         Index("ix_audit_events_resource", "resource_type", "resource_id"),
         Index("ix_audit_events_created_at", "created_at"),
+        Index("ix_audit_events_tenant_chain", "tenant_id", "chain_sequence"),
+    )
+
+
+# =============================================================================
+# Audit Merkle Root Model
+# =============================================================================
+
+
+class AuditMerkleRoot(TenantScopedMixin, Base):
+    """
+    Merkle root anchor for a batch of audit events.
+
+    Provides cryptographic anchoring of event hash chains via Merkle trees,
+    with optional digital signature and RFC 3161 timestamping.
+    """
+
+    __tablename__ = "audit_merkle_roots"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    root_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="SHA-256 Merkle root hash",
+    )
+    event_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Number of events in this Merkle batch",
+    )
+    first_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="First chain_sequence in batch",
+    )
+    last_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Last chain_sequence in batch",
+    )
+    signature: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Ed25519 signature of root_hash",
+    )
+    tsa_token: Mapped[bytes | None] = mapped_column(
+        LargeBinary,
+        comment="RFC 3161 timestamp authority token",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_audit_merkle_roots_tenant", "tenant_id"),
+        Index(
+            "ix_audit_merkle_roots_sequences",
+            "tenant_id",
+            "first_sequence",
+            "last_sequence",
+        ),
+    )
+
+
+# =============================================================================
+# Compliance Report Model
+# =============================================================================
+
+
+class ComplianceReportRecord(TenantScopedMixin, Base):
+    """
+    Persisted ESPR compliance check result.
+
+    Stores the full compliance report JSON alongside summary fields
+    for efficient querying and dashboard display.
+    """
+
+    __tablename__ = "compliance_reports"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Product category (battery, textile, electronic, etc.)",
+    )
+    is_compliant: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+    )
+    report_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Full compliance report payload",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_compliance_reports_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_compliance_reports_category", "category"),
+    )
+
+
+# =============================================================================
+# EDC Asset Registration Model
+# =============================================================================
+
+
+class EDCAssetRegistration(TenantScopedMixin, Base):
+    """
+    Tracks DPP assets registered in the Eclipse Dataspace Connector.
+
+    Records the EDC asset, policy, and contract definition IDs
+    created during DPP publication to a dataspace.
+    """
+
+    __tablename__ = "edc_asset_registrations"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    edc_asset_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Asset ID in EDC catalog",
+    )
+    edc_policy_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Policy definition ID in EDC",
+    )
+    edc_contract_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Contract definition ID in EDC",
+    )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="registered",
+        nullable=False,
+        comment="Registration status: registered, active, removed",
+    )
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_edc_registrations_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_edc_registrations_connector", "connector_id"),
+        Index("ix_edc_registrations_asset", "edc_asset_id"),
+    )
+
+
+# =============================================================================
+# Digital Thread Event Model
+# =============================================================================
+
+
+class ThreadEvent(TenantScopedMixin, Base):
+    """
+    Immutable product lifecycle event for digital thread traceability.
+
+    Unlike audit events (which track WHO did WHAT for security), thread events
+    track WHAT HAPPENED to a PRODUCT across its lifecycle. Insert-only — no updates.
+    """
+
+    __tablename__ = "thread_events"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    phase: Mapped[LifecyclePhase] = mapped_column(
+        Enum(LifecyclePhase, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        comment="Product lifecycle phase",
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Event type: material_sourced, assembled, shipped, installed, serviced, recycled, etc.",
+    )
+    source: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="System or organization that emitted the event",
+    )
+    source_event_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="External event correlation ID",
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Event-specific data",
+    )
+    parent_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("thread_events.id"),
+        comment="Causal parent event for event chains",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_thread_events_tenant_dpp_phase", "tenant_id", "dpp_id", "phase"),
+        Index("ix_thread_events_tenant_created", "tenant_id", "created_at"),
+        Index("ix_thread_events_dpp_id", "dpp_id"),
+        Index("ix_thread_events_parent", "parent_event_id"),
+    )
+
+
+# =============================================================================
+# LCA Calculation Model
+# =============================================================================
+
+
+class LCACalculation(TenantScopedMixin, Base):
+    """
+    Persisted LCA / Product Carbon Footprint calculation result.
+
+    Stores the full computation for reproducibility: input inventory,
+    emission factors version, and detailed breakdown report.
+    """
+
+    __tablename__ = "lca_calculations"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision_no: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="DPP revision number used for the calculation",
+    )
+    methodology: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Calculation methodology, e.g. activity-based-gwp",
+    )
+    scope: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="LCA scope: cradle-to-gate, gate-to-gate, cradle-to-grave",
+    )
+    total_gwp_kg_co2e: Mapped[float] = mapped_column(
+        Double,
+        nullable=False,
+        comment="Total GWP in kg CO2 equivalent",
+    )
+    impact_categories: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Multi-category impact results",
+    )
+    material_inventory: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Extracted input data for reproducibility",
+    )
+    factor_database_version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="Emission factor database version used",
+    )
+    report_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Full detailed report",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_lca_calculations_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_lca_calculations_dpp_revision", "dpp_id", "revision_no"),
     )

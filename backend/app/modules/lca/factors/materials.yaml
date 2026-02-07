@@ -1,0 +1,76 @@
+version: "1.0"
+description: "Default emission factors for common material categories"
+source: "Compiled from ecoinvent 3.9, IPCC AR6, and industry averages"
+factors:
+  - material: steel
+    category: metals
+    factor_kg_co2e_per_kg: 1.85
+    source: "ecoinvent 3.9 - market for steel"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: aluminium
+    category: metals
+    factor_kg_co2e_per_kg: 8.24
+    source: "ecoinvent 3.9 - market for aluminium"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: copper
+    category: metals
+    factor_kg_co2e_per_kg: 3.81
+    source: "ecoinvent 3.9 - market for copper"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: lithium
+    category: metals
+    factor_kg_co2e_per_kg: 12.50
+    source: "Industry average - lithium carbonate"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: cobalt
+    category: metals
+    factor_kg_co2e_per_kg: 8.30
+    source: "Industry average - cobalt metal"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: plastics_generic
+    category: polymers
+    factor_kg_co2e_per_kg: 3.14
+    source: "ecoinvent 3.9 - market for polypropylene"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: glass
+    category: minerals
+    factor_kg_co2e_per_kg: 0.86
+    source: "ecoinvent 3.9 - market for flat glass"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: textiles_cotton
+    category: textiles
+    factor_kg_co2e_per_kg: 5.89
+    source: "ecoinvent 3.9 - market for cotton fibre"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: textiles_polyester
+    category: textiles
+    factor_kg_co2e_per_kg: 5.55
+    source: "ecoinvent 3.9 - market for polyester"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: paper
+    category: bio-based
+    factor_kg_co2e_per_kg: 1.10
+    source: "ecoinvent 3.9 - market for paper"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: electronics_pcb
+    category: electronics
+    factor_kg_co2e_per_kg: 20.50
+    source: "Industry average - printed circuit board"
+    scope: "cradle-to-gate"
+    year: 2023
+  - material: electronics_generic
+    category: electronics
+    factor_kg_co2e_per_kg: 15.00
+    source: "Industry average - electronic components"
+    scope: "cradle-to-gate"
+    year: 2023

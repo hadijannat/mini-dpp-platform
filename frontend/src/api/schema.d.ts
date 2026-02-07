@@ -9,6 +9,25 @@ export interface paths {
     /** Health Check */
     get: operations["health_check_health_get"];
   };
+  "/api/v1/public/{tenant_slug}/dpps/{dpp_id}": {
+    /**
+     * Get Published Dpp
+     * @description Get a published DPP by ID (no authentication required).
+     *
+     * Only returns DPPs with status=PUBLISHED. Drafts and archived DPPs return 404.
+     */
+    get: operations["get_published_dpp_api_v1_public__tenant_slug__dpps__dpp_id__get"];
+  };
+  "/api/v1/public/{tenant_slug}/dpps/slug/{slug}": {
+    /**
+     * Get Published Dpp By Slug
+     * @description Get a published DPP by its short-link slug (no authentication required).
+     *
+     * The slug is the first 8 hex characters of the DPP UUID,
+     * as used in QR code short links.
+     */
+    get: operations["get_published_dpp_by_slug_api_v1_public__tenant_slug__dpps_slug__slug__get"];
+  };
   "/api/v1/tenants/mine": {
     /**
      * List My Tenants
@@ -68,6 +87,13 @@ export interface paths {
      */
     get: operations["get_template_definition_api_v1_templates__template_key__definition_get"];
   };
+  "/api/v1/templates/{template_key}/contract": {
+    /**
+     * Get Template Contract
+     * @description Get canonical template contract (definition + schema + source metadata).
+     */
+    get: operations["get_template_contract_api_v1_templates__template_key__contract_get"];
+  };
   "/api/v1/templates": {
     /**
      * List Templates
@@ -118,7 +144,10 @@ export interface paths {
      * List Dpps
      * @description List DPPs accessible to the current user.
      *
-     * Publishers see their own DPPs. Viewers see all published DPPs.
+     * Access is controlled via ABAC policies. Typically:
+     * - Tenant admins see all DPPs in tenant
+     * - Publishers see their own DPPs
+     * - Viewers see all published DPPs
      */
     get: operations["list_dpps_api_v1_tenants__tenant_slug__dpps_get"];
     /**
@@ -147,6 +176,16 @@ export interface paths {
      * Requires tenant admin role.
      */
     post: operations["rebuild_all_dpps_api_v1_tenants__tenant_slug__dpps_rebuild_all_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/by-slug/{slug}": {
+    /**
+     * Get Dpp By Slug
+     * @description Get a DPP by its short-link slug.
+     *
+     * The slug is the first 8 hex characters of the DPP UUID,
+     * as used in QR code short links (/p/{slug}).
+     */
+    get: operations["get_dpp_by_slug_api_v1_tenants__tenant_slug__dpps_by_slug__slug__get"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}": {
     /**
@@ -209,6 +248,8 @@ export interface paths {
     patch: operations["update_master_api_v1_tenants__tenant_slug__masters__master_id__patch"];
   };
   "/api/v1/tenants/{tenant_slug}/masters/{master_id}/versions": {
+    /** List Master Versions */
+    get: operations["list_master_versions_api_v1_tenants__tenant_slug__masters__master_id__versions_get"];
     /** Release Master Version */
     post: operations["release_master_version_api_v1_tenants__tenant_slug__masters__master_id__versions_post"];
   };
@@ -220,9 +261,17 @@ export interface paths {
     /** Get Template By Product */
     get: operations["get_template_by_product_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__template_get"];
   };
+  "/api/v1/tenants/{tenant_slug}/masters/by-product/{product_id}/versions/{version}/template/raw": {
+    /** Get Template Raw */
+    get: operations["get_template_raw_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__template_raw_get"];
+  };
   "/api/v1/tenants/{tenant_slug}/masters/by-product/{product_id}/versions/{version}/variables": {
     /** Get Variables By Product */
     get: operations["get_variables_by_product_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__variables_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/masters/by-product/{product_id}/versions/{version}/validate": {
+    /** Validate Template Payload */
+    post: operations["validate_template_payload_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__validate_post"];
   };
   "/api/v1/tenants/{tenant_slug}/policies": {
     /**
@@ -303,6 +352,31 @@ export interface paths {
      */
     post: operations["publish_dpp_to_connector_api_v1_tenants__tenant_slug__connectors__connector_id__publish__dpp_id__post"];
   };
+  "/api/v1/tenants/{tenant_slug}/connectors/{connector_id}/dataspace/publish/{dpp_id}": {
+    /**
+     * Publish Dpp To Dataspace
+     * @description Publish a DPP to an Eclipse Dataspace via EDC.
+     *
+     * Creates an EDC asset, access and usage policies, and a contract
+     * definition so data consumers can discover and negotiate access.
+     * The DPP must be published first.
+     */
+    post: operations["publish_dpp_to_dataspace_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_publish__dpp_id__post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/connectors/{connector_id}/dataspace/status/{dpp_id}": {
+    /**
+     * Get Dataspace Status
+     * @description Check whether a DPP is registered in the EDC catalog.
+     */
+    get: operations["get_dataspace_status_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_status__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/connectors/{connector_id}/dataspace/health": {
+    /**
+     * Check Connector Edc Health
+     * @description Check EDC controlplane health for a connector.
+     */
+    get: operations["check_connector_edc_health_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_health_get"];
+  };
   "/api/v1/tenants/{tenant_slug}/export/{dpp_id}": {
     /**
      * Export Dpp
@@ -360,12 +434,174 @@ export interface paths {
      */
     put: operations["update_global_asset_id_base_uri_api_v1_admin_settings_global_asset_id_base_uri_put"];
   };
+  "/api/v1/tenants/{tenant_slug}/compliance/check/{dpp_id}": {
+    /**
+     * Check Compliance
+     * @description Run a compliance check on a DPP.
+     *
+     * Evaluates the DPP's latest AAS environment against the applicable
+     * ESPR rule set. Returns violations grouped by severity.
+     */
+    post: operations["check_compliance_api_v1_tenants__tenant_slug__compliance_check__dpp_id__post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/compliance/rules": {
+    /**
+     * List All Rules
+     * @description List all available compliance rules grouped by category.
+     */
+    get: operations["list_all_rules_api_v1_tenants__tenant_slug__compliance_rules_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/compliance/rules/{category}": {
+    /**
+     * Get Rules For Category
+     * @description Get compliance rules for a specific product category.
+     */
+    get: operations["get_rules_for_category_api_v1_tenants__tenant_slug__compliance_rules__category__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/compliance/report/{dpp_id}": {
+    /**
+     * Get Compliance Report
+     * @description Get the compliance report for a DPP.
+     *
+     * Runs a fresh compliance check against the DPP's current revision
+     * and returns the report. This is equivalent to POST /check/{dpp_id}
+     * but uses GET for convenience in dashboards and status polling.
+     */
+    get: operations["get_compliance_report_api_v1_tenants__tenant_slug__compliance_report__dpp_id__get"];
+  };
+  "/api/v1/admin/audit/events": {
+    /**
+     * List Audit Events
+     * @description List audit events with optional filters (admin only).
+     */
+    get: operations["list_audit_events_api_v1_admin_audit_events_get"];
+  };
+  "/api/v1/admin/audit/verify/chain": {
+    /**
+     * Verify Chain
+     * @description Verify the hash chain integrity for a tenant (admin only).
+     */
+    get: operations["verify_chain_api_v1_admin_audit_verify_chain_get"];
+  };
+  "/api/v1/admin/audit/verify/event/{event_id}": {
+    /**
+     * Verify Single Event
+     * @description Verify a single audit event's hash (admin only).
+     */
+    get: operations["verify_single_event_api_v1_admin_audit_verify_event__event_id__get"];
+  };
+  "/api/v1/admin/audit/anchor": {
+    /**
+     * Anchor Merkle Root
+     * @description Compute Merkle root and optionally sign it (admin only).
+     */
+    post: operations["anchor_merkle_root_api_v1_admin_audit_anchor_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/thread/events": {
+    /**
+     * List Events
+     * @description Query digital thread events with optional filters.
+     */
+    get: operations["list_events_api_v1_tenants__tenant_slug__thread_events_get"];
+    /**
+     * Record Event
+     * @description Record a new digital thread event for a DPP.
+     */
+    post: operations["record_event_api_v1_tenants__tenant_slug__thread_events_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/thread/timeline/{dpp_id}": {
+    /**
+     * Get Timeline
+     * @description Get full lifecycle timeline for a DPP, grouped by phase.
+     */
+    get: operations["get_timeline_api_v1_tenants__tenant_slug__thread_timeline__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/thread/timeline/{dpp_id}/compliance": {
+    /**
+     * Get Compliance Timeline Endpoint
+     * @description Get compliance-relevant timeline for a DPP.
+     *
+     * Returns only events from MANUFACTURE, DEPLOY, and END_OF_LIFE phases
+     * whose event types contain compliance-related keywords.
+     */
+    get: operations["get_compliance_timeline_endpoint_api_v1_tenants__tenant_slug__thread_timeline__dpp_id__compliance_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/lca/calculate/{dpp_id}": {
+    /**
+     * Calculate Pcf
+     * @description Calculate the Product Carbon Footprint for a DPP.
+     *
+     * Extracts the material inventory from the DPP's latest AAS
+     * environment and computes the GWP using the emission factor
+     * database. Results are persisted for future retrieval.
+     */
+    post: operations["calculate_pcf_api_v1_tenants__tenant_slug__lca_calculate__dpp_id__post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/lca/report/{dpp_id}": {
+    /**
+     * Get Report
+     * @description Get the latest LCA calculation report for a DPP.
+     */
+    get: operations["get_report_api_v1_tenants__tenant_slug__lca_report__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/lca/compare": {
+    /**
+     * Compare Revisions
+     * @description Compare PCF calculations between two DPP revisions.
+     */
+    post: operations["compare_revisions_api_v1_tenants__tenant_slug__lca_compare_post"];
+  };
+  "/metrics": {
+    /**
+     * Metrics
+     * @description Endpoint that serves Prometheus metrics.
+     */
+    get: operations["metrics_metrics_get"];
+  };
 }
 
 export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    /**
+     * AllRulesResponse
+     * @description Response listing all rule categories.
+     */
+    AllRulesResponse: {
+      /** Categories */
+      categories: string[];
+      /** Rulesets */
+      rulesets: {
+        [key: string]: components["schemas"]["CategoryRuleset"];
+      };
+    };
+    /**
+     * AnchorResponse
+     * @description Result of a Merkle anchor operation.
+     */
+    AnchorResponse: {
+      /** Merkle Root */
+      merkle_root: string;
+      /** Event Count */
+      event_count: number;
+      /** First Sequence */
+      first_sequence: number;
+      /** Last Sequence */
+      last_sequence: number;
+      /** Signature */
+      signature?: string | null;
+      /**
+       * Tsa Token Present
+       * @default false
+       */
+      tsa_token_present?: boolean;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+    };
     /**
      * AssetIdsInput
      * @description Input model for asset identifiers.
@@ -379,6 +615,62 @@ export interface components {
       batchId?: string | null;
       /** Globalassetid */
       globalAssetId?: string | null;
+    };
+    /**
+     * AuditEventListResponse
+     * @description Paginated list of audit events.
+     */
+    AuditEventListResponse: {
+      /** Items */
+      items: components["schemas"]["AuditEventResponse"][];
+      /** Total */
+      total: number;
+      /** Page */
+      page: number;
+      /** Page Size */
+      page_size: number;
+    };
+    /**
+     * AuditEventResponse
+     * @description Single audit event in API responses.
+     */
+    AuditEventResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Tenant Id */
+      tenant_id?: string | null;
+      /** Subject */
+      subject?: string | null;
+      /** Action */
+      action: string;
+      /** Resource Type */
+      resource_type: string;
+      /** Resource Id */
+      resource_id?: string | null;
+      /** Decision */
+      decision?: string | null;
+      /** Ip Address */
+      ip_address?: string | null;
+      /** User Agent */
+      user_agent?: string | null;
+      /** Metadata */
+      metadata_?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Event Hash */
+      event_hash?: string | null;
+      /** Prev Event Hash */
+      prev_event_hash?: string | null;
+      /** Chain Sequence */
+      chain_sequence?: number | null;
     };
     /**
      * BulkRebuildError
@@ -453,12 +745,6 @@ export interface components {
        */
       foreground_color?: string;
       /**
-       * Include Logo
-       * @description Whether to embed a logo in the center
-       * @default false
-       */
-      include_logo?: boolean;
-      /**
        * Include Text
        * @description Whether to include product ID text below the code
        * @default true
@@ -466,27 +752,131 @@ export interface components {
       include_text?: boolean;
     };
     /**
-     * CarrierResponse
-     * @description Response model for carrier generation metadata.
+     * CategoryRuleset
+     * @description All rules for a product category.
      */
-    CarrierResponse: {
+    CategoryRuleset: {
+      /** Category */
+      category: string;
+      /** Version */
+      version: string;
+      /** Description */
+      description: string;
+      /** Rules */
+      rules: components["schemas"]["RuleCatalogEntry"][];
+    };
+    /**
+     * ChainVerificationResponse
+     * @description Result of verifying the audit hash chain for a tenant.
+     */
+    ChainVerificationResponse: {
+      /** Is Valid */
+      is_valid: boolean;
+      /** Verified Count */
+      verified_count: number;
+      /** First Break At */
+      first_break_at?: number | null;
+      /** Errors */
+      errors: string[];
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+    };
+    /**
+     * ComparisonReport
+     * @description Side-by-side PCF comparison of two DPP revisions.
+     */
+    ComparisonReport: {
       /**
        * Dpp Id
        * Format: uuid
        */
       dpp_id: string;
-      format: components["schemas"]["CarrierFormat"];
-      output_type: components["schemas"]["CarrierOutputType"];
+      /** Revision A */
+      revision_a: number;
+      /** Revision B */
+      revision_b: number;
+      report_a: components["schemas"]["LCAReport"];
+      report_b: components["schemas"]["LCAReport"];
+      /** Delta Gwp Kg Co2E */
+      delta_gwp_kg_co2e: number;
+      /** Delta Percentage */
+      delta_percentage?: number | null;
+    };
+    /**
+     * ComparisonRequest
+     * @description Request body for comparing PCF across two DPP revisions.
+     */
+    ComparisonRequest: {
       /**
-       * Url
-       * @description URL encoded in the carrier
+       * Dpp Id
+       * Format: uuid
        */
-      url: string;
+      dpp_id: string;
+      /** Revision A */
+      revision_a: number;
+      /** Revision B */
+      revision_b: number;
+    };
+    /**
+     * ComplianceCheckResponse
+     * @description Response for a compliance check.
+     */
+    ComplianceCheckResponse: {
       /**
-       * Gs1 Digital Link
-       * @description GS1 Digital Link if gs1_qr format
+       * Dpp Id
+       * Format: uuid
        */
-      gs1_digital_link?: string | null;
+      dpp_id: string;
+      /** Category */
+      category: string;
+      /** Is Compliant */
+      is_compliant: boolean;
+      /** Checked At */
+      checked_at: string;
+      /** Violations */
+      violations: components["schemas"]["ComplianceViolation"][];
+      summary: components["schemas"]["ComplianceSummary"];
+    };
+    /**
+     * ComplianceSummary
+     * @description Aggregate counts of a compliance evaluation.
+     */
+    ComplianceSummary: {
+      /** Total Rules */
+      total_rules: number;
+      /** Passed */
+      passed: number;
+      /** Critical Violations */
+      critical_violations: number;
+      /** Warnings */
+      warnings: number;
+      /**
+       * Info
+       * @default 0
+       */
+      info?: number;
+    };
+    /**
+     * ComplianceViolation
+     * @description A single rule violation found during compliance evaluation.
+     */
+    ComplianceViolation: {
+      /** Rule Id */
+      rule_id: string;
+      /**
+       * Severity
+       * @enum {string}
+       */
+      severity: "critical" | "warning" | "info";
+      /** Field Path */
+      field_path: string;
+      /** Message */
+      message: string;
+      /** Actual Value */
+      actual_value?: unknown;
     };
     /**
      * ConnectorCreateRequest
@@ -540,7 +930,7 @@ export interface components {
      * @description Type of external connector.
      * @enum {string}
      */
-    ConnectorType: "catena_x" | "rest" | "file";
+    ConnectorType: "catena_x" | "rest" | "file" | "edc";
     /**
      * CreateDPPRequest
      * @description Request model for creating a new DPP.
@@ -602,6 +992,8 @@ export interface components {
       dpps: components["schemas"]["DPPResponse"][];
       /** Count */
       count: number;
+      /** Total Count */
+      total_count: number;
       /** Limit */
       limit: number;
       /** Offset */
@@ -639,6 +1031,63 @@ export interface components {
      */
     DPPStatus: "draft" | "published" | "archived";
     /**
+     * EDCHealthResponse
+     * @description Response model for EDC health check.
+     */
+    EDCHealthResponse: {
+      /** Status */
+      status: string;
+      /** Edc Version */
+      edc_version?: string | null;
+      /** Error Message */
+      error_message?: string | null;
+    };
+    /**
+     * EDCPublishResultResponse
+     * @description Response model for EDC dataspace publish result.
+     */
+    EDCPublishResultResponse: {
+      /** Status */
+      status: string;
+      /** Asset Id */
+      asset_id?: string | null;
+      /** Access Policy Id */
+      access_policy_id?: string | null;
+      /** Usage Policy Id */
+      usage_policy_id?: string | null;
+      /** Contract Definition Id */
+      contract_definition_id?: string | null;
+      /** Error Message */
+      error_message?: string | null;
+    };
+    /**
+     * EDCStatusResponse
+     * @description Response model for EDC dataspace status check.
+     */
+    EDCStatusResponse: {
+      /** Registered */
+      registered: boolean;
+      /** Asset Id */
+      asset_id?: string | null;
+      /** Error */
+      error?: string | null;
+    };
+    /**
+     * EventVerificationResponse
+     * @description Result of verifying a single audit event.
+     */
+    EventVerificationResponse: {
+      /** Is Valid */
+      is_valid: boolean;
+      /**
+       * Event Id
+       * Format: uuid
+       */
+      event_id: string;
+      /** Event Hash */
+      event_hash?: string | null;
+    };
+    /**
      * GS1DigitalLinkResponse
      * @description Response model for GS1 Digital Link generation.
      */
@@ -668,6 +1117,12 @@ export interface components {
        * @description GS1 resolver base URL
        */
       resolver_url: string;
+      /**
+       * Is Pseudo Gtin
+       * @description True if the GTIN was generated from the manufacturer part ID (not a real GS1 GTIN)
+       * @default false
+       */
+      is_pseudo_gtin?: boolean;
     };
     /**
      * GlobalAssetIdBaseUriResponse
@@ -696,6 +1151,67 @@ export interface components {
      */
     ImportDPPRequest: {
       [key: string]: unknown;
+    };
+    /**
+     * LCAReport
+     * @description Full persisted LCA report returned to clients.
+     */
+    LCAReport: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Revision No */
+      revision_no: number;
+      /** Methodology */
+      methodology: string;
+      /** Scope */
+      scope: string;
+      /** Total Gwp Kg Co2E */
+      total_gwp_kg_co2e: number;
+      /** Impact Categories */
+      impact_categories?: {
+        [key: string]: number;
+      };
+      material_inventory: components["schemas"]["MaterialInventory"];
+      /** Factor Database Version */
+      factor_database_version: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Breakdown */
+      breakdown?: components["schemas"]["MaterialBreakdown"][];
+    };
+    /**
+     * LifecyclePhase
+     * @description Product lifecycle phase for digital thread events.
+     * @enum {string}
+     */
+    LifecyclePhase: "design" | "manufacture" | "logistics" | "deploy" | "operate" | "maintain" | "end_of_life";
+    /**
+     * LifecycleTimeline
+     * @description Grouped timeline response for a DPP's digital thread.
+     */
+    LifecycleTimeline: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Phases */
+      phases: {
+        [key: string]: components["schemas"]["ThreadEventResponse"][];
+      };
+      /** Total Events */
+      total_events: number;
     };
     /**
      * MasterAliasesUpdateRequest
@@ -822,6 +1338,29 @@ export interface components {
       variables?: components["schemas"]["MasterVariableInput"][] | null;
     };
     /**
+     * MasterValidateRequest
+     * @description Request model for validating a filled template payload.
+     */
+    MasterValidateRequest: {
+      [key: string]: unknown;
+    };
+    /**
+     * MasterValidateResponse
+     * @description Validation response for filled template payloads.
+     */
+    MasterValidateResponse: {
+      /** Valid */
+      valid: boolean;
+      /** Errors */
+      errors?: {
+          [key: string]: unknown;
+        }[];
+      /** Normalized Payload */
+      normalized_payload?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
      * MasterVariableInput
      * @description Variable definition for DPP master templates.
      */
@@ -926,6 +1465,56 @@ export interface components {
       released_at: string;
     };
     /**
+     * MaterialBreakdown
+     * @description Per-material GWP breakdown in a PCF result.
+     */
+    MaterialBreakdown: {
+      /** Material Name */
+      material_name: string;
+      /** Mass Kg */
+      mass_kg: number;
+      /** Factor Used */
+      factor_used: number;
+      /** Gwp Kg Co2E */
+      gwp_kg_co2e: number;
+      /** Source */
+      source: string;
+    };
+    /**
+     * MaterialInventory
+     * @description Extracted material inventory from AAS submodels.
+     */
+    MaterialInventory: {
+      /** Items */
+      items?: components["schemas"]["MaterialItem"][];
+      /**
+       * Total Mass Kg
+       * @default 0
+       */
+      total_mass_kg?: number;
+      /** Source Submodels */
+      source_submodels?: string[];
+    };
+    /**
+     * MaterialItem
+     * @description A single material entry in a product's inventory.
+     */
+    MaterialItem: {
+      /** Material Name */
+      material_name: string;
+      /** Category */
+      category: string;
+      /** Mass Kg */
+      mass_kg: number;
+      /**
+       * Quantity
+       * @default 1
+       */
+      quantity?: number;
+      /** Pre Declared Pcf */
+      pre_declared_pcf?: number | null;
+    };
+    /**
      * PolicyCreateRequest
      * @description Request model for creating a policy.
      */
@@ -1002,6 +1591,35 @@ export interface components {
      */
     PolicyType: "route" | "submodel" | "element";
     /**
+     * PublicDPPResponse
+     * @description Public response for a published DPP — no sensitive fields.
+     */
+    PublicDPPResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Status */
+      status: string;
+      /** Asset Ids */
+      asset_ids: {
+        [key: string]: unknown;
+      };
+      /** Created At */
+      created_at: string;
+      /** Updated At */
+      updated_at: string;
+      /** Current Revision No */
+      current_revision_no: number | null;
+      /** Aas Environment */
+      aas_environment: {
+        [key: string]: unknown;
+      } | null;
+      /** Digest Sha256 */
+      digest_sha256: string | null;
+    };
+    /**
      * PublishResultResponse
      * @description Response model for DPP publish result.
      */
@@ -1037,6 +1655,27 @@ export interface components {
       created_at: string;
     };
     /**
+     * RuleCatalogEntry
+     * @description Public-facing rule metadata.
+     */
+    RuleCatalogEntry: {
+      /** Id */
+      id: string;
+      /** Field Path */
+      field_path: string;
+      /** Condition */
+      condition: string;
+      /**
+       * Severity
+       * @enum {string}
+       */
+      severity: "critical" | "warning" | "info";
+      /** Message */
+      message: string;
+      /** Semantic Id */
+      semantic_id?: string | null;
+    };
+    /**
      * SubmodelDefinitionResponse
      * @description Response model for submodel definition AST per revision.
      */
@@ -1061,6 +1700,27 @@ export interface components {
       definition: {
         [key: string]: unknown;
       };
+    };
+    /**
+     * TemplateContractResponse
+     * @description Response model for canonical template contract used by frontend form generation.
+     */
+    TemplateContractResponse: {
+      /** Template Key */
+      template_key: string;
+      /** Idta Version */
+      idta_version: string;
+      /** Semantic Id */
+      semantic_id: string;
+      /** Definition */
+      definition: {
+        [key: string]: unknown;
+      };
+      /** Schema */
+      schema: {
+        [key: string]: unknown;
+      };
+      source_metadata: components["schemas"]["TemplateSourceMetadataResponse"];
     };
     /**
      * TemplateDefinitionResponse
@@ -1118,12 +1778,44 @@ export interface components {
       template_key: string;
       /** Idta Version */
       idta_version: string;
+      /** Resolved Version */
+      resolved_version?: string | null;
       /** Semantic Id */
       semantic_id: string;
       /** Source Url */
       source_url: string;
+      /** Source Repo Ref */
+      source_repo_ref?: string | null;
+      /** Source File Path */
+      source_file_path?: string | null;
+      /** Source File Sha */
+      source_file_sha?: string | null;
+      /** Source Kind */
+      source_kind?: string | null;
+      /** Selection Strategy */
+      selection_strategy?: string | null;
       /** Fetched At */
       fetched_at: string;
+    };
+    /**
+     * TemplateSourceMetadataResponse
+     * @description Response model for resolved upstream template source metadata.
+     */
+    TemplateSourceMetadataResponse: {
+      /** Resolved Version */
+      resolved_version: string;
+      /** Source Repo Ref */
+      source_repo_ref: string;
+      /** Source File Path */
+      source_file_path?: string | null;
+      /** Source File Sha */
+      source_file_sha?: string | null;
+      /** Source Kind */
+      source_kind?: string | null;
+      /** Selection Strategy */
+      selection_strategy?: string | null;
+      /** Source Url */
+      source_url: string;
     };
     /** TenantCreateRequest */
     TenantCreateRequest: {
@@ -1231,6 +1923,77 @@ export interface components {
       auth_type?: string | null;
     };
     /**
+     * ThreadEventCreate
+     * @description Input for recording a digital thread event.
+     */
+    ThreadEventCreate: {
+      /** @description Product lifecycle phase */
+      phase: components["schemas"]["LifecyclePhase"];
+      /**
+       * Event Type
+       * @description Event type, e.g. dpp_created, material_sourced, assembled
+       */
+      event_type: string;
+      /**
+       * Source
+       * @description System or organization that emitted the event
+       */
+      source: string;
+      /**
+       * Source Event Id
+       * @description External event correlation ID
+       */
+      source_event_id?: string | null;
+      /**
+       * Payload
+       * @description Event-specific data
+       */
+      payload?: {
+        [key: string]: unknown;
+      };
+      /**
+       * Parent Event Id
+       * @description Causal parent event for event chains
+       */
+      parent_event_id?: string | null;
+    };
+    /**
+     * ThreadEventResponse
+     * @description Full event output.
+     */
+    ThreadEventResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      phase: components["schemas"]["LifecyclePhase"];
+      /** Event Type */
+      event_type: string;
+      /** Source */
+      source: string;
+      /** Source Event Id */
+      source_event_id?: string | null;
+      /** Payload */
+      payload?: {
+        [key: string]: unknown;
+      };
+      /** Parent Event Id */
+      parent_event_id?: string | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
      * UISchemaResponse
      * @description Response model for UI schema.
      */
@@ -1289,8 +2052,65 @@ export interface operations {
       200: {
         content: {
           "application/json": {
-            [key: string]: string;
+            [key: string]: unknown;
           };
+        };
+      };
+    };
+  };
+  /**
+   * Get Published Dpp
+   * @description Get a published DPP by ID (no authentication required).
+   *
+   * Only returns DPPs with status=PUBLISHED. Drafts and archived DPPs return 404.
+   */
+  get_published_dpp_api_v1_public__tenant_slug__dpps__dpp_id__get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        dpp_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Published Dpp By Slug
+   * @description Get a published DPP by its short-link slug (no authentication required).
+   *
+   * The slug is the first 8 hex characters of the DPP UUID,
+   * as used in QR code short links.
+   */
+  get_published_dpp_by_slug_api_v1_public__tenant_slug__dpps_slug__slug__get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
@@ -1510,6 +2330,31 @@ export interface operations {
     };
   };
   /**
+   * Get Template Contract
+   * @description Get canonical template contract (definition + schema + source metadata).
+   */
+  get_template_contract_api_v1_templates__template_key__contract_get: {
+    parameters: {
+      path: {
+        template_key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TemplateContractResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * List Templates
    * @description List all registered templates.
    *
@@ -1629,7 +2474,10 @@ export interface operations {
    * List Dpps
    * @description List DPPs accessible to the current user.
    *
-   * Publishers see their own DPPs. Viewers see all published DPPs.
+   * Access is controlled via ABAC policies. Typically:
+   * - Tenant admins see all DPPs in tenant
+   * - Publishers see their own DPPs
+   * - Viewers see all published DPPs
    */
   list_dpps_api_v1_tenants__tenant_slug__dpps_get: {
     parameters: {
@@ -1745,6 +2593,35 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["BulkRebuildResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Dpp By Slug
+   * @description Get a DPP by its short-link slug.
+   *
+   * The slug is the first 8 hex characters of the DPP UUID,
+   * as used in QR code short links (/p/{slug}).
+   */
+  get_dpp_by_slug_api_v1_tenants__tenant_slug__dpps_by_slug__slug__get: {
+    parameters: {
+      path: {
+        slug: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DPPDetailResponse"];
         };
       };
       /** @description Validation Error */
@@ -2034,6 +2911,29 @@ export interface operations {
       };
     };
   };
+  /** List Master Versions */
+  list_master_versions_api_v1_tenants__tenant_slug__masters__master_id__versions_get: {
+    parameters: {
+      path: {
+        master_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MasterVersionResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Release Master Version */
   release_master_version_api_v1_tenants__tenant_slug__masters__master_id__versions_post: {
     parameters: {
@@ -2115,6 +3015,30 @@ export interface operations {
       };
     };
   };
+  /** Get Template Raw */
+  get_template_raw_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__template_raw_get: {
+    parameters: {
+      path: {
+        product_id: string;
+        version: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/plain": string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Get Variables By Product */
   get_variables_by_product_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__variables_get: {
     parameters: {
@@ -2129,6 +3053,35 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["MasterVariableResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Validate Template Payload */
+  validate_template_payload_api_v1_tenants__tenant_slug__masters_by_product__product_id__versions__version__validate_post: {
+    parameters: {
+      path: {
+        product_id: string;
+        version: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MasterValidateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MasterValidateResponse"];
         };
       };
       /** @description Validation Error */
@@ -2411,6 +3364,90 @@ export interface operations {
     };
   };
   /**
+   * Publish Dpp To Dataspace
+   * @description Publish a DPP to an Eclipse Dataspace via EDC.
+   *
+   * Creates an EDC asset, access and usage policies, and a contract
+   * definition so data consumers can discover and negotiate access.
+   * The DPP must be published first.
+   */
+  publish_dpp_to_dataspace_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_publish__dpp_id__post: {
+    parameters: {
+      path: {
+        connector_id: string;
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EDCPublishResultResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Dataspace Status
+   * @description Check whether a DPP is registered in the EDC catalog.
+   */
+  get_dataspace_status_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_status__dpp_id__get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EDCStatusResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Check Connector Edc Health
+   * @description Check EDC controlplane health for a connector.
+   */
+  check_connector_edc_health_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_health_get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EDCHealthResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * Export Dpp
    * @description Export a DPP in the specified format.
    *
@@ -2424,6 +3461,8 @@ export interface operations {
       query?: {
         /** @description Export format */
         format?: "json" | "aasx" | "pdf";
+        /** @description Serialization format inside AASX package (json or xml) */
+        aasx_serialization?: "json" | "xml";
       };
       path: {
         dpp_id: string;
@@ -2499,10 +3538,13 @@ export interface operations {
       };
     };
     responses: {
-      /** @description Successful Response */
+      /** @description Generated data carrier image */
       200: {
         content: {
-          "application/json": components["schemas"]["CarrierResponse"];
+          "application/json": unknown;
+          "image/png": unknown;
+          "image/svg+xml": unknown;
+          "application/pdf": unknown;
         };
       };
       /** @description Validation Error */
@@ -2581,6 +3623,464 @@ export interface operations {
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Check Compliance
+   * @description Run a compliance check on a DPP.
+   *
+   * Evaluates the DPP's latest AAS environment against the applicable
+   * ESPR rule set. Returns violations grouped by severity.
+   */
+  check_compliance_api_v1_tenants__tenant_slug__compliance_check__dpp_id__post: {
+    parameters: {
+      query?: {
+        /** @description Explicit product category override (battery, textile, electronic). If omitted, auto-detected from semantic IDs. */
+        category?: string | null;
+      };
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ComplianceCheckResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List All Rules
+   * @description List all available compliance rules grouped by category.
+   */
+  list_all_rules_api_v1_tenants__tenant_slug__compliance_rules_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AllRulesResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Rules For Category
+   * @description Get compliance rules for a specific product category.
+   */
+  get_rules_for_category_api_v1_tenants__tenant_slug__compliance_rules__category__get: {
+    parameters: {
+      path: {
+        category: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CategoryRuleset"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Compliance Report
+   * @description Get the compliance report for a DPP.
+   *
+   * Runs a fresh compliance check against the DPP's current revision
+   * and returns the report. This is equivalent to POST /check/{dpp_id}
+   * but uses GET for convenience in dashboards and status polling.
+   */
+  get_compliance_report_api_v1_tenants__tenant_slug__compliance_report__dpp_id__get: {
+    parameters: {
+      query?: {
+        /** @description Explicit product category override */
+        category?: string | null;
+      };
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ComplianceCheckResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Audit Events
+   * @description List audit events with optional filters (admin only).
+   */
+  list_audit_events_api_v1_admin_audit_events_get: {
+    parameters: {
+      query?: {
+        /** @description Filter by tenant */
+        tenant_id?: string | null;
+        /** @description Filter by action */
+        action?: string | null;
+        /** @description Filter by resource type */
+        resource_type?: string | null;
+        /** @description Page number */
+        page?: number;
+        /** @description Items per page */
+        page_size?: number;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AuditEventListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Verify Chain
+   * @description Verify the hash chain integrity for a tenant (admin only).
+   */
+  verify_chain_api_v1_admin_audit_verify_chain_get: {
+    parameters: {
+      query: {
+        /** @description Tenant ID to verify */
+        tenant_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ChainVerificationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Verify Single Event
+   * @description Verify a single audit event's hash (admin only).
+   */
+  verify_single_event_api_v1_admin_audit_verify_event__event_id__get: {
+    parameters: {
+      path: {
+        event_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EventVerificationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Anchor Merkle Root
+   * @description Compute Merkle root and optionally sign it (admin only).
+   */
+  anchor_merkle_root_api_v1_admin_audit_anchor_post: {
+    parameters: {
+      query: {
+        /** @description Tenant ID to anchor */
+        tenant_id: string;
+        /** @description Ed25519 private key PEM for signing (optional) */
+        signing_key_pem?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AnchorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Events
+   * @description Query digital thread events with optional filters.
+   */
+  list_events_api_v1_tenants__tenant_slug__thread_events_get: {
+    parameters: {
+      query: {
+        /** @description DPP to query events for */
+        dpp_id: string;
+        /** @description Filter by lifecycle phase */
+        phase?: string | null;
+        /** @description Filter by event type */
+        event_type?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ThreadEventResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Record Event
+   * @description Record a new digital thread event for a DPP.
+   */
+  record_event_api_v1_tenants__tenant_slug__thread_events_post: {
+    parameters: {
+      query: {
+        /** @description DPP to attach the event to */
+        dpp_id: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ThreadEventCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ThreadEventResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Timeline
+   * @description Get full lifecycle timeline for a DPP, grouped by phase.
+   */
+  get_timeline_api_v1_tenants__tenant_slug__thread_timeline__dpp_id__get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LifecycleTimeline"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Compliance Timeline Endpoint
+   * @description Get compliance-relevant timeline for a DPP.
+   *
+   * Returns only events from MANUFACTURE, DEPLOY, and END_OF_LIFE phases
+   * whose event types contain compliance-related keywords.
+   */
+  get_compliance_timeline_endpoint_api_v1_tenants__tenant_slug__thread_timeline__dpp_id__compliance_get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LifecycleTimeline"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Calculate Pcf
+   * @description Calculate the Product Carbon Footprint for a DPP.
+   *
+   * Extracts the material inventory from the DPP's latest AAS
+   * environment and computes the GWP using the emission factor
+   * database. Results are persisted for future retrieval.
+   */
+  calculate_pcf_api_v1_tenants__tenant_slug__lca_calculate__dpp_id__post: {
+    parameters: {
+      query?: {
+        scope?: ("cradle-to-gate" | "gate-to-gate" | "cradle-to-grave") | null;
+      };
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LCAReport"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Report
+   * @description Get the latest LCA calculation report for a DPP.
+   */
+  get_report_api_v1_tenants__tenant_slug__lca_report__dpp_id__get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LCAReport"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Compare Revisions
+   * @description Compare PCF calculations between two DPP revisions.
+   */
+  compare_revisions_api_v1_tenants__tenant_slug__lca_compare_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ComparisonRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ComparisonReport"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Metrics
+   * @description Endpoint that serves Prometheus metrics.
+   */
+  metrics_metrics_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
         };
       };
     };

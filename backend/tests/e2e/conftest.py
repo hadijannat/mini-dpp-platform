@@ -148,3 +148,18 @@ def api_client(
         yield client
     finally:
         client.close()
+
+
+@pytest.fixture(scope="session")
+def admin_client(
+    runtime: RuntimeConfig,
+    admin_token: str,
+) -> httpx.Client:
+    wait_for_http_ok(f"{runtime.dpp_base_url}/api/v1/docs")
+
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    client = httpx.Client(base_url=runtime.dpp_base_url, headers=headers, timeout=60.0)
+    try:
+        yield client
+    finally:
+        client.close()

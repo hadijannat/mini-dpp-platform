@@ -1,0 +1,87 @@
+category: textile
+version: "1.0"
+description: "EU ESPR Textile Regulation compliance rules"
+rules:
+  # --- Product Identity ---
+  - id: TXT-001
+    field_path: "TextileProductInformation.ManufacturerName"
+    condition: required
+    severity: critical
+    message: "Manufacturer name is required per ESPR Article 9"
+
+  - id: TXT-002
+    field_path: "TextileProductInformation.ProductName"
+    condition: required
+    severity: critical
+    message: "Product name/model is required per ESPR Article 9"
+
+  - id: TXT-003
+    field_path: "TextileProductInformation.GTIN"
+    condition: required
+    severity: warning
+    message: "GTIN (Global Trade Item Number) should be provided for traceability"
+
+  # --- Material Composition ---
+  - id: TXT-010
+    field_path: "TextileMaterials.FibreComposition"
+    condition: required
+    severity: critical
+    message: "Fibre composition must be declared per EU Regulation 1007/2011 and ESPR"
+
+  - id: TXT-011
+    field_path: "TextileMaterials.RecycledContentPercentage"
+    condition: required
+    severity: warning
+    message: "Recycled content percentage should be declared per ESPR"
+
+  - id: TXT-012
+    field_path: "TextileMaterials.MicrofiberRelease"
+    condition: required
+    severity: warning
+    message: "Microfiber release information should be provided per ESPR"
+
+  # --- Manufacturing ---
+  - id: TXT-020
+    field_path: "TextileManufacturing.CountryOfManufacture"
+    condition: required
+    severity: critical
+    message: "Country of manufacture must be declared per ESPR supply chain transparency"
+
+  - id: TXT-021
+    field_path: "TextileManufacturing.ManufacturingFacility"
+    condition: required
+    severity: warning
+    message: "Manufacturing facility information should be provided for supply chain due diligence"
+
+  # --- Care & Durability ---
+  - id: TXT-030
+    field_path: "TextileCare.CareInstructions"
+    condition: required
+    severity: critical
+    message: "Care instructions are required per ESPR Article 9(2)"
+
+  - id: TXT-031
+    field_path: "TextileCare.ExpectedLifetimeCycles"
+    condition: required
+    severity: warning
+    message: "Expected lifetime (wash cycles) should be declared per ESPR durability requirements"
+
+  # --- Environmental ---
+  - id: TXT-040
+    field_path: "TextileEnvironmental.CarbonFootprint"
+    condition: required
+    severity: warning
+    message: "Carbon footprint of the textile product should be declared per ESPR"
+
+  - id: TXT-041
+    field_path: "TextileEnvironmental.WaterUsage"
+    condition: required
+    severity: warning
+    message: "Water usage in production should be declared per ESPR environmental disclosure"
+
+  # --- End of Life ---
+  - id: TXT-050
+    field_path: "TextileEndOfLife.RecyclabilityInformation"
+    condition: required
+    severity: warning
+    message: "Recyclability information should be provided per ESPR circular economy requirements"

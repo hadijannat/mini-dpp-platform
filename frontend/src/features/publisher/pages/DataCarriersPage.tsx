@@ -2,6 +2,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { QrCode, Download, RefreshCw, Link2, Copy, Check, Printer } from 'lucide-react';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { ErrorBanner } from '@/components/error-banner';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface DPP {
     id: string;
@@ -225,286 +232,266 @@ export default function DataCarriersPage() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Data Carriers</h1>
-                    <p className="text-gray-600 mt-1">
-                        Generate QR codes and GS1 Digital Links for product identification
-                    </p>
-                </div>
-                <button
-                    onClick={loadDPPs}
-                    disabled={loading}
-                    className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                    Refresh
-                </button>
-            </div>
+            <PageHeader
+                title="Data Carriers"
+                description="Generate QR codes and GS1 Digital Links for product identification"
+                actions={
+                    <Button variant="outline" onClick={loadDPPs} disabled={loading}>
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+                }
+            />
 
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-                    {error}
-                </div>
-            )}
+            {error && <ErrorBanner message={error} />}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Settings Panel */}
-                <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                        Carrier Settings
-                    </h2>
-
-                    {/* DPP Selection */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Select Published DPP
-                        </label>
-                        <select
-                            value={selectedDpp}
-                            onChange={(e) => handleDppSelect(e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                        >
-                            <option value="">-- Select a DPP --</option>
-                            {dpps.map((dpp) => (
-                                <option key={dpp.id} value={dpp.id}>
-                                    {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)} -{' '}
-                                    {dpp.asset_ids?.serialNumber || 'No Serial'}
-                                </option>
-                            ))}
-                        </select>
-                        {dpps.length === 0 && !loading && (
-                            <p className="text-sm text-gray-500 mt-1">
-                                No published DPPs available. Publish a DPP first.
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Format Selection */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Carrier Format
-                        </label>
-                        <div className="flex gap-4">
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="format"
-                                    value="qr"
-                                    checked={format === 'qr'}
-                                    onChange={() => setFormat('qr')}
-                                    className="mr-2"
-                                />
-                                <span>Standard QR</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="format"
-                                    value="gs1_qr"
-                                    checked={format === 'gs1_qr'}
-                                    onChange={() => setFormat('gs1_qr')}
-                                    className="mr-2"
-                                />
-                                <span>GS1 Digital Link</span>
-                            </label>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Carrier Settings</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {/* DPP Selection */}
+                        <div className="space-y-2">
+                            <Label>Select Published DPP</Label>
+                            <select
+                                value={selectedDpp}
+                                onChange={(e) => handleDppSelect(e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            >
+                                <option value="">-- Select a DPP --</option>
+                                {dpps.map((dpp) => (
+                                    <option key={dpp.id} value={dpp.id}>
+                                        {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)} -{' '}
+                                        {dpp.asset_ids?.serialNumber || 'No Serial'}
+                                    </option>
+                                ))}
+                            </select>
+                            {dpps.length === 0 && !loading && (
+                                <p className="text-sm text-muted-foreground">
+                                    No published DPPs available. Publish a DPP first.
+                                </p>
+                            )}
                         </div>
-                    </div>
 
-                    {/* Output Type */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Output Format
-                        </label>
-                        <div className="flex gap-4">
-                            {(['png', 'svg', 'pdf'] as OutputType[]).map((type) => (
-                                <label key={type} className="flex items-center">
+                        {/* Format Selection */}
+                        <div className="space-y-2">
+                            <Label>Carrier Format</Label>
+                            <div className="flex gap-4">
+                                <label className="flex items-center">
                                     <input
                                         type="radio"
-                                        name="outputType"
-                                        value={type}
-                                        checked={outputType === type}
-                                        onChange={() => setOutputType(type)}
+                                        name="format"
+                                        value="qr"
+                                        checked={format === 'qr'}
+                                        onChange={() => setFormat('qr')}
                                         className="mr-2"
                                     />
-                                    <span className="uppercase">{type}</span>
+                                    <span className="text-sm">Standard QR</span>
                                 </label>
-                            ))}
+                                <label className="flex items-center">
+                                    <input
+                                        type="radio"
+                                        name="format"
+                                        value="gs1_qr"
+                                        checked={format === 'gs1_qr'}
+                                        onChange={() => setFormat('gs1_qr')}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm">GS1 Digital Link</span>
+                                </label>
+                            </div>
                         </div>
-                    </div>
 
-                    {/* Size */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Size: {size}px
-                        </label>
-                        <input
-                            type="range"
-                            min="100"
-                            max="1000"
-                            step="50"
-                            value={size}
-                            onChange={(e) => setSize(Number(e.target.value))}
-                            className="w-full"
-                        />
-                    </div>
+                        {/* Output Type */}
+                        <div className="space-y-2">
+                            <Label>Output Format</Label>
+                            <div className="flex gap-4">
+                                {(['png', 'svg', 'pdf'] as OutputType[]).map((type) => (
+                                    <label key={type} className="flex items-center">
+                                        <input
+                                            type="radio"
+                                            name="outputType"
+                                            value={type}
+                                            checked={outputType === type}
+                                            onChange={() => setOutputType(type)}
+                                            className="mr-2"
+                                        />
+                                        <span className="text-sm uppercase">{type}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
 
-                    {/* Colors */}
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Foreground
-                            </label>
+                        {/* Size */}
+                        <div className="space-y-2">
+                            <Label>Size: {size}px</Label>
                             <input
-                                type="color"
-                                value={foregroundColor}
-                                onChange={(e) => setForegroundColor(e.target.value)}
-                                className="w-full h-10 rounded cursor-pointer"
+                                type="range"
+                                min="100"
+                                max="1000"
+                                step="50"
+                                value={size}
+                                onChange={(e) => setSize(Number(e.target.value))}
+                                className="w-full"
                             />
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Background
-                            </label>
-                            <input
-                                type="color"
-                                value={backgroundColor}
-                                onChange={(e) => setBackgroundColor(e.target.value)}
-                                className="w-full h-10 rounded cursor-pointer"
-                            />
-                        </div>
-                    </div>
 
-                    {/* Include Text */}
-                    <div className="mb-6">
-                        <label className="flex items-center">
-                            <input
-                                type="checkbox"
+                        {/* Colors */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>Foreground</Label>
+                                <input
+                                    type="color"
+                                    value={foregroundColor}
+                                    onChange={(e) => setForegroundColor(e.target.value)}
+                                    className="w-full h-10 rounded cursor-pointer"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Background</Label>
+                                <input
+                                    type="color"
+                                    value={backgroundColor}
+                                    onChange={(e) => setBackgroundColor(e.target.value)}
+                                    className="w-full h-10 rounded cursor-pointer"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Include Text */}
+                        <div className="flex items-center gap-3">
+                            <Switch
                                 checked={includeText}
-                                onChange={(e) => setIncludeText(e.target.checked)}
-                                className="mr-2"
+                                onCheckedChange={setIncludeText}
+                                id="include-text"
                             />
-                            <span className="text-sm font-medium text-gray-700">
-                                Include product ID text below QR
-                            </span>
-                        </label>
-                    </div>
+                            <Label htmlFor="include-text">Include product ID text below QR</Label>
+                        </div>
 
-                    {/* Actions */}
-                    <div className="flex gap-3">
-                        <button
-                            onClick={generatePreview}
-                            disabled={!selectedDpp || generating}
-                            className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <QrCode className="h-4 w-4 mr-2" />
-                            Preview
-                        </button>
-                        <button
-                            onClick={downloadCarrier}
-                            disabled={!selectedDpp || generating}
-                            className="flex-1 inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download
-                        </button>
-                    </div>
-                </div>
+                        {/* Actions */}
+                        <div className="flex gap-3">
+                            <Button
+                                variant="outline"
+                                className="flex-1"
+                                onClick={generatePreview}
+                                disabled={!selectedDpp || generating}
+                            >
+                                <QrCode className="h-4 w-4 mr-2" />
+                                Preview
+                            </Button>
+                            <Button
+                                className="flex-1"
+                                onClick={downloadCarrier}
+                                disabled={!selectedDpp || generating}
+                            >
+                                <Download className="h-4 w-4 mr-2" />
+                                Download
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Preview Panel */}
-                <div className="bg-white rounded-lg shadow p-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Preview</h2>
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Preview</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {/* Preview Image */}
+                        <div className="border-2 border-dashed border-muted rounded-lg p-8 flex items-center justify-center min-h-[300px] bg-muted/30">
+                            {generating ? (
+                                <div className="text-center">
+                                    <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto mb-2" />
+                                    <p className="text-muted-foreground">Generating...</p>
+                                </div>
+                            ) : previewUrl ? (
+                                <img
+                                    src={previewUrl}
+                                    alt="QR Code Preview"
+                                    className="max-w-full max-h-[300px]"
+                                />
+                            ) : (
+                                <div className="text-center text-muted-foreground">
+                                    <QrCode className="h-16 w-16 mx-auto mb-3" />
+                                    <p>Select a DPP and click Preview</p>
+                                </div>
+                            )}
+                        </div>
 
-                    {/* Preview Image */}
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 flex items-center justify-center min-h-[300px] bg-gray-50">
-                        {generating ? (
-                            <div className="text-center">
-                                <RefreshCw className="h-8 w-8 animate-spin text-gray-400 mx-auto mb-2" />
-                                <p className="text-gray-500">Generating...</p>
-                            </div>
-                        ) : previewUrl ? (
-                            <img
-                                src={previewUrl}
-                                alt="QR Code Preview"
-                                className="max-w-full max-h-[300px]"
-                            />
-                        ) : (
-                            <div className="text-center text-gray-400">
-                                <QrCode className="h-16 w-16 mx-auto mb-3" />
-                                <p>Select a DPP and click Preview</p>
+                        {/* GS1 Digital Link Info */}
+                        {gs1Link && (
+                            <Alert className="border-blue-200 bg-blue-50">
+                                <Link2 className="h-4 w-4" />
+                                <AlertDescription>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-sm font-semibold text-blue-900">
+                                            GS1 Digital Link
+                                        </span>
+                                        <button
+                                            onClick={copyGS1Link}
+                                            className="text-blue-600 hover:text-blue-800"
+                                            title="Copy to clipboard"
+                                        >
+                                            {copied ? (
+                                                <Check className="h-4 w-4" />
+                                            ) : (
+                                                <Copy className="h-4 w-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <code className="text-xs text-blue-800 break-all block">
+                                        {gs1Link.digital_link}
+                                    </code>
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-700">
+                                        <div>
+                                            <span className="font-medium">GTIN:</span> {gs1Link.gtin}
+                                        </div>
+                                        <div>
+                                            <span className="font-medium">Serial:</span> {gs1Link.serial}
+                                        </div>
+                                    </div>
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {/* Selected DPP Info */}
+                        {selectedDppData && (
+                            <div className="p-4 bg-muted/50 rounded-lg">
+                                <h3 className="text-sm font-semibold mb-2">
+                                    Selected Product
+                                </h3>
+                                <dl className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                        <dt className="text-muted-foreground">Part ID</dt>
+                                        <dd className="font-medium">
+                                            {selectedDppData.asset_ids?.manufacturerPartId || '-'}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-muted-foreground">Serial</dt>
+                                        <dd className="font-medium">
+                                            {selectedDppData.asset_ids?.serialNumber || '-'}
+                                        </dd>
+                                    </div>
+                                </dl>
                             </div>
                         )}
-                    </div>
 
-                    {/* GS1 Digital Link Info */}
-                    {gs1Link && (
-                        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                                <h3 className="text-sm font-semibold text-blue-900 flex items-center">
-                                    <Link2 className="h-4 w-4 mr-2" />
-                                    GS1 Digital Link
-                                </h3>
-                                <button
-                                    onClick={copyGS1Link}
-                                    className="text-blue-600 hover:text-blue-800"
-                                    title="Copy to clipboard"
-                                >
-                                    {copied ? (
-                                        <Check className="h-4 w-4" />
-                                    ) : (
-                                        <Copy className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </div>
-                            <code className="text-xs text-blue-800 break-all block">
-                                {gs1Link.digital_link}
-                            </code>
-                            <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-blue-700">
-                                <div>
-                                    <span className="font-medium">GTIN:</span> {gs1Link.gtin}
-                                </div>
-                                <div>
-                                    <span className="font-medium">Serial:</span> {gs1Link.serial}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Selected DPP Info */}
-                    {selectedDppData && (
-                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                                Selected Product
-                            </h3>
-                            <dl className="grid grid-cols-2 gap-2 text-sm">
-                                <div>
-                                    <dt className="text-gray-500">Part ID</dt>
-                                    <dd className="font-medium">
-                                        {selectedDppData.asset_ids?.manufacturerPartId || '-'}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-gray-500">Serial</dt>
-                                    <dd className="font-medium">
-                                        {selectedDppData.asset_ids?.serialNumber || '-'}
-                                    </dd>
-                                </div>
-                            </dl>
-                        </div>
-                    )}
-
-                    {/* Print Button */}
-                    {previewUrl && (
-                        <button
-                            onClick={() => window.print()}
-                            className="mt-4 w-full inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                        >
-                            <Printer className="h-4 w-4 mr-2" />
-                            Print
-                        </button>
-                    )}
-                </div>
+                        {/* Print Button */}
+                        {previewUrl && (
+                            <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => window.print()}
+                            >
+                                <Printer className="h-4 w-4 mr-2" />
+                                Print
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
             </div>
         </div>
     );

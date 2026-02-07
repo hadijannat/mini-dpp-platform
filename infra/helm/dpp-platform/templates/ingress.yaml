@@ -1,0 +1,87 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "dpp-platform.fullname" . }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.labels" . | nindent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.global.domain }}
+        - {{ .Values.global.authDomain }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    # Main domain — frontend + API
+    - host: {{ .Values.global.domain }}
+      http:
+        paths:
+          # API routes
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}
+                port:
+                  number: {{ .Values.backend.port }}
+          {{- if .Values.edc.enabled }}
+          # EDC DSP protocol endpoint
+          - path: /edc/dsp
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-controlplane
+                port:
+                  number: {{ .Values.edc.controlplane.protocolPort }}
+          {{- end }}
+          # Frontend catch-all (must be last)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "frontend") }}
+                port:
+                  number: {{ .Values.frontend.port }}
+    # Auth domain — Keycloak
+    - host: {{ .Values.global.authDomain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "keycloak") }}
+                port:
+                  number: {{ .Values.keycloak.port }}
+{{- end }}

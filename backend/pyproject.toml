@@ -47,6 +47,7 @@ dependencies = [
     "xmltodict>=0.13.0",
     "jsonschema>=4.21.0",
     "basyx-python-sdk==2.0.0",
+    "rdflib>=7.0.0",
 
     # Validation & Serialization
     "pydantic>=2.6.0",
@@ -62,6 +63,15 @@ dependencies = [
 
     # PDF Export
     "fpdf2>=2.7.8",
+
+    # Cryptographic Audit Trail
+    "asn1crypto>=1.5.0",
+
+    # Metrics
+    "prometheus-fastapi-instrumentator>=7.0.0",
+
+    # YAML processing
+    "pyyaml>=6.0.0",
 
     # Utilities
     "python-dateutil>=2.8.2",
@@ -118,6 +128,7 @@ warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 plugins = ["pydantic.mypy"]
+exclude = ["app/db/migrations/"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -126,5 +137,15 @@ filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
+[tool.bandit]
+targets = ["app"]
+exclude_dirs = ["tests"]
+skips = ["B101"]  # Allow assert in non-test code (used by Pydantic validators)
+
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+[dependency-groups]
+dev = [
+    "types-defusedxml>=0.7.0.20250822",
+]

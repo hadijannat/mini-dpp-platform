@@ -45,6 +45,28 @@ jobs:
           curl --retry 30 --retry-all-errors --retry-delay 2 \
             --fail --silent --show-error http://localhost:8000/health
 
+      - name: Wait for Keycloak realm ready
+        run: |
+          echo "Waiting for Keycloak realm import to complete..."
+          for i in $(seq 1 60); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:8080/realms/dpp-platform/protocol/openid-connect/token \
+              -d "client_id=dpp-backend" \
+              -d "client_secret=backend-secret-dev" \
+              -d "username=publisher" \
+              -d "password=publisher123" \
+              -d "grant_type=password" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Keycloak realm ready (got 200 on token request)"
+              exit 0
+            fi
+            echo "  Attempt $i/60: HTTP $HTTP_CODE (waiting 3s...)"
+            sleep 3
+          done
+          echo "ERROR: Keycloak realm not ready after 180s"
+          docker compose logs keycloak | tail -50
+          exit 1
+
       - name: Run pipeline + golden tests
         working-directory: backend
         env:
@@ -60,6 +82,15 @@ jobs:
           DPP_TENANT: "default"
           PIPELINE_REPORT_DIR: "${{ github.workspace }}/test-results"
         run: uv run pytest -m "e2e or golden" --run-e2e --run-goldens -q
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "=== Keycloak logs ==="
+          docker compose logs keycloak | tail -100
+          echo ""
+          echo "=== Backend logs ==="
+          docker compose logs backend | tail -100
 
       - name: Upload pipeline artifacts
         if: always()

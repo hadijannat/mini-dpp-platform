@@ -6,9 +6,10 @@ import asyncio
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, RootModel
 
+from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
 from app.core.security import check_access, require_access
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
@@ -150,7 +151,8 @@ class BulkRebuildResponse(BaseModel):
 
 @router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
 async def create_dpp(
-    request: CreateDPPRequest,
+    body: CreateDPPRequest,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> DPPResponse:
@@ -162,7 +164,7 @@ async def create_dpp(
     await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
     service = DPPService(db)
 
-    asset_ids_dict = request.asset_ids.model_dump(exclude_none=True)
+    asset_ids_dict = body.asset_ids.model_dump(exclude_none=True)
 
     try:
         dpp = await service.create_dpp(
@@ -170,8 +172,8 @@ async def create_dpp(
             tenant_slug=tenant.tenant_slug,
             owner_subject=tenant.user.sub,
             asset_ids=asset_ids_dict,
-            selected_templates=request.selected_templates,
-            initial_data=request.initial_data,
+            selected_templates=body.selected_templates,
+            initial_data=body.initial_data,
         )
     except IdentifierValidationError as exc:
         raise HTTPException(
@@ -181,6 +183,16 @@ async def create_dpp(
 
     await db.commit()
     await db.refresh(dpp)
+
+    await emit_audit_event(
+        db_session=db,
+        action="create_dpp",
+        resource_type="dpp",
+        resource_id=dpp.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+    )
 
     return DPPResponse(
         id=dpp.id,
@@ -195,7 +207,8 @@ async def create_dpp(
 
 @router.post("/import", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
 async def import_dpp(
-    request: ImportDPPRequest,
+    body: ImportDPPRequest,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
     master_product_id: str | None = Query(
@@ -213,7 +226,7 @@ async def import_dpp(
     await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
     service = DPPService(db)
 
-    payload = request.root
+    payload = body.root
     aas_env = payload.get("aasEnvironment") if isinstance(payload, dict) else None
     if aas_env is None:
         aas_env = payload
@@ -277,6 +290,16 @@ async def import_dpp(
 
     await db.commit()
     await db.refresh(dpp)
+
+    await emit_audit_event(
+        db_session=db,
+        action="import_dpp",
+        resource_type="dpp",
+        resource_id=dpp.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+    )
 
     return DPPResponse(
         id=dpp.id,
@@ -484,7 +507,8 @@ async def get_dpp(
 @router.put("/{dpp_id}/submodel", response_model=RevisionResponse)
 async def update_submodel(
     dpp_id: UUID,
-    request: UpdateSubmodelRequest,
+    body: UpdateSubmodelRequest,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> RevisionResponse:
@@ -515,12 +539,22 @@ async def update_submodel(
         revision = await service.update_submodel(
             dpp_id=dpp_id,
             tenant_id=tenant.tenant_id,
-            template_key=request.template_key,
-            submodel_data=request.data,
+            template_key=body.template_key,
+            submodel_data=body.data,
             updated_by_subject=tenant.user.sub,
-            rebuild_from_template=request.rebuild_from_template,
+            rebuild_from_template=body.rebuild_from_template,
         )
         await db.commit()
+        await emit_audit_event(
+            db_session=db,
+            action="update_submodel",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"template_key": body.template_key},
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -589,6 +623,7 @@ async def get_submodel_definition(
 @router.post("/{dpp_id}/publish", response_model=DPPResponse)
 async def publish_dpp(
     dpp_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> DPPResponse:
@@ -621,6 +656,15 @@ async def publish_dpp(
         )
         await db.commit()
         await db.refresh(published_dpp)
+        await emit_audit_event(
+            db_session=db,
+            action="publish_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -641,6 +685,7 @@ async def publish_dpp(
 @router.post("/{dpp_id}/archive", response_model=DPPResponse)
 async def archive_dpp(
     dpp_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> DPPResponse:
@@ -669,6 +714,15 @@ async def archive_dpp(
         archived_dpp = await service.archive_dpp(dpp_id, tenant.tenant_id)
         await db.commit()
         await db.refresh(archived_dpp)
+        await emit_audit_event(
+            db_session=db,
+            action="archive_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

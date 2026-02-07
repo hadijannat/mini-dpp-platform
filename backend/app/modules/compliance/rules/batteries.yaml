@@ -1,0 +1,112 @@
+category: battery
+version: "1.0"
+description: "EU Battery Regulation (2023/1542) compliance rules"
+rules:
+  # --- General Product Information (Part 1) ---
+  - id: BAT-001
+    field_path: "GeneralProductInformation.ManufacturerIdentification"
+    condition: required
+    severity: critical
+    message: "Manufacturer identification is required per EU Battery Regulation Article 13(1)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+
+  - id: BAT-002
+    field_path: "GeneralProductInformation.BatteryModel"
+    condition: required
+    severity: critical
+    message: "Battery model designation is required per Article 13(1)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+
+  - id: BAT-003
+    field_path: "GeneralProductInformation.BatteryWeight"
+    condition: required
+    severity: critical
+    message: "Battery weight is required per Article 13(1)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+
+  - id: BAT-004
+    field_path: "GeneralProductInformation.BatteryCategory"
+    condition: required
+    severity: critical
+    message: "Battery category classification is required per Article 13(1)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+
+  - id: BAT-005
+    field_path: "GeneralProductInformation.DateOfManufacturing"
+    condition: required
+    severity: critical
+    message: "Manufacturing date is required per Article 13(1)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+
+  # --- Performance & Durability (Part 2) ---
+  - id: BAT-010
+    field_path: "PerformanceAndDurability.RatedCapacity"
+    condition: required
+    severity: critical
+    message: "Rated capacity is required per Article 13(2)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0"
+
+  - id: BAT-011
+    field_path: "PerformanceAndDurability.ExpectedBatteryLifetime"
+    condition: required
+    severity: warning
+    message: "Expected battery lifetime should be declared per Article 13(2)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0"
+
+  # --- Materials & Composition (Part 3) ---
+  - id: BAT-020
+    field_path: "BatteryMaterials.BatteryChemistry"
+    condition: required
+    severity: critical
+    message: "Battery chemistry must be declared per Article 13(3)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryMaterials/1/0"
+
+  - id: BAT-021
+    field_path: "BatteryMaterials.CriticalRawMaterials"
+    condition: required
+    severity: critical
+    message: "Critical raw materials must be listed per Article 13(3)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryMaterials/1/0"
+
+  - id: BAT-022
+    field_path: "BatteryMaterials.HazardousSubstances"
+    condition: required
+    severity: critical
+    message: "Hazardous substances must be declared per Article 13(3) and REACH"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryMaterials/1/0"
+
+  # --- Supply Chain (Part 4) ---
+  - id: BAT-030
+    field_path: "SupplyChainDueDiligence.SupplyChainDueDiligenceReport"
+    condition: required
+    severity: critical
+    message: "Supply chain due diligence report is required per Article 39"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/SupplyChainDueDiligence/1/0"
+
+  # --- Carbon Footprint ---
+  - id: BAT-040
+    field_path: "CarbonFootprint.ProductCarbonFootprint"
+    condition: required
+    severity: critical
+    message: "Carbon footprint declaration is required per Article 7"
+
+  - id: BAT-041
+    field_path: "CarbonFootprint.CarbonFootprintPerformanceClass"
+    condition: required
+    severity: warning
+    message: "Carbon footprint performance class should be declared per Article 7(2)"
+
+  # --- Labels & Compliance (Part 6) ---
+  - id: BAT-050
+    field_path: "LabelsAndCompliance.SeparateCollectionSymbol"
+    condition: required
+    severity: warning
+    message: "Separate collection symbol should be present per Article 13(5)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/LabelsAndCompliance/1/0"
+
+  - id: BAT-051
+    field_path: "LabelsAndCompliance.EUDeclarationOfConformity"
+    condition: required
+    severity: critical
+    message: "EU Declaration of Conformity is required per Article 18"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/LabelsAndCompliance/1/0"

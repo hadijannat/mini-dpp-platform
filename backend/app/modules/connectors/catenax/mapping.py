@@ -7,14 +7,37 @@ from urllib.parse import quote
 
 from app.core.config import get_settings
 from app.db.models import DPP, DPPRevision
+from app.modules.aas.references import extract_semantic_id_str
 from app.modules.connectors.catenax.dtr_client import ShellDescriptor
 
-# Semantic IDs for DPP4.0 submodels in Catena-X context
-CATENAX_SEMANTIC_IDS: dict[str, str] = {
-    "digital-nameplate": "urn:samm:io.catenax.serial_part:3.0.0#SerialPart",
-    "carbon-footprint": "urn:samm:io.catenax.pcf:6.0.0#Pcf",
-    "hierarchical-structures": "urn:samm:io.catenax.single_level_bom_as_built:3.0.0#SingleLevelBomAsBuilt",
+# Mapping from IDTA AAS semantic IDs to Catena-X SAMM URNs.
+# When registering submodels in a Catena-X DTR, descriptors should carry
+# SAMM-based semantic IDs so that data consumers can discover submodels
+# using the DTR's semantic ID search.
+_AAS_TO_SAMM: dict[str, str] = {
+    "https://admin-shell.io/zvei/nameplate/2/0/Nameplate": (
+        "urn:samm:io.catenax.serial_part:3.0.0#SerialPart"
+    ),
+    "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0": (
+        "urn:samm:io.catenax.pcf:6.0.0#Pcf"
+    ),
+    "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel": (
+        "urn:samm:io.catenax.single_level_bom_as_built:3.0.0#SingleLevelBomAsBuilt"
+    ),
+    "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0": (
+        "urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass"
+    ),
 }
+
+
+def translate_semantic_id_for_catenax(aas_semantic_id: str) -> str:
+    """Translate an IDTA AAS semantic ID to its Catena-X SAMM URN equivalent.
+
+    Returns the SAMM URN if a mapping exists, otherwise returns
+    the original AAS semantic ID unchanged.
+    """
+    return _AAS_TO_SAMM.get(aas_semantic_id, aas_semantic_id)
+
 
 # DTR requires at least one security attribute entry on protocolInformation.
 DEFAULT_SECURITY_ATTRIBUTES = [
@@ -72,7 +95,8 @@ def build_shell_descriptor(
     for submodel in aas_env.get("submodels", []):
         submodel_id = submodel.get("id", "")
         id_short = submodel.get("idShort", "")
-        semantic_id = _extract_semantic_id(submodel)
+        aas_semantic_id = extract_semantic_id_str(submodel)
+        semantic_id = translate_semantic_id_for_catenax(aas_semantic_id)
 
         # Build endpoint URL
         # Catena-X requires $value serialization
@@ -123,15 +147,3 @@ def build_shell_descriptor(
         specific_asset_ids=specific_asset_ids,
         submodel_descriptors=submodel_descriptors,
     )
-
-
-def _extract_semantic_id(submodel: dict[str, Any]) -> str:
-    """Extract semantic ID from submodel structure."""
-    semantic_id = submodel.get("semanticId", {})
-
-    if isinstance(semantic_id, dict):
-        keys = semantic_id.get("keys", [])
-        if keys and isinstance(keys, list):
-            return str(keys[0].get("value", ""))
-
-    return ""

@@ -1,0 +1,98 @@
+# =============================================================================
+# Eclipse Dataspace Connector (EDC) — development compose overlay
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d
+#
+# This adds a Tractus-X EDC controlplane + dataplane pair with PostgreSQL
+# persistence and a HashiCorp Vault instance for secret storage.
+# =============================================================================
+
+services:
+  # ---- EDC Controlplane ----
+  edc-controlplane:
+    image: tractusx/edc-controlplane-postgresql-hashicorp-vault:0.7.3
+    ports:
+      - "19191:19191"   # Default / health
+      - "19193:19193"   # Management API
+      - "19194:19194"   # DSP protocol
+    volumes:
+      - ./infra/edc/config.properties:/app/config.properties:ro
+      - ./infra/edc/logging.properties:/app/logging.properties:ro
+    environment:
+      EDC_FS_CONFIG: /app/config.properties
+      JAVA_TOOL_OPTIONS: -Djava.util.logging.config.file=/app/logging.properties
+      EDC_PARTICIPANT_ID: ${EDC_PARTICIPANT_ID:-BPNL000000000000}
+      EDC_API_KEY: ${EDC_API_KEY:-password}
+      EDC_DATASOURCE_URL: jdbc:postgresql://edc-postgres:5432/edc
+      EDC_DATASOURCE_USER: edc
+      EDC_DATASOURCE_PASSWORD: ${EDC_DB_PASSWORD:-edc_password}
+      VAULT_URL: http://vault:8200
+      VAULT_DEV_ROOT_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
+    depends_on:
+      edc-postgres:
+        condition: service_healthy
+      vault:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:19191/api/check/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ---- EDC Dataplane ----
+  edc-dataplane:
+    image: tractusx/edc-dataplane-hashicorp-vault:0.7.3
+    ports:
+      - "19291:19291"   # Public API (data transfers)
+    environment:
+      EDC_FS_CONFIG: /app/config.properties
+      JAVA_TOOL_OPTIONS: -Djava.util.logging.config.file=/app/logging.properties
+      EDC_PARTICIPANT_ID: ${EDC_PARTICIPANT_ID:-BPNL000000000000}
+      VAULT_URL: http://vault:8200
+      VAULT_DEV_ROOT_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
+      # Dataplane-specific
+      web.http.public.port: "19291"
+      web.http.public.path: "/public"
+      web.http.control.port: "19192"
+      web.http.control.path: "/control"
+    volumes:
+      - ./infra/edc/config.properties:/app/config.properties:ro
+      - ./infra/edc/logging.properties:/app/logging.properties:ro
+    depends_on:
+      edc-controlplane:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---- EDC PostgreSQL ----
+  edc-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: edc
+      POSTGRES_USER: edc
+      POSTGRES_PASSWORD: ${EDC_DB_PASSWORD:-edc_password}
+    volumes:
+      - edc-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edc -d edc"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # ---- HashiCorp Vault (dev mode) ----
+  vault:
+    image: hashicorp/vault:1.15
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    restart: unless-stopped
+
+volumes:
+  edc-pg-data:

@@ -11,6 +11,7 @@ from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
 
 from app.core.logging import get_logger
+from app.modules.aas.references import reference_to_str
 
 logger = get_logger(__name__)
 
@@ -35,8 +36,21 @@ class BasyxTemplateParser:
         return self._build_parsed(store, expected_semantic_id)
 
     def parse_json(
-        self, json_bytes: bytes, expected_semantic_id: str | None = None
+        self,
+        json_bytes: bytes,
+        expected_semantic_id: str | None = None,
+        *,
+        strict: bool = False,
     ) -> ParsedTemplate:
+        """Parse a JSON AAS environment into a :class:`ParsedTemplate`.
+
+        Args:
+            json_bytes: Raw UTF-8 encoded JSON.
+            expected_semantic_id: If given, select the submodel matching this semantic ID.
+            strict: When ``True``, pass ``failsafe=False`` to BaSyx's JSON
+                    deserializer so that malformed elements raise immediately
+                    instead of being silently skipped.
+        """
         try:
             payload = json_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -44,7 +58,12 @@ class BasyxTemplateParser:
 
         string_io = io.StringIO(payload)
         try:
-            store = basyx_json.read_aas_json_file(string_io)  # type: ignore[attr-defined]
+            if strict:
+                store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                    string_io, failsafe=False
+                )
+            else:
+                store = basyx_json.read_aas_json_file(string_io)  # type: ignore[attr-defined]
         finally:
             string_io.close()
         return self._build_parsed(store, expected_semantic_id)
@@ -85,7 +104,7 @@ class BasyxTemplateParser:
             matching = [
                 sm
                 for sm in submodels
-                if expected_semantic_id in (self._reference_to_str(sm.semantic_id) or "")
+                if expected_semantic_id in (reference_to_str(sm.semantic_id) or "")
             ]
             if len(matching) == 1:
                 return matching[0]
@@ -93,7 +112,7 @@ class BasyxTemplateParser:
                 logger.warning(
                     "template_semantic_id_mismatch",
                     expected=expected_semantic_id,
-                    available=[self._reference_to_str(sm.semantic_id) for sm in submodels],
+                    available=[reference_to_str(sm.semantic_id) for sm in submodels],
                 )
             # No match or multiple matches - fall through to other selection
 
@@ -115,17 +134,3 @@ class BasyxTemplateParser:
             return template_kind[0]
 
         raise ValueError(f"Ambiguous template payload: {len(submodels)} submodels found")
-
-    def _reference_to_str(self, reference: model.Reference | None) -> str | None:
-        if reference is None:
-            return None
-        keys = getattr(reference, "keys", None)
-        if keys is None:
-            keys = getattr(reference, "key", None)
-        if not keys:
-            return None
-        first = next(iter(keys), None)
-        if first is None:
-            return None
-        value = getattr(first, "value", None)
-        return str(value) if value is not None else None

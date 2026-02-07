@@ -1,0 +1,85 @@
+export type LangStringSet = Record<string, string>;
+
+export type SmtQualifiers = {
+  cardinality?: string | null;
+  form_title?: string | null;
+  form_info?: string | null;
+  form_url?: string | null;
+  access_mode?: string | null;
+  required_lang?: string[];
+  either_or?: string | null;
+  allowed_value_regex?: string | null;
+  allowed_range?: { min?: number; max?: number; raw?: string | null } | null;
+  form_choices?: string[] | null;
+};
+
+export type DefinitionNode = {
+  path?: string;
+  idShort?: string;
+  modelType: string;
+  semanticId?: string | null;
+  valueType?: string;
+  contentType?: string;
+  displayName?: LangStringSet;
+  description?: LangStringSet;
+  smt?: SmtQualifiers;
+  children?: DefinitionNode[];
+  items?: DefinitionNode | null;
+  entityType?: string;
+  statements?: DefinitionNode[];
+  first?: string;
+  second?: string;
+  annotations?: DefinitionNode[];
+};
+
+export type TemplateDefinition = {
+  template_key?: string;
+  semantic_id?: string | null;
+  submodel?: {
+    idShort?: string;
+    elements?: DefinitionNode[];
+  };
+};
+
+export type TemplateResponse = {
+  id?: string;
+  template_key?: string;
+  idta_version?: string;
+  resolved_version?: string | null;
+  semantic_id: string;
+  source_url?: string;
+  source_repo_ref?: string | null;
+  source_file_path?: string | null;
+  source_file_sha?: string | null;
+  source_kind?: string | null;
+  selection_strategy?: string | null;
+  fetched_at?: string;
+};
+
+export type SubmodelDefinitionResponse = {
+  dpp_id: string;
+  template_key: string;
+  revision_id: string;
+  revision_no: number;
+  state: string;
+  definition: TemplateDefinition;
+};
+
+export type TemplateContractResponse = {
+  template_key: string;
+  idta_version: string;
+  semantic_id: string;
+  definition: TemplateDefinition;
+  schema: import('./uiSchema').UISchema;
+  source_metadata: {
+    resolved_version: string;
+    source_repo_ref: string;
+    source_file_path?: string | null;
+    source_file_sha?: string | null;
+    source_kind?: string | null;
+    selection_strategy?: string | null;
+    source_url: string;
+  };
+};
+
+export type FormData = Record<string, unknown>;

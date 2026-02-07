@@ -5,14 +5,18 @@ API Router for Connector management endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
 
+from app.core.audit import emit_audit_event
 from app.core.security import require_access
 from app.core.tenancy import TenantPublisher
 from app.db.models import ConnectorType
 from app.db.session import DbSession
 from app.modules.connectors.catenax.service import CatenaXConnectorService
+from app.modules.connectors.edc.client import EDCConfig, EDCManagementClient
+from app.modules.connectors.edc.contract_service import EDCContractService
+from app.modules.connectors.edc.health import check_edc_health
 from app.modules.dpps.service import DPPService
 
 router = APIRouter()
@@ -74,6 +78,33 @@ class PublishResultResponse(BaseModel):
     status: str
     action: str | None = None
     shell_id: str | None = None
+    error_message: str | None = None
+
+
+class EDCPublishResultResponse(BaseModel):
+    """Response model for EDC dataspace publish result."""
+
+    status: str
+    asset_id: str | None = None
+    access_policy_id: str | None = None
+    usage_policy_id: str | None = None
+    contract_definition_id: str | None = None
+    error_message: str | None = None
+
+
+class EDCStatusResponse(BaseModel):
+    """Response model for EDC dataspace status check."""
+
+    registered: bool
+    asset_id: str | None = None
+    error: str | None = None
+
+
+class EDCHealthResponse(BaseModel):
+    """Response model for EDC health check."""
+
+    status: str
+    edc_version: str | None = None
     error_message: str | None = None
 
 
@@ -216,6 +247,7 @@ async def test_connector(
 async def publish_dpp_to_connector(
     connector_id: UUID,
     dpp_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> PublishResultResponse:
@@ -249,6 +281,20 @@ async def publish_dpp_to_connector(
 
     try:
         result = await service.publish_dpp_to_dtr(connector_id, dpp_id, tenant.tenant_id)
+        await emit_audit_event(
+            db_session=db,
+            action="publish_to_dtr",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={
+                "connector_id": str(connector_id),
+                "dtr_status": result.get("status", "error"),
+                "action": result.get("action"),
+            },
+        )
         return PublishResultResponse(
             status=result.get("status", "error"),
             action=result.get("action"),
@@ -259,3 +305,139 @@ async def publish_dpp_to_connector(
             status="error",
             error_message=str(e),
         )
+
+
+# =============================================================================
+# EDC Dataspace Endpoints
+# =============================================================================
+
+
+@router.post(
+    "/{connector_id}/dataspace/publish/{dpp_id}",
+    response_model=EDCPublishResultResponse,
+)
+async def publish_dpp_to_dataspace(
+    connector_id: UUID,
+    dpp_id: UUID,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> EDCPublishResultResponse:
+    """
+    Publish a DPP to an Eclipse Dataspace via EDC.
+
+    Creates an EDC asset, access and usage policies, and a contract
+    definition so data consumers can discover and negotiate access.
+    The DPP must be published first.
+    """
+    dpp_service = DPPService(db)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        return EDCPublishResultResponse(
+            status="error",
+            error_message=f"DPP {dpp_id} not found",
+        )
+
+    await require_access(
+        tenant.user,
+        "publish_to_connector",
+        {
+            "type": "dpp",
+            "id": str(dpp.id),
+            "owner_subject": dpp.owner_subject,
+            "status": dpp.status.value,
+        },
+        tenant=tenant,
+    )
+
+    service = EDCContractService(db)
+    result = await service.publish_to_dataspace(dpp_id, connector_id, tenant.tenant_id)
+
+    await emit_audit_event(
+        db_session=db,
+        action="publish_to_edc",
+        resource_type="dpp",
+        resource_id=dpp_id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={
+            "connector_id": str(connector_id),
+            "edc_status": result.status,
+            "asset_id": result.asset_id,
+        },
+    )
+
+    return EDCPublishResultResponse(
+        status=result.status,
+        asset_id=result.asset_id,
+        access_policy_id=result.access_policy_id,
+        usage_policy_id=result.usage_policy_id,
+        contract_definition_id=result.contract_definition_id,
+        error_message=result.error_message,
+    )
+
+
+@router.get(
+    "/{connector_id}/dataspace/status/{dpp_id}",
+    response_model=EDCStatusResponse,
+)
+async def get_dataspace_status(
+    connector_id: UUID,
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> EDCStatusResponse:
+    """
+    Check whether a DPP is registered in the EDC catalog.
+    """
+    service = EDCContractService(db)
+    result = await service.get_dataspace_status(dpp_id, connector_id, tenant.tenant_id)
+
+    return EDCStatusResponse(
+        registered=result.get("registered", False),
+        asset_id=result.get("asset_id"),
+        error=result.get("error"),
+    )
+
+
+@router.get(
+    "/{connector_id}/dataspace/health",
+    response_model=EDCHealthResponse,
+)
+async def check_connector_edc_health(
+    connector_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> EDCHealthResponse:
+    """
+    Check EDC controlplane health for a connector.
+    """
+    cx_service = CatenaXConnectorService(db)
+    connector = await cx_service.get_connector(connector_id, tenant.tenant_id)
+
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Connector {connector_id} not found",
+        )
+
+    await require_access(tenant.user, "read", _connector_resource(connector), tenant=tenant)
+
+    config = connector.config
+    edc_config = EDCConfig(
+        management_url=config.get("edc_management_url", ""),
+        api_key=config.get("edc_management_api_key", ""),
+    )
+
+    client = EDCManagementClient(edc_config)
+    try:
+        result = await check_edc_health(client)
+    finally:
+        await client.close()
+
+    return EDCHealthResponse(
+        status=result.get("status", "error"),
+        edc_version=result.get("edc_version"),
+        error_message=result.get("error_message"),
+    )

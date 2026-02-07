@@ -5,9 +5,10 @@ API Router for DPP Export endpoints.
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response
 
+from app.core.audit import emit_audit_event
 from app.core.security import require_access
 from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
@@ -21,9 +22,13 @@ router = APIRouter()
 @router.get("/{dpp_id}")
 async def export_dpp(
     dpp_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantContextDep,
     format: Literal["json", "aasx", "pdf"] = Query("json", description="Export format"),
+    aasx_serialization: Literal["json", "xml"] = Query(
+        "json", description="Serialization format inside AASX package (json or xml)"
+    ),
 ) -> Response:
     """
     Export a DPP in the specified format.
@@ -79,6 +84,16 @@ async def export_dpp(
     # Export based on format
     if format == "json":
         content = export_service.export_json(revision)
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
         return Response(
             content=content,
             media_type="application/json",
@@ -87,7 +102,19 @@ async def export_dpp(
             },
         )
     elif format == "aasx":
-        content = export_service.export_aasx(revision, dpp_id)
+        content = export_service.export_aasx(
+            revision, dpp_id, write_json=(aasx_serialization == "json")
+        )
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
         return Response(
             content=content,
             media_type="application/asset-administration-shell-package+xml",
@@ -97,6 +124,16 @@ async def export_dpp(
         )
     elif format == "pdf":
         content = export_service.export_pdf(revision, dpp_id)
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
         return Response(
             content=content,
             media_type="application/pdf",

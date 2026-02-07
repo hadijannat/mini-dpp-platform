@@ -3,7 +3,7 @@
   "idta_version": "3.0.1",
   "semantic_id": "https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
   "expected": {
-    "definition_sha256": "12d47dcd60db10691c0dc14fcac3fff9d36a79718d3f262d46d74eff73e329d9",
-    "schema_sha256": "fbd4497b8eeb48fad7a85882ad0c8622541c2714b0d0ab98a159c67f19e1ceef"
+    "definition_sha256": "26f15663d4c6a3e5e8a323ceca6bf78c39eb025971547da2f07ecc39e934e770",
+    "schema_sha256": "401527bdb6576bdbf8289ea9e675c40d1029f0a85bfc313888857ce65edec2a7"
   }
 }

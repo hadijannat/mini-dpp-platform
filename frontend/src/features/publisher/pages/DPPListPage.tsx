@@ -2,9 +2,59 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { Plus, Eye, Edit, Upload, RefreshCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Plus,
+  Eye,
+  Edit,
+  Upload,
+  RefreshCcw,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  FileText,
+  AlertTriangle,
+} from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { PageHeader } from '@/components/page-header';
+import { StatusBadge } from '@/components/status-badge';
+import { ErrorBanner } from '@/components/error-banner';
+import { EmptyState } from '@/components/empty-state';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { cn } from '@/lib/utils';
 
 interface MasterItem {
   id: string;
@@ -172,6 +222,7 @@ export default function DPPListPage() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importPending, setImportPending] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const auth = useAuth();
   const token = auth.user?.access_token;
   const tenantSlug = getTenantSlug();
@@ -336,374 +387,353 @@ export default function DPPListPage() {
     );
   };
 
+  const masters: MasterItem[] = mastersData?.masters ?? [];
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Digital Product Passports</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage your product passports
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
-          data-testid="dpp-create-open"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create DPP
-        </button>
-      </div>
+      <PageHeader
+        title="Digital Product Passports"
+        description="Manage your product passports"
+        actions={
+          <Button onClick={() => setShowCreateModal(true)} data-testid="dpp-create-open">
+            <Plus className="h-4 w-4 mr-2" />
+            Create DPP
+          </Button>
+        }
+      />
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Import from Master Template</h2>
-            <p className="text-sm text-gray-500">
-              Load a released master, fill placeholders, and import a serialized DPP in one step.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              void queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
-            }}
-            className="inline-flex items-center text-xs text-gray-500 hover:text-gray-700"
-          >
-            <RefreshCcw className="h-3 w-3 mr-1" />
-            Refresh masters
-          </button>
-        </div>
+      {/* Import from Master Template */}
+      <Collapsible open={importOpen} onOpenChange={setImportOpen}>
+        <Card>
+          <CardContent className="p-4">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between"
+              >
+                <div className="text-left">
+                  <h2 className="text-lg font-semibold">Import from Master Template</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Load a released master, fill placeholders, and import a serialized DPP in one step.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    'h-5 w-5 text-muted-foreground transition-transform',
+                    importOpen && 'rotate-180',
+                  )}
+                />
+              </button>
+            </CollapsibleTrigger>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="text-xs font-medium text-gray-600">
-            Master Product ID
-            <select
-              value={importProductId}
-              onChange={(event) => setImportProductId(event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-            >
-              {(mastersData?.masters ?? []).map((master: MasterItem) => (
-                <option key={master.id} value={master.product_id}>
-                  {master.product_id} · {master.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs font-medium text-gray-600">
-            Version / Alias
-            <input
-              value={importVersion}
-              onChange={(event) => setImportVersion(event.target.value)}
-              className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-            />
-          </label>
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={handleLoadTemplate}
-              className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800"
-              disabled={!importProductId || importPending}
-            >
-              {importPending ? 'Loading...' : 'Load Template'}
-            </button>
-          </div>
-        </div>
+            <CollapsibleContent className="mt-4 space-y-4">
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    void queryClient.invalidateQueries({ queryKey: ['masters', tenantSlug] });
+                  }}
+                >
+                  <RefreshCcw className="h-3 w-3 mr-1" />
+                  Refresh masters
+                </Button>
+              </div>
 
-        {importTemplate && (
-          <div className="space-y-4">
-            <div className="rounded-md border border-gray-100 bg-gray-50 p-3 text-xs text-gray-600">
-              Loaded version {importTemplate.version} ({importTemplate.aliases.join(', ') || 'no aliases'})
-            </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Master Product ID</Label>
+                  <Select
+                    value={importProductId}
+                    onValueChange={setImportProductId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a master" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {masters.map((master) => (
+                        <SelectItem key={master.id} value={master.product_id}>
+                          {master.product_id} · {master.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Version / Alias</Label>
+                  <Input
+                    value={importVersion}
+                    onChange={(event) => setImportVersion(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    onClick={handleLoadTemplate}
+                    disabled={!importProductId || importPending}
+                  >
+                    {importPending ? 'Loading...' : 'Load Template'}
+                  </Button>
+                </div>
+              </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              {importTemplate.variables.length === 0 && (
-                <div className="text-xs text-gray-500">
-                  No variables in this template. You can import as-is.
+              {importTemplate && (
+                <div className="space-y-4">
+                  <div className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+                    Loaded version {importTemplate.version} ({importTemplate.aliases.join(', ') || 'no aliases'})
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {importTemplate.variables.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No variables in this template. You can import as-is.
+                      </p>
+                    )}
+                    {importTemplate.variables.map((variable) => (
+                      <div key={variable.name} className="space-y-1">
+                        <Label className="text-xs">
+                          {variable.label || variable.name}
+                          {variable.required ? ' *' : ''}
+                        </Label>
+                        <Input
+                          value={importValues[variable.name] ?? ''}
+                          onChange={(event) =>
+                            setImportValues((prev) => ({ ...prev, [variable.name]: event.target.value }))
+                          }
+                          placeholder={variable.default_value != null ? String(variable.default_value) : ''}
+                          className="text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {missingRequired.length > 0 && (
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Missing required values: {missingRequired.map((variable) => variable.name).join(', ')}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  {unresolvedPlaceholders.length > 0 && (
+                    <Alert>
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Unresolved placeholders: {unresolvedPlaceholders.join(', ')}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button size="sm" onClick={handleApplyVariables}>
+                      Apply Values
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="strip-global-id"
+                        checked={stripImportGlobalId}
+                        onCheckedChange={(checked) => setStripImportGlobalId(checked === true)}
+                      />
+                      <Label htmlFor="strip-global-id" className="text-xs font-normal">
+                        Strip globalAssetId before import
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Import Payload (JSON)</Label>
+                    <textarea
+                      value={importPayload}
+                      onChange={(event) => setImportPayload(event.target.value)}
+                      className="h-48 w-full rounded-md border border-input bg-background px-3 py-2 font-mono text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={handleImport}
+                      disabled={!importPayload || importPending || missingRequired.length > 0 || unresolvedPlaceholders.length > 0}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {importPending ? 'Importing...' : 'Import DPP'}
+                    </Button>
+                    {importError && (
+                      <span className="text-xs text-destructive">{importError}</span>
+                    )}
+                    {importSuccess && (
+                      <span className="text-xs text-green-600">{importSuccess}</span>
+                    )}
+                  </div>
                 </div>
               )}
-              {importTemplate.variables.map((variable) => (
-                <label key={variable.name} className="text-xs text-gray-600">
-                  {variable.label || variable.name}
-                  {variable.required ? ' *' : ''}
-                  <input
-                    value={importValues[variable.name] ?? ''}
-                    onChange={(event) =>
-                      setImportValues((prev) => ({ ...prev, [variable.name]: event.target.value }))
-                    }
-                    placeholder={variable.default_value != null ? String(variable.default_value) : ''}
-                    className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-sm"
-                  />
-                </label>
-              ))}
-            </div>
-
-            {missingRequired.length > 0 && (
-              <div className="rounded-md border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800">
-                Missing required values: {missingRequired.map((variable) => variable.name).join(', ')}
-              </div>
-            )}
-            {unresolvedPlaceholders.length > 0 && (
-              <div className="rounded-md border border-yellow-200 bg-yellow-50 p-2 text-xs text-yellow-800">
-                Unresolved placeholders: {unresolvedPlaceholders.join(', ')}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleApplyVariables}
-                className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
-              >
-                Apply Values
-              </button>
-              <label className="flex items-center gap-2 text-xs text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={stripImportGlobalId}
-                  onChange={(event) => setStripImportGlobalId(event.target.checked)}
-                />
-                Strip globalAssetId before import
-              </label>
-            </div>
-
-            <div>
-              <label className="text-xs font-medium text-gray-600">
-                Import Payload (JSON)
-              </label>
-              <textarea
-                value={importPayload}
-                onChange={(event) => setImportPayload(event.target.value)}
-                className="mt-1 h-48 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={handleImport}
-                disabled={!importPayload || importPending || missingRequired.length > 0 || unresolvedPlaceholders.length > 0}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800 disabled:opacity-50"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                {importPending ? 'Importing...' : 'Import DPP'}
-              </button>
-              {importError && (
-                <span className="text-xs text-red-600">{importError}</span>
-              )}
-              {importSuccess && (
-                <span className="text-xs text-green-600">{importSuccess}</span>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+            </CollapsibleContent>
+          </CardContent>
+        </Card>
+      </Collapsible>
 
       {pageError && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <div className="flex items-center justify-between gap-3">
-            <span>{pageError.message || 'Failed to load data.'}</span>
-            {pageSessionExpired && (
-              <button
-                type="button"
-                onClick={() => { void auth.signinRedirect(); }}
-                className="text-xs font-medium text-red-700 underline"
-              >
-                Sign in
-              </button>
-            )}
-          </div>
-        </div>
+        <ErrorBanner
+          message={pageError.message || 'Failed to load data.'}
+          showSignIn={pageSessionExpired}
+          onSignIn={() => { void auth.signinRedirect(); }}
+        />
       )}
 
       {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg" data-testid="dpp-create-modal">
-            <h2 className="text-lg font-semibold mb-4">Create New DPP</h2>
-            <form onSubmit={handleCreate} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Manufacturer Part ID
-                </label>
-                <input
-                  name="manufacturerPartId"
-                  type="text"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Serial Number
-                </label>
-                <input
-                  name="serialNumber"
-                  type="text"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Templates
-                </label>
-                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
-                  {templatesData?.templates?.map((template: any) => (
-                    <label key={template.id} className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedTemplates.includes(template.template_key)}
-                        onChange={() => handleTemplateToggle(template.template_key)}
-                        className="h-4 w-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-                      />
-                      <span className="text-sm text-gray-900">{template.template_key}</span>
-                      <span className="text-xs text-gray-500">v{template.idta_version}</span>
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent data-testid="dpp-create-modal">
+          <DialogHeader>
+            <DialogTitle>Create New DPP</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Manufacturer Part ID</Label>
+              <Input name="manufacturerPartId" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Serial Number</Label>
+              <Input name="serialNumber" />
+            </div>
+            <div className="space-y-2">
+              <Label>Select Templates</Label>
+              <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-3">
+                {templatesData?.templates?.map((template: any) => (
+                  <div key={template.id} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`template-${template.id}`}
+                      checked={selectedTemplates.includes(template.template_key)}
+                      onCheckedChange={() => handleTemplateToggle(template.template_key)}
+                    />
+                    <label
+                      htmlFor={`template-${template.id}`}
+                      className="flex items-center gap-2 text-sm cursor-pointer"
+                    >
+                      <span>{template.template_key}</span>
+                      <span className="text-xs text-muted-foreground">v{template.idta_version}</span>
                     </label>
-                  ))}
-                  {(!templatesData?.templates || templatesData.templates.length === 0) && (
-                    <p className="text-sm text-gray-500">No templates available. Please refresh templates first.</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                {sessionExpired && (
-                  <button
-                    type="button"
-                    onClick={() => { void auth.signinRedirect(); }}
-                    className="mr-auto text-sm text-red-600 underline"
-                  >
-                    Sign in
-                  </button>
+                  </div>
+                ))}
+                {(!templatesData?.templates || templatesData.templates.length === 0) && (
+                  <p className="text-sm text-muted-foreground">No templates available. Please refresh templates first.</p>
                 )}
-                {createMutation.isError && (
-                  <p className="mr-auto text-sm text-red-600">
-                    {createError?.message || 'Failed to create DPP.'}
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border rounded-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending || selectedTemplates.length === 0}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-50"
-                  data-testid="dpp-create-submit"
-                >
-                  {createMutation.isPending ? 'Creating...' : 'Create'}
-                </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+            {createMutation.isError && (
+              <ErrorBanner
+                message={createError?.message || 'Failed to create DPP.'}
+                showSignIn={sessionExpired}
+                onSignIn={() => { void auth.signinRedirect(); }}
+              />
+            )}
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={() => setShowCreateModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending || selectedTemplates.length === 0}
+                data-testid="dpp-create-submit"
+              >
+                {createMutation.isPending ? 'Creating...' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* DPP List */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-        </div>
+        <LoadingSpinner />
       ) : (
-        <div className="bg-white shadow overflow-hidden rounded-lg">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Product ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Product ID</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {dpps?.dpps?.map((dpp: any) => (
-                <tr key={dpp.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
+                <TableRow key={dpp.id}>
+                  <TableCell>
+                    <div className="font-medium">
                       {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-muted-foreground">
                       {dpp.asset_ids?.serialNumber || '-'}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${dpp.status === 'published'
-                        ? 'bg-green-100 text-green-800'
-                        : dpp.status === 'archived'
-                          ? 'bg-gray-100 text-gray-800'
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                      {dpp.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={dpp.status} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
                     {new Date(dpp.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <Link
-                        to={`/t/${tenantSlug}/dpp/${dpp.id}`}
-                        className="text-gray-400 hover:text-gray-600"
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
                         title="View"
                         data-testid={`dpp-view-${dpp.id}`}
                       >
-                        <Eye className="h-5 w-5" />
-                      </Link>
-                      <Link
-                        to={`/console/dpps/${dpp.id}`}
-                        className="text-primary-400 hover:text-primary-600"
+                        <Link to={`/t/${tenantSlug}/dpp/${dpp.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
                         title="Edit"
                         data-testid={`dpp-edit-${dpp.id}`}
                       >
-                        <Edit className="h-5 w-5" />
-                      </Link>
+                        <Link to={`/console/dpps/${dpp.id}`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {(!dpps?.dpps || dpps.dpps.length === 0) && (
-            <div className="text-center py-12 text-gray-500">
-              No DPPs yet. Create your first one!
-            </div>
+            <EmptyState
+              icon={FileText}
+              title="No DPPs yet"
+              description="Create your first Digital Product Passport to get started"
+            />
           )}
           {dpps?.total_count != null && dpps.total_count > 0 && (
-            <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-600">
+            <div className="flex items-center justify-between border-t px-4 py-3 text-sm text-muted-foreground">
               <span>
                 Showing {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + (dpps.dpps?.length ?? 0)} of {dpps.total_count}
               </span>
-              <div className="flex items-center space-x-2">
-                <button
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="inline-flex items-center px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </button>
-                <button
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setPage((p) => p + 1)}
                   disabled={(page + 1) * PAGE_SIZE >= dpps.total_count}
-                  className="inline-flex items-center px-2 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
             </div>
           )}
-        </div>
+        </Card>
       )}
     </div>
   );

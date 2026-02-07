@@ -11,9 +11,12 @@ from typing import Any, Literal, cast
 from uuid import UUID
 from xml.etree import ElementTree as ET
 
+import defusedxml.ElementTree as DefusedET
 import pyecma376_2
+from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
+from basyx.aas.adapter import xml as basyx_xml
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -21,7 +24,7 @@ from app.db.models import DPPRevision
 
 logger = get_logger(__name__)
 
-ExportFormat = Literal["json", "aasx", "pdf"]
+ExportFormat = Literal["json", "aasx", "xml", "pdf"]
 
 
 class ExportService:
@@ -49,6 +52,10 @@ class ExportService:
                 "revisionNo": revision.revision_no,
                 "digestSha256": revision.digest_sha256,
                 "signedJws": revision.signed_jws,
+                "signingKeyId": self._settings.dpp_signing_key_id if revision.signed_jws else None,
+                "signingAlgorithm": (
+                    self._settings.dpp_signing_algorithm if revision.signed_jws else None
+                ),
             },
         }
 
@@ -60,12 +67,47 @@ class ExportService:
             ensure_ascii=False,
         ).encode("utf-8")
 
-    def export_aasx(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
+    def export_xml(self, revision: DPPRevision) -> bytes:
+        """Export DPP as AAS XML.
+
+        Serializes the AAS environment to XML format using BaSyx's
+        built-in XML serializer with proper AAS Part 1 namespaces.
+        """
+        payload = json.dumps(
+            revision.aas_env_json,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        )
+        string_io = io.StringIO(payload)
+        try:
+            store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                string_io
+            )
+        finally:
+            string_io.close()
+
+        xml_buffer = io.BytesIO()
+        basyx_xml.write_aas_xml_file(xml_buffer, store)  # type: ignore[attr-defined]
+        xml_buffer.seek(0)
+        return xml_buffer.read()
+
+    def export_aasx(
+        self,
+        revision: DPPRevision,
+        dpp_id: UUID,
+        write_json: bool = True,
+    ) -> bytes:
         """
         Export DPP as AASX package.
 
         Creates an AASX file following IDTA Part 5 specification.
         AASX is a ZIP archive with specific structure and relationships.
+
+        Args:
+            revision: The DPP revision to export
+            dpp_id: DPP identifier for metadata
+            write_json: If True (default) serialize as JSON, if False as XML
         """
         buffer = io.BytesIO()
         try:
@@ -94,10 +136,14 @@ class ExportService:
                 core_props.description = (
                     f"AASX package containing DPP revision {revision.revision_no}"
                 )
+                core_props.subject = "Digital Product Passport (IDTA DPP4.0)"
+                core_props.category = "AAS Package"
+                core_props.identifier = str(dpp_id)
                 core_props.version = self._settings.version
                 core_props.revision = str(revision.revision_no)
                 writer.write_core_properties(core_props)
-                writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
+                data_path = "/aasx/data.json" if write_json else "/aasx/data.xml"
+                writer.write_all_aas_objects(data_path, store, files, write_json=write_json)
 
             buffer.seek(0)
             return buffer.read()
@@ -146,52 +192,7 @@ class ExportService:
             return bytes(output)
         return output.encode("latin-1")
 
-    def _create_content_types(self) -> str:
-        """Create AASX content types XML."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-    <Default Extension="json" ContentType="application/json"/>
-    <Default Extension="xml" ContentType="application/xml"/>
-    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-    <Override PartName="/metadata/core-properties.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-</Types>"""
-
-    def _create_root_rels(self) -> str:
-        """Create root relationships file."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId1" Type="http://www.admin-shell.io/aasx/relationships/aas-spec" Target="/aasx/aas.json"/>
-    <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="/metadata/core-properties.xml"/>
-</Relationships>"""
-
-    def _create_aas_rels(self) -> str:
-        """Create AAS relationships file."""
-        return """<?xml version="1.0" encoding="UTF-8"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-    <Relationship Id="rId1" Type="http://www.admin-shell.io/aasx/relationships/aasx-origin" Target="aasx-origin"/>
-</Relationships>"""
-
-    def _create_core_properties(
-        self,
-        revision: DPPRevision,
-        dpp_id: UUID,
-    ) -> str:
-        """Create Dublin Core metadata file."""
-        now = datetime.now(UTC).isoformat()
-
-        return f"""<?xml version="1.0" encoding="UTF-8"?>
-<coreProperties xmlns="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
-                xmlns:dc="http://purl.org/dc/elements/1.1/"
-                xmlns:dcterms="http://purl.org/dc/terms/">
-    <dc:title>Digital Product Passport</dc:title>
-    <dc:identifier>{dpp_id}</dc:identifier>
-    <dc:creator>Mini DPP Platform</dc:creator>
-    <dcterms:created>{revision.created_at.isoformat()}</dcterms:created>
-    <dcterms:modified>{now}</dcterms:modified>
-    <dc:description>AASX package containing DPP revision {revision.revision_no}</dc:description>
-</coreProperties>"""
-
-    def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
+    def validate_aasx_structure(self, aasx_bytes: bytes) -> dict[str, Any]:
         """
         Validate an AASX package structure.
 
@@ -214,16 +215,18 @@ class ExportService:
                     if req not in names:
                         errors.append(f"Missing required file: {req}")
 
-                # Check for AAS content
-                aas_files = [n for n in names if n.endswith(".json") and "aas" in n.lower()]
+                # Check for AAS content (JSON or XML)
+                aas_json = [n for n in names if n.endswith(".json") and "aas" in n.lower()]
+                aas_xml_files = [n for n in names if n.endswith(".xml") and "data" in n.lower()]
+                aas_files = aas_json or aas_xml_files
                 if not aas_files:
-                    errors.append("No AAS JSON file found")
+                    errors.append("No AAS data file found (JSON or XML)")
 
                 # Validate Content_Types.xml
                 if "[Content_Types].xml" in names:
                     try:
                         content_types = zf.read("[Content_Types].xml")
-                        ET.fromstring(content_types)
+                        DefusedET.fromstring(content_types)
                     except ET.ParseError as e:
                         errors.append(f"Invalid Content_Types.xml: {e}")
 
@@ -231,7 +234,7 @@ class ExportService:
                 if "_rels/.rels" in names:
                     try:
                         rels = zf.read("_rels/.rels")
-                        ET.fromstring(rels)
+                        DefusedET.fromstring(rels)
                     except ET.ParseError as e:
                         errors.append(f"Invalid _rels/.rels: {e}")
 
@@ -239,6 +242,58 @@ class ExportService:
             errors.append("Invalid ZIP archive")
         except Exception as e:
             errors.append(f"Validation error: {e}")
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings,
+        }
+
+    def validate_aasx(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """Validate AASX — full compliance check including BaSyx round-trip."""
+        return self.validate_aasx_compliance(aasx_bytes)
+
+    def validate_aasx_compliance(self, aasx_bytes: bytes) -> dict[str, Any]:
+        """
+        Validate AASX compliance via BaSyx round-trip deserialization.
+
+        Attempts to read the AASX package back through BaSyx's AASXReader
+        and then re-serialize. Any deserialization errors indicate the package
+        is not fully compliant with the AAS metamodel.
+        """
+        errors: list[str] = []
+        warnings: list[str] = []
+
+        # First run structural validation
+        structural = self.validate_aasx_structure(aasx_bytes)
+        errors.extend(structural["errors"])
+        warnings.extend(structural["warnings"])
+
+        if errors:
+            return {"valid": False, "errors": errors, "warnings": warnings}
+
+        # Round-trip: read AASX → object store → serialize back to JSON
+        try:
+            store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
+            files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+            with aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
+                reader.read_into(store, files)
+
+            identifiables = list(store)
+            if not identifiables:
+                # BaSyx's lenient mode may skip objects it can't fully parse;
+                # this is a warning rather than a hard error since the AASX
+                # structure itself is valid.
+                warnings.append(
+                    "BaSyx could not deserialize any identifiable objects from the AASX "
+                    "(lenient mode may have skipped non-compliant entries)"
+                )
+            else:
+                # Verify we can serialize back to JSON without errors
+                basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
+
+        except Exception as exc:
+            errors.append(f"BaSyx compliance check failed: {exc}")
 
         return {
             "valid": len(errors) == 0,

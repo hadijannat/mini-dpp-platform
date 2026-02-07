@@ -8,6 +8,7 @@ import json
 from typing import Any
 from uuid import UUID
 
+from jose import JWSError, jws  # type: ignore[import-untyped]
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -21,12 +22,17 @@ from app.core.identifiers import (
 from app.core.logging import get_logger
 from app.core.settings_service import SettingsService
 from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
+from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.qr.service import QRCodeService
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.service import TemplateRegistryService
 
 logger = get_logger(__name__)
+
+
+class SigningError(Exception):
+    """Raised when JWS signing is configured but fails."""
 
 
 class DPPService:
@@ -547,6 +553,7 @@ class DPPService:
             revision_no=new_revision_no,
         )
 
+        await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
         return revision
 
     async def rebuild_all_from_templates(
@@ -606,15 +613,33 @@ class DPPService:
 
         Creates a published revision from the latest draft and updates
         the DPP status and current_published_revision_id.
+
+        When ``compliance_check_on_publish`` is enabled, runs an ESPR
+        compliance check first and blocks publish if critical violations
+        are found (Contract C).
         """
         dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
 
+        # Compliance pre-publish gate (Contract C)
+        if self._settings.compliance_check_on_publish:
+            compliance_svc = ComplianceService(self._session)
+            report = await compliance_svc.check_pre_publish(dpp_id, tenant_id)
+            if not report.is_compliant:
+                violations = report.summary.critical_violations
+                raise ValueError(
+                    f"Publish blocked: {violations} critical compliance "
+                    f"violation(s) in category '{report.category}'"
+                )
+
         # Get latest draft revision
         latest_revision = await self.get_latest_revision(dpp_id, tenant_id)
         if not latest_revision:
             raise ValueError(f"No revision found for DPP {dpp_id}")
+
+        # Sign the digest on publish for tamper-evidence
+        signed_jws = self._sign_digest(latest_revision.digest_sha256)
 
         if latest_revision.state == RevisionState.PUBLISHED:
             # Already published, create new revision
@@ -626,6 +651,7 @@ class DPPService:
                 state=RevisionState.PUBLISHED,
                 aas_env_json=latest_revision.aas_env_json,
                 digest_sha256=latest_revision.digest_sha256,
+                signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
             )
             self._session.add(revision)
@@ -633,6 +659,7 @@ class DPPService:
         else:
             # Mark current draft as published
             latest_revision.state = RevisionState.PUBLISHED
+            latest_revision.signed_jws = signed_jws
             revision = latest_revision
 
         # Update DPP status and pointer
@@ -693,6 +720,7 @@ class DPPService:
             revision_no=new_revision_no,
         )
 
+        await self._cleanup_old_draft_revisions(dpp.id, dpp.tenant_id)
         return True
 
     async def archive_dpp(self, dpp_id: UUID, tenant_id: UUID) -> DPP:
@@ -709,6 +737,26 @@ class DPPService:
         logger.info("dpp_archived", dpp_id=str(dpp_id))
 
         return dpp
+
+    async def _cleanup_old_draft_revisions(self, dpp_id: UUID, tenant_id: UUID) -> int:
+        """Delete oldest draft revisions beyond the retention limit. Returns count deleted."""
+        from sqlalchemy import delete
+
+        max_drafts = self._settings.dpp_max_draft_revisions
+        result = await self._session.execute(
+            select(DPPRevision.id)
+            .where(
+                DPPRevision.dpp_id == dpp_id,
+                DPPRevision.tenant_id == tenant_id,
+                DPPRevision.state == RevisionState.DRAFT,
+            )
+            .order_by(DPPRevision.revision_no.desc())
+            .offset(max_drafts)
+        )
+        old_ids = list(result.scalars().all())
+        if old_ids:
+            await self._session.execute(delete(DPPRevision).where(DPPRevision.id.in_(old_ids)))
+        return len(old_ids)
 
     async def _build_initial_environment(
         self,
@@ -1119,3 +1167,53 @@ class DPPService:
         # Canonical JSON: sorted keys, no extra whitespace
         canonical = json.dumps(aas_env, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode()).hexdigest()
+
+    def _sign_digest(self, digest: str) -> str | None:
+        """
+        Sign a SHA-256 digest using JWS (JSON Web Signature).
+
+        Returns a compact JWS string, or None if no signing key is configured.
+        The JWS payload is the hex digest string. The header includes a key ID
+        (kid) for key rotation support.
+        """
+        signing_key = self._settings.dpp_signing_key
+        if not signing_key:
+            return None
+        algorithm = self._settings.dpp_signing_algorithm
+        kid = self._settings.dpp_signing_key_id
+        try:
+            return str(
+                jws.sign(
+                    digest.encode("utf-8"),
+                    signing_key,
+                    algorithm=algorithm,
+                    headers={"kid": kid},
+                )
+            )
+        except Exception as exc:
+            raise SigningError(f"JWS signing failed: {exc}") from exc
+
+    @staticmethod
+    def verify_jws(signed_jws: str, expected_digest: str, public_key: str) -> bool:
+        """
+        Verify a JWS signature against an expected digest.
+
+        Args:
+            signed_jws: The compact JWS string from a published revision
+            expected_digest: The SHA-256 hex digest to verify against
+            public_key: PEM-encoded public key (RSA or EC)
+
+        Returns:
+            True if the signature is valid and the payload matches the expected digest
+        """
+        try:
+            payload = jws.verify(
+                signed_jws,
+                public_key,
+                algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+            )
+            return bool(payload.decode("utf-8") == expected_digest)
+        except JWSError:
+            return False
+        except Exception:
+            return False

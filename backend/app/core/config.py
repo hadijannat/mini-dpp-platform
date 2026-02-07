@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # Redis Configuration
     # ==========================================================================
     redis_url: RedisDsn = Field(default=RedisDsn("redis://localhost:6379/0"))
+    redis_rate_limit_url: RedisDsn | None = Field(
+        default=None,
+        description="Separate Redis URL for rate limiting (defaults to DB 1 of redis_url)",
+    )
     redis_cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
 
     # ==========================================================================
@@ -187,6 +191,13 @@ class Settings(BaseSettings):
         default="", description="Base64-encoded 256-bit master key for envelope encryption"
     )
 
+    # Trusted proxy CIDRs for X-Forwarded-For / X-Real-IP header trust.
+    # Only requests arriving from these CIDRs will have proxy headers honoured.
+    trusted_proxy_cidrs: list[str] = Field(
+        default=["172.16.0.0/12", "10.0.0.0/8", "127.0.0.0/8"],
+        description="CIDRs from which X-Forwarded-For is trusted (Docker bridge, loopback)",
+    )
+
     # CORS settings
     cors_origins: list[str] = Field(
         default=[
@@ -218,7 +229,25 @@ class Settings(BaseSettings):
         default=86400, description="Template cache TTL in seconds (default: 24 hours)"
     )
 
-    # DPP4.0 Template versions (pinned for stability)
+    template_version_resolution_policy: Literal["latest_patch"] = Field(
+        default="latest_patch",
+        description=(
+            "Template version resolution strategy. latest_patch resolves the highest "
+            "available patch within configured major.minor baseline."
+        ),
+    )
+    template_major_minor_baselines: dict[str, str] = Field(
+        default={
+            "carbon-footprint": "1.0",
+            "contact-information": "1.0",
+            "digital-nameplate": "3.0",
+            "handover-documentation": "2.0",
+            "hierarchical-structures": "1.1",
+            "technical-data": "2.0",
+        },
+        description="Configured major.minor baseline per supported DPP4.0 template.",
+    )
+    # Legacy pinned versions retained for backward compatibility.
     template_versions: dict[str, str] = Field(
         default={
             "digital-nameplate": "3.0.1",
@@ -227,7 +256,77 @@ class Settings(BaseSettings):
             "carbon-footprint": "1.0.1",
             "handover-documentation": "2.0.1",
             "hierarchical-structures": "1.1.1",
-        }
+        },
+        description="Deprecated: prefer template_major_minor_baselines + resolution policy.",
+    )
+
+    # ==========================================================================
+    # DPP Integrity / JWS Signing Configuration
+    # ==========================================================================
+    dpp_signing_key: str = Field(
+        default="",
+        description=(
+            "PEM-encoded private key (RSA or EC) for JWS signing of published DPP digests. "
+            "If empty, published revisions will not be signed."
+        ),
+    )
+    dpp_signing_algorithm: str = Field(
+        default="RS256",
+        description="JWS algorithm for DPP digest signing (RS256, ES256, etc.)",
+    )
+    dpp_signing_key_id: str = Field(
+        default="dpp-platform-key-1",
+        description="Key ID (kid) included in JWS header for key rotation support",
+    )
+    dpp_max_draft_revisions: int = Field(
+        default=10,
+        description="Maximum number of draft revisions to keep per DPP. Published revisions are always kept.",
+    )
+
+    # ==========================================================================
+    # Eclipse Dataspace Connector (EDC)
+    # ==========================================================================
+    edc_management_url: str = Field(default="", description="EDC Management API URL")
+    edc_management_api_key: str = Field(default="", description="EDC Management API key")
+    edc_dsp_endpoint: str = Field(default="", description="EDC DSP protocol endpoint")
+    edc_participant_id: str = Field(default="", description="EDC participant BPN")
+
+    # ==========================================================================
+    # Audit Cryptographic Integrity
+    # ==========================================================================
+    audit_signing_key: str = Field(
+        default="", description="PEM Ed25519 private key for audit signing"
+    )
+    audit_signing_public_key: str = Field(default="", description="PEM Ed25519 public key")
+    tsa_url: str = Field(default="", description="RFC 3161 TSA endpoint URL")
+    audit_merkle_batch_size: int = Field(default=100, description="Events per Merkle batch")
+
+    # ==========================================================================
+    # ESPR Compliance Engine
+    # ==========================================================================
+    compliance_check_on_publish: bool = Field(
+        default=False, description="Run compliance check before publish"
+    )
+
+    # ==========================================================================
+    # Digital Thread
+    # ==========================================================================
+    digital_thread_enabled: bool = Field(
+        default=False, description="Enable digital thread event recording"
+    )
+    digital_thread_auto_record: bool = Field(
+        default=True, description="Auto-record thread events on DPP lifecycle changes"
+    )
+
+    # ==========================================================================
+    # LCA / PCF Calculation
+    # ==========================================================================
+    lca_enabled: bool = Field(default=False, description="Enable LCA/PCF calculation service")
+    lca_default_scope: str = Field(
+        default="cradle-to-gate", description="Default LCA scope boundary"
+    )
+    lca_factor_database_path: str = Field(
+        default="", description="Custom emission factors YAML path (empty = built-in)"
     )
 
     # ==========================================================================
@@ -264,6 +363,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"encryption_master_key must be set in {self.environment} environment"
                 )
+            if not self.dpp_signing_key:
+                raise ValueError(f"dpp_signing_key must be set in {self.environment} environment")
             if self.debug:
                 raise ValueError(f"debug must be False in {self.environment} environment")
             if self.cors_origins == self._DEFAULT_CORS_ORIGINS:
@@ -275,6 +376,12 @@ class Settings(BaseSettings):
                 warnings.warn(
                     "encryption_master_key is empty — encrypted fields "
                     "will not work. Set it before deploying.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if not self.dpp_signing_key:
+                warnings.warn(
+                    "dpp_signing_key is empty — published DPPs will not be signed.",
                     UserWarning,
                     stacklevel=2,
                 )

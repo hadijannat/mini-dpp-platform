@@ -4,6 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
+[![BaSyx Python SDK](https://img.shields.io/badge/BaSyx_SDK-2.0.0-blue?logo=eclipse&logoColor=white)](https://github.com/eclipse-basyx/basyx-python-sdk)
+[![AAS](https://img.shields.io/badge/AAS-IDTA_2001%2F2002-009999)](https://industrialdigitaltwin.org/)
+[![IDTA DPP4.0](https://img.shields.io/badge/IDTA-DPP4.0-009999)](https://industrialdigitaltwin.org/)
 
 > **A Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 standards.**
 
@@ -11,24 +14,43 @@ Create, manage, and publish Digital Product Passports with Keycloak auth, multi-
 
 ---
 
-## ✨ Highlights
+## Tech Stack
 
-- 🔐 **Auth + Access Control** — Keycloak OIDC + OPA policies
-- 🏢 **Multi-tenant** — tenant-scoped APIs, UI switcher, `tenant_admin` role
-- 🧩 **Dynamic Forms** — UI generated from IDTA Submodel Templates
-- 📦 **DPP Lifecycle** — Draft → Edit → Publish → Archive with revision history
-- 🧱 **DPP Masters** — product-level masters with placeholders and `latest` alias
-- 🔁 **JSON Import** — one-shot import from released master templates
-- 🔗 **Catena-X Ready** — DTR publishing with optional EDC metadata
-- 📤 **Export** — AASX, JSON, QR, and GS1 Digital Link
+| Layer | Technology |
+|-------|-----------|
+| AAS Engine | [BaSyx Python SDK 2.0.0](https://github.com/eclipse-basyx/basyx-python-sdk) |
+| Backend | FastAPI, SQLAlchemy 2.0 (async), Pydantic v2 |
+| Frontend | React 18, TanStack Query, React Hook Form, shadcn/ui |
+| Auth | Keycloak (OIDC) + OPA (ABAC) |
+| Database | PostgreSQL 16, Redis 7 |
+| Storage | MinIO (S3-compatible) |
+| CI/CD | GitHub Actions, GHCR, Trivy, Bandit |
 
 ---
 
-## ⚡ Quick Start (Docker)
+## Highlights
+
+- **AAS & BaSyx Aligned** — BaSyx Python SDK 2.0.0 with AASX compliance validation (round-trip serialization checks)
+- **Auth + Access Control** — Keycloak OIDC + OPA ABAC policies with tenant-scoped authorization
+- **Multi-tenant** — tenant-scoped APIs, UI switcher, `tenant_admin` role
+- **Dynamic Forms** — UI generated from IDTA Submodel Templates with qualifier enforcement
+- **DPP Lifecycle** — Draft → Edit → Publish → Archive with revision history
+- **DPP Masters** — product-level masters with placeholders, versioning, and `latest` alias
+- **JSON Import** — one-shot import from released master templates with validation
+- **Catena-X Ready** — DTR publishing with optional EDC metadata
+- **Export** — AASX (IDTA Part 5), JSON, QR codes, and GS1 Digital Link
+- **Public DPP Viewer** — unauthenticated viewer with EU ESPR compliance categories
+- **Field-level Encryption** — Fernet encryption for sensitive DPP values
+- **Audit Logging** — structured audit events for all CRUD, export, and publish operations
+- **Rate Limiting** — Redis-backed per-IP + per-user throttling (fails open when Redis unavailable)
+
+---
+
+## Quick Start (Docker)
 
 ### Prerequisites
 - Docker + Docker Compose
-- Ports: `5173`, `8000`, `8081`, `5432`
+- Ports: `5173`, `8001`, `8081`, `5432`
 
 ### Start the stack
 
@@ -47,7 +69,7 @@ docker exec dpp-backend alembic upgrade head
 | Service | URL | Notes |
 |---------|-----|-------|
 | Frontend | http://localhost:5173 | UI (tenant aware) |
-| API Docs | http://localhost:8000/api/v1/docs | Swagger UI (or `BACKEND_HOST_PORT` from `.env`) |
+| API Docs | http://localhost:8001/api/v1/docs | Swagger UI (or `BACKEND_HOST_PORT` from `.env`) |
 | Keycloak | http://localhost:8081/admin | admin / admin |
 
 ### Default users
@@ -78,7 +100,7 @@ members are auto-added to that tenant with a role inferred from their realm role
 
 ---
 
-## 🧭 Walkthrough
+## Walkthrough
 
 ### Multi-tenant Demo (Docker)
 
@@ -149,7 +171,7 @@ Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/ass
 
 ---
 
-## 🧠 How Dynamic Forms Work
+## How Dynamic Forms Work
 
 - Templates are fetched from the **IDTA Submodel Template repository** and cached
 - The backend parses templates and generates:
@@ -160,7 +182,7 @@ Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/ass
 
 ---
 
-## 📡 API Usage
+## API Usage
 
 ### Get access token
 
@@ -176,7 +198,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8081/realms/dpp-platform/protocol/open
 ### Refresh templates (IDTA)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/templates/refresh" \
+curl -X POST "http://localhost:8001/api/v1/templates/refresh" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -185,7 +207,7 @@ curl -X POST "http://localhost:8000/api/v1/templates/refresh" \
 > Tenant APIs use `/api/v1/tenants/{tenant}`. Default tenant: `default`.
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps" \
+curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -200,18 +222,18 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps" \
 ### DPP Masters: fetch released template + variables
 
 ```bash
-curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template" \
+curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template" \
   -H "Authorization: Bearer $TOKEN"
 
-curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/variables" \
+curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/variables" \
   -H "Authorization: Bearer $TOKEN"
 
 # Optional: fetch raw template string (text/plain)
-curl -X GET "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template/raw" \
+curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template/raw" \
   -H "Authorization: Bearer $TOKEN"
 
 # Validate a filled template payload without creating a DPP
-curl -X POST "http://localhost:8000/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/validate" \
+curl -X POST "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/validate" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @filled-template.json
@@ -220,7 +242,7 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/masters/by-product/MO
 ### Import a DPP from a master template (single shot)
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_product_id=MOTOR-DRIVE-3000&master_version=latest" \
+curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps/import?master_product_id=MOTOR-DRIVE-3000&master_version=latest" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d @filled-template.json
@@ -236,7 +258,7 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/import?master_pr
 ### Publish a DPP
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/{dpp_id}/publish" \
+curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps/{dpp_id}/publish" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -244,12 +266,12 @@ curl -X POST "http://localhost:8000/api/v1/tenants/default/dpps/{dpp_id}/publish
 
 ```bash
 curl -O -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/api/v1/tenants/default/export/{dpp_id}/aasx"
+  "http://localhost:8001/api/v1/tenants/default/export/{dpp_id}/aasx"
 ```
 
 ---
 
-## 🧪 Template Diagnostics
+## Template Diagnostics
 
 Generate a conformance report (schema coverage + qualifier support):
 
@@ -259,7 +281,7 @@ docker compose exec -T backend python -m app.modules.templates.diagnostics > /tm
 
 ---
 
-## 🧪 Template Goldens (Snapshots)
+## Template Goldens (Snapshots)
 
 Golden files lock the **template definition + schema** hashes so we can detect
 unexpected changes in dynamic form generation.
@@ -285,7 +307,7 @@ RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=htt
 
 ---
 
-## 📋 API Endpoints (Summary)
+## API Endpoints (Summary)
 
 ### Tenants
 | Method | Endpoint | Description |
@@ -344,34 +366,64 @@ RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=htt
 
 ---
 
-## 🧱 Project Structure
+## Project Structure
 
 ```
 mini-dpp-platform/
 ├── backend/
 │   ├── app/
-│   │   ├── core/           # Config, logging, security
-│   │   ├── db/             # Models, migrations
-│   │   └── modules/        # Feature modules
-│   │       ├── templates/  # IDTA template registry + diagnostics
-│   │       ├── dpps/       # DPP lifecycle management
-│   │       ├── export/     # AASX/JSON export
-│   │       ├── qr/         # QR code generation
-│   │       └── connectors/ # Catena-X integration
+│   │   ├── core/               # Config, logging, security
+│   │   │   ├── audit.py        # Structured audit event logging
+│   │   │   ├── config.py       # Pydantic-settings with production validators
+│   │   │   ├── encryption.py   # Fernet field-level encryption
+│   │   │   ├── middleware.py    # Security headers (CSP, HSTS)
+│   │   │   ├── rate_limit.py   # Redis-backed rate limiting
+│   │   │   └── security/       # JWT validation, OIDC
+│   │   ├── db/                 # Models, Alembic migrations, async sessions
+│   │   └── modules/
+│   │       ├── aas/            # Shared BaSyx utilities (references, traversal, cloning)
+│   │       ├── templates/      # IDTA template registry + diagnostics
+│   │       ├── dpps/           # DPP lifecycle + public viewer router
+│   │       ├── masters/        # DPP masters (versioning, placeholders)
+│   │       ├── export/         # AASX/JSON export (IDTA Part 5)
+│   │       ├── qr/             # QR code + GS1 Digital Link generation
+│   │       ├── connectors/     # Catena-X DTR integration
+│   │       ├── policies/       # OPA ABAC authorization
+│   │       ├── tenants/        # Tenant management + membership
+│   │       └── settings/       # Platform settings (asset ID prefix, etc.)
 │   └── tests/
 ├── frontend/
 │   └── src/
-│       ├── features/       # Feature modules
-│       └── components/     # Shared UI components
+│       ├── features/
+│       │   ├── admin/          # Admin dashboard, tenants, settings
+│       │   ├── editor/         # Dynamic AAS form editor
+│       │   ├── publisher/      # DPP management, masters, import
+│       │   ├── viewer/         # Public DPP viewer (EU ESPR categories)
+│       │   └── connectors/     # Catena-X DTR UI
+│       └── components/         # Shared UI components (shadcn/ui primitives)
 ├── infra/
-│   ├── keycloak/          # Realm configuration
-│   └── opa/               # ABAC policies
+│   ├── keycloak/               # Realm configuration
+│   └── opa/                    # ABAC policies (Rego)
 └── docker-compose.yml
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## Standards Alignment
+
+| Standard | Description | Usage |
+|----------|-------------|-------|
+| [Eclipse BaSyx Python SDK 2.0.0](https://github.com/eclipse-basyx/basyx-python-sdk) | AAS reference implementation | Object model, serialization, compliance validation |
+| [IDTA 01001 / 01002](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AAS metamodel (Part 1 & 2) | Core data model for submodels and elements |
+| [IDTA 01005](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AASX package format (Part 5) | Export packaging |
+| [IDTA DPP4.0](https://industrialdigitaltwin.org/content-hub/submodels) | Digital Product Passport templates | 6 templates: Nameplate, Technical Data, Carbon Footprint, BOM, Handover Documentation, Hierarchical Structures |
+| [IEC 61360](https://www.iec.ch/dyn/www/f?p=103:7:::::FSP_ORG_ID:1452) | Concept description data specifications | Property definitions and value formats |
+| [GS1 Digital Link](https://www.gs1.org/standards/gs1-digital-link) | URI-based product identification | QR code data carriers |
+| [EU ESPR](https://environment.ec.europa.eu/topics/circular-economy/digital-product-passport_en) | European Sustainability & Product Regulation | Public viewer classification categories |
+
+---
+
+## Troubleshooting
 
 ### Templates not loading / `UndefinedTableError`
 **Cause:** Database migrations haven't been run.
@@ -399,16 +451,7 @@ cp .env.example .env
 
 ---
 
-## 📜 Standards Alignment
-
-This platform is aligned with:
-- **AAS (IDTA 01001/01002)** and **AASX (IDTA 01005)**
-- **IDTA DPP4.0 templates** (Digital Nameplate, Carbon Footprint, etc.)
-- **GS1 Digital Link** for data carriers
-
----
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -417,6 +460,6 @@ This platform is aligned with:
 
 ---
 
-## 📄 License
+## License
 
 MIT License — see [LICENSE](LICENSE) for details.

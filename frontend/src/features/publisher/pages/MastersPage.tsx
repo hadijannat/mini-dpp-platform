@@ -4,6 +4,24 @@ import { useAuth } from 'react-oidc-context';
 import { Layers, Plus, RefreshCcw, Save, Tag } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { getTenantSlug } from '@/lib/tenant';
+import { PageHeader } from '@/components/page-header';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { ErrorBanner } from '@/components/error-banner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface MasterItem {
   id: string;
@@ -494,478 +512,462 @@ export default function MastersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">DPP Masters</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Build product-level templates with placeholders and release versions for ERP integration.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Master
-        </button>
-      </div>
+      <PageHeader
+        title="DPP Masters"
+        description="Build product-level templates with placeholders and release versions for ERP integration."
+        actions={
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Master
+          </Button>
+        }
+      />
 
-      {isLoading && <div className="text-sm text-gray-500">Loading masters...</div>}
+      {isLoading && <LoadingSpinner />}
       {isError && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {(error as Error)?.message ?? 'Failed to load masters'}
-        </div>
+        <ErrorBanner
+          message={(error as Error)?.message ?? 'Failed to load masters'}
+        />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[320px,1fr] gap-6">
         <div className="space-y-3">
           {(mastersData?.masters ?? []).map((master: MasterItem) => (
-            <button
+            <Card
               key={master.id}
-              onClick={() => setSelectedMasterId(master.id)}
-              className={`w-full text-left rounded-lg border px-4 py-3 ${
+              className={cn(
+                'cursor-pointer transition-colors',
                 master.id === selectedMasterId
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
+                  ? 'border-primary bg-primary/5'
+                  : 'hover:border-muted-foreground/30'
+              )}
+              onClick={() => setSelectedMasterId(master.id)}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-900">{master.name}</span>
-                <Layers className="h-4 w-4 text-gray-400" />
-              </div>
-              <div className="mt-1 text-xs text-gray-500">{master.product_id}</div>
-              <div className="mt-2 text-xs text-gray-400">
-                Templates: {master.selected_templates?.length ?? 0}
-              </div>
-            </button>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">{master.name}</span>
+                  <Layers className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">{master.product_id}</div>
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Templates: {master.selected_templates?.length ?? 0}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          {!selectedMaster && (
-            <div className="text-sm text-gray-500">Select a master to edit and release versions.</div>
-          )}
+        <Card>
+          <CardContent className="p-5">
+            {!selectedMaster && (
+              <p className="text-sm text-muted-foreground">Select a master to edit and release versions.</p>
+            )}
 
-          {selectedMaster && masterDetail && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">{selectedMaster.name}</h2>
-                  <p className="text-sm text-gray-500">{selectedMaster.product_id}</p>
+            {selectedMaster && masterDetail && (
+              <div className="space-y-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">{selectedMaster.name}</h2>
+                    <p className="text-sm text-muted-foreground">{selectedMaster.product_id}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void handleRefreshDetail()}
+                  >
+                    <RefreshCcw className="h-3 w-3 mr-1" />
+                    Refresh
+                  </Button>
                 </div>
-                <button
-                  onClick={() => void handleRefreshDetail()}
-                  className="inline-flex items-center text-xs text-gray-500 hover:text-gray-700"
-                >
-                  <RefreshCcw className="h-3 w-3 mr-1" />
-                  Refresh
-                </button>
-              </div>
 
-              <div className="grid gap-4">
-                <label className="text-xs font-medium text-gray-500">Name</label>
-                <input
-                  value={draftName}
-                  onChange={(event) => setDraftName(event.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                />
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Name</Label>
+                    <Input
+                      value={draftName}
+                      onChange={(event) => setDraftName(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Description</Label>
+                    <Textarea
+                      value={draftDescription}
+                      onChange={(event) => setDraftDescription(event.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </div>
 
-                <label className="text-xs font-medium text-gray-500">Description</label>
-                <textarea
-                  value={draftDescription}
-                  onChange={(event) => setDraftDescription(event.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                  rows={2}
-                />
-              </div>
-
-              <div className="grid gap-4">
-                <label className="text-xs font-medium text-gray-500">Draft Template JSON</label>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-                  <span>Insert placeholder:</span>
-                  <input
-                    value={placeholderName}
-                    onChange={(event) => setPlaceholderName(event.target.value)}
-                    placeholder="SerialNumber"
-                    className="rounded-md border border-gray-200 px-2 py-1 text-xs"
+                <div className="grid gap-4">
+                  <Label className="text-xs">Draft Template JSON</Label>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>Insert placeholder:</span>
+                    <Input
+                      value={placeholderName}
+                      onChange={(event) => setPlaceholderName(event.target.value)}
+                      placeholder="SerialNumber"
+                      className="h-7 w-40 text-xs"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={handleInsertPlaceholder}
+                    >
+                      Insert
+                    </Button>
+                    <span className="text-[11px] text-muted-foreground">
+                      Tip: placeholders should stay inside JSON string values.
+                    </span>
+                  </div>
+                  {placeholderError && (
+                    <ErrorBanner message={placeholderError} />
+                  )}
+                  <Textarea
+                    value={draftJson}
+                    onChange={(event) => setDraftJson(event.target.value)}
+                    ref={templateTextareaRef}
+                    className="h-56 font-mono text-xs"
                   />
-                  <button
-                    type="button"
-                    onClick={handleInsertPlaceholder}
-                    className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                  >
-                    Insert
-                  </button>
-                  <span className="text-[11px] text-gray-400">
-                    Tip: placeholders should stay inside JSON string values.
-                  </span>
                 </div>
-                {placeholderError && (
-                  <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                    {placeholderError}
-                  </div>
-                )}
-                <textarea
-                  value={draftJson}
-                  onChange={(event) => setDraftJson(event.target.value)}
-                  ref={templateTextareaRef}
-                  className="h-56 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs"
-                />
-              </div>
 
-              <div className="border border-gray-100 rounded-md p-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                    <Layers className="h-4 w-4" />
-                    Draft Variables (Structured)
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={handleSyncVariables}
-                    className="text-xs font-medium text-primary-600 hover:text-primary-700"
-                  >
-                    Sync from template
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  {Object.keys(placeholderPaths).length} placeholder(s) detected in draft template.
-                </p>
-                {parsedDraftVariables.error ? (
-                  <div className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                    {parsedDraftVariables.error}
-                  </div>
-                ) : (
-                  <div className="mt-3 space-y-3">
-                    {parsedDraftVariables.value.length === 0 ? (
-                      <div className="text-xs text-gray-500">
-                        No variables defined. Sync placeholders or edit JSON directly.
-                      </div>
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Layers className="h-4 w-4" />
+                        Draft Variables (Structured)
+                      </CardTitle>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="sm"
+                        className="text-xs"
+                        onClick={handleSyncVariables}
+                      >
+                        Sync from template
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {Object.keys(placeholderPaths).length} placeholder(s) detected in draft template.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    {parsedDraftVariables.error ? (
+                      <ErrorBanner message={parsedDraftVariables.error} />
                     ) : (
-                      parsedDraftVariables.value.map((variable, index) => (
-                        <div
-                          key={`${variable.name}-${index}`}
-                          className="rounded-md border border-gray-200 p-3"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-xs font-semibold text-gray-800">
-                              {variable.name || 'Unnamed variable'}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleVariableRemove(index)}
-                              className="text-xs text-red-600 hover:text-red-700"
+                      <div className="space-y-3">
+                        {parsedDraftVariables.value.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">
+                            No variables defined. Sync placeholders or edit JSON directly.
+                          </div>
+                        ) : (
+                          parsedDraftVariables.value.map((variable, index) => (
+                            <Card
+                              key={`${variable.name}-${index}`}
+                              className="p-3"
                             >
-                              Remove
-                            </button>
-                          </div>
-                          {placeholderPaths[variable.name] && (
-                            <div className="mt-1 text-[11px] text-gray-500">
-                              Paths: {placeholderPaths[variable.name].join(', ')}
-                            </div>
-                          )}
-                          <div className="mt-2 grid gap-2 md:grid-cols-2">
-                            <label className="text-xs text-gray-600">
-                              Label
-                              <input
-                                value={variable.label ?? ''}
-                                onChange={(event) =>
-                                  handleVariableUpdate(index, 'label', event.target.value)
-                                }
-                                className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-xs"
-                              />
-                            </label>
-                            <label className="text-xs text-gray-600">
-                              Type
-                              <select
-                                value={variable.expected_type ?? 'string'}
-                                onChange={(event) =>
-                                  handleVariableUpdate(index, 'expected_type', event.target.value)
-                                }
-                                className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-xs"
-                              >
-                                <option value="string">string</option>
-                                <option value="number">number</option>
-                                <option value="boolean">boolean</option>
-                                <option value="date">date</option>
-                                <option value="datetime">datetime</option>
-                              </select>
-                            </label>
-                            <label className="text-xs text-gray-600">
-                              Default Value
-                              <input
-                                value={coerceInputValue(variable.default_value)}
-                                onChange={(event) =>
-                                  handleVariableUpdate(
-                                    index,
-                                    'default_value',
-                                    event.target.value || null
-                                  )
-                                }
-                                className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-xs"
-                              />
-                            </label>
-                            <div className="flex items-center gap-4">
-                              <label className="flex items-center gap-2 text-xs text-gray-600">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(variable.required)}
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-xs font-semibold">
+                                  {variable.name || 'Unnamed variable'}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-xs text-destructive hover:text-destructive h-auto py-1"
+                                  onClick={() => handleVariableRemove(index)}
+                                >
+                                  Remove
+                                </Button>
+                              </div>
+                              {placeholderPaths[variable.name] && (
+                                <div className="mt-1 text-[11px] text-muted-foreground">
+                                  Paths: {placeholderPaths[variable.name].join(', ')}
+                                </div>
+                              )}
+                              <div className="mt-2 grid gap-2 md:grid-cols-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Label</Label>
+                                  <Input
+                                    value={variable.label ?? ''}
+                                    onChange={(event) =>
+                                      handleVariableUpdate(index, 'label', event.target.value)
+                                    }
+                                    className="h-7 text-xs"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Type</Label>
+                                  <select
+                                    value={variable.expected_type ?? 'string'}
+                                    onChange={(event) =>
+                                      handleVariableUpdate(index, 'expected_type', event.target.value)
+                                    }
+                                    className="flex h-7 w-full rounded-md border border-input bg-background px-2 py-1 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  >
+                                    <option value="string">string</option>
+                                    <option value="number">number</option>
+                                    <option value="boolean">boolean</option>
+                                    <option value="date">date</option>
+                                    <option value="datetime">datetime</option>
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Default Value</Label>
+                                  <Input
+                                    value={coerceInputValue(variable.default_value)}
+                                    onChange={(event) =>
+                                      handleVariableUpdate(
+                                        index,
+                                        'default_value',
+                                        event.target.value || null
+                                      )
+                                    }
+                                    className="h-7 text-xs"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-4 pt-4">
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`required-${index}`}
+                                      checked={Boolean(variable.required)}
+                                      onCheckedChange={(checked) =>
+                                        handleVariableUpdate(index, 'required', Boolean(checked))
+                                      }
+                                    />
+                                    <Label htmlFor={`required-${index}`} className="text-xs">Required</Label>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Checkbox
+                                      id={`allow-default-${index}`}
+                                      checked={Boolean(variable.allow_default)}
+                                      onCheckedChange={(checked) =>
+                                        handleVariableUpdate(index, 'allow_default', Boolean(checked))
+                                      }
+                                    />
+                                    <Label htmlFor={`allow-default-${index}`} className="text-xs">Allow default</Label>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="mt-2 space-y-1">
+                                <Label className="text-xs">Description</Label>
+                                <Textarea
+                                  value={variable.description ?? ''}
                                   onChange={(event) =>
-                                    handleVariableUpdate(index, 'required', event.target.checked)
+                                    handleVariableUpdate(index, 'description', event.target.value)
                                   }
+                                  className="text-xs"
+                                  rows={2}
                                 />
-                                Required
-                              </label>
-                              <label className="flex items-center gap-2 text-xs text-gray-600">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(variable.allow_default)}
-                                  onChange={(event) =>
-                                    handleVariableUpdate(index, 'allow_default', event.target.checked)
-                                  }
-                                />
-                                Allow default
-                              </label>
-                            </div>
-                          </div>
-                          <label className="mt-2 block text-xs text-gray-600">
-                            Description
-                            <textarea
-                              value={variable.description ?? ''}
-                              onChange={(event) =>
-                                handleVariableUpdate(index, 'description', event.target.value)
-                              }
-                              className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1 text-xs"
-                              rows={2}
-                            />
-                          </label>
-                        </div>
-                      ))
+                              </div>
+                            </Card>
+                          ))
+                        )}
+                      </div>
                     )}
-                  </div>
-                )}
-              </div>
+                  </CardContent>
+                </Card>
 
-              <div className="grid gap-4">
-                <label className="text-xs font-medium text-gray-500">Draft Variables JSON (Raw)</label>
-                <textarea
-                  value={draftVariables}
-                  onChange={(event) => setDraftVariables(event.target.value)}
-                  className="h-48 w-full rounded-md border border-gray-200 px-3 py-2 font-mono text-xs"
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={handleSaveDraft}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Draft
-                </button>
-                {updateMutation.isError && (
-                  <span className="text-xs text-red-600">
-                    {(updateMutation.error as Error)?.message ?? 'Failed to save'}
-                  </span>
-                )}
-              </div>
-              {draftParseError && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                  {draftParseError}
+                <div className="grid gap-4">
+                  <Label className="text-xs">Draft Variables JSON (Raw)</Label>
+                  <Textarea
+                    value={draftVariables}
+                    onChange={(event) => setDraftVariables(event.target.value)}
+                    className="h-48 font-mono text-xs"
+                  />
                 </div>
-              )}
 
-              <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                  <Tag className="h-4 w-4" />
-                  Release Version
-                </h3>
-                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500">Version</label>
-                    <input
-                      value={releaseVersion}
-                      onChange={(event) => setReleaseVersion(event.target.value)}
-                      placeholder="1.0.0"
-                      className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500">Aliases (comma separated)</label>
-                    <input
-                      value={releaseAliases}
-                      onChange={(event) => setReleaseAliases(event.target.value)}
-                      placeholder="latest, stable"
-                      className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-between">
-                  <button
-                    onClick={handleRelease}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800"
-                    disabled={!releaseVersion}
-                  >
-                    Release
-                  </button>
-                  {releaseMutation.isError && (
-                    <span className="text-xs text-red-600">
-                      {(releaseMutation.error as Error)?.message ?? 'Failed to release'}
+                <div className="flex items-center justify-between">
+                  <Button onClick={handleSaveDraft}>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Draft
+                  </Button>
+                  {updateMutation.isError && (
+                    <span className="text-xs text-destructive">
+                      {(updateMutation.error as Error)?.message ?? 'Failed to save'}
                     </span>
                   )}
                 </div>
-              </div>
+                {draftParseError && (
+                  <ErrorBanner message={draftParseError} />
+                )}
 
-              <div className="border-t border-gray-100 pt-4">
-                <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                  <Layers className="h-4 w-4" />
-                  Latest Release Preview
-                </h3>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <select
-                    value={previewVersion}
-                    onChange={(event) => setPreviewVersion(event.target.value)}
-                    className="rounded-md border border-gray-200 px-3 py-2 text-xs"
-                  >
-                    <option value="latest">latest</option>
-                    {(masterVersions ?? []).map((version) => (
-                      <option key={version.id} value={version.version}>
-                        {version.version}{version.aliases.length > 0 ? ` · ${version.aliases.join(', ')}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleLoadPreview}
-                    className="inline-flex items-center px-3 py-2 text-xs font-medium text-white bg-gray-900 rounded-md hover:bg-gray-800"
-                  >
-                    {previewLoading ? 'Loading...' : 'Load Preview'}
-                  </button>
-                  {previewError && (
-                    <span className="text-xs text-red-600">{previewError}</span>
-                  )}
-                </div>
-                {previewTemplate && (
-                  <div className="mt-3 space-y-3">
-                    <div className="text-xs text-gray-600">
-                      Version: {previewTemplate.version} · Aliases:{' '}
-                      {previewTemplate.aliases.join(', ') || 'none'}
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500">Template JSON</label>
-                      <textarea
-                        value={previewTemplate.template_string}
-                        readOnly
-                        className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-xs font-mono"
-                        rows={6}
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Tag className="h-4 w-4" />
+                    Release Version
+                  </h3>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Version</Label>
+                      <Input
+                        value={releaseVersion}
+                        onChange={(event) => setReleaseVersion(event.target.value)}
+                        placeholder="1.0.0"
                       />
                     </div>
-                    <div>
-                      <label className="text-xs font-medium text-gray-500">Variables</label>
-                      <div className="mt-1 rounded-md border border-gray-200 p-2 text-xs text-gray-600">
-                        {previewTemplate.variables.length === 0
-                          ? 'No variables defined for this release.'
-                          : previewTemplate.variables.map((variable) => (
-                              <div key={variable.name} className="py-1">
-                                <span className="font-semibold">{variable.name}</span>
-                                {variable.label ? ` · ${variable.label}` : ''}{' '}
-                                {variable.required ? '(required)' : '(optional)'}
-                              </div>
-                            ))}
-                      </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Aliases (comma separated)</Label>
+                      <Input
+                        value={releaseAliases}
+                        onChange={(event) => setReleaseAliases(event.target.value)}
+                        placeholder="latest, stable"
+                      />
                     </div>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="secondary"
+                      onClick={handleRelease}
+                      disabled={!releaseVersion}
+                    >
+                      Release
+                    </Button>
+                    {releaseMutation.isError && (
+                      <span className="text-xs text-destructive">
+                        {(releaseMutation.error as Error)?.message ?? 'Failed to release'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Layers className="h-4 w-4" />
+                    Latest Release Preview
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <select
+                      value={previewVersion}
+                      onChange={(event) => setPreviewVersion(event.target.value)}
+                      className="flex h-9 rounded-md border border-input bg-background px-3 py-2 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                    >
+                      <option value="latest">latest</option>
+                      {(masterVersions ?? []).map((version) => (
+                        <option key={version.id} value={version.version}>
+                          {version.version}{version.aliases.length > 0 ? ` · ${version.aliases.join(', ')}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleLoadPreview}
+                    >
+                      {previewLoading ? 'Loading...' : 'Load Preview'}
+                    </Button>
+                    {previewError && (
+                      <span className="text-xs text-destructive">{previewError}</span>
+                    )}
+                  </div>
+                  {previewTemplate && (
+                    <div className="space-y-3">
+                      <div className="text-xs text-muted-foreground">
+                        Version: {previewTemplate.version} · Aliases:{' '}
+                        {previewTemplate.aliases.join(', ') || 'none'}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Template JSON</Label>
+                        <Textarea
+                          value={previewTemplate.template_string}
+                          readOnly
+                          className="font-mono text-xs"
+                          rows={6}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Variables</Label>
+                        <Card className="p-2 text-xs text-muted-foreground">
+                          {previewTemplate.variables.length === 0
+                            ? 'No variables defined for this release.'
+                            : previewTemplate.variables.map((variable) => (
+                                <div key={variable.name} className="py-1">
+                                  <span className="font-semibold">{variable.name}</span>
+                                  {variable.label ? ` · ${variable.label}` : ''}{' '}
+                                  {variable.required ? '(required)' : '(optional)'}
+                                </div>
+                              ))}
+                        </Card>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Create Master</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Product ID</Label>
+              <Input name="productId" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Name</Label>
+              <Input name="name" required />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea name="description" rows={2} />
+            </div>
+            <div className="space-y-2">
+              <Label>Manufacturer Part ID</Label>
+              <Input name="manufacturerPartId" placeholder="Defaults to Product ID" />
+            </div>
+            <div className="space-y-2">
+              <Label>Select Templates</Label>
+              <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border p-3">
+                {templates.map((template) => (
+                  <label key={template.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name={`tpl-${template.template_key}`}
+                      className="h-4 w-4 rounded border-gray-300 text-primary"
+                    />
+                    <span>{template.template_key}</span>
+                    <span className="text-xs text-muted-foreground">v{template.idta_version}</span>
+                  </label>
+                ))}
+                {templates.length === 0 && (
+                  <span className="text-sm text-muted-foreground">No templates available.</span>
                 )}
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-xl rounded-lg bg-white p-6">
-            <h2 className="text-lg font-semibold text-gray-900">Create Master</h2>
-            <form onSubmit={handleCreate} className="mt-4 space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-700">Product ID</label>
-                <input
-                  name="productId"
-                  required
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Name</label>
-                <input
-                  name="name"
-                  required
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Description</label>
-                <textarea
-                  name="description"
-                  rows={2}
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Manufacturer Part ID</label>
-                <input
-                  name="manufacturerPartId"
-                  placeholder="Defaults to Product ID"
-                  className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-700">Select Templates</label>
-                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto rounded-md border border-gray-200 p-3">
-                  {templates.map((template) => (
-                    <label key={template.id} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        name={`tpl-${template.template_key}`}
-                        className="h-4 w-4 rounded border-gray-300 text-primary-600"
-                      />
-                      <span>{template.template_key}</span>
-                      <span className="text-xs text-gray-400">v{template.idta_version}</span>
-                    </label>
-                  ))}
-                  {templates.length === 0 && (
-                    <span className="text-sm text-gray-500">No templates available.</span>
-                  )}
-                </div>
-              </div>
-              {createMutation.isError && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                  {(createMutation.error as Error)?.message ?? 'Failed to create master'}
-                </div>
-              )}
-              {createError && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-700">
-                  {createError}
-                </div>
-              )}
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-md bg-primary-600 px-4 py-2 text-sm font-medium text-white"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+            {createMutation.isError && (
+              <ErrorBanner
+                message={(createMutation.error as Error)?.message ?? 'Failed to create master'}
+              />
+            )}
+            {createError && (
+              <ErrorBanner message={createError} />
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreateModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit">
+                Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

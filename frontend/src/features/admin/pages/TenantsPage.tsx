@@ -1,8 +1,26 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { Plus, Users, Trash2 } from 'lucide-react';
+import { Plus, Users, Trash2, Building2 } from 'lucide-react';
 import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { PageHeader } from '@/components/page-header';
+import { LoadingSpinner } from '@/components/loading-spinner';
+import { EmptyState } from '@/components/empty-state';
+import { ErrorBanner } from '@/components/error-banner';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 interface Tenant {
   id: string;
@@ -139,196 +157,212 @@ export default function TenantsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Tenants</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Manage tenant workspaces and memberships.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          New Tenant
-        </button>
-      </div>
+      <PageHeader
+        title="Tenants"
+        description="Manage tenant workspaces and memberships."
+        actions={
+          <Button onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Tenant
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {(error as Error)?.message || 'Failed to load tenants.'}
-        </div>
+        <ErrorBanner
+          message={(error as Error)?.message || 'Failed to load tenants.'}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="px-6 py-4 border-b">
-            <h2 className="text-sm font-semibold text-gray-700">Tenant List</h2>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Tenant List</CardTitle>
+          </CardHeader>
           {isLoading ? (
-            <div className="p-6 text-sm text-gray-500">Loading tenants...</div>
+            <LoadingSpinner size="sm" />
           ) : (
-            <ul className="divide-y">
-              {tenants.map((tenant) => (
-                <li
-                  key={tenant.id}
-                  className={`px-6 py-4 cursor-pointer ${
-                    selectedTenant?.id === tenant.id ? 'bg-primary-50' : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => setSelectedTenant(tenant)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{tenant.name}</p>
-                      <p className="text-xs text-gray-500">{tenant.slug}</p>
+            <ScrollArea className="max-h-[500px]">
+              <div className="divide-y">
+                {tenants.map((tenant) => (
+                  <button
+                    key={tenant.id}
+                    type="button"
+                    className={cn(
+                      'w-full px-6 py-4 text-left transition-colors',
+                      selectedTenant?.id === tenant.id
+                        ? 'bg-primary/5'
+                        : 'hover:bg-muted/50'
+                    )}
+                    onClick={() => setSelectedTenant(tenant)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{tenant.name}</p>
+                        <p className="text-xs text-muted-foreground">{tenant.slug}</p>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          tenant.status === 'active'
+                            ? 'bg-green-100 text-green-700 hover:bg-green-100'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-100'
+                        )}
+                      >
+                        {tenant.status}
+                      </Badge>
                     </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      tenant.status === 'active'
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-200 text-gray-600'
-                    }`}>
-                      {tenant.status}
-                    </span>
-                  </div>
-                </li>
-              ))}
-              {tenants.length === 0 && (
-                <li className="px-6 py-6 text-sm text-gray-500">No tenants yet.</li>
-              )}
-            </ul>
+                  </button>
+                ))}
+                {tenants.length === 0 && (
+                  <EmptyState
+                    icon={Building2}
+                    title="No tenants yet"
+                    description="Create a tenant to get started."
+                  />
+                )}
+              </div>
+            </ScrollArea>
           )}
-        </div>
+        </Card>
 
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b flex items-center justify-between">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
-              <h2 className="text-sm font-semibold text-gray-700">Tenant Members</h2>
-              <p className="text-xs text-gray-500">
+              <CardTitle className="text-sm">Tenant Members</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
                 {selectedTenant ? selectedTenant.name : 'Select a tenant to manage members'}
               </p>
             </div>
-            <Users className="h-5 w-5 text-gray-400" />
-          </div>
+            <Users className="h-5 w-5 text-muted-foreground" />
+          </CardHeader>
 
           {selectedTenant ? (
-            <div className="p-6 space-y-4">
+            <CardContent className="space-y-4">
               <form onSubmit={handleAddMember} className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]">
-                <input
+                <Input
                   name="user_subject"
                   type="text"
                   placeholder="user subject (OIDC sub)"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                   required
                 />
                 <select
                   name="role"
                   defaultValue="viewer"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
                   <option value="viewer">viewer</option>
                   <option value="publisher">publisher</option>
                   <option value="tenant_admin">tenant_admin</option>
                 </select>
-                <button
+                <Button
                   type="submit"
-                  className="inline-flex items-center justify-center rounded-md bg-primary-600 px-3 py-2 text-sm text-white hover:bg-primary-700"
                   disabled={addMemberMutation.isPending}
                 >
                   Add
-                </button>
+                </Button>
               </form>
 
               {membersQuery.isError && (
-                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {(membersQuery.error as Error)?.message || 'Failed to load members.'}
-                </div>
+                <ErrorBanner
+                  message={(membersQuery.error as Error)?.message || 'Failed to load members.'}
+                />
               )}
 
               {membersQuery.isLoading ? (
-                <div className="text-sm text-gray-500">Loading members...</div>
+                <LoadingSpinner size="sm" />
               ) : (
                 <div className="space-y-2">
                   {(membersQuery.data?.members || []).map((member: TenantMember) => (
-                    <div
-                      key={member.user_subject}
-                      className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm text-gray-900">{member.user_subject}</p>
-                        <p className="text-xs text-gray-500">{member.role}</p>
+                    <Card key={member.user_subject} className="p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                            {member.user_subject.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm">{member.user_subject}</p>
+                            <p className="text-xs text-muted-foreground">{member.role}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeMemberMutation.mutate(member.user_subject)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => removeMemberMutation.mutate(member.user_subject)}
-                        className="inline-flex items-center text-xs text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="h-4 w-4 mr-1" />
-                        Remove
-                      </button>
-                    </div>
+                    </Card>
                   ))}
                   {(membersQuery.data?.members || []).length === 0 && (
-                    <div className="text-sm text-gray-500">No members yet.</div>
+                    <EmptyState
+                      icon={Users}
+                      title="No members yet"
+                      description="Add members to this tenant."
+                    />
                   )}
                 </div>
               )}
-            </div>
+            </CardContent>
           ) : (
-            <div className="p-6 text-sm text-gray-500">Select a tenant to view members.</div>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Select a tenant to view members.</p>
+            </CardContent>
           )}
-        </div>
+        </Card>
       </div>
 
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <h2 className="text-lg font-semibold mb-4">Create Tenant</h2>
-            <form onSubmit={handleCreateTenant} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Slug</label>
-                <input
-                  name="slug"
-                  type="text"
-                  required
-                  placeholder="tenant-slug"
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Name</label>
-                <input
-                  name="name"
-                  type="text"
-                  required
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                />
-              </div>
-              {createMutation.isError && (
-                <p className="text-sm text-red-600">
-                  {(createMutation.error as Error)?.message || 'Failed to create tenant.'}
-                </p>
-              )}
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 border rounded-md"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createMutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 rounded-md disabled:opacity-50"
-                >
-                  {createMutation.isPending ? 'Creating...' : 'Create'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Tenant</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleCreateTenant} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="tenant-slug">Slug</Label>
+              <Input
+                id="tenant-slug"
+                name="slug"
+                type="text"
+                required
+                placeholder="tenant-slug"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tenant-name">Name</Label>
+              <Input
+                id="tenant-name"
+                name="name"
+                type="text"
+                required
+              />
+            </div>
+            {createMutation.isError && (
+              <p className="text-sm text-destructive">
+                {(createMutation.error as Error)?.message || 'Failed to create tenant.'}
+              </p>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowCreate(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+              >
+                {createMutation.isPending ? 'Creating...' : 'Create'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

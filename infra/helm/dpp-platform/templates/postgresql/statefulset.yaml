@@ -1,0 +1,108 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "postgresql") }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "postgresql") | nindent 4 }}
+spec:
+  serviceName: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "postgresql") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "postgresql") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dpp-platform.componentLabels" (dict "context" . "component" "postgresql") | nindent 8 }}
+    spec:
+      containers:
+        - name: postgresql
+          image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          args:
+            - -c
+            - shared_buffers={{ .Values.postgresql.config.sharedBuffers }}
+            - -c
+            - work_mem={{ .Values.postgresql.config.workMem }}
+            - -c
+            - max_connections={{ .Values.postgresql.config.maxConnections }}
+          ports:
+            - name: postgresql
+              containerPort: {{ .Values.postgresql.port }}
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: postgres-password
+            - name: POSTGRES_DB
+              value: dpp_platform
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            {{- toYaml .Values.postgresql.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - dpp_platform
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - dpp_platform
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.postgresql.storageClass }}
+        storageClassName: {{ .Values.postgresql.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.postgresql.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "postgresql") }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "postgresql") | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: {{ .Values.postgresql.port }}
+      targetPort: postgresql
+      protocol: TCP
+      name: postgresql
+  selector:
+    {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "postgresql") | nindent 4 }}
+{{- end }}

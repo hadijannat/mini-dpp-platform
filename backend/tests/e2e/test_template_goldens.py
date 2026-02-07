@@ -70,6 +70,15 @@ def test_templates_match_goldens(api_client: httpx.Client) -> None:
         definition_hash = _sha256_json(definition)
         schema_hash = _sha256_json(schema)
 
+        contract_resp = api_client.get(f"/api/v1/templates/{key}/contract")
+        assert contract_resp.status_code == 200, contract_resp.text
+        contract_payload = contract_resp.json()
+        contract_definition = contract_payload.get("definition")
+        contract_schema = contract_payload.get("schema")
+        assert isinstance(contract_payload.get("source_metadata"), dict)
+        assert _sha256_json(contract_definition) == definition_hash
+        assert _sha256_json(contract_schema) == schema_hash
+
         expected_def = golden["expected"]["definition_sha256"]
         expected_schema = golden["expected"]["schema_sha256"]
 

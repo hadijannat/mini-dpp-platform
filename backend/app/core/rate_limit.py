@@ -4,6 +4,7 @@ Redis-based sliding window rate limiting middleware.
 
 from __future__ import annotations
 
+import ipaddress
 import time
 
 import redis.asyncio as redis
@@ -20,13 +21,25 @@ logger = get_logger(__name__)
 _redis: redis.Redis | None = None
 
 
+def _get_rate_limit_redis_url() -> str:
+    """Return the Redis URL for rate limiting (separate DB to avoid LRU eviction)."""
+    settings = get_settings()
+    if settings.redis_rate_limit_url:
+        return str(settings.redis_rate_limit_url)
+    # Default: use DB 1 of the same Redis instance (cache uses DB 0)
+    base = str(settings.redis_url)
+    if base.endswith("/0"):
+        return base[:-1] + "1"
+    return base
+
+
 async def get_redis() -> redis.Redis | None:
-    """Get or create the module-level Redis connection."""
+    """Get or create the module-level Redis connection for rate limiting."""
     global _redis
     if _redis is None:
-        settings = get_settings()
         try:
-            _redis = redis.from_url(str(settings.redis_url), decode_responses=True)  # type: ignore[no-untyped-call]
+            url = _get_rate_limit_redis_url()
+            _redis = redis.from_url(url, decode_responses=True)  # type: ignore[no-untyped-call]
             _ok: object = await _redis.ping()
         except Exception:
             logger.warning("rate_limit_redis_unavailable")
@@ -42,13 +55,30 @@ async def close_redis() -> None:
         _redis = None
 
 
-def _get_client_ip(request: Request) -> str:
-    """Extract real client IP, respecting proxy headers when behind a reverse proxy.
+def _is_trusted_proxy(remote_ip: str) -> bool:
+    """Check whether *remote_ip* falls within a configured trusted proxy CIDR."""
+    settings = get_settings()
+    try:
+        addr = ipaddress.ip_address(remote_ip)
+    except ValueError:
+        return False
+    return any(
+        addr in ipaddress.ip_network(cidr, strict=False) for cidr in settings.trusted_proxy_cidrs
+    )
 
-    Checks X-Forwarded-For and X-Real-IP headers. For X-Forwarded-For, the
-    leftmost IP is the original client (proxies append to the right).
-    Falls back to the direct connection IP.
+
+def _get_client_ip(request: Request) -> str:
+    """Extract real client IP, only trusting proxy headers from known proxies.
+
+    If the direct connection comes from a trusted proxy CIDR, the
+    X-Forwarded-For / X-Real-IP headers are honoured.  Otherwise the
+    connection's remote address is returned directly, preventing IP spoofing.
     """
+    connection_ip = request.client.host if request.client else "unknown"
+
+    if connection_ip == "unknown" or not _is_trusted_proxy(connection_ip):
+        return connection_ip
+
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
         # X-Forwarded-For: client, proxy1, proxy2 — leftmost is the real client
@@ -60,7 +90,7 @@ def _get_client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
 
-    return request.client.host if request.client else "unknown"
+    return connection_ip
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

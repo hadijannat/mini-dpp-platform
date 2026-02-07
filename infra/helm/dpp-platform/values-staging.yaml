@@ -1,0 +1,38 @@
+# Staging environment overrides
+global:
+  environment: staging
+  domain: staging.dpp-platform.dev
+  authDomain: auth.staging.dpp-platform.dev
+
+backend:
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+  env:
+    LOG_LEVEL: INFO
+
+frontend:
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+edc:
+  enabled: true
+  controlplane:
+    replicas: 1
+  dataplane:
+    replicas: 1
+
+postgresql:
+  storage: 10Gi
+
+minio:
+  storage: 10Gi
+
+ingress:
+  tls:
+    enabled: true

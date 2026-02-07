@@ -1,0 +1,80 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "redis") }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "redis") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dpp-platform.componentLabels" (dict "context" . "component" "redis") | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --maxmemory
+            - {{ .Values.redis.maxmemory | quote }}
+            - --maxmemory-policy
+            - volatile-lru
+            - --requirepass
+            - $(REDIS_PASSWORD)
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redis.port }}
+              protocol: TCP
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: redis-password
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "redis") }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "redis") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.redis.port }}
+      targetPort: redis
+      protocol: TCP
+      name: redis
+  selector:
+    {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "redis") | nindent 4 }}
+{{- end }}

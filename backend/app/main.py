@@ -9,16 +9,23 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import SecurityHeadersMiddleware
-from app.core.rate_limit import RateLimitMiddleware, close_redis
+from app.core.rate_limit import RateLimitMiddleware, close_redis, get_redis
 from app.core.security.abac import close_opa_client
-from app.db.session import close_db, init_db
+from app.db.session import close_db, get_db_session, init_db
+from app.modules.audit.router import router as audit_router
+from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
+from app.modules.digital_thread.router import router as digital_thread_router
+from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
+from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
@@ -72,10 +79,45 @@ def create_application() -> FastAPI:
         title=settings.project_name,
         version=settings.version,
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
-        docs_url=f"{settings.api_v1_prefix}/docs",
+        docs_url=None,  # Custom docs endpoint below
         redoc_url=f"{settings.api_v1_prefix}/redoc",
         lifespan=lifespan,
     )
+
+    # Custom Swagger UI endpoint — FastAPI's built-in version has a timing
+    # issue with swagger-ui v5 where the inline init script fires before the
+    # bundle's internal React setup completes, producing a blank page. This
+    # defers initialization to window.onload to guarantee readiness.
+    @app.get(f"{settings.api_v1_prefix}/docs", include_in_schema=False)
+    async def custom_swagger_ui() -> HTMLResponse:
+        return HTMLResponse(f"""<!DOCTYPE html>
+<html>
+<head>
+<link type="text/css" rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+<title>{settings.project_name} - Swagger UI</title>
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+<script>
+window.onload = function() {{
+    SwaggerUIBundle({{
+        url: "{settings.api_v1_prefix}/openapi.json",
+        dom_id: "#swagger-ui",
+        layout: "BaseLayout",
+        deepLinking: true,
+        showExtensions: true,
+        showCommonExtensions: true,
+        presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIBundle.SwaggerUIStandalonePreset
+        ]
+    }});
+}};
+</script>
+</body>
+</html>""")
 
     # ==========================================================================
     # Middleware Configuration
@@ -106,10 +148,61 @@ def create_application() -> FastAPI:
 
     # Health check endpoint (no auth required)
     @app.get("/health", tags=["Health"])
-    async def health_check() -> dict[str, str]:
-        return {"status": "healthy", "version": settings.version}
+    async def health_check() -> dict[str, object]:
+        checks: dict[str, str] = {}
 
-    # API v1 routers
+        # Probe PostgreSQL
+        try:
+            async for session in get_db_session():
+                await session.execute(text("SELECT 1"))
+            checks["db"] = "ok"
+        except Exception:
+            checks["db"] = "unavailable"
+
+        # Probe Redis
+        try:
+            r = await get_redis()
+            if r is not None:
+                await r.ping()  # type: ignore[misc,unused-ignore]
+                checks["redis"] = "ok"
+            else:
+                checks["redis"] = "unavailable"
+        except Exception:
+            checks["redis"] = "unavailable"
+
+        # Probe EDC (if configured)
+        if settings.edc_management_url:
+            try:
+                from app.modules.connectors.edc.client import (
+                    EDCConfig,
+                    EDCManagementClient,
+                )
+                from app.modules.connectors.edc.health import check_edc_health
+
+                edc_cfg = EDCConfig(
+                    management_url=settings.edc_management_url,
+                    api_key=settings.edc_management_api_key,
+                )
+                client = EDCManagementClient(edc_cfg)
+                try:
+                    edc_result = await check_edc_health(client)
+                    checks["edc"] = edc_result.get("status", "unavailable")
+                finally:
+                    await client.close()
+            except Exception:
+                checks["edc"] = "unavailable"
+
+        overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
+        return {"status": overall, "version": settings.version, "checks": checks}
+
+    # Public API (no authentication required)
+    app.include_router(
+        public_dpps_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public DPPs"],
+    )
+
+    # API v1 routers (authenticated)
     app.include_router(
         tenants_router,
         prefix=f"{settings.api_v1_prefix}/tenants",
@@ -156,6 +249,31 @@ def create_application() -> FastAPI:
         prefix=f"{settings.api_v1_prefix}/admin/settings",
         tags=["Settings"],
     )
+    app.include_router(
+        compliance_router,
+        prefix=f"{tenant_prefix}/compliance",
+        tags=["Compliance"],
+    )
+    app.include_router(
+        audit_router,
+        prefix=f"{settings.api_v1_prefix}/admin/audit",
+        tags=["Audit"],
+    )
+    app.include_router(
+        digital_thread_router,
+        prefix=f"{tenant_prefix}/thread",
+        tags=["Digital Thread"],
+    )
+    app.include_router(
+        lca_router,
+        prefix=f"{tenant_prefix}/lca",
+        tags=["LCA"],
+    )
+
+    # Prometheus metrics endpoint
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
     return app
 

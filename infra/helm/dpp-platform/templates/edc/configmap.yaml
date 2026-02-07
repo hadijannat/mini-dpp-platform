@@ -1,0 +1,49 @@
+{{- if .Values.edc.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-config
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "edc") | nindent 4 }}
+data:
+  config.properties: |
+    # Identity
+    edc.participant.id={{ .Values.edc.participantId }}
+
+    # API Ports — Controlplane
+    web.http.default.port={{ .Values.edc.controlplane.defaultPort }}
+    web.http.default.path=/api
+    web.http.management.port={{ .Values.edc.controlplane.managementPort }}
+    web.http.management.path=/management
+    web.http.protocol.port={{ .Values.edc.controlplane.protocolPort }}
+    web.http.protocol.path=/protocol
+    web.http.public.port={{ .Values.edc.controlplane.publicPort }}
+    web.http.public.path=/public
+    web.http.control.port={{ .Values.edc.controlplane.controlPort }}
+    web.http.control.path=/control
+
+    # DSP callback
+    edc.dsp.callback.address=https://{{ .Values.global.domain }}/edc/dsp
+
+    # DataPlane selector
+    edc.dataplane.selector.defaultplane.url=http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-dataplane:{{ .Values.edc.dataplane.controlPort }}/control/transfer
+    edc.dataplane.selector.defaultplane.sourcetypes=HttpData
+    edc.dataplane.selector.defaultplane.destinationtypes=HttpProxy,HttpData
+    edc.dataplane.selector.defaultplane.properties={"publicApiUrl":"http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-dataplane:{{ .Values.edc.dataplane.publicPort }}/public"}
+
+    # PostgreSQL persistence (credentials injected via env)
+    edc.datasource.asset.name=asset
+    edc.datasource.contractdefinition.name=contractdefinition
+    edc.datasource.contractnegotiation.name=contractnegotiation
+    edc.datasource.policy.name=policy
+    edc.datasource.transferprocess.name=transferprocess
+
+  logging.properties: |
+    .level=INFO
+    org.eclipse.edc.level=INFO
+    handlers=java.util.logging.ConsoleHandler
+    java.util.logging.ConsoleHandler.formatter=java.util.logging.SimpleFormatter
+    java.util.logging.ConsoleHandler.level=ALL
+    java.util.logging.SimpleFormatter.format=[%1$tF %1$tT] [%4$s] %3$s - %5$s%6$s%n
+{{- end }}

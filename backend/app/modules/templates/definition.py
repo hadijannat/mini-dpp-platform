@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict
 from typing import Any
 
 from basyx.aas import model
 
+from app.modules.aas.model_utils import enum_to_str, iterable_attr, lang_string_set_to_dict
+from app.modules.aas.references import reference_to_dict, reference_to_str
 from app.modules.templates.basyx_parser import ParsedTemplate
 from app.modules.templates.qualifiers import parse_smt_qualifiers
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateDefinitionBuilder:
@@ -26,7 +31,7 @@ class TemplateDefinitionBuilder:
         definition: dict[str, Any] = {
             "template_key": template_key,
             "idta_version": idta_version,
-            "semantic_id": semantic_id or self._reference_to_str(submodel.semantic_id),
+            "semantic_id": semantic_id or reference_to_str(submodel.semantic_id),
             "submodel": self._submodel_definition(submodel),
         }
         if parsed.concept_descriptions:
@@ -46,7 +51,7 @@ class TemplateDefinitionBuilder:
         definition: dict[str, Any] = {
             "template_key": template_key,
             "idta_version": idta_version,
-            "semantic_id": semantic_id or self._reference_to_str(submodel.semantic_id),
+            "semantic_id": semantic_id or reference_to_str(submodel.semantic_id),
             "submodel": self._submodel_definition(submodel),
         }
         if concept_descriptions:
@@ -57,14 +62,16 @@ class TemplateDefinitionBuilder:
 
     def _submodel_definition(self, submodel: model.Submodel) -> dict[str, Any]:
         qualifiers = self._qualifiers_to_dicts(submodel)
-        elements = self._iterable_attr(submodel, "submodel_element", "submodel_elements")
+        elements = self._sorted_elements(
+            iterable_attr(submodel, "submodel_element", "submodel_elements")
+        )
         return {
             "id": submodel.id,
             "idShort": submodel.id_short,
-            "kind": self._enum_to_str(getattr(submodel, "kind", None)),
-            "semanticId": self._reference_to_str(submodel.semantic_id),
-            "displayName": self._lang_string_set(submodel.display_name),
-            "description": self._lang_string_set(submodel.description),
+            "kind": enum_to_str(getattr(submodel, "kind", None)),
+            "semanticId": reference_to_str(submodel.semantic_id),
+            "displayName": lang_string_set_to_dict(submodel.display_name),
+            "description": lang_string_set_to_dict(submodel.description),
             "qualifiers": qualifiers,
             "smt": asdict(parse_smt_qualifiers(qualifiers)),
             "elements": [
@@ -91,63 +98,101 @@ class TemplateDefinitionBuilder:
             "path": path,
             "idShort": id_short,
             "modelType": model_type,
-            "semanticId": self._reference_to_str(element.semantic_id),
-            "displayName": self._lang_string_set(element.display_name),
-            "description": self._lang_string_set(element.description),
+            "semanticId": reference_to_str(element.semantic_id),
+            "displayName": lang_string_set_to_dict(element.display_name),
+            "description": lang_string_set_to_dict(element.description),
             "qualifiers": qualifiers,
             "smt": asdict(parse_smt_qualifiers(qualifiers)),
         }
 
         if isinstance(element, model.Property):
-            node["valueType"] = self._enum_to_str(element.value_type)
+            node["valueType"] = enum_to_str(element.value_type)
         elif isinstance(element, model.MultiLanguageProperty):
             node["valueType"] = "langStringSet"
         elif isinstance(element, model.Range):
-            node["valueType"] = self._enum_to_str(element.value_type)
+            node["valueType"] = enum_to_str(element.value_type)
         elif isinstance(element, (model.File, model.Blob)):
             node["contentType"] = element.content_type
         elif isinstance(element, model.SubmodelElementCollection):
-            children = self._iterable_attr(
-                element, "value", "submodel_element", "submodel_elements"
+            children = self._sorted_elements(
+                iterable_attr(element, "value", "submodel_element", "submodel_elements")
             )
             node["children"] = [
                 self._element_definition(child, parent_path=path) for child in children
             ]
         elif isinstance(element, model.SubmodelElementList):
             node["orderRelevant"] = element.order_relevant
-            node["typeValueListElement"] = self._enum_to_str(element.type_value_list_element)
-            node["valueTypeListElement"] = self._enum_to_str(element.value_type_list_element)
+            node["typeValueListElement"] = enum_to_str(element.type_value_list_element)
+            node["valueTypeListElement"] = enum_to_str(element.value_type_list_element)
             node["items"] = self._list_item_definition(element, path)
         elif isinstance(element, model.Entity):
-            node["entityType"] = self._enum_to_str(element.entity_type)
-            statements = self._iterable_attr(element, "statement", "statements")
+            node["entityType"] = enum_to_str(element.entity_type)
+            statements = self._sorted_elements(iterable_attr(element, "statement", "statements"))
             statement_path = f"{path}/statements" if path else "statements"
             node["statements"] = [
                 self._element_definition(child, parent_path=statement_path) for child in statements
             ]
+        elif isinstance(element, model.ReferenceElement):
+            node["valueType"] = "reference"
+        elif isinstance(element, model.RelationshipElement):
+            node["first"] = reference_to_str(getattr(element, "first", None))
+            node["second"] = reference_to_str(getattr(element, "second", None))
         elif isinstance(element, model.AnnotatedRelationshipElement):
-            annotations = self._iterable_attr(element, "annotation", "annotations")
+            node["first"] = reference_to_str(getattr(element, "first", None))
+            node["second"] = reference_to_str(getattr(element, "second", None))
+            annotations = self._sorted_elements(iterable_attr(element, "annotation", "annotations"))
             annotation_path = f"{path}/annotations" if path else "annotations"
             node["annotations"] = [
                 self._element_definition(child, parent_path=annotation_path)
                 for child in annotations
             ]
+        elif isinstance(element, model.Operation):
+            for var_kind in ("input_variable", "output_variable", "in_output_variable"):
+                variables = getattr(element, var_kind, None)
+                if variables:
+                    var_path = f"{path}/{var_kind}" if path else var_kind
+                    node[var_kind] = [
+                        self._element_definition(v, parent_path=var_path)
+                        for v in self._sorted_elements(variables)
+                    ]
+        elif isinstance(element, model.Capability):
+            pass  # Capability has no additional structural fields
+        elif isinstance(element, model.BasicEventElement):
+            node["observed"] = reference_to_str(getattr(element, "observed", None))
+            node["direction"] = enum_to_str(getattr(element, "direction", None))
+            node["state"] = enum_to_str(getattr(element, "state", None))
 
         return node
 
     def _list_item_definition(self, element: Any, parent_path: str) -> dict[str, Any] | None:
-        items = self._iterable_attr(element, "value", "submodel_element", "submodel_elements")
+        items = iterable_attr(element, "value", "submodel_element", "submodel_elements")
         if items:
             return self._element_definition(items[0], parent_path=f"{parent_path}[]")
         if element.type_value_list_element:
             return {
                 "path": f"{parent_path}[]",
-                "modelType": self._enum_to_str(element.type_value_list_element),
-                "valueType": self._enum_to_str(element.value_type_list_element),
+                "modelType": enum_to_str(element.type_value_list_element),
+                "valueType": enum_to_str(element.value_type_list_element),
             }
         return None
 
     def _concept_description_definition(self, cd: Any) -> dict[str, Any]:
+        # Try structured IEC 61360 data specification first
+        iec61360 = self._extract_iec61360(cd)
+        if iec61360 is not None:
+            return {
+                "id": cd.id,
+                "idShort": cd.id_short,
+                "definition": lang_string_set_to_dict(iec61360.definition),
+                "preferredName": lang_string_set_to_dict(iec61360.preferred_name),
+                "shortName": lang_string_set_to_dict(getattr(iec61360, "short_name", None)),
+                "unit": iec61360.unit,
+                "unitId": reference_to_str(getattr(iec61360, "unit_id", None)),
+                "dataType": enum_to_str(getattr(iec61360, "data_type", None)),
+                "valueFormat": getattr(iec61360, "value_format", None),
+            }
+
+        # Fallback: extract from top-level attributes (pre-IEC 61360 or custom CDs)
         definition_value = getattr(cd, "definition", None)
         if definition_value is None:
             definition_value = getattr(cd, "description", None)
@@ -160,37 +205,32 @@ class TemplateDefinitionBuilder:
         return {
             "id": cd.id,
             "idShort": cd.id_short,
-            "definition": self._lang_string_set(definition_value),
-            "preferredName": self._lang_string_set(preferred_name_value),
-            "shortName": self._lang_string_set(short_name_value),
+            "definition": lang_string_set_to_dict(definition_value),
+            "preferredName": lang_string_set_to_dict(preferred_name_value),
+            "shortName": lang_string_set_to_dict(short_name_value),
             "unit": getattr(cd, "unit", None),
-            "unitId": self._reference_to_str(getattr(cd, "unit_id", None)),
+            "unitId": reference_to_str(getattr(cd, "unit_id", None)),
         }
+
+    @staticmethod
+    def _extract_iec61360(cd: Any) -> Any | None:
+        """Extract DataSpecificationIEC61360 from a ConceptDescription, if present."""
+        eds_list = getattr(cd, "embedded_data_specifications", None)
+        if not eds_list:
+            return None
+        for eds in eds_list:
+            content = getattr(eds, "data_specification_content", None)
+            if content is not None and type(content).__name__ == "DataSpecificationIEC61360":
+                return content
+        return None
 
     def _normalize_id_short(self, value: str | None) -> str | None:
         if not value:
             return None
         if value.startswith("generated_submodel_list_hack_"):
+            logger.debug("stripped_generated_id_short: %s", value)
             return None
         return value
-
-    def _lang_string_set(self, value: Any) -> dict[str, str]:
-        if not value:
-            return {}
-        if isinstance(value, str):
-            return {"und": value}
-        if hasattr(value, "language") and hasattr(value, "text"):
-            language = getattr(value, "language", None)
-            text = getattr(value, "text", None)
-            if language is not None and text is not None:
-                return {str(language): str(text)}
-        result: dict[str, str] = {}
-        for entry in value:
-            language = getattr(entry, "language", None)
-            text = getattr(entry, "text", None)
-            if language is not None and text is not None:
-                result[str(language)] = str(text)
-        return result
 
     def _qualifiers_to_dicts(self, element: Any) -> list[dict[str, Any]]:
         qualifiers = getattr(element, "qualifier", None)
@@ -218,66 +258,16 @@ class TemplateDefinitionBuilder:
         return {
             "type": getattr(qualifier, "type", None),
             "value": getattr(qualifier, "value", None),
-            "semanticId": self._reference_to_dict(getattr(qualifier, "semantic_id", None)),
+            "semanticId": reference_to_dict(getattr(qualifier, "semantic_id", None)),
         }
 
-    def _reference_to_str(self, reference: model.Reference | None) -> str | None:
-        if reference is None:
-            return None
-        keys = getattr(reference, "keys", None)
-        if keys is None:
-            keys = getattr(reference, "key", None)
-        if not keys:
-            return None
-        first = list(keys)[0]
-        value = getattr(first, "value", None)
-        return str(value) if value is not None else None
-
-    def _reference_to_dict(self, reference: model.Reference | None) -> dict[str, Any] | None:
-        if reference is None:
-            return None
-        keys = getattr(reference, "keys", None)
-        if keys is None:
-            keys = getattr(reference, "key", None)
-        if not keys:
-            return None
-        key_dicts = [
-            {
-                "type": self._enum_to_str(getattr(key, "type", None)),
-                "value": getattr(key, "value", None),
-            }
-            for key in keys
-        ]
-        return {
-            "type": self._enum_to_str(getattr(reference, "type", None)),
-            "keys": key_dicts,
-        }
-
-    def _enum_to_str(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, type):
-            return str(value)
-        if hasattr(value, "value"):
-            return str(value.value)
-        return str(value)
-
-    def _iterable_attr(self, obj: Any, *names: str) -> list[Any]:
-        for name in names:
-            value = getattr(obj, name, None)
-            if value is not None:
-                if isinstance(value, (list, tuple)):
-                    return list(value)
-                items = list(value.values()) if isinstance(value, dict) else list(value)
-                items.sort(key=self._element_sort_key)
-                return items
-        return []
-
-    def _element_sort_key(self, element: Any) -> tuple[str, str]:
-        id_short = getattr(element, "id_short", None)
-        if id_short:
-            return ("0", str(id_short))
-        identifier = getattr(element, "id", None)
-        if identifier:
-            return ("1", str(identifier))
-        return ("2", str(element))
+    def _sorted_elements(self, elements: Any) -> list[Any]:
+        sequence = list(elements or [])
+        sequence.sort(
+            key=lambda element: (
+                str(getattr(element, "id_short", "") or ""),
+                element.__class__.__name__,
+                reference_to_str(getattr(element, "semantic_id", None)) or "",
+            )
+        )
+        return sequence
