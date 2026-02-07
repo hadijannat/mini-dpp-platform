@@ -11,8 +11,8 @@ from uuid import UUID
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Double,
     Enum,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -1212,7 +1212,7 @@ class LCACalculation(TenantScopedMixin, Base):
         comment="LCA scope: cradle-to-gate, gate-to-gate, cradle-to-grave",
     )
     total_gwp_kg_co2e: Mapped[float] = mapped_column(
-        Float,
+        Double,
         nullable=False,
         comment="Total GWP in kg CO2 equivalent",
     )

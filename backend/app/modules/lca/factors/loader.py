@@ -100,14 +100,21 @@ class FactorDatabase:
             material_key = str(raw.get("material", "")).lower().strip()
             if not material_key:
                 continue
-            self._factors[material_key] = EmissionFactor(
-                material=raw.get("material", ""),
-                category=raw.get("category", ""),
-                factor_kg_co2e_per_kg=float(raw.get("factor_kg_co2e_per_kg", 0.0)),
-                source=raw.get("source", ""),
-                scope=raw.get("scope", "cradle-to-gate"),
-                year=int(raw.get("year", 2023)),
-            )
+            try:
+                self._factors[material_key] = EmissionFactor(
+                    material=raw.get("material", ""),
+                    category=raw.get("category", ""),
+                    factor_kg_co2e_per_kg=float(raw.get("factor_kg_co2e_per_kg", 0.0)),
+                    source=raw.get("source", ""),
+                    scope=raw.get("scope", "cradle-to-gate"),
+                    year=int(raw.get("year", 2023)),
+                )
+            except (ValueError, TypeError):
+                logger.warning(
+                    "skipping_invalid_emission_factor",
+                    material=material_key,
+                    exc_info=True,
+                )
 
         logger.info(
             "factor_database_loaded",

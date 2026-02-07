@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+LCAScope = Literal["cradle-to-gate", "gate-to-gate", "cradle-to-grave"]
 
 
 class EmissionFactor(BaseModel):
@@ -24,8 +27,8 @@ class MaterialItem(BaseModel):
 
     material_name: str
     category: str
-    mass_kg: float
-    quantity: int = 1
+    mass_kg: float = Field(ge=0.0)
+    quantity: int = Field(default=1, ge=1)
     pre_declared_pcf: float | None = None
 
 
@@ -60,7 +63,7 @@ class LCARequest(BaseModel):
     """Request body for triggering an LCA calculation."""
 
     dpp_id: UUID
-    scope: str | None = Field(
+    scope: LCAScope | None = Field(
         default=None,
         description="LCA scope boundary. Defaults to config lca_default_scope.",
     )
@@ -87,8 +90,8 @@ class ComparisonRequest(BaseModel):
     """Request body for comparing PCF across two DPP revisions."""
 
     dpp_id: UUID
-    revision_a: int
-    revision_b: int
+    revision_a: int = Field(ge=1)
+    revision_b: int = Field(ge=1)
 
 
 class ComparisonReport(BaseModel):

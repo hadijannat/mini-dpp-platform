@@ -49,7 +49,7 @@ async def record_lifecycle_event(
     digital thread recording issues.
     """
     settings = get_settings()
-    if not settings.digital_thread_enabled:
+    if not settings.digital_thread_enabled or not settings.digital_thread_auto_record:
         return
 
     mapping = DEFAULT_ACTION_PHASE_MAP.get(action)
@@ -59,14 +59,15 @@ async def record_lifecycle_event(
     phase, event_type = mapping
 
     try:
-        service = ThreadService(session)
-        event = ThreadEventCreate(
-            phase=phase,
-            event_type=event_type,
-            source="platform",
-            payload=payload or {},
-        )
-        await service.record_event(dpp_id, tenant_id, event, created_by)
+        async with session.begin_nested():
+            service = ThreadService(session)
+            event = ThreadEventCreate(
+                phase=phase,
+                event_type=event_type,
+                source="platform",
+                payload=payload or {},
+            )
+            await service.record_event(dpp_id, tenant_id, event, created_by)
     except Exception:
         logger.warning(
             "digital_thread_auto_record_failed",

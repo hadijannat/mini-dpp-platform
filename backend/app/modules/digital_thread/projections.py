@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import LifecyclePhase, ThreadEvent
@@ -73,17 +73,7 @@ async def get_lifecycle_timeline(
         if phase_events:
             phases[phase.value] = phase_events
 
-    count_result = await session.execute(
-        select(func.count())
-        .select_from(ThreadEvent)
-        .where(
-            ThreadEvent.dpp_id == dpp_id,
-            ThreadEvent.tenant_id == tenant_id,
-        )
-    )
-    total = count_result.scalar_one()
-
-    return LifecycleTimeline(dpp_id=dpp_id, phases=phases, total_events=total)
+    return LifecycleTimeline(dpp_id=dpp_id, phases=phases, total_events=len(rows))
 
 
 async def get_compliance_timeline(

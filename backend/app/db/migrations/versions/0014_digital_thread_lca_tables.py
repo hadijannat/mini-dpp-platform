@@ -163,7 +163,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "total_gwp_kg_co2e",
-            sa.Float(),
+            sa.Double(),
             nullable=False,
             comment="Total GWP in kg CO2 equivalent",
         ),

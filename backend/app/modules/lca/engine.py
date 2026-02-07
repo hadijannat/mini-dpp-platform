@@ -113,7 +113,12 @@ class PCFEngine:
         This is a placeholder implementation — the user will refine
         the multipliers for more accurate life-cycle modelling.
         """
-        multiplier = _SCOPE_MULTIPLIERS.get(scope, 1.0)
+        if scope not in _SCOPE_MULTIPLIERS:
+            raise ValueError(
+                f"Unknown LCA scope '{scope}'. "
+                f"Valid scopes: {', '.join(sorted(_SCOPE_MULTIPLIERS))}"
+            )
+        multiplier = _SCOPE_MULTIPLIERS[scope]
         if multiplier == 1.0:
             return breakdown
 

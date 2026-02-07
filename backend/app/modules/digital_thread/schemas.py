@@ -67,14 +67,6 @@ class EventQuery(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
-class TimelinePhaseGroup(BaseModel):
-    """Events within a single lifecycle phase."""
-
-    phase: LifecyclePhase
-    events: list[ThreadEventResponse]
-    count: int
-
-
 class LifecycleTimeline(BaseModel):
     """Grouped timeline response for a DPP's digital thread."""
 

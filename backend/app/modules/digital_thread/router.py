@@ -10,8 +10,9 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.core.audit import emit_audit_event
-from app.core.security.abac import require_access
+from app.core.security import require_access
 from app.core.tenancy import TenantPublisher
+from app.db.models import DPP, LifecyclePhase
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
 
@@ -41,7 +42,9 @@ async def _get_dpp_or_404(
     dpp_id: UUID,
     tenant: TenantPublisher,
     db: DbSession,
-) -> object:
+    *,
+    action: str = "read",
+) -> DPP:
     """Load a DPP and check ABAC access, raising 404/403 as needed."""
     dpp_service = DPPService(db)
     dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
@@ -52,7 +55,7 @@ async def _get_dpp_or_404(
         )
     await require_access(
         tenant.user,
-        "read",
+        action,
         _dpp_resource(dpp.id, dpp.owner_subject),
         tenant=tenant,
     )
@@ -78,7 +81,7 @@ async def record_event(
     tenant: TenantPublisher,
 ) -> ThreadEventResponse:
     """Record a new digital thread event for a DPP."""
-    await _get_dpp_or_404(dpp_id, tenant, db)
+    await _get_dpp_or_404(dpp_id, tenant, db, action="update")
 
     service = ThreadService(db)
     try:
@@ -129,17 +132,15 @@ async def list_events(
     """Query digital thread events with optional filters."""
     await _get_dpp_or_404(dpp_id, tenant, db)
 
-    from app.db.models import LifecyclePhase
-
     parsed_phase: LifecyclePhase | None = None
     if phase is not None:
         try:
             parsed_phase = LifecyclePhase(phase)
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid lifecycle phase: {phase}",
-            )
+            ) from exc
 
     query = EventQuery(
         dpp_id=dpp_id,

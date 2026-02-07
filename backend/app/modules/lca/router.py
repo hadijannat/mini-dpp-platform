@@ -14,7 +14,7 @@ from app.core.security import require_access
 from app.core.tenancy import TenantPublisher
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
-from app.modules.lca.schemas import ComparisonReport, ComparisonRequest, LCAReport
+from app.modules.lca.schemas import ComparisonReport, ComparisonRequest, LCAReport, LCAScope
 from app.modules.lca.service import LCAService
 
 router = APIRouter()
@@ -45,7 +45,7 @@ async def calculate_pcf(
     request: Request,
     db: DbSession,
     tenant: TenantPublisher,
-    scope: str | None = None,
+    scope: LCAScope | None = None,
 ) -> LCAReport:
     """Calculate the Product Carbon Footprint for a DPP.
 
