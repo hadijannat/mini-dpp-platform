@@ -13,11 +13,26 @@ const standardLinks = [
   },
   {
     label: 'Asset Administration Shell',
-    href: 'https://industrialdigitaltwin.org/en/content-hub/aas',
+    href: 'https://industrialdigitaltwin.org/en/content-hub/aasspecifications',
   },
   {
     label: 'Catena-X',
     href: 'https://catena-x.net/en/',
+  },
+];
+
+const regulationLinks = [
+  {
+    label: 'ESPR Full Text (EU 2024/1781)',
+    href: 'https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng',
+  },
+  {
+    label: 'Battery Regulation (EU 2023/1542)',
+    href: 'https://eur-lex.europa.eu/EN/legal-content/summary/sustainability-rules-for-batteries-and-waste-batteries.html',
+  },
+  {
+    label: 'ESPR Working Plan 2025–2030',
+    href: 'https://green-forum.ec.europa.eu/implementing-ecodesign-sustainable-products-regulation_en',
   },
 ];
 
@@ -27,7 +42,7 @@ export default function LandingFooter() {
   return (
     <footer className="border-t bg-card py-12">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
           {/* Brand */}
           <div>
             <div className="flex items-center gap-2 font-semibold">
@@ -42,9 +57,29 @@ export default function LandingFooter() {
 
           {/* Standards */}
           <div>
-            <h3 className="mb-3 text-sm font-semibold">Standards & References</h3>
+            <h3 className="mb-3 text-sm font-semibold">Standards</h3>
             <ul className="space-y-2">
               {standardLinks.map((link) => (
+                <li key={link.label}>
+                  <a
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {link.label}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Regulations */}
+          <div>
+            <h3 className="mb-3 text-sm font-semibold">EU Regulations</h3>
+            <ul className="space-y-2">
+              {regulationLinks.map((link) => (
                 <li key={link.label}>
                   <a
                     href={link.href}
@@ -78,12 +113,23 @@ export default function LandingFooter() {
               </li>
               <li>
                 <a
-                  href="/docs"
+                  href="/api/v1/docs"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  API Docs
+                  API Documentation
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://github.com/hadijannat/mini-dpp-platform"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  GitHub
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </li>

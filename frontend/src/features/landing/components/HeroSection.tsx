@@ -45,7 +45,7 @@ export default function HeroSection() {
         <motion.div variants={item}>
           <Badge variant="secondary" className="mb-6 gap-1.5 px-3 py-1 text-sm">
             <Leaf className="h-3.5 w-3.5" />
-            EU ESPR Compliant
+            EU ESPR Aligned
           </Badge>
         </motion.div>
 
@@ -63,7 +63,7 @@ export default function HeroSection() {
           className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground sm:text-xl"
         >
           Create, manage, and publish standards-compliant Digital Product Passports
-          with full EU ESPR support, Catena-X integration, and AAS interoperability.
+          aligned with EU ESPR requirements, Catena-X integration, and AAS interoperability.
         </motion.p>
 
         <motion.div variants={item} className="mt-8 flex flex-wrap items-center justify-center gap-4">
