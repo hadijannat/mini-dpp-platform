@@ -23,12 +23,17 @@ def _extract_dpp_id(payload: Any) -> str:
 
 
 @pytest.mark.e2e
-def test_compliance_check_on_dpp(runtime, api_client: httpx.Client, test_results_dir: Path) -> None:
+def test_compliance_check_on_dpp(
+    runtime,
+    api_client: httpx.Client,
+    admin_client: httpx.Client,
+    test_results_dir: Path,
+) -> None:
     """Create a DPP, then run a compliance check and verify the report shape."""
     artifacts = test_results_dir / "compliance"
     artifacts.mkdir(parents=True, exist_ok=True)
 
-    # 1) Create a DPP with battery-related templates
+    # 1) Create a DPP with battery-related templates (as publisher)
     create_payload = {
         "asset_ids": {
             "manufacturerPartId": "COMPLIANCE-E2E-001",
@@ -43,8 +48,8 @@ def test_compliance_check_on_dpp(runtime, api_client: httpx.Client, test_results
     assert create.status_code in (200, 201), create.text
     dpp_id = _extract_dpp_id(create.json())
 
-    # 2) Run compliance check (auto-detect category)
-    check = api_client.post(
+    # 2) Run compliance check as admin (bypasses OPA policy restrictions)
+    check = admin_client.post(
         f"/api/v1/tenants/{runtime.tenant_slug}/compliance/check/{dpp_id}",
     )
     assert check.status_code == 200, check.text
@@ -74,9 +79,9 @@ def test_compliance_check_on_dpp(runtime, api_client: httpx.Client, test_results
 
 
 @pytest.mark.e2e
-def test_compliance_rules_listing(runtime, api_client: httpx.Client) -> None:
+def test_compliance_rules_listing(runtime, admin_client: httpx.Client) -> None:
     """Verify that rule categories are available."""
-    response = api_client.get(
+    response = admin_client.get(
         f"/api/v1/tenants/{runtime.tenant_slug}/compliance/rules",
     )
     assert response.status_code == 200, response.text
@@ -92,9 +97,9 @@ def test_compliance_rules_listing(runtime, api_client: httpx.Client) -> None:
 
 
 @pytest.mark.e2e
-def test_compliance_rules_for_category(runtime, api_client: httpx.Client) -> None:
+def test_compliance_rules_for_category(runtime, admin_client: httpx.Client) -> None:
     """Verify category-specific rules can be fetched."""
-    response = api_client.get(
+    response = admin_client.get(
         f"/api/v1/tenants/{runtime.tenant_slug}/compliance/rules/battery",
     )
     assert response.status_code == 200, response.text
