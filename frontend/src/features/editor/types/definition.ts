@@ -9,7 +9,7 @@ export type SmtQualifiers = {
   required_lang?: string[];
   either_or?: string | null;
   allowed_value_regex?: string | null;
-  allowed_range?: { min?: number; max?: number } | null;
+  allowed_range?: { min?: number; max?: number; raw?: string | null } | null;
   form_choices?: string[] | null;
 };
 
@@ -37,7 +37,18 @@ export type TemplateDefinition = {
 };
 
 export type TemplateResponse = {
+  id?: string;
+  template_key?: string;
+  idta_version?: string;
+  resolved_version?: string | null;
   semantic_id: string;
+  source_url?: string;
+  source_repo_ref?: string | null;
+  source_file_path?: string | null;
+  source_file_sha?: string | null;
+  source_kind?: string | null;
+  selection_strategy?: string | null;
+  fetched_at?: string;
 };
 
 export type SubmodelDefinitionResponse = {
@@ -47,6 +58,23 @@ export type SubmodelDefinitionResponse = {
   revision_no: number;
   state: string;
   definition: TemplateDefinition;
+};
+
+export type TemplateContractResponse = {
+  template_key: string;
+  idta_version: string;
+  semantic_id: string;
+  definition: TemplateDefinition;
+  schema: import('./uiSchema').UISchema;
+  source_metadata: {
+    resolved_version: string;
+    source_repo_ref: string;
+    source_file_path?: string | null;
+    source_file_sha?: string | null;
+    source_kind?: string | null;
+    selection_strategy?: string | null;
+    source_url: string;
+  };
 };
 
 export type FormData = Record<string, unknown>;

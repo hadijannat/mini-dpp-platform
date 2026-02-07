@@ -23,6 +23,7 @@ import type {
   TemplateResponse,
   TemplateDefinition,
   SubmodelDefinitionResponse,
+  TemplateContractResponse,
 } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
 import { extractSemanticId } from '../utils/pathUtils';
@@ -71,6 +72,14 @@ async function fetchSubmodelDefinition(dppId: string, templateKey: string, token
   return response.json();
 }
 
+async function fetchTemplateContract(templateKey: string, token?: string) {
+  const response = await apiFetch(`/api/v1/templates/${templateKey}/contract`, {}, token);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch template contract'));
+  }
+  return response.json();
+}
+
 async function updateSubmodel(
   dppId: string,
   templateKey: string,
@@ -106,6 +115,7 @@ export default function SubmodelEditorPage() {
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const queryClient = useQueryClient();
+  const useTemplateContractV2 = import.meta.env.VITE_TEMPLATE_CONTRACT_V2 === 'true';
 
   // ── Data fetching ──
 
@@ -124,29 +134,36 @@ export default function SubmodelEditorPage() {
   const { data: schema, isLoading: loadingSchema } = useQuery({
     queryKey: ['template-schema', templateKey],
     queryFn: () => fetchTemplateSchema(templateKey!, token),
-    enabled: Boolean(token && templateKey),
+    enabled: Boolean(token && templateKey && !useTemplateContractV2),
   });
 
   const { data: definition, isLoading: loadingDefinition } =
     useQuery<SubmodelDefinitionResponse>({
       queryKey: ['submodel-definition', tenantSlug, dppId, templateKey],
       queryFn: () => fetchSubmodelDefinition(dppId!, templateKey!, token),
-      enabled: Boolean(token && templateKey && dppId),
+      enabled: Boolean(token && templateKey && dppId && !useTemplateContractV2),
     });
+
+  const { data: contract, isLoading: loadingContract } = useQuery<TemplateContractResponse>({
+    queryKey: ['template-contract', templateKey],
+    queryFn: () => fetchTemplateContract(templateKey!, token),
+    enabled: Boolean(token && templateKey && useTemplateContractV2),
+  });
 
   // ── Derived state ──
 
   const submodel = useMemo(() => {
     if (!dpp) return null;
     const submodels = dpp.aas_environment?.submodels || [];
-    const semanticId = template?.semantic_id;
+    const semanticId = contract?.semantic_id ?? template?.semantic_id;
     if (semanticId) {
       const bySemantic = submodels.find(
         (sm: Record<string, unknown>) => extractSemanticId(sm) === semanticId,
       );
       if (bySemantic) return bySemantic;
     }
-    const definitionIdShort = definition?.definition?.submodel?.idShort;
+    const definitionIdShort =
+      contract?.definition?.submodel?.idShort ?? definition?.definition?.submodel?.idShort;
     if (definitionIdShort) {
       const byIdShort = submodels.find(
         (sm: Record<string, unknown>) => sm?.idShort === definitionIdShort,
@@ -154,15 +171,23 @@ export default function SubmodelEditorPage() {
       if (byIdShort) return byIdShort;
     }
     return null;
-  }, [dpp, template?.semantic_id, definition?.definition?.submodel?.idShort]);
+  }, [
+    dpp,
+    template?.semantic_id,
+    contract?.semantic_id,
+    definition?.definition?.submodel?.idShort,
+    contract?.definition?.submodel?.idShort,
+  ]);
 
   const initialData = useMemo(() => {
     if (!submodel) return {};
     return buildSubmodelData(submodel);
   }, [submodel]);
 
-  const uiSchema = schema?.schema as UISchema | undefined;
-  const templateDefinition = definition?.definition as TemplateDefinition | undefined;
+  const uiSchema = (contract?.schema ?? schema?.schema) as UISchema | undefined;
+  const templateDefinition = (
+    contract?.definition ?? definition?.definition
+  ) as TemplateDefinition | undefined;
 
   // ── React Hook Form ──
 
@@ -281,7 +306,11 @@ export default function SubmodelEditorPage() {
 
   // ── Loading / error states ──
 
-  const isLoading = loadingDpp || loadingTemplate || loadingSchema || loadingDefinition;
+  const isLoading =
+    loadingDpp ||
+    loadingTemplate ||
+    (!useTemplateContractV2 && (loadingSchema || loadingDefinition)) ||
+    (useTemplateContractV2 && loadingContract);
 
   if (isLoading) {
     return <LoadingSpinner />;

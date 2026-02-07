@@ -26,4 +26,5 @@ export type UISchema = {
   'x-blob'?: boolean;
   'x-form-url'?: string;
   'x-required-languages'?: string[];
+  'x-allowed-range'?: string;
 };

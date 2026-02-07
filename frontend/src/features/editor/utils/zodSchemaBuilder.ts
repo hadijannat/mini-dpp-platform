@@ -73,11 +73,11 @@ function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
 
 function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
   const valueType = node.valueType;
+  const range = normalizeRange(node.smt?.allowed_range);
 
   // Integer types
   if (valueType === 'xs:integer' || valueType === 'xs:long' || valueType === 'xs:short' || valueType === 'xs:int') {
     let s = z.number().int();
-    const range = node.smt?.allowed_range;
     if (range?.min !== undefined) s = s.min(range.min);
     if (range?.max !== undefined) s = s.max(range.max);
     if (schema?.minimum !== undefined) s = s.min(schema.minimum);
@@ -88,7 +88,6 @@ function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAn
   // Decimal types
   if (valueType === 'xs:decimal' || valueType === 'xs:double' || valueType === 'xs:float') {
     let s = z.number();
-    const range = node.smt?.allowed_range;
     if (range?.min !== undefined) s = s.min(range.min);
     if (range?.max !== undefined) s = s.max(range.max);
     if (schema?.minimum !== undefined) s = s.min(schema.minimum);
@@ -126,6 +125,19 @@ function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAn
   }
 
   return strSchema;
+}
+
+function normalizeRange(
+  range?: { min?: number; max?: number; raw?: string | null } | null,
+): { min?: number; max?: number } | undefined {
+  if (!range) return undefined;
+  if (range.min !== undefined || range.max !== undefined) {
+    return { min: range.min, max: range.max };
+  }
+  if (!range.raw) return undefined;
+  const match = range.raw.match(/^\s*([+-]?\d+(?:\.\d+)?)\s*\.\.\s*([+-]?\d+(?:\.\d+)?)\s*$/);
+  if (!match) return undefined;
+  return { min: Number(match[1]), max: Number(match[2]) };
 }
 
 function buildCollectionSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
