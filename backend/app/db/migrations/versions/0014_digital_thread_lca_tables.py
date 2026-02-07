@@ -7,6 +7,7 @@ Create Date: 2026-02-07
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import JSONB
 
 # revision identifiers, used by Alembic.
@@ -54,7 +55,17 @@ def upgrade() -> None:
         ),
         sa.Column(
             "phase",
-            lifecyclephase,
+            postgresql.ENUM(
+                "design",
+                "manufacture",
+                "logistics",
+                "deploy",
+                "operate",
+                "maintain",
+                "end_of_life",
+                name="lifecyclephase",
+                create_type=False,
+            ),
             nullable=False,
             comment="Product lifecycle phase",
         ),
