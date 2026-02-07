@@ -249,10 +249,43 @@ jobs:
           print(f'Validated {count} golden fixtures successfully')
           "
 
+  helm-lint:
+    name: Helm Lint & Template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Helm lint
+        run: helm lint infra/helm/dpp-platform/
+
+      - name: Helm template (default values)
+        run: helm template dpp-platform infra/helm/dpp-platform/ --values infra/helm/dpp-platform/values.yaml
+
+      - name: Helm template (prod values)
+        run: |
+          helm template dpp-platform infra/helm/dpp-platform/ \
+            --values infra/helm/dpp-platform/values.yaml \
+            --values infra/helm/dpp-platform/values-prod.yaml \
+            --set secrets.postgresUser=test \
+            --set secrets.postgresPassword=test \
+            --set secrets.redisPassword=test \
+            --set secrets.keycloakAdminPassword=test \
+            --set secrets.keycloakClientSecret=test \
+            --set secrets.keycloakDbPassword=test \
+            --set secrets.minioAccessKey=test \
+            --set secrets.minioSecretKey=test \
+            --set secrets.encryptionMasterKey=test \
+            --set secrets.dppSigningKey=test
+
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation, helm-lint]
     steps:
       - uses: actions/checkout@v4
 

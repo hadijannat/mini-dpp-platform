@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: DPP Platform
+    orgId: 1
+    folder: DPP Platform
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

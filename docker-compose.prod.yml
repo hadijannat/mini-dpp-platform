@@ -262,6 +262,15 @@ services:
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
       - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY}
       - DPP_SIGNING_KEY=${DPP_SIGNING_KEY}
+      - AUDIT_SIGNING_KEY=${AUDIT_SIGNING_KEY:-}
+      - AUDIT_SIGNING_PUBLIC_KEY=${AUDIT_SIGNING_PUBLIC_KEY:-}
+      - TSA_URL=${TSA_URL:-}
+      - AUDIT_MERKLE_BATCH_SIZE=${AUDIT_MERKLE_BATCH_SIZE:-100}
+      - COMPLIANCE_CHECK_ON_PUBLISH=${COMPLIANCE_CHECK_ON_PUBLISH:-false}
+      - EDC_MANAGEMENT_URL=${EDC_MANAGEMENT_URL:-}
+      - EDC_MANAGEMENT_API_KEY=${EDC_MANAGEMENT_API_KEY:-}
+      - EDC_DSP_ENDPOINT=${EDC_DSP_ENDPOINT:-}
+      - EDC_PARTICIPANT_ID=${EDC_PARTICIPANT_ID:-}
       - CORS_ORIGINS=["https://dpp-platform.dev"]
       - LOG_LEVEL=INFO
       - IDTA_TEMPLATES_GITHUB_TOKEN=${IDTA_TEMPLATES_GITHUB_TOKEN:-}
@@ -333,6 +342,58 @@ services:
     networks:
       - dpp-network
 
+  # =============================================================================
+  # Prometheus - Metrics Collection
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: dpp-prometheus
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.enable-lifecycle
+    volumes:
+      - ./infra/monitoring/prometheus:/etc/prometheus:ro
+      - ./infra/monitoring/alertmanager/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dpp-network
+
+  # =============================================================================
+  # Grafana - Metrics Dashboards
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: dpp-grafana
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/monitoring/grafana:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
 networks:
   dpp-network:
     driver: bridge
@@ -344,3 +405,5 @@ volumes:
   minio_data:
   caddy_data:
   caddy_config:
+  prometheus_data:
+  grafana_data:

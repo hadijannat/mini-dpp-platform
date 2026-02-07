@@ -1,0 +1,83 @@
+# Production environment overrides
+global:
+  environment: production
+  domain: dpp-platform.dev
+  authDomain: auth.dpp-platform.dev
+
+backend:
+  replicas: 3
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  workers: 4
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPU: 70
+  pdb:
+    enabled: true
+    minAvailable: 2
+  env:
+    LOG_LEVEL: INFO
+
+frontend:
+  replicas: 3
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 8
+    targetCPU: 80
+
+edc:
+  enabled: true
+  controlplane:
+    replicas: 2
+  dataplane:
+    replicas: 2
+
+postgresql:
+  storage: 50Gi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+redis:
+  maxmemory: 512mb
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+keycloak:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 500m
+      memory: 768Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+minio:
+  storage: 100Gi
+
+ingress:
+  tls:
+    enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+networkPolicy:
+  enabled: true

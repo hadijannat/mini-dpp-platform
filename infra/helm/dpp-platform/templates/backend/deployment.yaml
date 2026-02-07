@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "backend") | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "backend") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "dpp-platform.componentLabels" (dict "context" . "component" "backend") | nindent 8 }}
+    spec:
+      {{- include "dpp-platform.imagePullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          command:
+            - uvicorn
+            - app.main:app
+            - --host
+            - "0.0.0.0"
+            - --port
+            - "{{ .Values.backend.port }}"
+            - --workers
+            - "{{ .Values.backend.workers }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.backend.port }}
+              protocol: TCP
+          env:
+            - name: ENVIRONMENT
+              value: {{ .Values.global.environment | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: redis-url
+            - name: KEYCLOAK_SERVER_URL
+              value: "http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "keycloak") }}:{{ .Values.keycloak.port }}"
+            - name: KEYCLOAK_REALM
+              value: {{ .Values.backend.env.KEYCLOAK_REALM | quote }}
+            - name: KEYCLOAK_CLIENT_ID
+              value: {{ .Values.backend.env.KEYCLOAK_CLIENT_ID | quote }}
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: keycloak-client-secret
+            - name: KEYCLOAK_ALLOWED_CLIENT_IDS
+              value: {{ .Values.backend.env.KEYCLOAK_ALLOWED_CLIENT_IDS | quote }}
+            - name: KEYCLOAK_ISSUER_URL_OVERRIDE
+              value: "http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "keycloak") }}:{{ .Values.keycloak.port }}/realms/{{ .Values.backend.env.KEYCLOAK_REALM }}"
+            - name: KEYCLOAK_JWKS_URL_OVERRIDE
+              value: "http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "keycloak") }}:{{ .Values.keycloak.port }}/realms/{{ .Values.backend.env.KEYCLOAK_REALM }}/protocol/openid-connect/certs"
+            - name: KEYCLOAK_ALLOWED_ISSUERS
+              value: "https://{{ .Values.global.authDomain }}/realms/{{ .Values.backend.env.KEYCLOAK_REALM }}"
+            - name: OPA_URL
+              value: "http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "opa") }}:{{ .Values.opa.port }}"
+            - name: MINIO_ENDPOINT
+              value: "{{ include "dpp-platform.componentFullname" (dict "context" . "component" "minio") }}:{{ .Values.minio.apiPort }}"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: minio-secret-key
+            - name: ENCRYPTION_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: encryption-master-key
+            - name: DPP_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: dpp-signing-key
+            - name: CORS_ORIGINS
+              value: '["https://{{ .Values.global.domain }}"]'
+            - name: LOG_LEVEL
+              value: {{ .Values.backend.env.LOG_LEVEL | quote }}
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3

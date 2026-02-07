@@ -1,0 +1,51 @@
+# Development environment overrides
+global:
+  environment: development
+  domain: dev.dpp-platform.dev
+  authDomain: auth.dev.dpp-platform.dev
+
+backend:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  hpa:
+    enabled: false
+  pdb:
+    enabled: false
+  env:
+    LOG_LEVEL: DEBUG
+
+frontend:
+  replicas: 1
+  hpa:
+    enabled: false
+
+edc:
+  enabled: false
+
+postgresql:
+  storage: 5Gi
+
+redis:
+  maxmemory: 128mb
+
+minio:
+  storage: 5Gi
+
+ingress:
+  tls:
+    enabled: false
+
+monitoring:
+  prometheus:
+    enabled: false
+  grafana:
+    enabled: false
+
+networkPolicy:
+  enabled: false

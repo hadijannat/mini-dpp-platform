@@ -1,0 +1,215 @@
+# Default values for dpp-platform
+# Override per environment with values-{dev,staging,prod}.yaml
+
+global:
+  environment: development
+  domain: dpp-platform.dev
+  authDomain: auth.dpp-platform.dev
+  namespace: ""
+  imagePullSecrets:
+    - ghcr-credentials
+
+# -- Backend (FastAPI)
+backend:
+  image:
+    repository: ghcr.io/aeroshariati/mini-dpp-platform/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  port: 8000
+  workers: 4
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPU: 70
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    ENVIRONMENT: production
+    KEYCLOAK_REALM: dpp-platform
+    KEYCLOAK_CLIENT_ID: dpp-backend
+    KEYCLOAK_ALLOWED_CLIENT_IDS: dpp-backend,dpp-frontend
+    OPA_URL: http://{{ include "dpp-platform.componentFullname" (dict "context" . "component" "opa") }}:8181
+    LOG_LEVEL: INFO
+  # Secret references — actual values come from secrets.yaml
+  secretRef: dpp-platform-backend
+
+# -- Frontend (React + nginx)
+frontend:
+  image:
+    repository: ghcr.io/aeroshariati/mini-dpp-platform/frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicas: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  port: 8080
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 80
+
+# -- EDC Connector (Tractus-X)
+edc:
+  enabled: false
+  participantId: BPNL000000000000
+  controlplane:
+    image:
+      repository: tractusx/edc-controlplane-postgresql-hashicorp-vault
+      tag: "0.7.3"
+      pullPolicy: IfNotPresent
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    # Ports matching config.properties
+    defaultPort: 19191
+    controlPort: 19192
+    managementPort: 19193
+    protocolPort: 19194
+    publicPort: 19291
+  dataplane:
+    image:
+      repository: tractusx/edc-dataplane-hashicorp-vault
+      tag: "0.7.3"
+      pullPolicy: IfNotPresent
+    replicas: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    controlPort: 19192
+    publicPort: 19291
+
+# -- PostgreSQL
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  storage: 10Gi
+  storageClass: ""
+  port: 5432
+  config:
+    sharedBuffers: 256MB
+    workMem: 4MB
+    maxConnections: "100"
+
+# -- Redis
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 300Mi
+  port: 6379
+  maxmemory: 256mb
+
+# -- Keycloak
+keycloak:
+  enabled: true
+  image:
+    repository: quay.io/keycloak/keycloak
+    tag: "24.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  port: 8080
+
+# -- OPA (Open Policy Agent)
+opa:
+  enabled: true
+  image:
+    repository: openpolicyagent/opa
+    tag: "latest-static"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  port: 8181
+
+# -- MinIO
+minio:
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: "RELEASE.2024-01-16T16-07-38Z"
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  storage: 20Gi
+  storageClass: ""
+  apiPort: 9000
+  consolePort: 9001
+
+# -- Ingress
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  tls:
+    enabled: true
+    secretName: dpp-platform-tls
+
+# -- Monitoring
+monitoring:
+  prometheus:
+    enabled: true
+  grafana:
+    enabled: true
+
+# -- Network policies
+networkPolicy:
+  enabled: true

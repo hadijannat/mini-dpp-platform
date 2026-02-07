@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dpp-platform-envs
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            branch: develop
+            namespace: dpp-platform-dev
+            valuesFile: values-dev.yaml
+          - env: staging
+            branch: staging
+            namespace: dpp-platform-staging
+            valuesFile: values-staging.yaml
+          - env: prod
+            branch: main
+            namespace: dpp-platform
+            valuesFile: values-prod.yaml
+  template:
+    metadata:
+      name: "dpp-platform-{{ `{{env}}` }}"
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/aeroshariati/mini-dpp-platform.git
+        targetRevision: "{{ `{{branch}}` }}"
+        path: infra/helm/dpp-platform
+        helm:
+          valueFiles:
+            - values.yaml
+            - "{{ `{{valuesFile}}` }}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ `{{namespace}}` }}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

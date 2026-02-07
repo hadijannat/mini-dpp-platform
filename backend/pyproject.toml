@@ -47,6 +47,7 @@ dependencies = [
     "xmltodict>=0.13.0",
     "jsonschema>=4.21.0",
     "basyx-python-sdk==2.0.0",
+    "rdflib>=7.0.0",
 
     # Validation & Serialization
     "pydantic>=2.6.0",
@@ -62,6 +63,15 @@ dependencies = [
 
     # PDF Export
     "fpdf2>=2.7.8",
+
+    # Cryptographic Audit Trail
+    "asn1crypto>=1.5.0",
+
+    # Metrics
+    "prometheus-fastapi-instrumentator>=7.0.0",
+
+    # YAML processing
+    "pyyaml>=6.0.0",
 
     # Utilities
     "python-dateutil>=2.8.2",

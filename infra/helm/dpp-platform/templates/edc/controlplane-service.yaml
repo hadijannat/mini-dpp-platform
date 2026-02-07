@@ -1,0 +1,34 @@
+{{- if .Values.edc.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "edc") }}-controlplane
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "edc-controlplane") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.edc.controlplane.defaultPort }}
+      targetPort: default
+      protocol: TCP
+      name: default
+    - port: {{ .Values.edc.controlplane.managementPort }}
+      targetPort: management
+      protocol: TCP
+      name: management
+    - port: {{ .Values.edc.controlplane.protocolPort }}
+      targetPort: protocol
+      protocol: TCP
+      name: protocol
+    - port: {{ .Values.edc.controlplane.publicPort }}
+      targetPort: public
+      protocol: TCP
+      name: public
+    - port: {{ .Values.edc.controlplane.controlPort }}
+      targetPort: control
+      protocol: TCP
+      name: control
+  selector:
+    {{- include "dpp-platform.selectorLabels" (dict "context" . "component" "edc-controlplane") | nindent 4 }}
+{{- end }}

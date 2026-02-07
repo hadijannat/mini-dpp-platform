@@ -92,6 +92,7 @@ class ConnectorType(str, PyEnum):
     CATENA_X = "catena_x"
     REST = "rest"
     FILE = "file"
+    EDC = "edc"
 
 
 class ConnectorStatus(str, PyEnum):
@@ -900,6 +901,11 @@ class AuditEvent(TenantScopedMixin, Base):
     metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
     ip_address: Mapped[str | None] = mapped_column(String(45))
     user_agent: Mapped[str | None] = mapped_column(Text)
+    event_hash: Mapped[str | None] = mapped_column(String(64), comment="SHA-256 hash")
+    prev_event_hash: Mapped[str | None] = mapped_column(String(64), comment="Previous event hash")
+    chain_sequence: Mapped[int | None] = mapped_column(
+        Integer, comment="Monotonic sequence per tenant"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -910,4 +916,180 @@ class AuditEvent(TenantScopedMixin, Base):
         Index("ix_audit_events_action", "action"),
         Index("ix_audit_events_resource", "resource_type", "resource_id"),
         Index("ix_audit_events_created_at", "created_at"),
+        Index("ix_audit_events_tenant_chain", "tenant_id", "chain_sequence"),
+    )
+
+
+# =============================================================================
+# Audit Merkle Root Model
+# =============================================================================
+
+
+class AuditMerkleRoot(TenantScopedMixin, Base):
+    """
+    Merkle root anchor for a batch of audit events.
+
+    Provides cryptographic anchoring of event hash chains via Merkle trees,
+    with optional digital signature and RFC 3161 timestamping.
+    """
+
+    __tablename__ = "audit_merkle_roots"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    root_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="SHA-256 Merkle root hash",
+    )
+    event_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Number of events in this Merkle batch",
+    )
+    first_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="First chain_sequence in batch",
+    )
+    last_sequence: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Last chain_sequence in batch",
+    )
+    signature: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Ed25519 signature of root_hash",
+    )
+    tsa_token: Mapped[bytes | None] = mapped_column(
+        LargeBinary,
+        comment="RFC 3161 timestamp authority token",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_audit_merkle_roots_tenant", "tenant_id"),
+        Index(
+            "ix_audit_merkle_roots_sequences",
+            "tenant_id",
+            "first_sequence",
+            "last_sequence",
+        ),
+    )
+
+
+# =============================================================================
+# Compliance Report Model
+# =============================================================================
+
+
+class ComplianceReportRecord(TenantScopedMixin, Base):
+    """
+    Persisted ESPR compliance check result.
+
+    Stores the full compliance report JSON alongside summary fields
+    for efficient querying and dashboard display.
+    """
+
+    __tablename__ = "compliance_reports"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Product category (battery, textile, electronic, etc.)",
+    )
+    is_compliant: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+    )
+    report_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Full compliance report payload",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_compliance_reports_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_compliance_reports_category", "category"),
+    )
+
+
+# =============================================================================
+# EDC Asset Registration Model
+# =============================================================================
+
+
+class EDCAssetRegistration(TenantScopedMixin, Base):
+    """
+    Tracks DPP assets registered in the Eclipse Dataspace Connector.
+
+    Records the EDC asset, policy, and contract definition IDs
+    created during DPP publication to a dataspace.
+    """
+
+    __tablename__ = "edc_asset_registrations"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    edc_asset_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Asset ID in EDC catalog",
+    )
+    edc_policy_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Policy definition ID in EDC",
+    )
+    edc_contract_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Contract definition ID in EDC",
+    )
+    status: Mapped[str] = mapped_column(
+        String(50),
+        default="registered",
+        nullable=False,
+        comment="Registration status: registered, active, removed",
+    )
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_edc_registrations_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_edc_registrations_connector", "connector_id"),
+        Index("ix_edc_registrations_asset", "edc_asset_id"),
     )

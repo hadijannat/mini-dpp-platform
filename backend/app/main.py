@@ -17,6 +17,8 @@ from app.core.middleware import SecurityHeadersMiddleware
 from app.core.rate_limit import RateLimitMiddleware, close_redis, get_redis
 from app.core.security.abac import close_opa_client
 from app.db.session import close_db, get_db_session, init_db
+from app.modules.audit.router import router as audit_router
+from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
 from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
@@ -130,6 +132,28 @@ def create_application() -> FastAPI:
         except Exception:
             checks["redis"] = "unavailable"
 
+        # Probe EDC (if configured)
+        if settings.edc_management_url:
+            try:
+                from app.modules.connectors.edc.client import (
+                    EDCConfig,
+                    EDCManagementClient,
+                )
+                from app.modules.connectors.edc.health import check_edc_health
+
+                edc_cfg = EDCConfig(
+                    management_url=settings.edc_management_url,
+                    api_key=settings.edc_management_api_key,
+                )
+                client = EDCManagementClient(edc_cfg)
+                try:
+                    edc_result = await check_edc_health(client)
+                    checks["edc"] = edc_result.get("status", "unavailable")
+                finally:
+                    await client.close()
+            except Exception:
+                checks["edc"] = "unavailable"
+
         overall = "healthy" if all(v == "ok" for v in checks.values()) else "degraded"
         return {"status": overall, "version": settings.version, "checks": checks}
 
@@ -187,6 +211,21 @@ def create_application() -> FastAPI:
         prefix=f"{settings.api_v1_prefix}/admin/settings",
         tags=["Settings"],
     )
+    app.include_router(
+        compliance_router,
+        prefix=f"{tenant_prefix}/compliance",
+        tags=["Compliance"],
+    )
+    app.include_router(
+        audit_router,
+        prefix=f"{settings.api_v1_prefix}/admin/audit",
+        tags=["Audit"],
+    )
+
+    # Prometheus metrics endpoint
+    from prometheus_fastapi_instrumentator import Instrumentator
+
+    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
     return app
 

@@ -1,0 +1,112 @@
+category: electronic
+version: "1.0"
+description: "EU ESPR Electronics Regulation compliance rules"
+rules:
+  # --- Product Identity ---
+  - id: ELC-001
+    field_path: "ElectronicProductInformation.ManufacturerName"
+    condition: required
+    severity: critical
+    message: "Manufacturer name is required per ESPR Article 9"
+
+  - id: ELC-002
+    field_path: "ElectronicProductInformation.ProductModel"
+    condition: required
+    severity: critical
+    message: "Product model designation is required per ESPR Article 9"
+
+  - id: ELC-003
+    field_path: "ElectronicProductInformation.GTIN"
+    condition: required
+    severity: warning
+    message: "GTIN should be provided for product traceability"
+
+  # --- Energy Efficiency ---
+  - id: ELC-010
+    field_path: "EnergyEfficiency.EnergyEfficiencyClass"
+    condition: required
+    severity: critical
+    message: "Energy efficiency class is required per EU Energy Labelling Regulation"
+
+  - id: ELC-011
+    field_path: "EnergyEfficiency.AnnualEnergyConsumption"
+    condition: required
+    severity: critical
+    message: "Annual energy consumption must be declared per energy labelling requirements"
+
+  - id: ELC-012
+    field_path: "EnergyEfficiency.PowerConsumptionStandby"
+    condition: required
+    severity: warning
+    message: "Standby power consumption should be declared per Ecodesign Directive"
+
+  # --- Repairability ---
+  - id: ELC-020
+    field_path: "Repairability.RepairabilityScore"
+    condition: required
+    severity: critical
+    message: "Repairability score is required per ESPR and French Repairability Index"
+
+  - id: ELC-021
+    field_path: "Repairability.SparePartsAvailability"
+    condition: required
+    severity: critical
+    message: "Spare parts availability period must be declared per ESPR Article 9"
+
+  - id: ELC-022
+    field_path: "Repairability.RepairManualAvailable"
+    condition: required
+    severity: warning
+    message: "Repair manual availability should be declared per ESPR"
+
+  # --- Hazardous Substances ---
+  - id: ELC-030
+    field_path: "HazardousSubstances.SubstancesOfConcern"
+    condition: required
+    severity: critical
+    message: "Substances of concern must be declared per ESPR Article 9 and REACH/RoHS"
+
+  - id: ELC-031
+    field_path: "HazardousSubstances.RoHSCompliance"
+    condition: required
+    severity: critical
+    message: "RoHS compliance status must be declared"
+
+  # --- Durability ---
+  - id: ELC-040
+    field_path: "Durability.ExpectedProductLifetime"
+    condition: required
+    severity: warning
+    message: "Expected product lifetime should be declared per ESPR durability requirements"
+
+  - id: ELC-041
+    field_path: "Durability.SoftwareUpdateAvailability"
+    condition: required
+    severity: warning
+    message: "Software update availability period should be declared per ESPR"
+
+  # --- Environmental ---
+  - id: ELC-050
+    field_path: "EnvironmentalImpact.CarbonFootprint"
+    condition: required
+    severity: warning
+    message: "Product carbon footprint should be declared per ESPR"
+
+  - id: ELC-051
+    field_path: "EnvironmentalImpact.RecycledContentPercentage"
+    condition: required
+    severity: warning
+    message: "Recycled content percentage should be declared per ESPR"
+
+  # --- End of Life ---
+  - id: ELC-060
+    field_path: "EndOfLife.WEEECollectionInformation"
+    condition: required
+    severity: critical
+    message: "WEEE collection information is required per WEEE Directive"
+
+  - id: ELC-061
+    field_path: "EndOfLife.RecyclabilityRate"
+    condition: required
+    severity: warning
+    message: "Recyclability rate should be declared per ESPR circular economy requirements"

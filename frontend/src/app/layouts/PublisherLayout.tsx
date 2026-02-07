@@ -10,6 +10,8 @@ import {
   Layers,
   Settings,
   Users,
+  ShieldCheck,
+  ScrollText,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -51,6 +53,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Templates', href: '/console/templates', icon: FileCode },
   { name: 'Data Carriers', href: '/console/carriers', icon: QrCode },
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
+  { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
 ];
 
 function getInitials(name: string | undefined): string {
@@ -71,6 +74,7 @@ export default function PublisherLayout() {
   const navigation: NavItem[] = userIsAdmin
     ? [
         ...baseNavigation,
+        { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]

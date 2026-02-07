@@ -1,0 +1,138 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Audit Event Rate by Action",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (action) (rate(audit_events_total[5m]))",
+          "legendFormat": "{{ action }}"
+        }
+      ]
+    },
+    {
+      "title": "Total Audit Events (24h)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(increase(audit_events_total[24h]))",
+          "legendFormat": "events"
+        }
+      ]
+    },
+    {
+      "title": "Audit Events by Resource Type",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (resource_type) (increase(audit_events_total[24h]))",
+          "legendFormat": "{{ resource_type }}"
+        }
+      ]
+    },
+    {
+      "title": "Hash Chain Verification",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(audit_hash_chain_verifications_total{result=\"success\"}[5m])",
+          "legendFormat": "success"
+        },
+        {
+          "expr": "rate(audit_hash_chain_verifications_total{result=\"failure\"}[5m])",
+          "legendFormat": "failure"
+        }
+      ]
+    },
+    {
+      "title": "Hash Chain Integrity",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "audit_hash_chain_valid",
+          "legendFormat": "valid"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "BROKEN", "color": "red" }, "1": { "text": "VALID", "color": "green" } } }
+          ]
+        }
+      }
+    },
+    {
+      "title": "Merkle Root Interval",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "audit_merkle_root_events_total",
+          "legendFormat": "merkle roots"
+        }
+      ]
+    },
+    {
+      "title": "Audit Events by User",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (user_id) (increase(audit_events_total[24h])))",
+          "legendFormat": "{{ user_id }}",
+          "format": "table",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "title": "DPP Lifecycle Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(audit_events_total{resource_type=\"dpp\", action=\"create\"}[5m])",
+          "legendFormat": "create"
+        },
+        {
+          "expr": "rate(audit_events_total{resource_type=\"dpp\", action=\"update\"}[5m])",
+          "legendFormat": "update"
+        },
+        {
+          "expr": "rate(audit_events_total{resource_type=\"dpp\", action=\"publish\"}[5m])",
+          "legendFormat": "publish"
+        },
+        {
+          "expr": "rate(audit_events_total{resource_type=\"dpp\", action=\"export\"}[5m])",
+          "legendFormat": "export"
+        },
+        {
+          "expr": "rate(audit_events_total{resource_type=\"dpp\", action=\"archive\"}[5m])",
+          "legendFormat": "archive"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["dpp-platform", "audit"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DPP Platform — Audit Trail",
+  "uid": "dpp-audit-trail",
+  "version": 1
+}

@@ -84,6 +84,21 @@ jobs:
           exit-code: 1
           ignore-unfixed: true
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Package Helm chart
+        run: helm package infra/helm/dpp-platform/
+
+      - name: Push Helm chart to GHCR OCI
+        env:
+          HELM_REGISTRY: ${{ env.REGISTRY }}
+          HELM_REPO: ${{ github.repository }}
+        run: |
+          helm push dpp-platform-*.tgz "oci://${HELM_REGISTRY}/${HELM_REPO}/charts"
+
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1
         with:
@@ -111,8 +126,8 @@ jobs:
               exit 1
             }
 
-            # Restart application services
-            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy
+            # Restart application + monitoring services
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy prometheus grafana
 
             # Verify backend health
             for i in $(seq 1 30); do
