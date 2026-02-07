@@ -12,6 +12,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -84,6 +85,18 @@ class PolicyEffect(str, PyEnum):
     MASK = "mask"
     HIDE = "hide"
     ENCRYPT_REQUIRED = "encrypt_required"
+
+
+class LifecyclePhase(str, PyEnum):
+    """Product lifecycle phase for digital thread events."""
+
+    DESIGN = "design"
+    MANUFACTURE = "manufacture"
+    LOGISTICS = "logistics"
+    DEPLOY = "deploy"
+    OPERATE = "operate"
+    MAINTAIN = "maintain"
+    END_OF_LIFE = "end_of_life"
 
 
 class ConnectorType(str, PyEnum):
@@ -1092,4 +1105,144 @@ class EDCAssetRegistration(TenantScopedMixin, Base):
         Index("ix_edc_registrations_tenant_dpp", "tenant_id", "dpp_id"),
         Index("ix_edc_registrations_connector", "connector_id"),
         Index("ix_edc_registrations_asset", "edc_asset_id"),
+    )
+
+
+# =============================================================================
+# Digital Thread Event Model
+# =============================================================================
+
+
+class ThreadEvent(TenantScopedMixin, Base):
+    """
+    Immutable product lifecycle event for digital thread traceability.
+
+    Unlike audit events (which track WHO did WHAT for security), thread events
+    track WHAT HAPPENED to a PRODUCT across its lifecycle. Insert-only — no updates.
+    """
+
+    __tablename__ = "thread_events"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    phase: Mapped[LifecyclePhase] = mapped_column(
+        Enum(LifecyclePhase, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        comment="Product lifecycle phase",
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Event type: material_sourced, assembled, shipped, installed, serviced, recycled, etc.",
+    )
+    source: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="System or organization that emitted the event",
+    )
+    source_event_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="External event correlation ID",
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Event-specific data",
+    )
+    parent_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("thread_events.id"),
+        comment="Causal parent event for event chains",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_thread_events_tenant_dpp_phase", "tenant_id", "dpp_id", "phase"),
+        Index("ix_thread_events_tenant_created", "tenant_id", "created_at"),
+        Index("ix_thread_events_dpp_id", "dpp_id"),
+        Index("ix_thread_events_parent", "parent_event_id"),
+    )
+
+
+# =============================================================================
+# LCA Calculation Model
+# =============================================================================
+
+
+class LCACalculation(TenantScopedMixin, Base):
+    """
+    Persisted LCA / Product Carbon Footprint calculation result.
+
+    Stores the full computation for reproducibility: input inventory,
+    emission factors version, and detailed breakdown report.
+    """
+
+    __tablename__ = "lca_calculations"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision_no: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="DPP revision number used for the calculation",
+    )
+    methodology: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+        comment="Calculation methodology, e.g. activity-based-gwp",
+    )
+    scope: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="LCA scope: cradle-to-gate, gate-to-gate, cradle-to-grave",
+    )
+    total_gwp_kg_co2e: Mapped[float] = mapped_column(
+        Float,
+        nullable=False,
+        comment="Total GWP in kg CO2 equivalent",
+    )
+    impact_categories: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Multi-category impact results",
+    )
+    material_inventory: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Extracted input data for reproducibility",
+    )
+    factor_database_version: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        comment="Emission factor database version used",
+    )
+    report_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Full detailed report",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_lca_calculations_tenant_dpp", "tenant_id", "dpp_id"),
+        Index("ix_lca_calculations_dpp_revision", "dpp_id", "revision_no"),
     )

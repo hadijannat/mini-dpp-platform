@@ -21,9 +21,11 @@ from app.db.session import close_db, get_db_session, init_db
 from app.modules.audit.router import router as audit_router
 from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
+from app.modules.digital_thread.router import router as digital_thread_router
 from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
 from app.modules.export.router import router as export_router
+from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
@@ -256,6 +258,16 @@ window.onload = function() {{
         audit_router,
         prefix=f"{settings.api_v1_prefix}/admin/audit",
         tags=["Audit"],
+    )
+    app.include_router(
+        digital_thread_router,
+        prefix=f"{tenant_prefix}/thread",
+        tags=["Digital Thread"],
+    )
+    app.include_router(
+        lca_router,
+        prefix=f"{tenant_prefix}/lca",
+        tags=["LCA"],
     )
 
     # Prometheus metrics endpoint
