@@ -34,6 +34,12 @@ logger = get_logger(__name__)
 
 SELECTION_STRATEGY = "deterministic_v2"
 
+# Module-level definition cache keyed by (template_key, version, source_file_sha).
+# Definitions are deterministic given the same template data, so caching across
+# requests is safe.  Bounded to 32 entries (~6 templates × a few versions).
+_definition_cache: dict[tuple[str, str, str | None], dict[str, Any]] = {}
+_DEFINITION_CACHE_MAX = 32
+
 
 class TemplateFetchError(RuntimeError):
     """Raised when a template cannot be fetched or parsed from upstream sources."""
@@ -296,6 +302,9 @@ class TemplateRegistryService:
 
         await self._session.flush()
 
+        # Invalidate cached definition for this template
+        _definition_cache.pop((template_key, version, source_file_sha), None)
+
         logger.info(
             "template_refreshed",
             template_key=template_key,
@@ -306,6 +315,11 @@ class TemplateRegistryService:
         return template
 
     def generate_template_definition(self, template: Template) -> dict[str, Any]:
+        cache_key = (template.template_key, template.idta_version, template.source_file_sha)
+        cached = _definition_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         descriptor = get_template_descriptor(template.template_key)
         if descriptor is None:
             raise ValueError(f"Unknown template key: {template.template_key}")
@@ -348,12 +362,20 @@ class TemplateRegistryService:
                 ) from exc
 
         builder = TemplateDefinitionBuilder()
-        return builder.build_definition(
+        definition = builder.build_definition(
             template_key=template.template_key,
             parsed=parsed,
             idta_version=template.idta_version,
             semantic_id=template.semantic_id,
         )
+
+        # Evict oldest entry if cache is full
+        if len(_definition_cache) >= _DEFINITION_CACHE_MAX:
+            oldest_key = next(iter(_definition_cache))
+            del _definition_cache[oldest_key]
+        _definition_cache[cache_key] = definition
+
+        return definition
 
     async def refresh_all_templates(self) -> list[Template]:
         """

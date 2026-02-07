@@ -130,3 +130,100 @@ class TestTemplateRegistryService:
 
         sorted_versions = sorted(versions, key=service._version_key, reverse=True)
         assert sorted_versions == ["1.0.11", "1.0.9", "1.0.2"]
+
+    def test_generate_template_contract_returns_complete_payload(self):
+        service = TemplateRegistryService(MagicMock())
+
+        definition = {
+            "submodel": {
+                "idShort": "TechnicalData",
+                "elements": [
+                    {
+                        "idShort": "MaxTemp",
+                        "modelType": "Property",
+                        "valueType": "xs:double",
+                        "smt": {"cardinality": "One"},
+                    },
+                ],
+            }
+        }
+
+        mock_template = MagicMock()
+        mock_template.template_key = "technical-data"
+        mock_template.idta_version = "2.0.1"
+        mock_template.semantic_id = "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2"
+        mock_template.resolved_version = "2.0.1"
+        mock_template.source_repo_ref = "main"
+        mock_template.source_file_path = "TechnicalData/2/0/1/template.json"
+        mock_template.source_file_sha = "abc123"
+        mock_template.source_kind = "json"
+        mock_template.selection_strategy = "deterministic_v2"
+        mock_template.source_url = "https://raw.githubusercontent.com/example/template.json"
+
+        service.generate_template_definition = MagicMock(return_value=definition)
+
+        contract = service.generate_template_contract(mock_template)
+
+        # All top-level keys present
+        assert contract["template_key"] == "technical-data"
+        assert contract["idta_version"] == "2.0.1"
+        assert contract["semantic_id"].startswith("https://")
+
+        # Definition is the raw definition AST
+        assert contract["definition"]["submodel"]["idShort"] == "TechnicalData"
+
+        # Schema is derived from definition
+        schema = contract["schema"]
+        assert schema["type"] == "object"
+        assert "MaxTemp" in schema["properties"]
+        assert schema["required"] == ["MaxTemp"]
+
+        # Source metadata is populated with all expected fields
+        meta = contract["source_metadata"]
+        assert meta["resolved_version"] == "2.0.1"
+        assert meta["source_repo_ref"] == "main"
+        assert meta["source_file_path"] == "TechnicalData/2/0/1/template.json"
+        assert meta["source_file_sha"] == "abc123"
+        assert meta["source_kind"] == "json"
+        assert meta["selection_strategy"] == "deterministic_v2"
+        assert "source_url" in meta
+
+    def test_generate_template_contract_definition_and_schema_are_consistent(self):
+        """The schema in the contract must be derivable from the definition in the same contract."""
+        from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter
+
+        service = TemplateRegistryService(MagicMock())
+
+        definition = {
+            "submodel": {
+                "idShort": "Nameplate",
+                "elements": [
+                    {
+                        "idShort": "SerialNumber",
+                        "modelType": "Property",
+                        "valueType": "xs:string",
+                        "smt": {},
+                    },
+                ],
+            }
+        }
+
+        mock_template = MagicMock()
+        mock_template.template_key = "digital-nameplate"
+        mock_template.idta_version = "3.0.1"
+        mock_template.semantic_id = "https://admin-shell.io/zvei/nameplate/2/0/Nameplate"
+        mock_template.resolved_version = "3.0.1"
+        mock_template.source_repo_ref = "main"
+        mock_template.source_file_path = None
+        mock_template.source_file_sha = None
+        mock_template.source_kind = None
+        mock_template.selection_strategy = None
+        mock_template.source_url = ""
+
+        service.generate_template_definition = MagicMock(return_value=definition)
+
+        contract = service.generate_template_contract(mock_template)
+
+        # Re-derive schema from the definition in the contract
+        re_derived = DefinitionToSchemaConverter().convert(contract["definition"])
+        assert contract["schema"] == re_derived
