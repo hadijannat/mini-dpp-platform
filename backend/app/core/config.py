@@ -330,6 +330,14 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # EPCIS 2.0
+    # ==========================================================================
+    epcis_enabled: bool = Field(default=False, description="Enable EPCIS 2.0 event recording")
+    epcis_auto_record: bool = Field(
+        default=True, description="Auto-record EPCIS events on DPP lifecycle changes"
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(

@@ -26,10 +26,9 @@ class TestEnumToStr:
         assert result is not None
         assert result == str(model.ModellingKind.TEMPLATE.value)
 
-    def test_type_object(self) -> None:
-        result = enum_to_str(model.Property)
-        assert result is not None
-        assert "Property" in result
+    def test_type_object_returns_class_name_only(self) -> None:
+        assert enum_to_str(model.Property) == "Property"
+        assert enum_to_str(model.SubmodelElementCollection) == "SubmodelElementCollection"
 
     def test_string_passthrough(self) -> None:
         assert enum_to_str("hello") == "hello"
