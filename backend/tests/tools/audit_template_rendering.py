@@ -205,9 +205,7 @@ def walk_definition_ast(
             item_schema = (schema_node or {}).get("items") if schema_node else None
             item_props = item_schema.get("properties") if isinstance(item_schema, dict) else None
             records.extend(
-                walk_definition_ast(
-                    item, item_props, depth + 1, inherited_schema=item_schema
-                )
+                walk_definition_ast(item, item_props, depth + 1, inherited_schema=item_schema)
             )
 
     elif model_type == "Entity":
@@ -354,9 +352,7 @@ def audit_template(key: str, version: str) -> TemplateAuditResult | None:
     no_schema = [r for r in all_records if not r.has_schema]
     if no_schema:
         for r in no_schema:
-            result.gaps.append(
-                f"No schema for {r.model_type} at {r.path} (idShort={r.id_short})"
-            )
+            result.gaps.append(f"No schema for {r.model_type} at {r.path} (idShort={r.id_short})")
 
     if result.empty_lists > 0:
         result.gaps.append(
@@ -369,9 +365,7 @@ def audit_template(key: str, version: str) -> TemplateAuditResult | None:
         )
 
     if result.statementless_entities > 0:
-        result.gaps.append(
-            f"{result.statementless_entities} Entity(ies) with no statements"
-        )
+        result.gaps.append(f"{result.statementless_entities} Entity(ies) with no statements")
 
     if result.annotationless_relationships > 0:
         result.gaps.append(
@@ -492,9 +486,7 @@ def main() -> None:
     total_editable = sum(r.editable_count for r in all_results)
     total_readonly = sum(r.readonly_count for r in all_results)
     total_gaps = sum(len(r.gaps) for r in all_results)
-    overall_pct = (
-        round(total_editable / total_elements * 100, 1) if total_elements > 0 else 0.0
-    )
+    overall_pct = round(total_editable / total_elements * 100, 1) if total_elements > 0 else 0.0
 
     print(f"  Templates audited: {len(all_results)}")
     print(f"  Total elements: {total_elements}")
@@ -518,12 +510,7 @@ def main() -> None:
         print(f"  All qualifier types: {', '.join(sorted(all_qual_types))}")
 
     # No-schema elements across all templates
-    no_schema_total = sum(
-        1
-        for r in all_results
-        for e in r.elements
-        if not e["has_schema"]
-    )
+    no_schema_total = sum(1 for r in all_results for e in r.elements if not e["has_schema"])
     if no_schema_total > 0:
         print(f"  WARNING: {no_schema_total} element(s) have no JSON Schema coverage")
 
