@@ -249,22 +249,29 @@ class BasyxDppBuilder:
         store: model.DictObjectStore[model.Identifiable],
         semantic_id: str,
     ) -> model.Submodel | None:
+        target = self._normalize_semantic_id(semantic_id)
         for obj in store:
             if not isinstance(obj, model.Submodel):
                 continue
-            candidate = reference_to_str(obj.semantic_id)
-            if candidate and semantic_id in candidate:
+            candidate = self._normalize_semantic_id(reference_to_str(obj.semantic_id))
+            if candidate and candidate == target:
                 return obj
         return None
 
     def _match_template_for_submodel(
         self, submodel: model.Submodel, templates: list[Any]
     ) -> Any | None:
-        submodel_semantic = reference_to_str(submodel.semantic_id) or ""
+        submodel_semantic = self._normalize_semantic_id(reference_to_str(submodel.semantic_id))
         for template in templates:
-            if template.semantic_id and template.semantic_id in submodel_semantic:
+            template_semantic = self._normalize_semantic_id(getattr(template, "semantic_id", None))
+            if template_semantic and template_semantic == submodel_semantic:
                 return template
         return None
+
+    def _normalize_semantic_id(self, semantic_id: str | None) -> str:
+        if not semantic_id:
+            return ""
+        return semantic_id.strip().rstrip("/").lower()
 
     def _build_aas(self, asset_ids: dict[str, Any]) -> model.AssetAdministrationShell:
         aas_id = f"urn:dpp:aas:{asset_ids.get('manufacturerPartId', 'unknown')}"

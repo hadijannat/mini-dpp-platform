@@ -229,7 +229,25 @@ class Settings(BaseSettings):
         default=86400, description="Template cache TTL in seconds (default: 24 hours)"
     )
 
-    # DPP4.0 Template versions (pinned for stability)
+    template_version_resolution_policy: Literal["latest_patch"] = Field(
+        default="latest_patch",
+        description=(
+            "Template version resolution strategy. latest_patch resolves the highest "
+            "available patch within configured major.minor baseline."
+        ),
+    )
+    template_major_minor_baselines: dict[str, str] = Field(
+        default={
+            "carbon-footprint": "1.0",
+            "contact-information": "1.0",
+            "digital-nameplate": "3.0",
+            "handover-documentation": "2.0",
+            "hierarchical-structures": "1.1",
+            "technical-data": "2.0",
+        },
+        description="Configured major.minor baseline per supported DPP4.0 template.",
+    )
+    # Legacy pinned versions retained for backward compatibility.
     template_versions: dict[str, str] = Field(
         default={
             "digital-nameplate": "3.0.1",
@@ -238,15 +256,8 @@ class Settings(BaseSettings):
             "carbon-footprint": "1.0.1",
             "handover-documentation": "2.0.1",
             "hierarchical-structures": "1.1.1",
-            # IDTA 02035 Battery Passport (7 parts)
-            "battery-general-product-info": "1.0.0",
-            "battery-performance-durability": "1.0.0",
-            "battery-materials": "1.0.0",
-            "battery-supply-chain": "1.0.0",
-            "battery-end-of-life": "1.0.0",
-            "battery-labels-compliance": "1.0.0",
-            "battery-condition": "1.0.0",
-        }
+        },
+        description="Deprecated: prefer template_major_minor_baselines + resolution policy.",
     )
 
     # ==========================================================================

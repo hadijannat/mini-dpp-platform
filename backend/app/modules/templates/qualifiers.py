@@ -82,13 +82,20 @@ FORM_CHOICES_SEMANTIC_IDS = {
 
 
 @dataclass
+class AllowedRange:
+    min: float | None = None
+    max: float | None = None
+    raw: str | None = None
+
+
+@dataclass
 class SmtQualifiers:
     cardinality: str | None = None
     either_or: str | None = None
     default_value: str | None = None
     initial_value: str | None = None
     example_value: str | None = None
-    allowed_range: str | None = None
+    allowed_range: AllowedRange | None = None
     allowed_value_regex: str | None = None
     required_lang: list[str] = field(default_factory=list)
     access_mode: str | None = None
@@ -149,7 +156,7 @@ def parse_smt_qualifiers(qualifiers: Iterable[dict[str, Any]] | None) -> SmtQual
             qtype in {"SMT/AllowedRange", "AllowedRange"}
             or semantic_id in ALLOWED_RANGE_SEMANTIC_IDS
         ):
-            result.allowed_range = _string_value(value)
+            result.allowed_range = _parse_allowed_range_value(value)
             continue
 
         if (
@@ -213,6 +220,16 @@ def parse_allowed_range(value: str | None) -> tuple[float, float] | None:
     if not match:
         return None
     return float(match.group(1)), float(match.group(2))
+
+
+def _parse_allowed_range_value(value: Any) -> AllowedRange | None:
+    raw = _string_value(value)
+    if raw is None:
+        return None
+    parsed = parse_allowed_range(raw)
+    if parsed:
+        return AllowedRange(min=parsed[0], max=parsed[1], raw=raw)
+    return AllowedRange(raw=raw)
 
 
 def _split_langs(value: Any) -> list[str]:

@@ -5,6 +5,7 @@ Handles fetching, parsing, caching, and versioning of DPP4.0 templates.
 
 import io
 import json
+import re
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -27,9 +28,11 @@ from app.modules.templates.catalog import (
     list_template_keys,
 )
 from app.modules.templates.definition import TemplateDefinitionBuilder
-from app.modules.templates.qualifiers import parse_allowed_range, parse_smt_qualifiers
+from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter
 
 logger = get_logger(__name__)
+
+SELECTION_STRATEGY = "deterministic_v2"
 
 
 class TemplateFetchError(RuntimeError):
@@ -65,10 +68,20 @@ class TemplateRegistryService:
         """
         Get all registered templates from the database.
 
-        Returns templates ordered by template_key for consistent display.
+        Returns latest version per template key for consistent display.
         """
-        result = await self._session.execute(select(Template).order_by(Template.template_key))
-        return list(result.scalars().all())
+        result = await self._session.execute(
+            select(Template).order_by(
+                Template.template_key.asc(),
+                Template.fetched_at.desc(),
+                Template.idta_version.desc(),
+            )
+        )
+        latest_by_key: dict[str, Template] = {}
+        for template in result.scalars():
+            if template.template_key not in latest_by_key:
+                latest_by_key[template.template_key] = template
+        return [latest_by_key[key] for key in sorted(latest_by_key.keys())]
 
     async def get_template(
         self,
@@ -78,13 +91,16 @@ class TemplateRegistryService:
         """
         Get a specific template by key and optional version.
 
-        If version is not specified, returns the pinned version from config.
+        If version is not specified, returns the latest stored version.
         """
         if version is None:
-            version = self._settings.template_versions.get(template_key)
-            if version is None:
-                logger.warning("unknown_template_key", template_key=template_key)
-                return None
+            result = await self._session.execute(
+                select(Template)
+                .where(Template.template_key == template_key)
+                .order_by(Template.fetched_at.desc(), Template.idta_version.desc())
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
 
         result = await self._session.execute(
             select(Template).where(
@@ -96,22 +112,22 @@ class TemplateRegistryService:
 
     async def list_template_versions(self, template_key: str) -> list[dict[str, Any]]:
         """
-        List all stored versions for a template, indicating which is the pinned default.
+        List all stored versions for a template, indicating the latest stored default.
 
-        Returns a list of dicts with version, is_pinned, and created_at.
+        Returns a list of dicts with version, is_default, and created_at.
         """
         result = await self._session.execute(
             select(Template.idta_version, Template.fetched_at)
             .where(Template.template_key == template_key)
-            .order_by(Template.idta_version)
         )
-        rows = result.all()
-        pinned = self._settings.template_versions.get(template_key)
+        rows = list(result.all())
+        rows.sort(key=lambda row: self._version_key(str(row.idta_version)), reverse=True)
+        latest = rows[0].idta_version if rows else None
         return [
             {
                 "version": row.idta_version,
-                "is_pinned": row.idta_version == pinned,
-                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "is_default": row.idta_version == latest,
+                "created_at": row.fetched_at.isoformat() if row.fetched_at else None,
             }
             for row in rows
         ]
@@ -127,12 +143,13 @@ class TemplateRegistryService:
         if descriptor is None:
             raise ValueError(f"Unknown template key: {template_key}")
 
-        version = self._settings.template_versions.get(template_key)
-        if version is None:
-            raise ValueError(f"No pinned version configured for template: {template_key}")
+        version = await self._resolve_template_version(descriptor)
 
         # Resolve source URLs based on IDTA repo structure
-        json_url, aasx_url = await self._resolve_template_assets(descriptor, version)
+        json_asset, aasx_asset = await self._resolve_template_assets(descriptor, version)
+        json_url = cast(str | None, json_asset.get("download_url")) if json_asset else None
+        aasx_url = cast(str | None, aasx_asset.get("download_url")) if aasx_asset else None
+
         if not json_url and not aasx_url:
             json_url = self._build_template_url(descriptor, version, file_kind="json")
             aasx_url = self._build_template_url(descriptor, version, file_kind="aasx")
@@ -148,6 +165,10 @@ class TemplateRegistryService:
         aas_env_json: dict[str, Any] | None = None
         template_aasx: bytes | None = None
         source_url: str | None = None
+        source_kind: str | None = None
+        source_file_path: str | None = None
+        source_file_sha: str | None = None
+        selection_strategy = "fallback_url"
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             if json_url:
@@ -157,6 +178,11 @@ class TemplateRegistryService:
                     payload = response.json()
                     aas_env_json = self._normalize_template_json(payload, template_key)
                     source_url = json_url
+                    source_kind = "json"
+                    source_file_path = cast(str | None, json_asset.get("path")) if json_asset else None
+                    source_file_sha = cast(str | None, json_asset.get("sha")) if json_asset else None
+                    if json_asset:
+                        selection_strategy = SELECTION_STRATEGY
                     if not aas_env_json.get("submodels"):
                         logger.warning(
                             "template_empty_submodels",
@@ -191,6 +217,15 @@ class TemplateRegistryService:
                     else:
                         aas_env_json = self._extract_aas_environment(template_aasx)
                         source_url = aasx_url
+                        source_kind = "aasx"
+                        source_file_path = (
+                            cast(str | None, aasx_asset.get("path")) if aasx_asset else None
+                        )
+                        source_file_sha = (
+                            cast(str | None, aasx_asset.get("sha")) if aasx_asset else None
+                        )
+                        if aasx_asset:
+                            selection_strategy = SELECTION_STRATEGY
                         if not aas_env_json.get("submodels"):
                             logger.warning(
                                 "template_empty_submodels",
@@ -233,14 +268,26 @@ class TemplateRegistryService:
                 existing.template_aasx = template_aasx
             if source_url is not None:
                 existing.source_url = source_url
+            existing.resolved_version = version
+            existing.source_repo_ref = self._settings.idta_templates_repo_ref
+            existing.source_file_path = source_file_path
+            existing.source_file_sha = source_file_sha
+            existing.source_kind = source_kind
+            existing.selection_strategy = selection_strategy
             existing.fetched_at = datetime.now(UTC)
             template = existing
         else:
             template = Template(
                 template_key=template_key,
                 idta_version=version,
+                resolved_version=version,
                 semantic_id=semantic_id,
                 source_url=source_url or (json_url or aasx_url or ""),
+                source_repo_ref=self._settings.idta_templates_repo_ref,
+                source_file_path=source_file_path,
+                source_file_sha=source_file_sha,
+                source_kind=source_kind,
+                selection_strategy=selection_strategy,
                 template_aasx=template_aasx,
                 template_json=aas_env_json,
                 fetched_at=datetime.now(UTC),
@@ -330,6 +377,73 @@ class TemplateRegistryService:
         await self._session.commit()
         return templates
 
+    async def _resolve_template_version(self, descriptor: TemplateDescriptor) -> str:
+        policy = self._settings.template_version_resolution_policy
+        baseline_major, baseline_minor = self._baseline_for_template(descriptor)
+
+        if policy != "latest_patch":
+            legacy = self._settings.template_versions.get(descriptor.key)
+            if legacy:
+                return legacy
+            return f"{baseline_major}.{baseline_minor}.0"
+
+        patches = await self._list_available_patches(
+            descriptor=descriptor,
+            major=baseline_major,
+            minor=baseline_minor,
+        )
+        patches = sorted(set(patches))
+        if not patches:
+            legacy = self._settings.template_versions.get(descriptor.key)
+            if legacy:
+                return legacy
+            return f"{baseline_major}.{baseline_minor}.0"
+        return f"{baseline_major}.{baseline_minor}.{patches[-1]}"
+
+    def _baseline_for_template(self, descriptor: TemplateDescriptor) -> tuple[int, int]:
+        configured = self._settings.template_major_minor_baselines.get(descriptor.key, "")
+        match = re.match(r"^\s*(\d+)\.(\d+)\s*$", configured)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return descriptor.baseline_major, descriptor.baseline_minor
+
+    async def _list_available_patches(
+        self,
+        descriptor: TemplateDescriptor,
+        major: int,
+        minor: int,
+    ) -> list[int]:
+        api_base = self._settings.idta_templates_repo_api_url.rstrip("/")
+        ref = self._settings.idta_templates_repo_ref
+        api_url = f"{api_base}/{quote(descriptor.repo_folder)}/{major}/{minor}?ref={ref}"
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(api_url, headers=self._github_headers())
+                response.raise_for_status()
+                payload = response.json()
+        except Exception as exc:
+            logger.warning(
+                "template_patch_discovery_failed",
+                template_key=descriptor.key,
+                major=major,
+                minor=minor,
+                error=str(exc),
+            )
+            return []
+
+        if not isinstance(payload, list):
+            return []
+
+        patches: list[int] = []
+        for item in payload:
+            if item.get("type") != "dir":
+                continue
+            name = str(item.get("name", "")).strip()
+            if name.isdigit():
+                patches.append(int(name))
+
+        return sorted(set(patches))
+
     def _build_template_url(
         self, descriptor: TemplateDescriptor, version: str, file_kind: str = "aasx"
     ) -> str:
@@ -385,6 +499,13 @@ class TemplateRegistryService:
             return parts[0], parts[1], "0"
         return parts[0], "0", "0"
 
+    def _version_key(self, version: str) -> tuple[int, int, int]:
+        major, minor, patch = self._split_version(version)
+        try:
+            return int(major), int(minor), int(patch)
+        except ValueError:
+            return 0, 0, 0
+
     def _github_headers(self) -> dict[str, str]:
         headers = {
             "Accept": "application/vnd.github+json",
@@ -397,7 +518,7 @@ class TemplateRegistryService:
 
     async def _resolve_template_assets(
         self, descriptor: TemplateDescriptor, version: str
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
         """
         Resolve template JSON and AASX URLs using the GitHub contents API.
 
@@ -433,68 +554,72 @@ class TemplateRegistryService:
             )
             return None, None
 
-        json_files = [item for item in payload if str(item.get("name", "")).endswith(".json")]
-        aasx_files = [item for item in payload if str(item.get("name", "")).endswith(".aasx")]
+        json_files = [
+            item for item in payload if str(item.get("name", "")).lower().endswith(".json")
+        ]
+        aasx_files = [
+            item for item in payload if str(item.get("name", "")).lower().endswith(".aasx")
+        ]
 
         expected_json = self._expected_template_filename(descriptor, version, file_kind="json")
         expected_aasx = self._expected_template_filename(descriptor, version, file_kind="aasx")
 
-        json_url = self._select_template_file(
+        json_asset = self._select_template_file(
             json_files, prefer_kind="json", expected_name=expected_json
         )
-        aasx_url = self._select_template_file(
+        aasx_asset = self._select_template_file(
             aasx_files, prefer_kind="aasx", expected_name=expected_aasx
         )
 
-        if not json_url and not aasx_url:
+        if not json_asset and not aasx_asset:
             logger.warning(
                 "template_assets_missing",
                 template_key=descriptor.key,
                 version=version,
             )
 
-        return json_url, aasx_url
+        return json_asset, aasx_asset
 
     def _select_template_file(
         self,
         files: list[dict[str, Any]],
         prefer_kind: str,
         expected_name: str | None = None,
-    ) -> str | None:
+    ) -> dict[str, Any] | None:
         if not files:
             return None
 
         expected = expected_name.lower() if expected_name else None
         if expected:
-            for file_item in files:
-                name = str(file_item.get("name", ""))
-                if name.lower() == expected:
-                    return cast(str | None, file_item.get("download_url"))
+            exact = next(
+                (item for item in files if str(item.get("name", "")).lower() == expected),
+                None,
+            )
+            if exact:
+                return exact
 
-        def score(file_item: dict[str, Any]) -> tuple[int, str]:
+        def score(file_item: dict[str, Any]) -> tuple[int, int, int, str]:
             name = str(file_item.get("name", ""))
             lowered = name.lower()
-            points = 0
 
-            if "template" in lowered:
-                points += 5
+            template_points = 1 if "template" in lowered else 0
+            kind_points = 1 if prefer_kind in lowered else 0
+            penalty = 0
             if "sample" in lowered or "example" in lowered:
-                points -= 6
+                penalty += 3
             if "schema" in lowered:
-                points -= 8
+                penalty += 3
+            if "template" in lowered:
+                penalty += 0
             if "foraasmetamodel" in lowered:
-                points -= 3
+                penalty += 1
             if prefer_kind == "json" and "submodel" in lowered:
-                points += 1
-            if prefer_kind == "aasx" and "aasx" in lowered:
-                points += 1
+                template_points += 1
 
-            # Secondary sort by name to keep selection deterministic.
-            return (points, lowered)
+            # Higher is better except penalty; lexicographic tie-break keeps deterministic output.
+            return (template_points, kind_points, -penalty, lowered)
 
-        files_sorted = sorted(files, key=score, reverse=True)
-        chosen = files_sorted[0]
-        return cast(str | None, chosen.get("download_url"))
+        return sorted(files, key=score, reverse=True)[0]
 
     def _expected_template_filename(
         self, descriptor: TemplateDescriptor, version: str, file_kind: str
@@ -675,484 +800,30 @@ class TemplateRegistryService:
 
     def generate_ui_schema(self, template: Template) -> dict[str, Any]:
         """
-        Generate a UI schema from a template for form rendering.
-
-        Converts AAS submodel structure to a form-compatible schema
-        that the frontend can use to dynamically render editing forms.
+        Generate a UI schema from the canonical template definition AST.
         """
-        submodels = template.template_json.get("submodels", [])
+        definition = self.generate_template_definition(template)
+        return DefinitionToSchemaConverter().convert(definition)
 
-        if not submodels:
-            return {"type": "object", "properties": {}}
-
-        # Take the first submodel (templates typically have one)
-        submodel = submodels[0]
-
-        return self._submodel_to_ui_schema(submodel)
-
-    def _submodel_to_ui_schema(self, submodel: dict[str, Any]) -> dict[str, Any]:
-        """
-        Convert a submodel to JSON Schema compatible UI schema.
-
-        Handles SubmodelElementCollection, Property, MultiLanguageProperty,
-        Range, Blob, File, and other AAS element types.
-        """
-        schema: dict[str, Any] = {
-            "type": "object",
-            "title": submodel.get("idShort", "Submodel"),
-            "description": self._get_description(submodel),
-            "properties": {},
-            "required": [],
-        }
-
-        elements = submodel.get("submodelElements", [])
-
-        for element in elements:
-            id_short = element.get("idShort", "")
-
-            if not id_short:
-                continue
-
-            if self._is_required(element):
-                schema["required"].append(id_short)
-
-            schema["properties"][id_short] = self._element_to_schema(element)
-
-        return schema
-
-    def _collection_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert SubmodelElementCollection to nested object schema."""
-        nested_elements = element.get("value", [])
-
-        nested_schema: dict[str, Any] = {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {},
-            "required": [],
-        }
-
-        for nested in nested_elements:
-            nested_id = nested.get("idShort", "")
-
-            if not nested_id:
-                continue
-
-            if self._is_required(nested):
-                nested_schema["required"].append(nested_id)
-
-            nested_schema["properties"][nested_id] = self._element_to_schema(nested)
-
-        return nested_schema
-
-    def _list_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert SubmodelElementList to array schema."""
-        items = element.get("value", [])
-        if items:
-            item_schema = self._element_to_schema(items[0])
-        else:
-            item_template = self._build_list_item_template(element)
-            if item_template:
-                item_schema = self._element_to_schema(item_template)
-            else:
-                item_schema = {"type": "string"}
-
-        schema: dict[str, Any] = {
-            "type": "array",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "items": item_schema,
-        }
-
-        qualifiers = parse_smt_qualifiers(element.get("qualifiers", []))
-        if qualifiers.cardinality == "OneToMany":
-            schema["minItems"] = 1
-        elif qualifiers.cardinality == "ZeroToMany":
-            schema["minItems"] = 0
-
-        return schema
-
-    def _property_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Property to typed schema property."""
-        value_type = element.get("valueType", "xs:string")
-
-        # Map AAS value types to JSON Schema types
-        type_mapping: dict[str, str] = {
-            "xs:string": "string",
-            "xs:boolean": "boolean",
-            "xs:integer": "integer",
-            "xs:int": "integer",
-            "xs:long": "integer",
-            "xs:short": "integer",
-            "xs:decimal": "number",
-            "xs:double": "number",
-            "xs:float": "number",
-            "xs:date": "string",
-            "xs:dateTime": "string",
-            "xs:anyURI": "string",
-        }
-
-        json_type = type_mapping.get(value_type, "string")
-
-        property_schema: dict[str, Any] = {
-            "type": json_type,
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-        }
-
-        # Add format hints
-        if value_type in ("xs:date", "xs:dateTime"):
-            property_schema["format"] = "date-time" if "Time" in value_type else "date"
-        elif value_type == "xs:anyURI":
-            property_schema["format"] = "uri"
-
-        # Add semantic ID as custom property
-        if "semanticId" in element:
-            property_schema["x-semantic-id"] = element["semanticId"]
-
-        return property_schema
-
-    def _mlp_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert MultiLanguageProperty to object with language keys."""
+    def generate_template_contract(self, template: Template) -> dict[str, Any]:
+        definition = self.generate_template_definition(template)
+        schema = DefinitionToSchemaConverter().convert(definition)
         return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "additionalProperties": {
-                "type": "string",
-            },
-            "x-multi-language": True,
+            "template_key": template.template_key,
+            "idta_version": template.idta_version,
+            "semantic_id": template.semantic_id,
+            "definition": definition,
+            "schema": schema,
+            "source_metadata": self._source_metadata(template),
         }
 
-    def _range_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Range to object with min/max properties."""
+    def _source_metadata(self, template: Template) -> dict[str, Any]:
         return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "min": {"type": "number"},
-                "max": {"type": "number"},
-            },
-            "x-range": True,
+            "resolved_version": template.resolved_version or template.idta_version,
+            "source_repo_ref": template.source_repo_ref or self._settings.idta_templates_repo_ref,
+            "source_file_path": template.source_file_path,
+            "source_file_sha": template.source_file_sha,
+            "source_kind": template.source_kind,
+            "selection_strategy": template.selection_strategy,
+            "source_url": template.source_url,
         }
-
-    def _file_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert File element to file upload schema."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "contentType": {"type": "string"},
-                "value": {"type": "string", "format": "uri"},
-            },
-            "x-file-upload": True,
-        }
-
-    def _blob_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Blob element to base64 data schema."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "contentType": {"type": "string"},
-                "value": {"type": "string", "contentEncoding": "base64"},
-            },
-            "x-blob": True,
-            "x-readonly": True,
-        }
-
-    def _reference_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert ReferenceElement to reference schema."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "type": {"type": "string", "enum": ["ModelReference", "ExternalReference"]},
-                "keys": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "type": {"type": "string"},
-                            "value": {"type": "string"},
-                        },
-                    },
-                },
-            },
-            "x-reference": True,
-        }
-
-    def _entity_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Entity element to editable schema."""
-        statements = element.get("statements", [])
-        statements_schema: dict[str, Any] = {
-            "type": "object",
-            "title": "Statements",
-            "properties": {},
-        }
-
-        for statement in statements:
-            statement_id = statement.get("idShort", "")
-            if not statement_id:
-                continue
-            statements_schema["properties"][statement_id] = self._element_to_schema(statement)
-
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "entityType": {
-                    "type": "string",
-                    "enum": ["SelfManagedEntity", "CoManagedEntity"],
-                },
-                "globalAssetId": {"type": "string"},
-                "statements": statements_schema,
-            },
-            "x-entity": True,
-        }
-
-    def _relationship_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert RelationshipElement to reference pair schema."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "first": self._reference_to_schema({"idShort": "First"}),
-                "second": self._reference_to_schema({"idShort": "Second"}),
-            },
-            "x-relationship": True,
-        }
-
-    def _annotated_relationship_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert AnnotatedRelationshipElement to schema."""
-        annotations = element.get("annotations", [])
-        annotations_schema: dict[str, Any] = {
-            "type": "object",
-            "title": "Annotations",
-            "properties": {},
-        }
-
-        for annotation in annotations:
-            annotation_id = annotation.get("idShort", "")
-            if not annotation_id:
-                continue
-            annotations_schema["properties"][annotation_id] = self._element_to_schema(annotation)
-
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {
-                "first": self._reference_to_schema({"idShort": "First"}),
-                "second": self._reference_to_schema({"idShort": "Second"}),
-                "annotations": annotations_schema,
-            },
-            "x-annotated-relationship": True,
-        }
-
-    def _operation_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Operation to read-only schema placeholder."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {},
-            "x-readonly": True,
-        }
-
-    def _capability_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert Capability to read-only schema placeholder."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {},
-            "x-readonly": True,
-        }
-
-    def _basic_event_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        """Convert BasicEventElement to read-only schema placeholder."""
-        return {
-            "type": "object",
-            "title": element.get("idShort", ""),
-            "description": self._get_description(element),
-            "properties": {},
-            "x-readonly": True,
-        }
-
-    def _build_list_item_template(self, element: dict[str, Any]) -> dict[str, Any] | None:
-        type_value = element.get("typeValueListElement")
-        if isinstance(type_value, dict):
-            type_value = type_value.get("name")
-        value_type = element.get("valueTypeListElement")
-
-        if not type_value:
-            return None
-
-        template: dict[str, Any] = {
-            "idShort": "Item",
-            "modelType": {"name": type_value},
-        }
-
-        if value_type:
-            template["valueType"] = value_type
-
-        return template
-
-    def _element_to_schema(self, element: dict[str, Any]) -> dict[str, Any]:
-        model_type = element.get("modelType", {})
-        if isinstance(model_type, dict):
-            element_type = model_type.get("name", "Property")
-        elif isinstance(model_type, str):
-            element_type = model_type
-        else:
-            element_type = "Property"
-
-        if element_type == "SubmodelElementCollection":
-            schema = self._collection_to_schema(element)
-        elif element_type == "SubmodelElementList":
-            schema = self._list_to_schema(element)
-        elif element_type == "Property":
-            schema = self._property_to_schema(element)
-        elif element_type == "MultiLanguageProperty":
-            schema = self._mlp_to_schema(element)
-        elif element_type == "Range":
-            schema = self._range_to_schema(element)
-        elif element_type == "File":
-            schema = self._file_to_schema(element)
-        elif element_type == "Blob":
-            schema = self._blob_to_schema(element)
-        elif element_type == "ReferenceElement":
-            schema = self._reference_to_schema(element)
-        elif element_type == "Entity":
-            schema = self._entity_to_schema(element)
-        elif element_type == "RelationshipElement":
-            schema = self._relationship_to_schema(element)
-        elif element_type == "AnnotatedRelationshipElement":
-            schema = self._annotated_relationship_to_schema(element)
-        elif element_type == "Operation":
-            schema = self._operation_to_schema(element)
-        elif element_type == "Capability":
-            schema = self._capability_to_schema(element)
-        elif element_type == "BasicEventElement":
-            schema = self._basic_event_to_schema(element)
-        else:
-            schema = {
-                "type": "string",
-                "title": element.get("idShort", ""),
-            }
-
-        qualifiers = parse_smt_qualifiers(element.get("qualifiers", []))
-        return self._apply_qualifiers(schema, qualifiers)
-
-    def _is_required(self, element: dict[str, Any]) -> bool:
-        qualifiers = parse_smt_qualifiers(element.get("qualifiers", []))
-        return qualifiers.cardinality in {"One", "OneToMany"}
-
-    def _apply_qualifiers(self, schema: dict[str, Any], qualifiers: Any) -> dict[str, Any]:
-        if qualifiers.cardinality:
-            schema["x-cardinality"] = qualifiers.cardinality
-
-        if qualifiers.form_title:
-            schema["title"] = qualifiers.form_title
-            schema["x-form-title"] = qualifiers.form_title
-
-        if qualifiers.form_info:
-            if not schema.get("description"):
-                schema["description"] = qualifiers.form_info
-            schema["x-form-info"] = qualifiers.form_info
-
-        if qualifiers.form_url:
-            schema["x-form-url"] = qualifiers.form_url
-
-        if qualifiers.form_choices:
-            schema["x-form-choices"] = qualifiers.form_choices
-            if schema.get("type") == "string" and not schema.get("enum"):
-                schema["enum"] = qualifiers.form_choices
-
-        if qualifiers.default_value is not None and schema.get("type"):
-            schema["default"] = self._coerce_value(qualifiers.default_value, schema["type"])
-
-        if qualifiers.example_value is not None and schema.get("type"):
-            schema["examples"] = [self._coerce_value(qualifiers.example_value, schema["type"])]
-
-        if qualifiers.allowed_value_regex:
-            schema["pattern"] = qualifiers.allowed_value_regex
-            schema["x-allowed-value"] = qualifiers.allowed_value_regex
-
-        if qualifiers.allowed_range:
-            parsed = parse_allowed_range(qualifiers.allowed_range)
-            if parsed:
-                schema["minimum"] = parsed[0]
-                schema["maximum"] = parsed[1]
-            else:
-                schema["x-allowed-range"] = qualifiers.allowed_range
-
-        if qualifiers.required_lang:
-            schema["x-required-languages"] = sorted(set(qualifiers.required_lang))
-
-        if qualifiers.either_or:
-            schema["x-either-or"] = qualifiers.either_or
-
-        if qualifiers.access_mode:
-            access_mode = qualifiers.access_mode.strip().lower()
-            if access_mode in {"readonly", "read-only", "read_only"}:
-                schema["readOnly"] = True
-                schema["x-readonly"] = True
-            if access_mode in {"writeonly", "write-only", "write_only"}:
-                schema["writeOnly"] = True
-
-        if qualifiers.allowed_id_short:
-            schema["x-allowed-id-short"] = qualifiers.allowed_id_short
-
-        if qualifiers.edit_id_short is not None:
-            schema["x-edit-id-short"] = qualifiers.edit_id_short
-
-        if qualifiers.naming:
-            schema["x-naming"] = qualifiers.naming
-
-        return schema
-
-    def _coerce_value(self, value: Any, json_type: str) -> Any:
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            return value
-        if json_type == "integer":
-            try:
-                return int(value)
-            except ValueError:
-                return value
-        if json_type == "number":
-            try:
-                return float(value)
-            except ValueError:
-                return value
-        if json_type == "boolean":
-            lowered = value.strip().lower()
-            if lowered in {"true", "1", "yes"}:
-                return True
-            if lowered in {"false", "0", "no"}:
-                return False
-        return value
-
-    def _get_description(self, element: dict[str, Any]) -> str:
-        """Extract description from AAS element."""
-        descriptions = element.get("description", [])
-
-        if isinstance(descriptions, list):
-            # Find English description first
-            for desc in descriptions:
-                if desc.get("language", "").startswith("en"):
-                    return str(desc.get("text", ""))
-            # Fallback to first available
-            if descriptions:
-                return str(descriptions[0].get("text", ""))
-
-        return ""
