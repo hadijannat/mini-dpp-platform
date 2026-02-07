@@ -25,16 +25,12 @@ class CatenaXRegistryAdapter:
     def __init__(self, config: DTRConfig) -> None:
         self._client = DTRClient(config)
 
-    async def register_shell(
-        self, descriptor: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def register_shell(self, descriptor: dict[str, Any]) -> dict[str, Any]:
         """Register a shell descriptor via the Catena-X DTR."""
         shell = _dict_to_shell_descriptor(descriptor)
         return await self._client.register_shell(shell)
 
-    async def update_shell(
-        self, shell_id: str, descriptor: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def update_shell(self, shell_id: str, descriptor: dict[str, Any]) -> dict[str, Any]:
         """Update a shell descriptor in the Catena-X DTR."""
         shell = _dict_to_shell_descriptor(descriptor)
         return await self._client.update_shell(shell_id, shell)

@@ -69,9 +69,7 @@ async def get_lifecycle_timeline(
     # Group by phase in canonical order
     phases: dict[str, list[ThreadEventResponse]] = {}
     for phase in _PHASE_ORDER:
-        phase_events = [
-            ThreadEventResponse.model_validate(r) for r in rows if r.phase == phase
-        ]
+        phase_events = [ThreadEventResponse.model_validate(r) for r in rows if r.phase == phase]
         if phase_events:
             phases[phase.value] = phase_events
 
@@ -113,17 +111,11 @@ async def get_compliance_timeline(
     rows = result.scalars().all()
 
     # Further filter by event_type keywords
-    filtered = [
-        r
-        for r in rows
-        if any(kw in r.event_type.lower() for kw in _COMPLIANCE_KEYWORDS)
-    ]
+    filtered = [r for r in rows if any(kw in r.event_type.lower() for kw in _COMPLIANCE_KEYWORDS)]
 
     phases: dict[str, list[ThreadEventResponse]] = {}
     for phase in _PHASE_ORDER:
-        phase_events = [
-            ThreadEventResponse.model_validate(r) for r in filtered if r.phase == phase
-        ]
+        phase_events = [ThreadEventResponse.model_validate(r) for r in filtered if r.phase == phase]
         if phase_events:
             phases[phase.value] = phase_events
 

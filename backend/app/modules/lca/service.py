@@ -225,9 +225,7 @@ class LCAService:
         )
         calc = result.scalar_one_or_none()
         if calc is None:
-            raise ValueError(
-                f"No LCA calculation found for DPP {dpp_id} revision {revision_no}"
-            )
+            raise ValueError(f"No LCA calculation found for DPP {dpp_id} revision {revision_no}")
 
         return self._calc_to_report(calc)
 
