@@ -31,8 +31,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
     "digital-nameplate": TemplateDescriptor(
         key="digital-nameplate",
         title="Digital Nameplate",
-        semantic_id="https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
-        template_uri="https://admin-shell.io/zvei/nameplate/2/0/Nameplate",
+        semantic_id="https://admin-shell.io/idta/nameplate/3/0/Nameplate",
+        template_uri="https://admin-shell.io/idta/nameplate/3/0/Nameplate",
         repo_folder="Digital nameplate",
         baseline_major=3,
         baseline_minor=0,
@@ -51,8 +51,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
     "technical-data": TemplateDescriptor(
         key="technical-data",
         title="Technical Data",
-        semantic_id="https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
-        template_uri="https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
+        semantic_id="0173-1#01-AHX837#002",
+        template_uri="0173-1#01-AHX837#002",
         repo_folder="Technical_Data",
         baseline_major=2,
         baseline_minor=0,
@@ -71,8 +71,8 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
     "handover-documentation": TemplateDescriptor(
         key="handover-documentation",
         title="Handover Documentation",
-        semantic_id="https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
-        template_uri="https://admin-shell.io/ZVEI/HandoverDocumentation/1/0",
+        semantic_id="0173-1#01-AHF578#003",
+        template_uri="0173-1#01-AHF578#003",
         repo_folder="Handover Documentation",
         baseline_major=2,
         baseline_minor=0,

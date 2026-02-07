@@ -3,7 +3,7 @@
   "idta_version": "1.1.1",
   "semantic_id": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
   "expected": {
-    "definition_sha256": "91b6cbf243d7076a91b739257819dc5707ba11fdd60573342d2ec547be9b8a7c",
+    "definition_sha256": "01c88d0a61bdb3e2682fe2d6c13b91a3638be1689e9b312cf26d90af1dc5dff7",
     "schema_sha256": "f882627a176427b688c1028feb90a923c9186075e6a637b7ce2a5200bc386ff5"
   }
 }

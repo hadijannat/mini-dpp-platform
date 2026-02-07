@@ -64,5 +64,8 @@ CLAUDE.md
 CLAIM_REGISTER.md
 REVIEW_REPORT.md
 
+# Generated audit report
+backend/tests/tools/audit_report.json
+
 # Docker volumes (local dev)
 .docker-data/
