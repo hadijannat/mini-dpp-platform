@@ -329,6 +329,7 @@ services:
         - VITE_KEYCLOAK_URL=https://auth.dpp-platform.dev
         - VITE_KEYCLOAK_REALM=dpp-platform
         - VITE_KEYCLOAK_CLIENT_ID=dpp-frontend
+        - VITE_COMMIT_SHA=${VITE_COMMIT_SHA:-}
     image: dpp-frontend:prod
     container_name: dpp-frontend
     restart: unless-stopped

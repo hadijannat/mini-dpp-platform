@@ -117,6 +117,9 @@ jobs:
             # Pull latest code
             git pull origin main
 
+            # Export commit SHA for frontend version tag
+            export VITE_COMMIT_SHA=$(git rev-parse HEAD)
+
             # Build images (does not restart running containers)
             docker compose -f docker-compose.prod.yml build
 
