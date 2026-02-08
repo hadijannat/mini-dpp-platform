@@ -15,6 +15,27 @@ tenant_match if {
     input.resource.tenant_id == input.subject.tenant_id
 }
 
+# =============================================================================
+# ESPR Tier Helpers (must be defined before the decision else-chain)
+# =============================================================================
+
+# Semantic ID prefix sets per ESPR tier
+consumer_allowed := {
+    "https://admin-shell.io/zvei/nameplate",
+    "https://admin-shell.io/idta/TechnicalData",
+    "https://admin-shell.io/idta/CarbonFootprint",
+}
+
+recycler_allowed := consumer_allowed | {
+    "https://admin-shell.io/idta/CarbonFootprint",
+}
+
+# Helper: check if the resource's semantic_id starts with any prefix in the set
+_semantic_id_allowed(allowed_set) if {
+    some prefix in allowed_set
+    startswith(input.resource.semantic_id, prefix)
+}
+
 # Default deny
 default decision := {
     "effect": "deny",
@@ -414,5 +435,85 @@ else := {
     input.resource.type in ["dpp", "element"]
     input.resource.shared_bpns[_] == input.subject.bpn
     input.subject.bpn != null
+    tenant_match
+}
+
+# =============================================================================
+# ESPR Tiered Access (Submodel-Level)
+# =============================================================================
+
+# Consumer: allow submodel read when semantic ID prefix is in the consumer set
+else := {
+    "effect": "allow",
+    "policy_id": "espr-consumer-submodel-allow"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "consumer"
+    _semantic_id_allowed(consumer_allowed)
+    tenant_match
+}
+
+# Consumer: hide submodel when semantic ID is not in the consumer set
+else := {
+    "effect": "hide",
+    "policy_id": "espr-consumer-submodel-hide"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "consumer"
+    not _semantic_id_allowed(consumer_allowed)
+    tenant_match
+}
+
+# Recycler: allow submodel read when semantic ID prefix is in the recycler set
+else := {
+    "effect": "allow",
+    "policy_id": "espr-recycler-submodel-allow"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "recycler"
+    _semantic_id_allowed(recycler_allowed)
+    tenant_match
+}
+
+# Recycler: hide submodel when semantic ID is not in the recycler set
+else := {
+    "effect": "hide",
+    "policy_id": "espr-recycler-submodel-hide"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "recycler"
+    not _semantic_id_allowed(recycler_allowed)
+    tenant_match
+}
+
+# Authority: full submodel access
+else := {
+    "effect": "allow",
+    "policy_id": "espr-authority-submodel-allow"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "market_surveillance_authority"
+    tenant_match
+}
+
+# Manufacturer: full submodel access
+else := {
+    "effect": "allow",
+    "policy_id": "espr-manufacturer-submodel-allow"
+} if {
+    not input.subject.is_admin
+    input.action == "read"
+    input.resource.type == "submodel"
+    input.subject.espr_tier == "manufacturer"
     tenant_match
 }

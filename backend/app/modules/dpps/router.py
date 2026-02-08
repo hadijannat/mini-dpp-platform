@@ -20,6 +20,8 @@ from app.modules.digital_thread.handlers import record_lifecycle_event
 from app.modules.dpps.service import DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
+from app.modules.registry.handlers import auto_register_shell_descriptor
+from app.modules.resolver.handlers import auto_register_resolver_links
 from app.modules.templates.service import TemplateRegistryService
 from app.modules.webhooks.service import trigger_webhooks
 
@@ -831,6 +833,23 @@ async def publish_dpp(
                 "status": published_dpp.status.value,
             },
         )
+        await auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub)
+        # Auto-register shell descriptor in built-in registry
+        if published_dpp.current_published_revision_id:
+            from sqlalchemy import select as _select
+
+            from app.db.models import DPPRevision as _DPPRevision
+
+            _rev_result = await db.execute(
+                _select(_DPPRevision).where(
+                    _DPPRevision.id == published_dpp.current_published_revision_id
+                )
+            )
+            _pub_rev = _rev_result.scalar_one_or_none()
+            if _pub_rev:
+                await auto_register_shell_descriptor(
+                    db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

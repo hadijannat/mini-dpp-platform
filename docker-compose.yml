@@ -169,6 +169,13 @@ services:
       - LOG_LEVEL=DEBUG
       - IDTA_TEMPLATES_GITHUB_TOKEN=${IDTA_TEMPLATES_GITHUB_TOKEN:-}
       - IDTA_TEMPLATES_REPO_REF=${IDTA_TEMPLATES_REPO_REF:-1d4e0b45469f9260228ca6e99ff907c670476e2a}
+      - RESOLVER_ENABLED=false
+      - RESOLVER_BASE_URL=
+      - RESOLVER_AUTO_REGISTER=true
+      - REGISTRY_ENABLED=false
+      - REGISTRY_AUTO_REGISTER=true
+      - REGISTRY_EXTERNAL_URL=
+      - REGISTRY_EXTERNAL_DISCOVERY_URL=
     volumes:
       - ./backend:/app:cached
       - backend_cache:/app/.cache

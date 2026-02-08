@@ -7,16 +7,19 @@ Only DPPs with status=PUBLISHED are served; drafts/archived return 404.
 
 from __future__ import annotations
 
+import base64
 import copy
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from app.db.models import DPP, DPPRevision, DPPStatus, Tenant, TenantStatus
 from app.db.session import DbSession
+from app.modules.dpps.repository import AASRepositoryService
+from app.modules.dpps.submodel_filter import filter_aas_env_by_espr_tier
 
 
 def _filter_public_aas_environment(aas_env: dict[str, Any]) -> dict[str, Any]:
@@ -182,3 +185,147 @@ async def _get_published_revision(
         )
     )
     return result.scalar_one_or_none()
+
+
+# =============================================================================
+# IDTA-01002 AAS Repository Endpoints
+# =============================================================================
+
+
+def _decode_b64(encoded: str) -> str:
+    """Decode a base64url-encoded identifier, adding padding as needed."""
+    padded = encoded + "=" * (4 - len(encoded) % 4)
+    try:
+        return base64.urlsafe_b64decode(padded).decode("utf-8")
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid base64url-encoded identifier",
+        )
+
+
+@router.get(
+    "/{tenant_slug}/shells/{aas_id_b64}",
+    response_model=PublicDPPResponse,
+)
+async def get_shell_by_aas_id(
+    tenant_slug: str,
+    aas_id_b64: str,
+    db: DbSession,
+    espr_tier: str | None = Query(default=None, alias="espr_tier"),
+) -> PublicDPPResponse:
+    """IDTA-01002 AAS Repository -- Get a shell (DPP) by base64url-encoded AAS ID."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    aas_id = _decode_b64(aas_id_b64)
+
+    repo = AASRepositoryService(db)
+    dpp = await repo.get_shell_by_aas_id(tenant.id, aas_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    revision = await repo.get_published_revision(dpp)
+    aas_env: dict[str, Any] | None = None
+    if revision:
+        aas_env = _filter_public_aas_environment(revision.aas_env_json)
+        aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+
+    return PublicDPPResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        asset_ids=dpp.asset_ids,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+        current_revision_no=revision.revision_no if revision else None,
+        aas_environment=aas_env,
+        digest_sha256=revision.digest_sha256 if revision else None,
+    )
+
+
+@router.get(
+    "/{tenant_slug}/shells/{aas_id_b64}/submodels/{submodel_id_b64}",
+)
+async def get_submodel_by_id(
+    tenant_slug: str,
+    aas_id_b64: str,
+    submodel_id_b64: str,
+    db: DbSession,
+    espr_tier: str | None = Query(default=None, alias="espr_tier"),
+) -> dict[str, Any]:
+    """Get a specific submodel from a published DPP."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    aas_id = _decode_b64(aas_id_b64)
+    submodel_id = _decode_b64(submodel_id_b64)
+
+    repo = AASRepositoryService(db)
+    dpp = await repo.get_shell_by_aas_id(tenant.id, aas_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    revision = await repo.get_published_revision(dpp)
+    if not revision:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    # Apply confidentiality + tier filters, then extract
+    aas_env = _filter_public_aas_environment(revision.aas_env_json)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+
+    submodel = repo.get_submodel_from_revision(aas_env, submodel_id)
+    if not submodel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodel not found",
+        )
+
+    return submodel
+
+
+@router.get(
+    "/{tenant_slug}/shells/{aas_id_b64}/submodels/{submodel_id_b64}/$value",
+)
+async def get_submodel_value(
+    tenant_slug: str,
+    aas_id_b64: str,
+    submodel_id_b64: str,
+    db: DbSession,
+    espr_tier: str | None = Query(default=None, alias="espr_tier"),
+) -> dict[str, Any]:
+    """Get submodel $value (submodelElements only) -- Catena-X standard endpoint."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    aas_id = _decode_b64(aas_id_b64)
+    submodel_id = _decode_b64(submodel_id_b64)
+
+    repo = AASRepositoryService(db)
+    dpp = await repo.get_shell_by_aas_id(tenant.id, aas_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    revision = await repo.get_published_revision(dpp)
+    if not revision:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    aas_env = _filter_public_aas_environment(revision.aas_env_json)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+
+    submodel = repo.get_submodel_from_revision(aas_env, submodel_id)
+    if not submodel:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Submodel not found",
+        )
+
+    return {"submodelElements": submodel.get("submodelElements", [])}
