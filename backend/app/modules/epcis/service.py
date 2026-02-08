@@ -189,27 +189,17 @@ class EPCISService:
         if filters.match_epc is not None:
             # JSONB containment: payload @> '{"epcList": ["<epc>"]}'
             pattern = {"epcList": [filters.match_epc]}
-            stmt = stmt.where(
-                EPCISEvent.payload.op("@>")(type_coerce(pattern, JSONB_TYPE))
-            )
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(type_coerce(pattern, JSONB_TYPE)))
 
         if filters.match_any_epc is not None:
             # Match EPC in any list field (epcList, childEPCs, inputEPCList, outputEPCList)
             epc = filters.match_any_epc
             stmt = stmt.where(
                 or_(
-                    EPCISEvent.payload.op("@>")(
-                        type_coerce({"epcList": [epc]}, JSONB_TYPE)
-                    ),
-                    EPCISEvent.payload.op("@>")(
-                        type_coerce({"childEPCs": [epc]}, JSONB_TYPE)
-                    ),
-                    EPCISEvent.payload.op("@>")(
-                        type_coerce({"inputEPCList": [epc]}, JSONB_TYPE)
-                    ),
-                    EPCISEvent.payload.op("@>")(
-                        type_coerce({"outputEPCList": [epc]}, JSONB_TYPE)
-                    ),
+                    EPCISEvent.payload.op("@>")(type_coerce({"epcList": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"childEPCs": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"inputEPCList": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"outputEPCList": [epc]}, JSONB_TYPE)),
                 )
             )
 
