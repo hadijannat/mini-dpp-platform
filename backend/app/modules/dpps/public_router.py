@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import copy
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -18,6 +18,11 @@ from sqlalchemy import select
 
 from app.db.models import DPP, DPPRevision, DPPStatus, Tenant, TenantStatus
 from app.db.session import DbSession
+from app.modules.dpps.idta_schemas import (
+    PagedResult,
+    PagingMetadata,
+    ServiceDescription,
+)
 from app.modules.dpps.repository import AASRepositoryService
 from app.modules.dpps.submodel_filter import filter_aas_env_by_espr_tier
 
@@ -204,6 +209,61 @@ def _decode_b64(encoded: str) -> str:
         )
 
 
+SSP_002 = (
+    "https://admin-shell.io/aas/API/3/0"
+    "/AssetAdministrationShellRepositoryServiceSpecification/SSP-002"
+)
+
+
+@router.get("/{tenant_slug}/service-description")
+async def get_service_description(
+    tenant_slug: str,
+    db: DbSession,
+) -> ServiceDescription:
+    """IDTA-01002 $metadata -- service description for this tenant."""
+    await _resolve_tenant(db, tenant_slug)
+    return ServiceDescription(profiles=[SSP_002])
+
+
+@router.get("/{tenant_slug}/shells")
+async def list_shells(
+    tenant_slug: str,
+    db: DbSession,
+    limit: int = Query(default=10, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+) -> PagedResult[PublicDPPResponse]:
+    """List all published shells with cursor-based pagination."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    repo = AASRepositoryService(db)
+    dpps, next_cursor = await repo.list_published_shells(tenant.id, cursor, limit)
+
+    revisions_by_id = await repo.get_published_revisions_batch(dpps)
+
+    items: list[PublicDPPResponse] = []
+    for dpp in dpps:
+        revision = revisions_by_id.get(dpp.current_published_revision_id)  # type: ignore[arg-type]
+        aas_env: dict[str, Any] | None = None
+        if revision:
+            aas_env = _filter_public_aas_environment(revision.aas_env_json)
+        items.append(
+            PublicDPPResponse(
+                id=dpp.id,
+                status=dpp.status.value,
+                asset_ids=dpp.asset_ids,
+                created_at=dpp.created_at.isoformat(),
+                updated_at=dpp.updated_at.isoformat(),
+                current_revision_no=(revision.revision_no if revision else None),
+                aas_environment=aas_env,
+                digest_sha256=(revision.digest_sha256 if revision else None),
+            )
+        )
+
+    return PagedResult[PublicDPPResponse](
+        result=items,
+        paging_metadata=PagingMetadata(cursor=next_cursor),
+    )
+
+
 @router.get(
     "/{tenant_slug}/shells/{aas_id_b64}",
     response_model=PublicDPPResponse,
@@ -245,6 +305,46 @@ async def get_shell_by_aas_id(
 
 
 @router.get(
+    "/{tenant_slug}/shells/{aas_id_b64}/submodels",
+)
+async def list_submodel_refs(
+    tenant_slug: str,
+    aas_id_b64: str,
+    db: DbSession,
+    espr_tier: str | None = Query(default=None, alias="espr_tier"),
+) -> list[dict[str, Any]]:
+    """List submodel references (id + semanticId) for a shell."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    aas_id = _decode_b64(aas_id_b64)
+
+    repo = AASRepositoryService(db)
+    dpp = await repo.get_shell_by_aas_id(tenant.id, aas_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    revision = await repo.get_published_revision(dpp)
+    if not revision:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Not found",
+        )
+
+    aas_env = _filter_public_aas_environment(revision.aas_env_json)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+
+    refs: list[dict[str, Any]] = []
+    for sm in aas_env.get("submodels", []):
+        ref: dict[str, Any] = {"id": sm.get("id", "")}
+        if "semanticId" in sm:
+            ref["semanticId"] = sm["semanticId"]
+        refs.append(ref)
+    return refs
+
+
+@router.get(
     "/{tenant_slug}/shells/{aas_id_b64}/submodels/{submodel_id_b64}",
 )
 async def get_submodel_by_id(
@@ -253,8 +353,13 @@ async def get_submodel_by_id(
     submodel_id_b64: str,
     db: DbSession,
     espr_tier: str | None = Query(default=None, alias="espr_tier"),
+    content: Literal["normal", "value"] = Query(default="normal"),
 ) -> dict[str, Any]:
-    """Get a specific submodel from a published DPP."""
+    """Get a specific submodel from a published DPP.
+
+    Use ``?content=value`` to return only submodelElements (same as
+    the ``/$value`` path suffix).
+    """
     tenant = await _resolve_tenant(db, tenant_slug)
     aas_id = _decode_b64(aas_id_b64)
     submodel_id = _decode_b64(submodel_id_b64)
@@ -285,6 +390,8 @@ async def get_submodel_by_id(
             detail="Submodel not found",
         )
 
+    if content == "value":
+        return {"submodelElements": submodel.get("submodelElements", [])}
     return submodel
 
 
