@@ -7,6 +7,7 @@ import {
   Eye,
   Edit,
   Upload,
+  Download,
   RefreshCcw,
   ChevronLeft,
   ChevronRight,
@@ -223,6 +224,8 @@ export default function DPPListPage() {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importPending, setImportPending] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectedDpps, setSelectedDpps] = useState<Set<string>>(new Set());
+  const [batchExporting, setBatchExporting] = useState(false);
   const auth = useAuth();
   const token = auth.user?.access_token;
   const tenantSlug = getTenantSlug();
@@ -387,6 +390,52 @@ export default function DPPListPage() {
     );
   };
 
+  const toggleDppSelection = (dppId: string) => {
+    setSelectedDpps((prev) => {
+      const next = new Set(prev);
+      if (next.has(dppId)) next.delete(dppId);
+      else next.add(dppId);
+      return next;
+    });
+  };
+
+  const toggleAllDpps = () => {
+    const allIds = dpps?.dpps?.map((d: any) => d.id as string) ?? [];
+    if (selectedDpps.size === allIds.length) {
+      setSelectedDpps(new Set());
+    } else {
+      setSelectedDpps(new Set(allIds));
+    }
+  };
+
+  const handleBatchExport = async () => {
+    if (selectedDpps.size === 0 || !token) return;
+    setBatchExporting(true);
+    try {
+      const response = await tenantApiFetch('/export/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dpp_ids: Array.from(selectedDpps),
+          format: 'json',
+        }),
+      }, token);
+      if (!response.ok) throw new Error('Export failed');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dpp-batch-export.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+      setSelectedDpps(new Set());
+    } catch {
+      // Silent — user sees no download
+    } finally {
+      setBatchExporting(false);
+    }
+  };
+
   const masters: MasterItem[] = mastersData?.masters ?? [];
 
   return (
@@ -395,10 +444,22 @@ export default function DPPListPage() {
         title="Digital Product Passports"
         description="Manage your product passports"
         actions={
-          <Button onClick={() => setShowCreateModal(true)} data-testid="dpp-create-open">
-            <Plus className="h-4 w-4 mr-2" />
-            Create DPP
-          </Button>
+          <div className="flex gap-2">
+            {selectedDpps.size > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => { void handleBatchExport(); }}
+                disabled={batchExporting}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                {batchExporting ? 'Exporting...' : `Export ${selectedDpps.size} selected`}
+              </Button>
+            )}
+            <Button onClick={() => setShowCreateModal(true)} data-testid="dpp-create-open">
+              <Plus className="h-4 w-4 mr-2" />
+              Create DPP
+            </Button>
+          </div>
         }
       />
 
@@ -648,6 +709,12 @@ export default function DPPListPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={dpps?.dpps?.length > 0 && selectedDpps.size === dpps.dpps.length}
+                    onCheckedChange={toggleAllDpps}
+                  />
+                </TableHead>
                 <TableHead>Product ID</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Created</TableHead>
@@ -657,6 +724,12 @@ export default function DPPListPage() {
             <TableBody>
               {dpps?.dpps?.map((dpp: any) => (
                 <TableRow key={dpp.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedDpps.has(dpp.id)}
+                      onCheckedChange={() => toggleDppSelection(dpp.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium">
                       {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)}

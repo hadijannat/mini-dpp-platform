@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, RootModel
 
 from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
+from app.core.logging import get_logger
 from app.core.security import check_access, require_access
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
@@ -21,6 +22,7 @@ from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
 from app.modules.templates.service import TemplateRegistryService
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -151,6 +153,38 @@ class BulkRebuildResponse(BaseModel):
     errors: list[BulkRebuildError]
 
 
+class BatchImportItem(BaseModel):
+    """Single item in a batch import request."""
+
+    asset_ids: AssetIdsInput
+    selected_templates: list[str] = Field(default=["digital-nameplate"])
+    initial_data: dict[str, Any] | None = None
+
+
+class BatchImportRequest(BaseModel):
+    """Request model for batch DPP import."""
+
+    dpps: list[BatchImportItem] = Field(..., min_length=1, max_length=100)
+
+
+class BatchImportResultItem(BaseModel):
+    """Result for a single batch import item."""
+
+    index: int
+    dpp_id: UUID | None = None
+    status: str
+    error: str | None = None
+
+
+class BatchImportResponse(BaseModel):
+    """Response model for batch import results."""
+
+    total: int
+    succeeded: int
+    failed: int
+    results: list[BatchImportResultItem]
+
+
 class DiffEntry(BaseModel):
     """Individual change between two revisions."""
 
@@ -239,6 +273,62 @@ async def create_dpp(
         qr_payload=dpp.qr_payload,
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
+    )
+
+
+@router.post("/batch-import", response_model=BatchImportResponse)
+async def batch_import_dpps(
+    body: BatchImportRequest,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> BatchImportResponse:
+    """
+    Batch create multiple DPPs.
+
+    Each item is created in its own savepoint — one failure does not rollback others.
+    Max 100 items per request.
+    """
+    await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
+    service = DPPService(db)
+    results: list[BatchImportResultItem] = []
+
+    for idx, item in enumerate(body.dpps):
+        try:
+            async with db.begin_nested():
+                dpp = await service.create_dpp(
+                    tenant_id=tenant.tenant_id,
+                    tenant_slug=tenant.tenant_slug,
+                    owner_subject=tenant.user.sub,
+                    asset_ids=item.asset_ids.model_dump(exclude_none=True),
+                    selected_templates=item.selected_templates,
+                    initial_data=item.initial_data,
+                )
+            results.append(BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok"))
+        except Exception as exc:
+            logger.warning("batch_import_item_failed", index=idx, exc_info=True)
+            results.append(BatchImportResultItem(index=idx, status="failed", error=str(exc)))
+
+    await db.commit()
+
+    succeeded = sum(1 for r in results if r.status == "ok")
+    failed = len(results) - succeeded
+
+    await emit_audit_event(
+        db_session=db,
+        action="batch_import",
+        resource_type="dpp",
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"total": len(body.dpps), "succeeded": succeeded, "failed": failed},
+    )
+
+    return BatchImportResponse(
+        total=len(body.dpps),
+        succeeded=succeeded,
+        failed=failed,
+        results=results,
     )
 
 

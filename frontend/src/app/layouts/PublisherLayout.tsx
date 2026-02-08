@@ -12,6 +12,7 @@ import {
   Users,
   ShieldCheck,
   Activity,
+  PackagePlus,
   BarChart3,
   ScrollText,
   ChevronLeft,
@@ -57,6 +58,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
   { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
+  { name: 'Batch Import', href: '/console/batch-import', icon: PackagePlus },
 ];
 
 function getInitials(name: string | undefined): string {

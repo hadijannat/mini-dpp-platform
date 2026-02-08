@@ -14,6 +14,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   connectors: 'Connectors',
   compliance: 'Compliance',
   epcis: 'Supply Chain',
+  'batch-import': 'Batch Import',
   admin: 'Admin',
   audit: 'Audit Trail',
   tenants: 'Tenants',
