@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
 from app.db.models import DPP, AssetDiscoveryMapping, DPPRevision, ShellDescriptorRecord
+from app.modules.dpps.idta_schemas import decode_cursor, encode_cursor
 
 logger = get_logger(__name__)
 
@@ -85,6 +86,38 @@ class BuiltInRegistryService:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def list_shell_descriptors_cursor(
+        self,
+        tenant_id: UUID,
+        cursor: str | None,
+        limit: int,
+    ) -> tuple[list[ShellDescriptorRecord], str | None]:
+        """List shell descriptors with cursor-based pagination.
+
+        Returns (results, next_cursor_or_None).
+        """
+        stmt = (
+            select(ShellDescriptorRecord)
+            .where(ShellDescriptorRecord.tenant_id == tenant_id)
+            .order_by(ShellDescriptorRecord.id)
+        )
+        if cursor:
+            cursor_uuid = decode_cursor(cursor)
+            stmt = stmt.where(ShellDescriptorRecord.id > cursor_uuid)
+        stmt = stmt.limit(limit + 1)
+
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+
+        if len(rows) > limit:
+            items = rows[:limit]
+            next_cursor = encode_cursor(items[-1].id)
+        else:
+            items = rows
+            next_cursor = None
+
+        return items, next_cursor
 
     async def update_shell_descriptor(
         self,

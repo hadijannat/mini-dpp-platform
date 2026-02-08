@@ -10,6 +10,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import DPP, DPPRevision, DPPStatus
+from app.modules.dpps.idta_schemas import decode_cursor, encode_cursor
 
 
 class AASRepositoryService:
@@ -72,6 +73,19 @@ class AASRepositoryService:
         )
         return result.scalar_one_or_none()
 
+    async def get_published_revisions_batch(
+        self,
+        dpps: list[DPP],
+    ) -> dict[UUID, DPPRevision]:
+        """Batch-fetch published revisions for multiple DPPs in one query."""
+        rev_ids = [
+            dpp.current_published_revision_id for dpp in dpps if dpp.current_published_revision_id
+        ]
+        if not rev_ids:
+            return {}
+        result = await self._session.execute(select(DPPRevision).where(DPPRevision.id.in_(rev_ids)))
+        return {rev.id: rev for rev in result.scalars().all()}
+
     @staticmethod
     def get_submodel_from_revision(
         aas_env: dict[str, Any],
@@ -88,3 +102,40 @@ class AASRepositoryService:
     def list_submodel_ids(aas_env: dict[str, Any]) -> list[str]:
         """List all submodel IDs in an AAS environment."""
         return [sm.get("id", "") for sm in aas_env.get("submodels", [])]
+
+    async def list_published_shells(
+        self,
+        tenant_id: UUID,
+        cursor: str | None,
+        limit: int,
+    ) -> tuple[list[DPP], str | None]:
+        """List published DPPs with cursor-based pagination.
+
+        Returns (results, next_cursor_or_None).
+        Cursor is a base64url-encoded UUID of the last item.
+        """
+        stmt = (
+            select(DPP)
+            .where(
+                DPP.tenant_id == tenant_id,
+                DPP.status == DPPStatus.PUBLISHED,
+            )
+            .order_by(DPP.id)
+        )
+        if cursor:
+            cursor_uuid = decode_cursor(cursor)
+            stmt = stmt.where(DPP.id > cursor_uuid)
+        # Fetch one extra to detect if there is a next page
+        stmt = stmt.limit(limit + 1)
+
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+
+        if len(rows) > limit:
+            items = rows[:limit]
+            next_cursor = encode_cursor(items[-1].id)
+        else:
+            items = rows
+            next_cursor = None
+
+        return items, next_cursor

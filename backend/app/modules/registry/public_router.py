@@ -14,7 +14,8 @@ from sqlalchemy import select
 
 from app.db.models import ShellDescriptorRecord, Tenant, TenantStatus
 from app.db.session import DbSession
-from app.modules.registry.service import DiscoveryService
+from app.modules.dpps.idta_schemas import PagedResult, PagingMetadata
+from app.modules.registry.service import BuiltInRegistryService, DiscoveryService
 
 router = APIRouter()
 
@@ -71,6 +72,37 @@ async def public_discovery_lookup(
     svc = DiscoveryService(db)
     response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return await svc.lookup(tenant.id, key, value)
+
+
+@router.get("/{tenant_slug}/shell-descriptors")
+async def public_list_shell_descriptors(
+    tenant_slug: str,
+    db: DbSession,
+    response: Response,
+    limit: int = Query(default=10, ge=1, le=100),
+    cursor: str | None = Query(default=None),
+) -> PagedResult[PublicShellDescriptorResponse]:
+    """List shell descriptors with cursor-based pagination (no auth)."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    svc = BuiltInRegistryService(db)
+    records, next_cursor = await svc.list_shell_descriptors_cursor(tenant.id, cursor, limit)
+
+    items = [
+        PublicShellDescriptorResponse(
+            aas_id=r.aas_id,
+            id_short=r.id_short,
+            global_asset_id=r.global_asset_id,
+            specific_asset_ids=r.specific_asset_ids,
+            submodel_descriptors=r.submodel_descriptors,
+        )
+        for r in records
+    ]
+
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return PagedResult[PublicShellDescriptorResponse](
+        result=items,
+        paging_metadata=PagingMetadata(cursor=next_cursor),
+    )
 
 
 @router.get(
