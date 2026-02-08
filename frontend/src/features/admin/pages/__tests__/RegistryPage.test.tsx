@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -57,8 +57,17 @@ async function renderPage() {
 
 describe('RegistryPage', () => {
   afterEach(() => cleanup());
-  beforeEach(() => {
+  beforeEach(async () => {
     mockDescriptors = [];
+    // Reset tenantApiFetch to the default implementation
+    const { tenantApiFetch } = await import('@/lib/api');
+    const mockFetch = tenantApiFetch as ReturnType<typeof vi.fn>;
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(mockDescriptors),
+      }),
+    );
   });
 
   it('renders page header after loading', async () => {
@@ -100,5 +109,75 @@ describe('RegistryPage', () => {
     await renderPage();
     expect(await screen.findByText('Search by Asset ID')).toBeTruthy();
     expect(screen.getByText('Discovery Lookup')).toBeTruthy();
+  });
+
+  it('shows error banner when API returns error', async () => {
+    const { tenantApiFetch } = await import('@/lib/api');
+    const mockFetch = tenantApiFetch as ReturnType<typeof vi.fn>;
+    mockFetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        headers: new Headers({ 'content-type': 'text/plain' }),
+        text: () => Promise.resolve('Internal Server Error'),
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { default: RegistryPage } = await import('../RegistryPage');
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <RegistryPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    // The ErrorBanner renders the message from getApiErrorMessage which returns 'Error'
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load|Error/)).toBeTruthy();
+    });
+  });
+
+  it('expands row when clicked to show details', async () => {
+    mockDescriptors = [
+      {
+        id: 'desc-1',
+        tenant_id: 'tenant-1',
+        aas_id: 'urn:example:aas:expand',
+        id_short: 'ExpandShell',
+        global_asset_id: 'urn:example:asset:expand',
+        specific_asset_ids: [{ name: 'partId', value: 'ABC-123' }],
+        submodel_descriptors: [
+          { id: 'sm-1', idShort: 'TechData', semanticId: { keys: [{ value: 'urn:sem:1' }] } },
+        ],
+        dpp_id: null,
+        created_by_subject: 'admin',
+        created_at: '2026-02-08T10:00:00Z',
+        updated_at: '2026-02-08T10:00:00Z',
+      },
+    ];
+
+    await renderPage();
+
+    // Wait for data to load
+    const aasIdCell = await screen.findByText('urn:example:aas:expand');
+    expect(aasIdCell).toBeTruthy();
+
+    // Click the row to expand
+    const row = aasIdCell.closest('tr');
+    if (row) {
+      fireEvent.click(row);
+    }
+
+    // After expansion, should show the specific asset IDs and submodel details
+    await waitFor(() => {
+      expect(screen.getByText('Specific Asset IDs')).toBeTruthy();
+    });
+    expect(screen.getByText(/partId.*ABC-123|ABC-123/)).toBeTruthy();
+    expect(screen.getByText('Submodel Descriptors (1)')).toBeTruthy();
   });
 });
