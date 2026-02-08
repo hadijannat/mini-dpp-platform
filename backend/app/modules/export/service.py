@@ -98,6 +98,27 @@ class ExportService:
             ensure_ascii=False,
         ).encode("utf-8")
 
+    def export_jsonld(self, revision: DPPRevision) -> bytes:
+        """Export DPP as JSON-LD (Linked Data).
+
+        Returns the AAS environment converted to JSON-LD with proper
+        ``@context`` and ``@graph`` structure.
+        """
+        from app.modules.aas import aas_to_jsonld
+
+        jsonld = aas_to_jsonld(revision.aas_env_json)
+        return json.dumps(jsonld, indent=2, ensure_ascii=False).encode("utf-8")
+
+    def export_turtle(self, revision: DPPRevision) -> bytes:
+        """Export DPP as Turtle (RDF).
+
+        Returns the AAS environment serialized as Turtle via rdflib.
+        """
+        from app.modules.aas import aas_to_turtle
+
+        turtle_str = aas_to_turtle(revision.aas_env_json)
+        return turtle_str.encode("utf-8")
+
     def export_xml(self, revision: DPPRevision) -> bytes:
         """Export DPP as AAS XML.
 

@@ -17,6 +17,7 @@ from app.modules.qr.schemas import (
     CarrierFormat,
     CarrierRequest,
     GS1DigitalLinkResponse,
+    IEC61406LinkResponse,
 )
 from app.modules.qr.service import QRCodeService
 
@@ -253,4 +254,47 @@ async def get_gs1_digital_link(
         serial=serial,
         resolver_url=resolver_url,
         is_pseudo_gtin=is_pseudo_gtin,
+    )
+
+
+@router.get("/{dpp_id}/iec61406", response_model=IEC61406LinkResponse)
+async def get_iec61406_link(
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantContextDep,
+) -> IEC61406LinkResponse:
+    """Get the IEC 61406 identification link for a DPP.
+
+    Returns a URL-based identification link per IEC 61406 that encodes
+    the manufacturer part ID and serial number as query parameters.
+    """
+    dpp_service = DPPService(db)
+    qr_service = QRCodeService()
+
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+
+    if dpp.status != DPPStatus.PUBLISHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="IEC 61406 links can only be generated for published DPPs",
+        )
+
+    asset_ids = dpp.asset_ids or {}
+    base_url = qr_service.build_dpp_url(
+        str(dpp_id), tenant_slug=tenant.tenant_slug, short_link=False
+    )
+    link = qr_service.build_iec61406_link(asset_ids, base_url)
+
+    return IEC61406LinkResponse(
+        dpp_id=dpp_id,
+        identification_link=link,
+        manufacturer_part_id=asset_ids.get("manufacturerPartId", ""),
+        serial_number=asset_ids.get("serialNumber", ""),
     )

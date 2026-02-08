@@ -237,3 +237,35 @@ class ResolverService:
             identifier=identifier,
             href=href,
         )
+
+        # Also register IEC 61406 identification link
+        iec_link_type = LinkType.IEC61406_ID.value
+        existing_iec = await self._session.execute(
+            select(ResolverLink).where(
+                ResolverLink.tenant_id == tenant_id,
+                ResolverLink.identifier == identifier,
+                ResolverLink.link_type == iec_link_type,
+            )
+        )
+        if existing_iec.scalar_one_or_none() is None:
+            iec_link = ResolverLink(
+                tenant_id=tenant_id,
+                identifier=identifier,
+                link_type=iec_link_type,
+                href=href,
+                media_type="text/html",
+                title=f"IEC 61406 Identification Link - {dpp.id}",
+                hreflang="en",
+                priority=50,
+                dpp_id=dpp.id,
+                active=True,
+                created_by_subject=created_by,
+            )
+            self._session.add(iec_link)
+            await self._session.flush()
+
+            logger.info(
+                "resolver_iec61406_auto_register_created",
+                dpp_id=str(dpp.id),
+                identifier=identifier,
+            )
