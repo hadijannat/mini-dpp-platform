@@ -12,6 +12,7 @@ import {
   Users,
   ShieldCheck,
   Activity,
+  BarChart3,
   ScrollText,
   ChevronLeft,
   ChevronRight,
@@ -76,6 +77,7 @@ export default function PublisherLayout() {
   const navigation: NavItem[] = userIsAdmin
     ? [
         ...baseNavigation,
+        { name: 'Admin', href: '/console/admin', icon: BarChart3 },
         { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
