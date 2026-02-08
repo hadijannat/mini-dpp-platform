@@ -112,6 +112,7 @@ async def _resolve(
         return JSONResponse(
             content=linkset,
             media_type="application/linkset+json",
+            headers={"Cache-Control": "public, max-age=60, stale-while-revalidate=300"},
         )
 
     # Default: HTTP 307 redirect to highest-priority DPP link
@@ -129,6 +130,7 @@ async def _resolve(
     return RedirectResponse(
         url=redirect_link.href,
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        headers={"Cache-Control": "public, max-age=300"},
     )
 
 

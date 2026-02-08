@@ -230,7 +230,7 @@ async def get_shell_by_aas_id(
     aas_env: dict[str, Any] | None = None
     if revision:
         aas_env = _filter_public_aas_environment(revision.aas_env_json)
-        aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+        aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier, in_place=True)
 
     return PublicDPPResponse(
         id=dpp.id,

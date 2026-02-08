@@ -28,6 +28,7 @@ class BasyxV2RegistryAdapter:
         self._base_url = base_url.rstrip("/")
         self._discovery_url = discovery_url.rstrip("/") if discovery_url else None
         self._client: httpx.AsyncClient | None = None
+        self._discovery_client: httpx.AsyncClient | None = None
 
     def _encode_id(self, aas_id: str) -> str:
         """Base64-URL-safe encode an AAS ID for path parameters."""
@@ -106,27 +107,40 @@ class BasyxV2RegistryAdapter:
                 "error_message": str(e),
             }
 
+    async def _get_discovery_client(self) -> httpx.AsyncClient | None:
+        if not self._discovery_url:
+            return None
+        if self._discovery_client is None:
+            self._discovery_client = httpx.AsyncClient(
+                base_url=self._discovery_url,
+                timeout=30.0,
+            )
+        return self._discovery_client
+
     async def lookup_discovery(
         self,
         asset_id_key: str,
         asset_id_value: str,
     ) -> list[str]:
         """Look up AAS IDs via the external discovery endpoint (if configured)."""
-        if not self._discovery_url:
+        client = await self._get_discovery_client()
+        if client is None:
             return []
-        async with httpx.AsyncClient(base_url=self._discovery_url, timeout=30.0) as client:
-            response = await client.get(
-                "/lookup/shells",
-                params={"assetIds": json.dumps({"name": asset_id_key, "value": asset_id_value})},
-            )
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, list):
-                return [str(item) for item in data]
-            return []
+        response = await client.get(
+            "/lookup/shells",
+            params={"assetIds": json.dumps({"name": asset_id_key, "value": asset_id_value})},
+        )
+        response.raise_for_status()
+        data = response.json()
+        if isinstance(data, list):
+            return [str(item) for item in data]
+        return []
 
     async def close(self) -> None:
-        """Close the HTTP client."""
+        """Close HTTP clients."""
         if self._client:
             await self._client.aclose()
             self._client = None
+        if self._discovery_client:
+            await self._discovery_client.aclose()
+            self._discovery_client = None

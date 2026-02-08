@@ -8,7 +8,7 @@ from __future__ import annotations
 import base64
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -62,12 +62,14 @@ class PublicShellDescriptorResponse(BaseModel):
 async def public_discovery_lookup(
     tenant_slug: str,
     db: DbSession,
+    response: Response,
     key: str = Query(..., description="Asset ID key"),
     value: str = Query(..., description="Asset ID value"),
 ) -> list[str]:
     """Public discovery: look up AAS IDs by asset ID key/value (no auth)."""
     tenant = await _resolve_tenant(db, tenant_slug)
     svc = DiscoveryService(db)
+    response.headers["Cache-Control"] = "public, max-age=60, stale-while-revalidate=300"
     return await svc.lookup(tenant.id, key, value)
 
 
@@ -79,6 +81,7 @@ async def public_get_shell_descriptor(
     tenant_slug: str,
     aas_id_b64: str,
     db: DbSession,
+    response: Response,
 ) -> PublicShellDescriptorResponse:
     """Public shell descriptor lookup by base64-encoded AAS ID (no auth)."""
     tenant = await _resolve_tenant(db, tenant_slug)
@@ -97,6 +100,7 @@ async def public_get_shell_descriptor(
             detail="Not found",
         )
 
+    response.headers["Cache-Control"] = "public, max-age=300"
     return PublicShellDescriptorResponse(
         aas_id=record.aas_id,
         id_short=record.id_short,

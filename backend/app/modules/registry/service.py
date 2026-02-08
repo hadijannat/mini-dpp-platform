@@ -188,19 +188,35 @@ class BuiltInRegistryService:
         )
         await self._session.execute(stmt)
 
-        # Create discovery mappings
-        discovery_svc = DiscoveryService(self._session)
-
-        # Map globalAssetId
+        # Batch-insert discovery mappings (single INSERT ... ON CONFLICT DO NOTHING)
+        mapping_rows: list[dict[str, Any]] = []
         if global_asset_id:
-            await discovery_svc.upsert_mapping(tenant_id, "globalAssetId", global_asset_id, aas_id)
-
-        # Map each specific asset ID
+            mapping_rows.append(
+                {
+                    "tenant_id": tenant_id,
+                    "asset_id_key": "globalAssetId",
+                    "asset_id_value": global_asset_id,
+                    "aas_id": aas_id,
+                }
+            )
         for asset_id_entry in specific_asset_ids:
             name = asset_id_entry.get("name", "")
             value = asset_id_entry.get("value", "")
             if name and value:
-                await discovery_svc.upsert_mapping(tenant_id, name, value, aas_id)
+                mapping_rows.append(
+                    {
+                        "tenant_id": tenant_id,
+                        "asset_id_key": name,
+                        "asset_id_value": value,
+                        "aas_id": aas_id,
+                    }
+                )
+        if mapping_rows:
+            mapping_stmt = pg_insert(AssetDiscoveryMapping).values(mapping_rows)
+            mapping_stmt = mapping_stmt.on_conflict_do_nothing(
+                constraint="uq_asset_discovery_tenant_key_value_aas",
+            )
+            await self._session.execute(mapping_stmt)
 
         await self._session.flush()
         logger.info(

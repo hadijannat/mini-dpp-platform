@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import cast, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import DPP, DPPRevision, DPPStatus
@@ -46,12 +47,12 @@ class AASRepositoryService:
             except ValueError:
                 pass
 
-        # Search by globalAssetId in asset_ids JSONB
+        # Search by globalAssetId via JSONB @> containment (uses GIN index)
         result = await self._session.execute(
             select(DPP).where(
                 DPP.tenant_id == tenant_id,
                 DPP.status == DPPStatus.PUBLISHED,
-                DPP.asset_ids["globalAssetId"].astext == aas_id,
+                DPP.asset_ids.op("@>")(cast({"globalAssetId": aas_id}, JSONB)),
             )
         )
         return result.scalar_one_or_none()

@@ -46,10 +46,14 @@ async def list_resolver_links(
     db: DbSession,
     tenant: TenantPublisher,
     dpp_id: UUID | None = Query(default=None, description="Filter by DPP ID"),
+    limit: int = Query(default=100, ge=1, le=500, description="Max results"),
+    offset: int = Query(default=0, ge=0, description="Offset for pagination"),
 ) -> list[ResolverLinkResponse]:
     """List resolver links for the tenant."""
     service = ResolverService(db)
-    links = await service.list_links(tenant.tenant_id, dpp_id=dpp_id, active_only=False)
+    links = await service.list_links(
+        tenant.tenant_id, dpp_id=dpp_id, active_only=False, limit=limit, offset=offset
+    )
     return [_link_to_response(link) for link in links]
 
 
