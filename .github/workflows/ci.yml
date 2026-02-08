@@ -174,8 +174,10 @@ jobs:
 
       - name: Run pip-audit
         working-directory: backend
-        continue-on-error: true
-        run: uv run --with pip-audit pip-audit --desc --skip-editable
+        run: >
+          uv run --with pip-audit pip-audit --desc --skip-editable
+          --ignore-vuln CVE-2026-22701
+          --ignore-vuln CVE-2026-22702
 
   frontend-security:
     name: Frontend Security (Audit)

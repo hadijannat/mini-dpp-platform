@@ -8,7 +8,8 @@ import json
 from typing import Any
 from uuid import UUID
 
-from jose import JWSError, jws  # type: ignore[import-untyped]
+from jwt import api_jws
+from jwt.exceptions import PyJWTError
 from sqlalchemy import String, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -1182,13 +1183,11 @@ class DPPService:
         algorithm = self._settings.dpp_signing_algorithm
         kid = self._settings.dpp_signing_key_id
         try:
-            return str(
-                jws.sign(
-                    digest.encode("utf-8"),
-                    signing_key,
-                    algorithm=algorithm,
-                    headers={"kid": kid},
-                )
+            return api_jws.encode(
+                digest.encode("utf-8"),
+                signing_key,
+                algorithm=algorithm,
+                headers={"kid": kid},
             )
         except Exception as exc:
             raise SigningError(f"JWS signing failed: {exc}") from exc
@@ -1207,13 +1206,13 @@ class DPPService:
             True if the signature is valid and the payload matches the expected digest
         """
         try:
-            payload = jws.verify(
+            payload = api_jws.decode(
                 signed_jws,
                 public_key,
                 algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
             )
             return bool(payload.decode("utf-8") == expected_digest)
-        except JWSError:
+        except PyJWTError:
             return False
         except Exception:
             return False
