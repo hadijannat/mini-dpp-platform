@@ -1703,3 +1703,73 @@ class AssetDiscoveryMapping(TenantScopedMixin, Base):
             "asset_id_value",
         ),
     )
+
+
+# =============================================================================
+# Verifiable Credentials
+# =============================================================================
+
+
+class IssuedCredential(TenantScopedMixin, Base):
+    """W3C Verifiable Credential issued for a published DPP."""
+
+    __tablename__ = "issued_credentials"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+        comment="DPP this credential was issued for",
+    )
+    credential_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Full W3C Verifiable Credential document",
+    )
+    issuer_did: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="DID of the credential issuer (did:web:...)",
+    )
+    subject_id: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Credential subject identifier (urn:uuid:{dpp_id})",
+    )
+    issuance_date: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    expiration_date: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    revoked: Mapped[bool] = mapped_column(
+        Boolean,
+        server_default="false",
+        nullable=False,
+    )
+    created_by_subject: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "dpp_id",
+            name="uq_issued_credentials_tenant_dpp",
+        ),
+    )

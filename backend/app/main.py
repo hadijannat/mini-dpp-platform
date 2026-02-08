@@ -21,6 +21,8 @@ from app.db.session import close_db, get_db_session, init_db
 from app.modules.audit.router import router as audit_router
 from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
+from app.modules.credentials.public_router import router as public_credentials_router
+from app.modules.credentials.router import router as credentials_router
 from app.modules.digital_thread.router import router as digital_thread_router
 from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
@@ -223,6 +225,11 @@ window.onload = function() {{
         prefix=f"{settings.api_v1_prefix}/resolve",
         tags=["GS1 Resolver"],
     )
+    app.include_router(
+        public_credentials_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public Credentials"],
+    )
 
     # API v1 routers (authenticated)
     app.include_router(
@@ -310,6 +317,11 @@ window.onload = function() {{
         registry_router,
         prefix=f"{tenant_prefix}/registry",
         tags=["Registry"],
+    )
+    app.include_router(
+        credentials_router,
+        prefix=f"{tenant_prefix}/credentials",
+        tags=["Credentials"],
     )
 
     # Prometheus metrics endpoint
