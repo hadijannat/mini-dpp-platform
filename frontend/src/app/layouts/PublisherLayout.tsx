@@ -16,6 +16,8 @@ import {
   BarChart3,
   ScrollText,
   Webhook,
+  Globe,
+  Search,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -83,6 +85,8 @@ export default function PublisherLayout() {
         { name: 'Admin', href: '/console/admin', icon: BarChart3 },
         { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
         { name: 'Webhooks', href: '/console/webhooks', icon: Webhook },
+        { name: 'Resolver', href: '/console/resolver', icon: Globe },
+        { name: 'Registry', href: '/console/registry', icon: Search },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]

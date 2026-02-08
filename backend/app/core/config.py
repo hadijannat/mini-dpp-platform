@@ -353,6 +353,33 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # GS1 Digital Link Resolver
+    # ==========================================================================
+    resolver_enabled: bool = Field(default=False, description="Enable GS1 Digital Link resolver")
+    resolver_base_url: str = Field(
+        default="",
+        description="Base URL for resolver links (e.g., https://dpp-platform.dev/api/v1/resolve)",
+    )
+    resolver_auto_register: bool = Field(
+        default=True,
+        description="Auto-register resolver links on DPP publish",
+    )
+
+    # ==========================================================================
+    # AAS Registry & Discovery
+    # ==========================================================================
+    registry_enabled: bool = Field(default=False, description="Enable built-in AAS registry")
+    registry_auto_register: bool = Field(
+        default=True, description="Auto-register shell descriptors on DPP publish"
+    )
+    registry_external_url: str = Field(
+        default="", description="External BaSyx V2 registry URL (empty = use built-in)"
+    )
+    registry_external_discovery_url: str = Field(
+        default="", description="External BaSyx V2 discovery URL"
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(

@@ -1511,3 +1511,195 @@ class EPCISNamedQuery(TenantScopedMixin, Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "name", name="uq_epcis_named_queries_tenant_name"),
     )
+
+
+# =============================================================================
+# GS1 Digital Link Resolver Model
+# =============================================================================
+
+
+class ResolverLink(TenantScopedMixin, Base):
+    """GS1 Digital Link resolver entry mapping identifiers to DPP endpoints."""
+
+    __tablename__ = "resolver_links"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    identifier: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
+        comment="GS1 identifier stem, e.g. 01/{gtin}/21/{serial}",
+    )
+    link_type: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="GS1 link relation type, e.g. gs1:hasDigitalProductPassport",
+    )
+    href: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Target URL the link resolves to",
+    )
+    media_type: Mapped[str] = mapped_column(
+        String(100),
+        default="application/json",
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(
+        String(500),
+        default="",
+        nullable=False,
+    )
+    hreflang: Mapped[str] = mapped_column(
+        String(20),
+        default="en",
+        nullable=False,
+    )
+    priority: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        comment="Link priority (higher = preferred)",
+    )
+    dpp_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dpps.id", ondelete="SET NULL"),
+        comment="Associated DPP (optional)",
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "identifier",
+            "link_type",
+            name="uq_resolver_links_tenant_identifier_type",
+        ),
+        Index("ix_resolver_links_tenant", "tenant_id"),
+        Index("ix_resolver_links_identifier", "identifier"),
+        Index("ix_resolver_links_dpp_id", "dpp_id"),
+        Index("ix_resolver_links_link_type", "link_type"),
+        Index("ix_resolver_links_active", "active"),
+    )
+
+
+# =============================================================================
+# AAS Registry & Discovery Models
+# =============================================================================
+
+
+class ShellDescriptorRecord(TenantScopedMixin, Base):
+    """Built-in AAS registry shell descriptor storage (IDTA-01002-3-1)."""
+
+    __tablename__ = "shell_descriptors"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    aas_id: Mapped[str] = mapped_column(
+        String(1024),
+        nullable=False,
+        comment="AAS identifier",
+    )
+    id_short: Mapped[str] = mapped_column(
+        String(255),
+        default="",
+        nullable=False,
+    )
+    global_asset_id: Mapped[str] = mapped_column(
+        String(1024),
+        default="",
+        nullable=False,
+    )
+    specific_asset_ids: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Specific asset ID entries (name/value pairs)",
+    )
+    submodel_descriptors: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSONB,
+        default=list,
+        comment="Submodel descriptor objects",
+    )
+    dpp_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dpps.id", ondelete="SET NULL"),
+        comment="Associated DPP (optional)",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "aas_id", name="uq_shell_descriptors_tenant_aas_id"),
+        Index("ix_shell_descriptors_tenant_id", "tenant_id"),
+        Index(
+            "ix_shell_descriptors_specific_asset_ids",
+            "specific_asset_ids",
+            postgresql_using="gin",
+        ),
+        Index("ix_shell_descriptors_dpp_id", "dpp_id"),
+    )
+
+
+class AssetDiscoveryMapping(TenantScopedMixin, Base):
+    """Asset ID to AAS ID discovery mapping."""
+
+    __tablename__ = "asset_discovery_mappings"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    asset_id_key: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Asset identifier key (e.g., globalAssetId, manufacturerPartId)",
+    )
+    asset_id_value: Mapped[str] = mapped_column(
+        String(1024),
+        nullable=False,
+        comment="Asset identifier value",
+    )
+    aas_id: Mapped[str] = mapped_column(
+        String(1024),
+        nullable=False,
+        comment="AAS ID that this asset ID maps to",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "asset_id_key",
+            "asset_id_value",
+            "aas_id",
+            name="uq_asset_discovery_tenant_key_value_aas",
+        ),
+        Index(
+            "ix_asset_discovery_tenant_key_value",
+            "tenant_id",
+            "asset_id_key",
+            "asset_id_value",
+        ),
+    )

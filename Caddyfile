@@ -8,6 +8,11 @@ dpp-platform.dev {
 		reverse_proxy backend:8000
 	}
 
+	# GS1 Digital Link resolver (public)
+	handle /api/v1/resolve/* {
+		reverse_proxy backend:8000
+	}
+
 	# API requests → FastAPI backend
 	handle /api/* {
 		reverse_proxy backend:8000

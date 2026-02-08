@@ -18,6 +18,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   admin: 'Admin',
   audit: 'Audit Trail',
   webhooks: 'Webhooks',
+  resolver: 'Resolver',
+  registry: 'Registry',
   tenants: 'Tenants',
   settings: 'Settings',
   edit: 'Edit',

@@ -43,6 +43,17 @@ backend:
   # Secret references — actual values come from secrets.yaml
   secretRef: dpp-platform-backend
 
+  resolver:
+    enabled: false
+    baseUrl: ""
+    autoRegister: true
+
+  registry:
+    enabled: false
+    autoRegister: true
+    externalUrl: ""
+    externalDiscoveryUrl: ""
+
 # -- Frontend (React + nginx)
 frontend:
   image:

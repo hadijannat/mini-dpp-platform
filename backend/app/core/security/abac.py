@@ -193,6 +193,7 @@ def build_subject_context(
         "bpn": user.bpn,
         "org": user.org,
         "clearance": user.clearance or "public",
+        "espr_tier": user.raw_claims.get("espr_tier"),
         "is_publisher": tenant.is_publisher if tenant else user.is_publisher,
         "is_admin": user.is_admin,
         "is_tenant_admin": tenant.is_tenant_admin if tenant else "tenant_admin" in roles,

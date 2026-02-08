@@ -31,6 +31,10 @@ from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
+from app.modules.registry.public_router import router as public_registry_router
+from app.modules.registry.router import router as registry_router
+from app.modules.resolver.public_router import router as public_resolver_router
+from app.modules.resolver.router import router as resolver_router
 from app.modules.settings.router import router as settings_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tenants.router import router as tenants_router
@@ -209,6 +213,16 @@ window.onload = function() {{
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public EPCIS"],
     )
+    app.include_router(
+        public_registry_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public Registry"],
+    )
+    app.include_router(
+        public_resolver_router,
+        prefix=f"{settings.api_v1_prefix}/resolve",
+        tags=["GS1 Resolver"],
+    )
 
     # API v1 routers (authenticated)
     app.include_router(
@@ -286,6 +300,16 @@ window.onload = function() {{
         webhooks_router,
         prefix=f"{tenant_prefix}/webhooks",
         tags=["Webhooks"],
+    )
+    app.include_router(
+        resolver_router,
+        prefix=f"{tenant_prefix}/resolver",
+        tags=["Resolver"],
+    )
+    app.include_router(
+        registry_router,
+        prefix=f"{tenant_prefix}/registry",
+        tags=["Registry"],
     )
 
     # Prometheus metrics endpoint
