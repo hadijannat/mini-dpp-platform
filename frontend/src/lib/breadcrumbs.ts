@@ -17,6 +17,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   'batch-import': 'Batch Import',
   admin: 'Admin',
   audit: 'Audit Trail',
+  webhooks: 'Webhooks',
   tenants: 'Tenants',
   settings: 'Settings',
   edit: 'Edit',

@@ -341,6 +341,18 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Webhooks
+    # ==========================================================================
+    webhook_enabled: bool = Field(default=False, description="Enable webhook notifications")
+    webhook_timeout_seconds: int = Field(
+        default=10, description="HTTP timeout for webhook delivery"
+    )
+    webhook_max_retries: int = Field(default=3, description="Max delivery retry attempts per event")
+    webhook_max_subscriptions: int = Field(
+        default=25, description="Max webhook subscriptions per tenant"
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(

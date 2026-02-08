@@ -34,6 +34,7 @@ from app.modules.qr.router import router as qr_router
 from app.modules.settings.router import router as settings_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tenants.router import router as tenants_router
+from app.modules.webhooks.router import router as webhooks_router
 
 # Configure logging before anything else
 configure_logging()
@@ -280,6 +281,11 @@ window.onload = function() {{
         epcis_router,
         prefix=f"{tenant_prefix}/epcis",
         tags=["EPCIS"],
+    )
+    app.include_router(
+        webhooks_router,
+        prefix=f"{tenant_prefix}/webhooks",
+        tags=["Webhooks"],
     )
 
     # Prometheus metrics endpoint

@@ -15,6 +15,7 @@ import {
   PackagePlus,
   BarChart3,
   ScrollText,
+  Webhook,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -81,6 +82,7 @@ export default function PublisherLayout() {
         ...baseNavigation,
         { name: 'Admin', href: '/console/admin', icon: BarChart3 },
         { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
+        { name: 'Webhooks', href: '/console/webhooks', icon: Webhook },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]

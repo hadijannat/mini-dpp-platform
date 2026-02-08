@@ -20,6 +20,7 @@ from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
 from app.modules.epcis.service import EPCISService
 from app.modules.export.service import ExportService
+from app.modules.webhooks.service import trigger_webhooks
 
 logger = get_logger(__name__)
 
@@ -101,6 +102,18 @@ async def export_dpp(
             epcis_events,
             epcis_endpoint_url=epcis_endpoint_url,
         )
+
+    # Notify webhooks
+    await trigger_webhooks(
+        db,
+        tenant.tenant_id,
+        "DPP_EXPORTED",
+        {
+            "event": "DPP_EXPORTED",
+            "dpp_id": str(dpp_id),
+            "format": format,
+        },
+    )
 
     # Export based on format
     if format == "json":

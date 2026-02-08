@@ -1369,6 +1369,119 @@ class EPCISEvent(TenantScopedMixin, Base):
     )
 
 
+# =============================================================================
+# Webhook Models
+# =============================================================================
+
+
+class WebhookSubscription(TenantScopedMixin, Base):
+    """
+    Webhook subscription for DPP lifecycle event notifications.
+
+    Tenant admins register URLs to receive signed HTTP POST callbacks
+    when lifecycle events occur (DPP created, published, etc.).
+    """
+
+    __tablename__ = "webhook_subscriptions"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    url: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Webhook delivery URL (HTTPS recommended)",
+    )
+    events: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="List of event types to subscribe to",
+    )
+    secret: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="HMAC-SHA256 signing secret",
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    deliveries: Mapped[list["WebhookDeliveryLog"]] = relationship(
+        back_populates="subscription",
+        cascade="all, delete-orphan",
+        order_by="WebhookDeliveryLog.created_at.desc()",
+    )
+
+    __table_args__ = (
+        Index("ix_webhook_subscriptions_tenant", "tenant_id"),
+        Index("ix_webhook_subscriptions_active", "active"),
+        Index("ix_webhook_subscriptions_events", "events", postgresql_using="gin"),
+    )
+
+
+class WebhookDeliveryLog(Base):
+    """
+    Log of individual webhook delivery attempts.
+
+    Records HTTP status, response body, and attempt number
+    for debugging and monitoring webhook reliability.
+    """
+
+    __tablename__ = "webhook_delivery_log"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    subscription_id: Mapped[UUID] = mapped_column(
+        ForeignKey("webhook_subscriptions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+    )
+    http_status: Mapped[int | None] = mapped_column(
+        Integer,
+        comment="HTTP response status code (NULL if connection failed)",
+    )
+    response_body: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Response body (truncated to 1KB)",
+    )
+    attempt: Mapped[int] = mapped_column(
+        Integer,
+        default=1,
+        nullable=False,
+    )
+    success: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    subscription: Mapped["WebhookSubscription"] = relationship(back_populates="deliveries")
+
+    __table_args__ = (
+        Index("ix_webhook_delivery_log_subscription", "subscription_id"),
+        Index("ix_webhook_delivery_log_created", "created_at"),
+    )
+
+
 class EPCISNamedQuery(TenantScopedMixin, Base):
     """Saved EPCIS query definition for reuse (named query).
 
