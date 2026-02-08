@@ -120,11 +120,13 @@ async def test_published_dpp_returns_events(_app: FastAPI) -> None:
     dpp = _make_dpp(published=True)
     event = _make_epcis_event(dpp.id)
 
-    fake_session = _FakeSession([
-        _FakeScalarResult(tenant),
-        _FakeScalarResult(dpp),
-        _FakeScalarsResult([event]),
-    ])
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(tenant),
+            _FakeScalarResult(dpp),
+            _FakeScalarsResult([event]),
+        ]
+    )
 
     async def _override_db() -> object:
         return fake_session
@@ -150,10 +152,12 @@ async def test_draft_dpp_returns_404(_app: FastAPI) -> None:
     tenant = _make_tenant()
     dpp_id = uuid4()
 
-    fake_session = _FakeSession([
-        _FakeScalarResult(tenant),
-        _FakeScalarResult(None),  # published filter excludes drafts
-    ])
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(tenant),
+            _FakeScalarResult(None),  # published filter excludes drafts
+        ]
+    )
 
     async def _override_db() -> object:
         return fake_session
@@ -175,10 +179,12 @@ async def test_nonexistent_dpp_returns_404(_app: FastAPI) -> None:
     tenant = _make_tenant()
     dpp_id = uuid4()
 
-    fake_session = _FakeSession([
-        _FakeScalarResult(tenant),
-        _FakeScalarResult(None),
-    ])
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(tenant),
+            _FakeScalarResult(None),
+        ]
+    )
 
     async def _override_db() -> object:
         return fake_session
@@ -197,9 +203,11 @@ async def test_nonexistent_dpp_returns_404(_app: FastAPI) -> None:
 @pytest.mark.asyncio
 async def test_nonexistent_tenant_returns_404(_app: FastAPI) -> None:
     """Non-existent tenant slug should return 404."""
-    fake_session = _FakeSession([
-        _FakeScalarResult(None),
-    ])
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(None),
+        ]
+    )
 
     async def _override_db() -> object:
         return fake_session

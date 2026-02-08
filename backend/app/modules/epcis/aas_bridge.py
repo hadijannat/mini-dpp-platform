@@ -44,11 +44,13 @@ def build_traceability_submodel(
         # Nest payload data (EPC lists, quantities, etc.)
         payload_props = _build_payload_properties(event.payload)
         if payload_props:
-            props.append({
-                "modelType": "SubmodelElementCollection",
-                "idShort": "Payload",
-                "value": payload_props,
-            })
+            props.append(
+                {
+                    "modelType": "SubmodelElementCollection",
+                    "idShort": "Payload",
+                    "value": payload_props,
+                }
+            )
 
         collection: dict[str, Any] = {
             "modelType": "SubmodelElementCollection",

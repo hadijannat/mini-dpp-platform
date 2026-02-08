@@ -61,7 +61,9 @@ class TestBuildTraceabilitySubmodel:
         assert collection["modelType"] == "SubmodelElementCollection"
 
         # Check property values
-        props = {p["idShort"]: p["value"] for p in collection["value"] if p["modelType"] == "Property"}
+        props = {
+            p["idShort"]: p["value"] for p in collection["value"] if p["modelType"] == "Property"
+        }
         assert props["EventType"] == "ObjectEvent"
         assert props["Action"] == "OBSERVE"
         assert props["BizStep"] == "shipping"
@@ -109,7 +111,9 @@ class TestBuildTraceabilitySubmodel:
         assert result is not None
 
         collection = result["submodelElements"][0]
-        props = {p["idShort"]: p["value"] for p in collection["value"] if p["modelType"] == "Property"}
+        props = {
+            p["idShort"]: p["value"] for p in collection["value"] if p["modelType"] == "Property"
+        }
         assert props["ReadPoint"] == "urn:epc:id:sgln:0614141.00777.0"
         assert props["BizLocation"] == "urn:epc:id:sgln:0614141.00888.0"
 

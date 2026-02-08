@@ -265,9 +265,7 @@ class TestEPCISPublicEndpoint:
         assert pub.status_code in (200, 201), pub.text
 
         # 4) Query via public endpoint (no auth)
-        public_client = httpx.Client(
-            base_url=runtime.dpp_base_url, timeout=30.0
-        )
+        public_client = httpx.Client(base_url=runtime.dpp_base_url, timeout=30.0)
         try:
             resp = public_client.get(
                 f"/api/v1/public/{runtime.tenant_slug}/epcis/events/{dpp_id}",
@@ -306,9 +304,7 @@ class TestEPCISPublicEndpoint:
         dpp_id = _extract_dpp_id(create.json())
 
         # Query via public endpoint — should 404
-        public_client = httpx.Client(
-            base_url=runtime.dpp_base_url, timeout=30.0
-        )
+        public_client = httpx.Client(base_url=runtime.dpp_base_url, timeout=30.0)
         try:
             resp = public_client.get(
                 f"/api/v1/public/{runtime.tenant_slug}/epcis/events/{dpp_id}",
@@ -366,8 +362,7 @@ class TestEPCISFilterByType:
 
         # 5) Filter by ObjectEvent → 1
         filt = api_client.get(
-            f"/api/v1/tenants/{slug}/epcis/events"
-            f"?dpp_id={dpp_id}&event_type=ObjectEvent",
+            f"/api/v1/tenants/{slug}/epcis/events?dpp_id={dpp_id}&event_type=ObjectEvent",
         )
         assert filt.status_code == 200, filt.text
         filtered = filt.json()["eventList"]
