@@ -33,9 +33,7 @@ class TestHMACSigning:
     def test_compute_signature_matches_stdlib(self) -> None:
         payload = b'{"test": true}'
         secret = "my-secret"
-        expected = hmac.new(
-            secret.encode("utf-8"), payload, hashlib.sha256
-        ).hexdigest()
+        expected = hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
         assert compute_signature(payload, secret) == expected
 
     def test_verify_signature_correct(self) -> None:

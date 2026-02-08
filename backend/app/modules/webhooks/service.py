@@ -172,6 +172,4 @@ async def trigger_webhooks(
 
     for sub in subs:
         # Use create_task for non-blocking delivery
-        asyncio.create_task(
-            service._deliver_with_retries(sub, event_type, payload)
-        )
+        asyncio.create_task(service._deliver_with_retries(sub, event_type, payload))

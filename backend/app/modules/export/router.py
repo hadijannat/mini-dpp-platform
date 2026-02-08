@@ -104,11 +104,16 @@ async def export_dpp(
         )
 
     # Notify webhooks
-    await trigger_webhooks(db, tenant.tenant_id, "DPP_EXPORTED", {
-        "event": "DPP_EXPORTED",
-        "dpp_id": str(dpp_id),
-        "format": format,
-    })
+    await trigger_webhooks(
+        db,
+        tenant.tenant_id,
+        "DPP_EXPORTED",
+        {
+            "event": "DPP_EXPORTED",
+            "dpp_id": str(dpp_id),
+            "format": format,
+        },
+    )
 
     # Export based on format
     if format == "json":

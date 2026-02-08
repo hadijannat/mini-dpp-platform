@@ -117,12 +117,17 @@ async def capture_events(
         metadata={"capture_id": result.capture_id, "event_count": result.event_count},
     )
 
-    await trigger_webhooks(db, tenant.tenant_id, "EPCIS_CAPTURED", {
-        "event": "EPCIS_CAPTURED",
-        "dpp_id": str(dpp_id),
-        "capture_id": result.capture_id,
-        "event_count": result.event_count,
-    })
+    await trigger_webhooks(
+        db,
+        tenant.tenant_id,
+        "EPCIS_CAPTURED",
+        {
+            "event": "EPCIS_CAPTURED",
+            "dpp_id": str(dpp_id),
+            "capture_id": result.capture_id,
+            "event_count": result.event_count,
+        },
+    )
 
     return result
 
