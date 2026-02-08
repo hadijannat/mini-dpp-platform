@@ -280,9 +280,7 @@ class TestResolveWithFilter:
     """Tests for ResolverService.resolve with link_type_filter."""
 
     @pytest.mark.asyncio()
-    async def test_resolve_with_link_type_filter(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_resolve_with_link_type_filter(self, mock_session: AsyncMock) -> None:
         """resolve with link_type_filter returns only matching link types."""
         cert_link = _make_link(link_type=LinkType.CERTIFICATION_INFO.value)
         mock_result = MagicMock()
@@ -299,9 +297,7 @@ class TestResolveWithFilter:
         assert result[0].link_type == LinkType.CERTIFICATION_INFO.value
 
     @pytest.mark.asyncio()
-    async def test_resolve_without_filter(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_resolve_without_filter(self, mock_session: AsyncMock) -> None:
         """resolve without link_type_filter returns all active links."""
         link1 = _make_link(link_type=LinkType.HAS_DPP.value)
         link2 = _make_link(link_type=LinkType.CERTIFICATION_INFO.value)
@@ -315,9 +311,7 @@ class TestResolveWithFilter:
         assert len(result) == 2
 
     @pytest.mark.asyncio()
-    async def test_resolve_empty_results(
-        self, mock_session: AsyncMock
-    ) -> None:
+    async def test_resolve_empty_results(self, mock_session: AsyncMock) -> None:
         """resolve returns empty list when no links match."""
         mock_result = MagicMock()
         mock_result.scalars.return_value.all.return_value = []

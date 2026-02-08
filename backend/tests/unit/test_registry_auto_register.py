@@ -43,7 +43,8 @@ def _make_shell_descriptor_payload(
         "id": aas_id,
         "idShort": id_short,
         "globalAssetId": global_asset_id,
-        "specificAssetIds": specific_asset_ids or [
+        "specificAssetIds": specific_asset_ids
+        or [
             {"name": "serialNumber", "value": "SN123"},
             {"name": "partId", "value": "P456"},
         ],
@@ -124,12 +125,18 @@ class TestAutoRegisterFromDPP:
 
         # Call twice
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
 
         # Both calls use pg_insert with on_conflict_do_update, so no duplicate inserts.
@@ -159,8 +166,11 @@ class TestAutoRegisterFromDPP:
 
         svc = BuiltInRegistryService(mock_session)
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
 
         # Should execute: 1 for shell upsert + 1 for discovery mappings
@@ -192,8 +202,11 @@ class TestAutoRegisterFromDPP:
 
         svc = BuiltInRegistryService(mock_session)
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
 
         # Shell upsert + discovery batch insert
@@ -226,8 +239,11 @@ class TestAutoRegisterFromDPP:
 
         svc = BuiltInRegistryService(mock_session)
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
 
         # Shell upsert + 1 discovery mapping batch (only validKey/validValue)
@@ -259,8 +275,11 @@ class TestAutoRegisterFromDPP:
 
         svc = BuiltInRegistryService(mock_session)
         await svc.auto_register_from_dpp(
-            dpp=dpp, revision=revision, tenant_id=tenant_id,
-            created_by=created_by, submodel_base_url="https://api.example.com",
+            dpp=dpp,
+            revision=revision,
+            tenant_id=tenant_id,
+            created_by=created_by,
+            submodel_base_url="https://api.example.com",
         )
 
         # Only shell upsert, no discovery mapping insert

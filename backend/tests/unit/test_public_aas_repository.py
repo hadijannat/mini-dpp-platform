@@ -89,13 +89,16 @@ def _make_revision(*, submodels: list[dict[str, Any]] | None = None):
     rev.revision_no = 1
     rev.aas_env_json = {
         "assetAdministrationShells": [],
-        "submodels": submodels or [
+        "submodels": submodels
+        or [
             {
                 "id": "urn:example:nameplate",
                 "idShort": "DigitalNameplate",
                 "semanticId": {
                     "type": "ExternalReference",
-                    "keys": [{"type": "Submodel", "value": "https://admin-shell.io/zvei/nameplate/V1.0"}],
+                    "keys": [
+                        {"type": "Submodel", "value": "https://admin-shell.io/zvei/nameplate/V1.0"}
+                    ],
                 },
                 "submodelElements": [{"idShort": "ManufacturerName", "value": "Acme"}],
             },
@@ -104,7 +107,9 @@ def _make_revision(*, submodels: list[dict[str, Any]] | None = None):
                 "idShort": "InternalData",
                 "semanticId": {
                     "type": "ExternalReference",
-                    "keys": [{"type": "Submodel", "value": "https://example.com/internal/secret/V1.0"}],
+                    "keys": [
+                        {"type": "Submodel", "value": "https://example.com/internal/secret/V1.0"}
+                    ],
                 },
                 "submodelElements": [{"idShort": "Secret", "value": "hidden"}],
             },

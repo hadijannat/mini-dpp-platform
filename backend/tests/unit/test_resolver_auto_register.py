@@ -198,9 +198,7 @@ class TestAutoRegisterForDPP:
         tenant_slug_result = MagicMock()
         tenant_slug_result.scalar_one_or_none.return_value = "my-tenant"
 
-        mock_session.execute = AsyncMock(
-            side_effect=[no_link_result, tenant_slug_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[no_link_result, tenant_slug_result])
 
         svc = ResolverService(mock_session)
         await svc.auto_register_for_dpp(
@@ -237,9 +235,7 @@ class TestAutoRegisterForDPP:
         no_tenant_result = MagicMock()
         no_tenant_result.scalar_one_or_none.return_value = None
 
-        mock_session.execute = AsyncMock(
-            side_effect=[no_link_result, no_tenant_result]
-        )
+        mock_session.execute = AsyncMock(side_effect=[no_link_result, no_tenant_result])
 
         svc = ResolverService(mock_session)
         await svc.auto_register_for_dpp(
