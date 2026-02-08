@@ -4,14 +4,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 
-from app.core.tenancy import TenantAdmin, TenantContextDep
+from app.core.tenancy import TenantAdmin
 from app.db.session import DbSession
 from app.modules.webhooks.schemas import (
     DeliveryLogResponse,
     WebhookCreate,
     WebhookResponse,
 )
-from app.modules.webhooks.service import WebhookService, trigger_webhooks
+from app.modules.webhooks.service import WebhookService, deliver_to_subscription
 
 router = APIRouter()
 
@@ -51,12 +51,18 @@ async def create_webhook(
 ) -> WebhookResponse:
     """Create a new webhook subscription."""
     service = WebhookService(db)
-    sub = await service.create_subscription(
-        tenant_id=tenant.tenant_id,
-        url=str(body.url),
-        events=list(body.events),
-        created_by=tenant.user.sub,
-    )
+    try:
+        sub = await service.create_subscription(
+            tenant_id=tenant.tenant_id,
+            url=str(body.url),
+            events=list(body.events),
+            created_by=tenant.user.sub,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     await db.commit()
     return _sub_to_response(sub)
 
@@ -108,7 +114,7 @@ async def list_deliveries(
 async def test_webhook(
     webhook_id: UUID,
     db: DbSession,
-    tenant: TenantContextDep,
+    tenant: TenantAdmin,
 ) -> dict[str, str]:
     """Send a test payload to verify webhook connectivity."""
     service = WebhookService(db)
@@ -125,5 +131,13 @@ async def test_webhook(
         "message": "This is a test webhook delivery from DPP Platform.",
     }
 
-    await trigger_webhooks(db, tenant.tenant_id, "WEBHOOK_TEST", test_payload)
+    # Deliver directly to this subscription — bypasses event matching
+    # so the test actually reaches the target URL.
+    await deliver_to_subscription(
+        subscription_id=sub.id,
+        url=sub.url,
+        secret=sub.secret,
+        event_type="WEBHOOK_TEST",
+        payload=test_payload,
+    )
     return {"status": "Test delivery initiated"}

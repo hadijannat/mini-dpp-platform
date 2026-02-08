@@ -5,7 +5,7 @@ import secrets
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -14,6 +14,9 @@ from app.db.models import WebhookDeliveryLog, WebhookSubscription
 from app.modules.webhooks.client import deliver_webhook
 
 logger = get_logger(__name__)
+
+# Limit concurrent webhook deliveries to prevent resource exhaustion
+_delivery_semaphore = asyncio.Semaphore(20)
 
 
 class WebhookService:
@@ -27,6 +30,21 @@ class WebhookService:
         events: list[str],
         created_by: str,
     ) -> WebhookSubscription:
+        settings = get_settings()
+
+        # Enforce per-tenant subscription limit
+        count_result = await self.db.execute(
+            select(func.count())
+            .select_from(WebhookSubscription)
+            .where(WebhookSubscription.tenant_id == tenant_id)
+        )
+        current_count = count_result.scalar_one()
+        if current_count >= settings.webhook_max_subscriptions:
+            raise ValueError(
+                f"Tenant has reached the maximum of {settings.webhook_max_subscriptions} "
+                f"webhook subscriptions"
+            )
+
         secret = secrets.token_hex(32)
         sub = WebhookSubscription(
             tenant_id=tenant_id,
@@ -96,57 +114,86 @@ class WebhookService:
         # Filter by event type (events is a JSONB array)
         return [s for s in subs if event_type in s.events]
 
-    async def _deliver_with_retries(
-        self,
-        sub: WebhookSubscription,
-        event_type: str,
-        payload: dict[str, Any],
-    ) -> None:
-        """Deliver webhook with exponential backoff retries."""
-        settings = get_settings()
-        max_retries = settings.webhook_max_retries
 
-        for attempt in range(1, max_retries + 1):
-            http_status, response_body, error = await deliver_webhook(
-                url=sub.url,
-                payload=payload,
-                secret=sub.secret,
-            )
+async def _deliver_in_background(
+    subscription_id: UUID,
+    url: str,
+    secret: str,
+    event_type: str,
+    payload: dict[str, Any],
+) -> None:
+    """
+    Deliver webhook in a background task with its own DB session.
 
-            success = http_status is not None and 200 <= http_status < 300
+    Uses an independent session (not the request-scoped one) so delivery
+    logs persist even after the HTTP response has been sent.
+    """
+    from app.db.session import get_background_session
 
-            log = WebhookDeliveryLog(
-                subscription_id=sub.id,
-                event_type=event_type,
-                payload=payload,
-                http_status=http_status,
-                response_body=response_body,
-                attempt=attempt,
-                success=success,
-                error_message=error,
-            )
-            self.db.add(log)
-            await self.db.flush()
+    settings = get_settings()
+    max_retries = settings.webhook_max_retries
 
-            if success:
-                logger.info(
-                    "webhook_delivered",
-                    subscription_id=str(sub.id),
+    async with _delivery_semaphore:
+        try:
+            async with get_background_session() as db:
+                for attempt in range(1, max_retries + 1):
+                    http_status, response_body, error = await deliver_webhook(
+                        url=url,
+                        payload=payload,
+                        secret=secret,
+                    )
+
+                    success = http_status is not None and 200 <= http_status < 300
+
+                    log = WebhookDeliveryLog(
+                        subscription_id=subscription_id,
+                        event_type=event_type,
+                        payload=payload,
+                        http_status=http_status,
+                        response_body=response_body,
+                        attempt=attempt,
+                        success=success,
+                        error_message=error,
+                    )
+                    db.add(log)
+                    await db.commit()
+
+                    if success:
+                        logger.info(
+                            "webhook_delivered",
+                            subscription_id=str(subscription_id),
+                            event_type=event_type,
+                            attempt=attempt,
+                        )
+                        return
+
+                    if attempt < max_retries:
+                        backoff = 2**attempt  # 2s, 4s, 8s
+                        await asyncio.sleep(backoff)
+
+                logger.warning(
+                    "webhook_delivery_exhausted",
+                    subscription_id=str(subscription_id),
                     event_type=event_type,
-                    attempt=attempt,
+                    max_retries=max_retries,
                 )
-                return
+        except Exception:
+            logger.exception(
+                "webhook_background_error",
+                subscription_id=str(subscription_id),
+                event_type=event_type,
+            )
 
-            if attempt < max_retries:
-                backoff = 4 ** (attempt - 1)  # 1s, 4s, 16s
-                await asyncio.sleep(backoff)
 
-        logger.warning(
-            "webhook_delivery_exhausted",
-            subscription_id=str(sub.id),
-            event_type=event_type,
-            max_retries=max_retries,
-        )
+async def deliver_to_subscription(
+    subscription_id: UUID,
+    url: str,
+    secret: str,
+    event_type: str,
+    payload: dict[str, Any],
+) -> None:
+    """Deliver a webhook directly to a specific subscription (used by test endpoint)."""
+    asyncio.create_task(_deliver_in_background(subscription_id, url, secret, event_type, payload))
 
 
 async def trigger_webhooks(
@@ -170,6 +217,9 @@ async def trigger_webhooks(
     if not subs:
         return
 
+    # Snapshot the data we need — background tasks must not use the
+    # request-scoped session since it's closed after the response.
     for sub in subs:
-        # Use create_task for non-blocking delivery
-        asyncio.create_task(service._deliver_with_retries(sub, event_type, payload))
+        asyncio.create_task(
+            _deliver_in_background(sub.id, sub.url, sub.secret, event_type, payload)
+        )

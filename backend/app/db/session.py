@@ -4,6 +4,7 @@ Provides connection pooling and session lifecycle management.
 """
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import Depends
@@ -80,6 +81,21 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+@asynccontextmanager
+async def get_background_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Create an independent async session for background tasks.
+
+    Unlike get_db_session (which is request-scoped via FastAPI DI),
+    this creates a standalone session with its own lifecycle.
+    """
+    if _session_factory is None:
+        raise RuntimeError("Database not initialized. Call init_db() first.")
+
+    async with _session_factory() as session:
+        yield session
 
 
 # Type alias for dependency injection

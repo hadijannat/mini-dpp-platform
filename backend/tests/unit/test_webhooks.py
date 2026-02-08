@@ -8,7 +8,11 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from app.modules.webhooks.client import compute_signature, verify_signature
+from app.modules.webhooks.client import (
+    _sanitize_response,
+    compute_signature,
+    verify_signature,
+)
 from app.modules.webhooks.schemas import (
     ALL_WEBHOOK_EVENTS,
     DeliveryLogResponse,
@@ -59,6 +63,29 @@ class TestHMACSigning:
         assert sig1 != sig2
 
 
+# ── Response Sanitization Tests ───────────────────────────────────
+
+
+class TestResponseSanitization:
+    """Verify HTML stripping and truncation of response bodies."""
+
+    def test_strips_html_tags(self) -> None:
+        assert _sanitize_response("<h1>Hello</h1><script>alert(1)</script>") == "Helloalert(1)"
+
+    def test_truncates_to_max_len(self) -> None:
+        long_text = "x" * 2000
+        result = _sanitize_response(long_text)
+        assert result is not None
+        assert len(result) == 1024
+
+    def test_returns_none_for_empty(self) -> None:
+        assert _sanitize_response(None) is None
+        assert _sanitize_response("") is None
+
+    def test_preserves_plain_text(self) -> None:
+        assert _sanitize_response("OK") == "OK"
+
+
 # ── Schema Validation Tests ────────────────────────────────────────
 
 
@@ -73,10 +100,9 @@ class TestWebhookSchemas:
         assert str(wh.url) == "https://example.com/webhook"
         assert len(wh.events) == 2
 
-    def test_create_requires_https_or_http(self) -> None:
-        # Pydantic HttpUrl accepts http and https
-        wh = WebhookCreate(url="http://localhost:3000/hook", events=["DPP_CREATED"])
-        assert "localhost" in str(wh.url)
+    def test_create_accepts_public_http(self) -> None:
+        wh = WebhookCreate(url="http://example.com/hook", events=["DPP_CREATED"])
+        assert "example.com" in str(wh.url)
 
     def test_create_rejects_empty_events(self) -> None:
         with pytest.raises(ValidationError):
@@ -149,6 +175,38 @@ class TestWebhookSchemas:
         )
         assert log.success is False
         assert log.http_status is None
+
+
+# ── SSRF Protection Tests ─────────────────────────────────────────
+
+
+class TestSSRFProtection:
+    """Verify that internal/private URLs are rejected."""
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://localhost:8000/internal",
+            "http://127.0.0.1:8000/api",
+            "http://10.0.0.1/internal",
+            "http://172.16.0.1/internal",
+            "http://172.31.255.255/internal",
+            "http://192.168.1.1/internal",
+            "http://169.254.169.254/latest/meta-data/",
+            "http://0.0.0.0/",
+        ],
+    )
+    def test_rejects_private_urls(self, url: str) -> None:
+        with pytest.raises(ValidationError, match="private or internal"):
+            WebhookCreate(url=url, events=["DPP_CREATED"])
+
+    def test_accepts_public_url(self) -> None:
+        wh = WebhookCreate(url="https://hooks.example.com/dpp", events=["DPP_CREATED"])
+        assert "example.com" in str(wh.url)
+
+    def test_accepts_public_ip(self) -> None:
+        wh = WebhookCreate(url="https://93.184.216.34/hook", events=["DPP_CREATED"])
+        assert "93.184" in str(wh.url)
 
 
 # ── Event Types Tests ──────────────────────────────────────────────

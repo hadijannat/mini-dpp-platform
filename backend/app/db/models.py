@@ -1424,6 +1424,7 @@ class WebhookSubscription(TenantScopedMixin, Base):
     __table_args__ = (
         Index("ix_webhook_subscriptions_tenant", "tenant_id"),
         Index("ix_webhook_subscriptions_active", "active"),
+        Index("ix_webhook_subscriptions_events", "events", postgresql_using="gin"),
     )
 
 

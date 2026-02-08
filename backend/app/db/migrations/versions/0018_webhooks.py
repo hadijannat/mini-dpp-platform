@@ -46,6 +46,12 @@ def upgrade() -> None:
     )
     op.create_index("ix_webhook_subscriptions_tenant", "webhook_subscriptions", ["tenant_id"])
     op.create_index("ix_webhook_subscriptions_active", "webhook_subscriptions", ["active"])
+    op.create_index(
+        "ix_webhook_subscriptions_events",
+        "webhook_subscriptions",
+        ["events"],
+        postgresql_using="gin",
+    )
 
     op.create_table(
         "webhook_delivery_log",
