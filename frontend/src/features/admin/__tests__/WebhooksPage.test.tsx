@@ -23,7 +23,7 @@ vi.mock('@/lib/tenant', () => ({
 let mockWebhooks: unknown[] = [];
 
 vi.mock('@/lib/api', () => ({
-  tenantApiFetch: vi.fn((_path: string) =>
+  tenantApiFetch: vi.fn(() =>
     Promise.resolve({
       ok: true,
       json: () => Promise.resolve(mockWebhooks),

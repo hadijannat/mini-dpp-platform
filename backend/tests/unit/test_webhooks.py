@@ -17,7 +17,6 @@ from app.modules.webhooks.schemas import (
     WebhookUpdate,
 )
 
-
 # ── HMAC Signing Tests ─────────────────────────────────────────────
 
 
