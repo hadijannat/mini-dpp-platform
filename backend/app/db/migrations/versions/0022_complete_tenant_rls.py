@@ -1,8 +1,11 @@
-"""Complete tenant row-level security for tables added in migrations 0008-0021
+"""Complete tenant row-level security for tables added in migrations 0011-0021
 
 Revision ID: 0022_complete_tenant_rls
 Revises: 0021_verifiable_credentials
 Create Date: 2026-02-08
+
+Note: dpp_masters and dpp_master_versions already have RLS from migration 0008.
+      dpp_master_aliases already has RLS from migration 0009.
 """
 
 from alembic import op
@@ -14,9 +17,6 @@ branch_labels = None
 depends_on = None
 
 TENANT_TABLES = (
-    "dpp_masters",
-    "dpp_master_versions",
-    "dpp_master_aliases",
     "audit_merkle_roots",
     "compliance_reports",
     "edc_asset_registrations",

@@ -12,11 +12,15 @@ _RLS_0005 = {
     "audit_events",
 }
 
-# Tables with RLS from migration 0022
-_RLS_0022 = {
+# Tables with RLS from migrations 0008/0009
+_RLS_0008_0009 = {
     "dpp_masters",
     "dpp_master_versions",
     "dpp_master_aliases",
+}
+
+# Tables with RLS from migration 0022
+_RLS_0022 = {
     "audit_merkle_roots",
     "compliance_reports",
     "edc_asset_registrations",
@@ -31,7 +35,7 @@ _RLS_0022 = {
     "issued_credentials",
 }
 
-TABLES_WITH_RLS = _RLS_0005 | _RLS_0022
+TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022
 
 
 def _tenant_scoped_tables() -> set[str]:
