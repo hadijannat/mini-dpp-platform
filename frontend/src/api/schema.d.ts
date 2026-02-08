@@ -704,7 +704,7 @@ export interface components {
      * @description Supported data carrier formats.
      * @enum {string}
      */
-    CarrierFormat: "qr" | "gs1_qr" | "datamatrix";
+    CarrierFormat: "qr" | "gs1_qr";
     /**
      * CarrierOutputType
      * @description Supported output formats.
@@ -3460,7 +3460,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Export format */
-        format?: "json" | "aasx" | "pdf";
+        format?: "json" | "aasx" | "pdf" | "jsonld" | "turtle";
         /** @description Serialization format inside AASX package (json or xml) */
         aasx_serialization?: "json" | "xml";
       };

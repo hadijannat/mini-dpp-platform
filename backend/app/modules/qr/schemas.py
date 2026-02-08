@@ -13,7 +13,6 @@ class CarrierFormat(str, Enum):
 
     QR_CODE = "qr"
     GS1_QR = "gs1_qr"
-    DATA_MATRIX = "datamatrix"
 
 
 class CarrierOutputType(str, Enum):

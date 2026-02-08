@@ -33,6 +33,7 @@ const TenantsPage = lazy(() => import('./features/admin/pages/TenantsPage'));
 const WebhooksPage = lazy(() => import('./features/admin/pages/WebhooksPage'));
 const ResolverPage = lazy(() => import('./features/admin/pages/ResolverPage'));
 const RegistryPage = lazy(() => import('./features/admin/pages/RegistryPage'));
+const CredentialsPage = lazy(() => import('./features/admin/pages/CredentialsPage'));
 
 function App() {
   const auth = useAuth();
@@ -132,6 +133,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <RegistryPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="credentials"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <CredentialsPage />
               </ProtectedRoute>
             }
           />

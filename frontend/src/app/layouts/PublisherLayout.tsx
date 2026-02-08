@@ -18,6 +18,7 @@ import {
   Webhook,
   Globe,
   Search,
+  Award,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -87,6 +88,7 @@ export default function PublisherLayout() {
         { name: 'Webhooks', href: '/console/webhooks', icon: Webhook },
         { name: 'Resolver', href: '/console/resolver', icon: Globe },
         { name: 'Registry', href: '/console/registry', icon: Search },
+        { name: 'Credentials', href: '/console/credentials', icon: Award },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]

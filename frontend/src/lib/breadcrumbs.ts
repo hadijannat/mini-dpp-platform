@@ -20,6 +20,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   webhooks: 'Webhooks',
   resolver: 'Resolver',
   registry: 'Registry',
+  credentials: 'Credentials',
   tenants: 'Tenants',
   settings: 'Settings',
   edit: 'Edit',

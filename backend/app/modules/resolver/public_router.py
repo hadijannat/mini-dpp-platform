@@ -146,7 +146,12 @@ async def resolver_description() -> ResolverDescriptionResponse:
         name="Mini DPP Platform GS1 Digital Link Resolver",
         resolverRoot=base_url,
         supportedLinkTypes=[
-            {"namespace": "gs1", "prefix": "gs1:", "type": lt.value} for lt in LinkType
+            {
+                "namespace": "iec61406" if lt.value.startswith("iec61406:") else "gs1",
+                "prefix": "iec61406:" if lt.value.startswith("iec61406:") else "gs1:",
+                "type": lt.value,
+            }
+            for lt in LinkType
         ],
         supportedContextValuesEnumerated=["en", "de", "fr"],
     )

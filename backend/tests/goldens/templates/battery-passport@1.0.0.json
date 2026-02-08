@@ -1,0 +1,9 @@
+{
+  "key": "battery-passport",
+  "idta_version": "1.0.0",
+  "semantic_id": "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0",
+  "expected": {
+    "definition_sha256": "REPLACE_WITH_UPDATE_SCRIPT_OUTPUT",
+    "schema_sha256": "REPLACE_WITH_UPDATE_SCRIPT_OUTPUT"
+  }
+}

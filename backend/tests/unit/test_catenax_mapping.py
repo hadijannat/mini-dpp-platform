@@ -12,6 +12,7 @@ import pytest
 from app.modules.aas.references import extract_semantic_id_str
 from app.modules.connectors.catenax.mapping import (
     build_shell_descriptor,
+    translate_semantic_id_for_catenax,
 )
 
 
@@ -185,3 +186,39 @@ class TestExtractSemanticId:
         """Returns empty string when semanticId key is absent."""
         submodel = {"idShort": "Nameplate"}
         assert extract_semantic_id_str(submodel) == ""
+
+
+# ---------------------------------------------------------------------------
+# translate_semantic_id_for_catenax
+# ---------------------------------------------------------------------------
+
+
+class TestTranslateSemanticId:
+    def test_battery_passport_to_battery_pass(self):
+        """Battery Passport semantic ID maps to Catena-X BatteryPass SAMM."""
+        aas_id = "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0"
+        expected = "urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass"
+        assert translate_semantic_id_for_catenax(aas_id) == expected
+
+    def test_nameplate_to_serial_part(self):
+        """Nameplate semantic ID maps to Catena-X SerialPart SAMM."""
+        aas_id = "https://admin-shell.io/zvei/nameplate/2/0/Nameplate"
+        expected = "urn:samm:io.catenax.serial_part:3.0.0#SerialPart"
+        assert translate_semantic_id_for_catenax(aas_id) == expected
+
+    def test_carbon_footprint_to_pcf(self):
+        """Carbon Footprint semantic ID maps to Catena-X PCF SAMM."""
+        aas_id = "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"
+        expected = "urn:samm:io.catenax.pcf:6.0.0#Pcf"
+        assert translate_semantic_id_for_catenax(aas_id) == expected
+
+    def test_hierarchical_structures_to_bom(self):
+        """Hierarchical Structures maps to Catena-X BOM SAMM."""
+        aas_id = "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel"
+        expected = "urn:samm:io.catenax.single_level_bom_as_built:3.0.0#SingleLevelBomAsBuilt"
+        assert translate_semantic_id_for_catenax(aas_id) == expected
+
+    def test_unknown_id_passthrough(self):
+        """Unknown semantic IDs are returned unchanged."""
+        unknown = "https://example.com/some/unknown/semantic/id"
+        assert translate_semantic_id_for_catenax(unknown) == unknown
