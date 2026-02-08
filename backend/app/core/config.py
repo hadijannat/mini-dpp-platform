@@ -366,6 +366,19 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Verifiable Credentials / DID
+    # ==========================================================================
+    vc_enabled: bool = Field(
+        default=False, description="Enable Verifiable Credentials / DID support"
+    )
+    vc_credential_ttl_days: int = Field(
+        default=365,
+        ge=1,
+        le=3650,
+        description="Default credential validity period in days",
+    )
+
+    # ==========================================================================
     # AAS Registry & Discovery
     # ==========================================================================
     registry_enabled: bool = Field(default=False, description="Enable built-in AAS registry")
