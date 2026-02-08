@@ -15,6 +15,7 @@ from app.modules.templates.service import TemplateRegistryService
 class TestTemplateRegistryService:
     def test_template_catalog_contains_only_dpp40_core_templates(self):
         expected = [
+            "battery-passport",
             "carbon-footprint",
             "contact-information",
             "digital-nameplate",
