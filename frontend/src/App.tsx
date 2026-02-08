@@ -28,6 +28,7 @@ const EPCISPage = lazy(() => import('./features/epcis/pages/EPCISPage'));
 const SubmodelEditorPage = lazy(() => import('./features/editor/pages/SubmodelEditorPage'));
 const GlobalIdSettingsPage = lazy(() => import('./features/admin/pages/GlobalIdSettingsPage'));
 const TenantsPage = lazy(() => import('./features/admin/pages/TenantsPage'));
+const WebhooksPage = lazy(() => import('./features/admin/pages/WebhooksPage'));
 
 function App() {
   const auth = useAuth();
@@ -94,6 +95,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <TenantsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="webhooks"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <WebhooksPage />
               </ProtectedRoute>
             }
           />

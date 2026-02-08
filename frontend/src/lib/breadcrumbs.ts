@@ -15,6 +15,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   compliance: 'Compliance',
   epcis: 'Supply Chain',
   audit: 'Audit Trail',
+  webhooks: 'Webhooks',
   tenants: 'Tenants',
   settings: 'Settings',
   edit: 'Edit',

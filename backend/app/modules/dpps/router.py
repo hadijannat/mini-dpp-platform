@@ -20,6 +20,7 @@ from app.modules.dpps.service import DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
 from app.modules.templates.service import TemplateRegistryService
+from app.modules.webhooks.service import trigger_webhooks
 
 router = APIRouter()
 
@@ -210,6 +211,13 @@ async def create_dpp(
         user=tenant.user,
         request=request,
     )
+
+    await trigger_webhooks(db, tenant.tenant_id, "DPP_CREATED", {
+        "event": "DPP_CREATED",
+        "dpp_id": str(dpp.id),
+        "status": dpp.status.value,
+        "owner_subject": dpp.owner_subject,
+    })
 
     return DPPResponse(
         id=dpp.id,
@@ -696,6 +704,12 @@ async def publish_dpp(
             user=tenant.user,
             request=request,
         )
+
+        await trigger_webhooks(db, tenant.tenant_id, "DPP_PUBLISHED", {
+            "event": "DPP_PUBLISHED",
+            "dpp_id": str(dpp_id),
+            "status": published_dpp.status.value,
+        })
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -768,6 +782,12 @@ async def archive_dpp(
             user=tenant.user,
             request=request,
         )
+
+        await trigger_webhooks(db, tenant.tenant_id, "DPP_ARCHIVED", {
+            "event": "DPP_ARCHIVED",
+            "dpp_id": str(dpp_id),
+            "status": archived_dpp.status.value,
+        })
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

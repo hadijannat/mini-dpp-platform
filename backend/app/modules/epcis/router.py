@@ -17,6 +17,7 @@ from app.core.tenancy import TenantPublisher
 from app.db.models import DPP, EPCISEventType
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
+from app.modules.webhooks.service import trigger_webhooks
 
 from .schemas import (
     CaptureResponse,
@@ -114,6 +115,13 @@ async def capture_events(
         request=request,
         metadata={"capture_id": result.capture_id, "event_count": result.event_count},
     )
+
+    await trigger_webhooks(db, tenant.tenant_id, "EPCIS_CAPTURED", {
+        "event": "EPCIS_CAPTURED",
+        "dpp_id": str(dpp_id),
+        "capture_id": result.capture_id,
+        "event_count": result.event_count,
+    })
 
     return result
 
