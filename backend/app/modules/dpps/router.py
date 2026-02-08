@@ -833,8 +833,10 @@ async def publish_dpp(
                 "status": published_dpp.status.value,
             },
         )
-        await auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub)
-        # Auto-register shell descriptor in built-in registry
+        # Run resolver + registry auto-registration concurrently
+        auto_tasks: list[Any] = [
+            auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub),
+        ]
         if published_dpp.current_published_revision_id:
             from sqlalchemy import select as _select
 
@@ -847,9 +849,12 @@ async def publish_dpp(
             )
             _pub_rev = _rev_result.scalar_one_or_none()
             if _pub_rev:
-                await auto_register_shell_descriptor(
-                    db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                auto_tasks.append(
+                    auto_register_shell_descriptor(
+                        db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                    )
                 )
+        await asyncio.gather(*auto_tasks)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

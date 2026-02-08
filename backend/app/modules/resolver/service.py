@@ -71,6 +71,8 @@ class ResolverService:
         tenant_id: UUID,
         dpp_id: UUID | None = None,
         active_only: bool = True,
+        limit: int = 100,
+        offset: int = 0,
     ) -> list[ResolverLink]:
         """List resolver links for a tenant, optionally filtered by DPP."""
         stmt = select(ResolverLink).where(ResolverLink.tenant_id == tenant_id)
@@ -79,6 +81,7 @@ class ResolverService:
         if active_only:
             stmt = stmt.where(ResolverLink.active.is_(True))
         stmt = stmt.order_by(ResolverLink.priority.desc(), ResolverLink.created_at)
+        stmt = stmt.limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 

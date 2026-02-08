@@ -39,12 +39,18 @@ ESPR_TIER_SUBMODEL_MAP: dict[str, frozenset[str] | None] = {
 def filter_aas_env_by_espr_tier(
     aas_env: dict[str, Any],
     espr_tier: str | None,
+    *,
+    in_place: bool = False,
 ) -> dict[str, Any]:
     """Filter an AAS environment based on the caller's ESPR tier.
 
     If espr_tier is None or "manufacturer" or "market_surveillance_authority",
     returns the full environment. Otherwise, filters submodels
     based on semantic ID prefix matching against the tier's allowed set.
+
+    Args:
+        in_place: If True, mutate ``aas_env`` directly instead of deep-copying.
+            Use when the caller already owns a mutable copy.
     """
     if espr_tier is None:
         return aas_env  # No tier = no filtering (backwards compatible)
@@ -58,11 +64,11 @@ def filter_aas_env_by_espr_tier(
     if allowed is None:
         return aas_env  # Full access tiers (authority/manufacturer)
 
-    filtered = copy.deepcopy(aas_env)
-    filtered["submodels"] = [
-        sm for sm in filtered.get("submodels", []) if _submodel_matches_tier(sm, allowed)
+    target = aas_env if in_place else copy.deepcopy(aas_env)
+    target["submodels"] = [
+        sm for sm in target.get("submodels", []) if _submodel_matches_tier(sm, allowed)
     ]
-    return filtered
+    return target
 
 
 def _submodel_matches_tier(
