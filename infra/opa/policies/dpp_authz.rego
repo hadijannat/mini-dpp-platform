@@ -15,6 +15,27 @@ tenant_match if {
     input.resource.tenant_id == input.subject.tenant_id
 }
 
+# =============================================================================
+# ESPR Tier Helpers (must be defined before the decision else-chain)
+# =============================================================================
+
+# Semantic ID prefix sets per ESPR tier
+consumer_allowed := {
+    "https://admin-shell.io/zvei/nameplate",
+    "https://admin-shell.io/idta/TechnicalData",
+    "https://admin-shell.io/idta/CarbonFootprint",
+}
+
+recycler_allowed := consumer_allowed | {
+    "https://admin-shell.io/idta/CarbonFootprint",
+}
+
+# Helper: check if the resource's semantic_id starts with any prefix in the set
+_semantic_id_allowed(allowed_set) if {
+    some prefix in allowed_set
+    startswith(input.resource.semantic_id, prefix)
+}
+
 # Default deny
 default decision := {
     "effect": "deny",
@@ -421,19 +442,6 @@ else := {
 # ESPR Tiered Access (Submodel-Level)
 # =============================================================================
 
-# Semantic ID prefix sets per ESPR tier
-consumer_allowed := {
-    "https://admin-shell.io/zvei/nameplate",
-    "https://admin-shell.io/idta/TechnicalData",
-    "https://admin-shell.io/idta/CarbonFootprint",
-}
-
-recycler_allowed := consumer_allowed | {
-    "https://admin-shell.io/idta/CarbonFootprint",
-}
-
-# Authority and manufacturer tiers have full access (handled by allow-all rules below)
-
 # Consumer: allow submodel read when semantic ID prefix is in the consumer set
 else := {
     "effect": "allow",
@@ -508,10 +516,4 @@ else := {
     input.resource.type == "submodel"
     input.subject.espr_tier == "manufacturer"
     tenant_match
-}
-
-# Helper: check if the resource's semantic_id starts with any prefix in the set
-_semantic_id_allowed(allowed_set) if {
-    some prefix in allowed_set
-    startswith(input.resource.semantic_id, prefix)
 }

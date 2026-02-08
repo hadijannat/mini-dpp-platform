@@ -115,6 +115,7 @@ class ResolverService:
         self,
         identifier: str,
         link_type_filter: str | None = None,
+        limit: int = 100,
     ) -> list[ResolverLink]:
         """Resolve an identifier to active links across all tenants."""
         stmt = select(ResolverLink).where(
@@ -124,6 +125,7 @@ class ResolverService:
         if link_type_filter:
             stmt = stmt.where(ResolverLink.link_type == link_type_filter)
         stmt = stmt.order_by(ResolverLink.priority.desc(), ResolverLink.created_at)
+        stmt = stmt.limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 

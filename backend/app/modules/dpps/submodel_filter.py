@@ -49,9 +49,14 @@ def filter_aas_env_by_espr_tier(
     if espr_tier is None:
         return aas_env  # No tier = no filtering (backwards compatible)
 
-    allowed = ESPR_TIER_SUBMODEL_MAP.get(espr_tier)
+    if espr_tier not in ESPR_TIER_SUBMODEL_MAP:
+        # Unknown tier gets no submodel access (deny-by-default)
+        allowed: frozenset[str] | None = frozenset()
+    else:
+        allowed = ESPR_TIER_SUBMODEL_MAP[espr_tier]
+
     if allowed is None:
-        return aas_env  # Full access tiers
+        return aas_env  # Full access tiers (authority/manufacturer)
 
     filtered = copy.deepcopy(aas_env)
     filtered["submodels"] = [

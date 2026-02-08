@@ -136,18 +136,16 @@ class TestNoSemanticId:
 
 
 class TestUnknownTier:
-    """Unknown tier string should return full env (not in map)."""
+    """Unknown tier string should deny all submodels (deny-by-default)."""
 
-    def test_unknown_tier_returns_full_env(self) -> None:
+    def test_unknown_tier_denies_all_submodels(self) -> None:
         env = _make_aas_env(
             _make_submodel("sm1", "https://admin-shell.io/zvei/nameplate"),
             _make_submodel("secret", "https://example.com/internal/secret"),
         )
-        # Unknown tier is not in ESPR_TIER_SUBMODEL_MAP, get() returns None
-        # but get() returns None which means "full access"
+        # Unknown tier maps to empty frozenset -> no submodels visible
         filtered = filter_aas_env_by_espr_tier(env, "unknown_tier")
-        # "unknown_tier" is not in the map, so get() returns None -> full access
-        assert len(filtered["submodels"]) == 2
+        assert len(filtered["submodels"]) == 0
 
 
 class TestTierSets:

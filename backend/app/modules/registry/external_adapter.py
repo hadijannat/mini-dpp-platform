@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from typing import Any, cast
 
 import httpx
@@ -116,7 +117,7 @@ class BasyxV2RegistryAdapter:
         async with httpx.AsyncClient(base_url=self._discovery_url, timeout=30.0) as client:
             response = await client.get(
                 "/lookup/shells",
-                params={"assetIds": f'{{"name":"{asset_id_key}","value":"{asset_id_value}"}}'},
+                params={"assetIds": json.dumps({"name": asset_id_key, "value": asset_id_value})},
             )
             response.raise_for_status()
             data = response.json()

@@ -38,8 +38,14 @@ async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
 
 def _decode_aas_id(aas_id_b64: str) -> str:
     """Decode a base64-URL-safe encoded AAS ID (with padding fix)."""
-    padded = aas_id_b64 + "=" * (-len(aas_id_b64) % 4)
-    return base64.urlsafe_b64decode(padded).decode()
+    try:
+        padded = aas_id_b64 + "=" * (-len(aas_id_b64) % 4)
+        return base64.urlsafe_b64decode(padded).decode()
+    except (ValueError, UnicodeDecodeError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid base64-encoded AAS identifier",
+        ) from exc
 
 
 class PublicShellDescriptorResponse(BaseModel):

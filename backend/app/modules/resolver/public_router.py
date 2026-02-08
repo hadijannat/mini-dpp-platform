@@ -7,6 +7,7 @@ responses or HTTP 307 redirects, depending on content negotiation.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -102,7 +103,7 @@ async def _resolve(
     if not links:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No resolver links found for identifier: {identifier}",
+            detail="No resolver links found for this identifier",
         )
 
     if _wants_linkset(request):
@@ -116,6 +117,15 @@ async def _resolve(
     # Default: HTTP 307 redirect to highest-priority DPP link
     dpp_links = [lnk for lnk in links if lnk.link_type == LinkType.HAS_DPP.value]
     redirect_link = dpp_links[0] if dpp_links else links[0]
+
+    # Validate redirect target to prevent open redirect attacks
+    parsed = urlparse(redirect_link.href)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Invalid redirect target",
+        )
+
     return RedirectResponse(
         url=redirect_link.href,
         status_code=status.HTTP_307_TEMPORARY_REDIRECT,
