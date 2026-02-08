@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { CaptureDialog } from '@/features/epcis/components/CaptureDialog';
+import { RevisionHistory } from '../components/RevisionHistory';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 import { PageHeader } from '@/components/page-header';
@@ -529,6 +530,19 @@ export default function DPPEditorPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Revision History */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Revision History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <RevisionHistory dppId={dpp.id} token={token} />
+        </CardContent>
+      </Card>
 
       {/* Supply Chain Events */}
       <Card>

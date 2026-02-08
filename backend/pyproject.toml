@@ -38,7 +38,7 @@ dependencies = [
     "hiredis>=2.3.0",
 
     # Authentication & Security
-    "python-jose[cryptography]>=3.3.0",
+    "PyJWT[crypto]>=2.8.0",
     "passlib[bcrypt]>=1.7.4",
     "httpx>=0.26.0",
     "cryptography>=42.0.0",
