@@ -409,6 +409,91 @@ class DPPService:
         )
         return result.scalar_one_or_none()
 
+    async def get_revision_by_no(
+        self, dpp_id: UUID, tenant_id: UUID, rev_no: int
+    ) -> DPPRevision | None:
+        """Get a specific revision by its revision number."""
+        result = await self._session.execute(
+            select(DPPRevision).where(
+                DPPRevision.dpp_id == dpp_id,
+                DPPRevision.tenant_id == tenant_id,
+                DPPRevision.revision_no == rev_no,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    def _diff_json(
+        old: Any, new: Any, path: str = ""
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        """Recursively diff two JSON-like structures, returning (added, removed, changed)."""
+        added: list[dict[str, Any]] = []
+        removed: list[dict[str, Any]] = []
+        changed: list[dict[str, Any]] = []
+
+        if isinstance(old, dict) and isinstance(new, dict):
+            all_keys = set(old.keys()) | set(new.keys())
+            for key in sorted(all_keys):
+                child_path = f"{path}.{key}" if path else key
+                if key not in old:
+                    added.append({
+                        "path": child_path,
+                        "operation": "added",
+                        "old_value": None,
+                        "new_value": new[key],
+                    })
+                elif key not in new:
+                    removed.append({
+                        "path": child_path,
+                        "operation": "removed",
+                        "old_value": old[key],
+                        "new_value": None,
+                    })
+                else:
+                    a, r, c = DPPService._diff_json(old[key], new[key], child_path)
+                    added.extend(a)
+                    removed.extend(r)
+                    changed.extend(c)
+        elif old != new:
+            if path:
+                changed.append({
+                    "path": path,
+                    "operation": "changed",
+                    "old_value": old,
+                    "new_value": new,
+                })
+
+        return added, removed, changed
+
+    async def diff_revisions(
+        self,
+        dpp_id: UUID,
+        tenant_id: UUID,
+        rev_a: int,
+        rev_b: int,
+    ) -> dict[str, Any]:
+        """Compare two revisions of a DPP, returning structured diff."""
+        revision_a = await self.get_revision_by_no(dpp_id, tenant_id, rev_a)
+        if revision_a is None:
+            raise ValueError(f"Revision {rev_a} not found")
+
+        revision_b = await self.get_revision_by_no(dpp_id, tenant_id, rev_b)
+        if revision_b is None:
+            raise ValueError(f"Revision {rev_b} not found")
+
+        old_env = revision_a.aas_env_json or {}
+        new_env = revision_b.aas_env_json or {}
+
+        added_list, removed_list, changed_list = self._diff_json(old_env, new_env)
+
+        return {
+            "from_rev": rev_a,
+            "to_rev": rev_b,
+            "added": added_list,
+            "removed": removed_list,
+            "changed": changed_list,
+        }
+
     async def get_submodel_definition(
         self,
         dpp_id: UUID,
