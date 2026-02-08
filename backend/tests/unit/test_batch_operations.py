@@ -20,7 +20,6 @@ from app.modules.export.router import (
     BatchExportResultItem,
 )
 
-
 # ── Batch Import Schema Tests ──────────────────────────────────────
 
 
@@ -46,9 +45,10 @@ class TestBatchImportSchemas:
     def test_batch_request_enforces_min_length(self) -> None:
         with pytest.raises(ValidationError) as exc_info:
             BatchImportRequest(dpps=[])
-        assert "min_length" in str(exc_info.value).lower() or "too_short" in str(
-            exc_info.value
-        ).lower()
+        assert (
+            "min_length" in str(exc_info.value).lower()
+            or "too_short" in str(exc_info.value).lower()
+        )
 
     def test_batch_request_enforces_max_length(self) -> None:
         items = [
@@ -222,24 +222,17 @@ class TestBatchImportIsolation:
         assert resp.failed == 2
 
     def test_all_succeed(self) -> None:
-        results = [
-            BatchImportResultItem(index=i, dpp_id=uuid4(), status="ok") for i in range(5)
-        ]
+        results = [BatchImportResultItem(index=i, dpp_id=uuid4(), status="ok") for i in range(5)]
         succeeded = sum(1 for r in results if r.status == "ok")
-        resp = BatchImportResponse(
-            total=5, succeeded=succeeded, failed=0, results=results
-        )
+        resp = BatchImportResponse(total=5, succeeded=succeeded, failed=0, results=results)
         assert resp.succeeded == 5
         assert resp.failed == 0
 
     def test_all_fail(self) -> None:
         results = [
-            BatchImportResultItem(index=i, status="failed", error=f"err-{i}")
-            for i in range(3)
+            BatchImportResultItem(index=i, status="failed", error=f"err-{i}") for i in range(3)
         ]
         succeeded = sum(1 for r in results if r.status == "ok")
-        resp = BatchImportResponse(
-            total=3, succeeded=succeeded, failed=3, results=results
-        )
+        resp = BatchImportResponse(total=3, succeeded=succeeded, failed=3, results=results)
         assert resp.succeeded == 0
         assert resp.failed == 3
