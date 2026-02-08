@@ -20,7 +20,11 @@ def _dpp_for_epcis(api_client: httpx.Client, runtime: object) -> dict:
     resp = api_client.post(
         f"/api/v1/tenants/{tenant_slug}/dpps",
         json={
-            "template_key": "digital-nameplate",
+            "asset_ids": {
+                "manufacturerPartId": "EPCIS-E2E",
+                "serialNumber": "EPCIS-SN-001",
+            },
+            "selected_templates": ["digital-nameplate"],
         },
     )
     assert resp.status_code in (200, 201), f"Failed to create DPP: {resp.text}"
