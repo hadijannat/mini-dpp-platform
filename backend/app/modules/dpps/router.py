@@ -15,7 +15,9 @@ from app.core.security import check_access, require_access
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
+from app.modules.digital_thread.handlers import record_lifecycle_event
 from app.modules.dpps.service import DPPService
+from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
 from app.modules.templates.service import TemplateRegistryService
 
@@ -183,6 +185,21 @@ async def create_dpp(
 
     await db.commit()
     await db.refresh(dpp)
+
+    await record_epcis_lifecycle_event(
+        session=db,
+        dpp_id=dpp.id,
+        tenant_id=tenant.tenant_id,
+        action="create",
+        created_by=tenant.user.sub,
+    )
+    await record_lifecycle_event(
+        session=db,
+        dpp_id=dpp.id,
+        tenant_id=tenant.tenant_id,
+        action="create",
+        created_by=tenant.user.sub,
+    )
 
     await emit_audit_event(
         db_session=db,
@@ -656,6 +673,20 @@ async def publish_dpp(
         )
         await db.commit()
         await db.refresh(published_dpp)
+        await record_epcis_lifecycle_event(
+            session=db,
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            action="publish",
+            created_by=tenant.user.sub,
+        )
+        await record_lifecycle_event(
+            session=db,
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            action="publish",
+            created_by=tenant.user.sub,
+        )
         await emit_audit_event(
             db_session=db,
             action="publish_dpp",
@@ -714,6 +745,20 @@ async def archive_dpp(
         archived_dpp = await service.archive_dpp(dpp_id, tenant.tenant_id)
         await db.commit()
         await db.refresh(archived_dpp)
+        await record_epcis_lifecycle_event(
+            session=db,
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            action="archive",
+            created_by=tenant.user.sub,
+        )
+        await record_lifecycle_event(
+            session=db,
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            action="archive",
+            created_by=tenant.user.sub,
+        )
         await emit_audit_event(
             db_session=db,
             action="archive_dpp",

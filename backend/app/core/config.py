@@ -336,6 +336,9 @@ class Settings(BaseSettings):
     epcis_auto_record: bool = Field(
         default=True, description="Auto-record EPCIS events on DPP lifecycle changes"
     )
+    epcis_validate_gs1_schema: bool = Field(
+        default=False, description="Validate captured events against GS1 structural rules"
+    )
 
     # ==========================================================================
     # Data Carrier / GS1 Configuration

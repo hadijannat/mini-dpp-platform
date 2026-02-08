@@ -61,6 +61,40 @@ export function EventDetailDialog({ event, open, onOpenChange }: EventDetailDial
             </pre>
           </div>
 
+          {/* Sensor Data */}
+          {Array.isArray(event.payload?.sensorElementList) &&
+            event.payload.sensorElementList.length > 0 && (
+            <div>
+              <h4 className="text-xs font-medium text-muted-foreground mb-1">Sensor Data</h4>
+              <div className="rounded-md bg-muted p-3 space-y-2">
+                {(event.payload.sensorElementList as Array<Record<string, unknown>>).map(
+                  (element, idx) => {
+                    const metadata = element.sensorMetadata as Record<string, unknown> | undefined;
+                    const reports = element.sensorReport as Array<Record<string, unknown>> | undefined;
+                    return (
+                      <div key={idx} className="text-sm space-y-1">
+                        {metadata?.deviceID != null && (
+                          <p className="text-xs text-muted-foreground">
+                            Device: {String(metadata.deviceID)}
+                          </p>
+                        )}
+                        {reports?.map((report, rIdx) => (
+                          <div key={rIdx} className="flex items-center gap-2">
+                            <span className="font-medium">{String(report.type ?? '')}</span>
+                            <span>{String(report.value ?? '')}</span>
+                            {report.uom != null && (
+                              <span className="text-muted-foreground">{String(report.uom)}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Error Declaration */}
           {event.error_declaration && (
             <div>

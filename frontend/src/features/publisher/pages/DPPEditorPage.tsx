@@ -198,7 +198,7 @@ export default function DPPEditorPage() {
     enabled: Boolean(token),
   });
 
-  const { data: epcisData } = useQuery({
+  const { data: epcisData, isLoading: epcisLoading, isError: epcisError } = useQuery({
     queryKey: ['epcis-events', dppId],
     queryFn: () => fetchEPCISEvents({ dpp_id: dppId!, limit: 50 }, token),
     enabled: Boolean(token && dppId),
@@ -550,7 +550,25 @@ export default function DPPEditorPage() {
           )}
         </CardHeader>
         <CardContent>
-          <EPCISTimeline events={epcisData?.eventList ?? []} />
+          {epcisLoading ? (
+            <div className="flex justify-center py-4">
+              <LoadingSpinner />
+            </div>
+          ) : epcisError ? (
+            <p className="text-sm text-destructive">Failed to load supply chain events.</p>
+          ) : (
+            <>
+              <EPCISTimeline events={epcisData?.eventList ?? []} />
+              {dppId && (
+                <Link
+                  to={`/console/epcis?dpp_id=${dppId}`}
+                  className="mt-3 inline-block text-sm text-muted-foreground hover:underline"
+                >
+                  View all events
+                </Link>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 

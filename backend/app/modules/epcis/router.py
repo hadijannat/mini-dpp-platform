@@ -24,6 +24,8 @@ from .schemas import (
     EPCISEventResponse,
     EPCISQueryParams,
     EPCISQueryResponse,
+    NamedQueryCreate,
+    NamedQueryResponse,
 )
 from .service import EPCISService
 
@@ -89,12 +91,18 @@ async def capture_events(
     await _get_dpp_or_404(dpp_id, tenant, db, action="update")
 
     service = EPCISService(db)
-    result = await service.capture(
-        tenant_id=tenant.tenant_id,
-        dpp_id=dpp_id,
-        document=document,
-        created_by=tenant.user.sub,
-    )
+    try:
+        result = await service.capture(
+            tenant_id=tenant.tenant_id,
+            dpp_id=dpp_id,
+            document=document,
+            created_by=tenant.user.sub,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
 
     await emit_audit_event(
         db_session=db,
@@ -118,11 +126,18 @@ async def query_events(
     event_type: EPCISEventType | None = None,
     ge_event_time: datetime | None = Query(None, alias="GE_eventTime"),
     lt_event_time: datetime | None = Query(None, alias="LT_eventTime"),
+    eq_action: str | None = Query(None, alias="EQ_action"),
     eq_biz_step: str | None = Query(None, alias="EQ_bizStep"),
     eq_disposition: str | None = Query(None, alias="EQ_disposition"),
     match_epc: str | None = Query(None, alias="MATCH_epc"),
+    match_any_epc: str | None = Query(None, alias="MATCH_anyEPC"),
+    match_parent_id: str | None = Query(None, alias="MATCH_parentID"),
+    match_input_epc: str | None = Query(None, alias="MATCH_inputEPC"),
+    match_output_epc: str | None = Query(None, alias="MATCH_outputEPC"),
     eq_read_point: str | None = Query(None, alias="EQ_readPoint"),
     eq_biz_location: str | None = Query(None, alias="EQ_bizLocation"),
+    ge_record_time: datetime | None = Query(None, alias="GE_recordTime"),
+    lt_record_time: datetime | None = Query(None, alias="LT_recordTime"),
     dpp_id: UUID | None = None,
     limit: int = Query(default=100, le=1000),
     offset: int = Query(default=0, ge=0),
@@ -135,11 +150,18 @@ async def query_events(
         event_type=event_type,
         ge_event_time=ge_event_time,
         lt_event_time=lt_event_time,
+        eq_action=eq_action,
         eq_biz_step=eq_biz_step,
         eq_disposition=eq_disposition,
         match_epc=match_epc,
+        match_any_epc=match_any_epc,
+        match_parent_id=match_parent_id,
+        match_input_epc=match_input_epc,
+        match_output_epc=match_output_epc,
         eq_read_point=eq_read_point,
         eq_biz_location=eq_biz_location,
+        ge_record_time=ge_record_time,
+        lt_record_time=lt_record_time,
         dpp_id=dpp_id,
         limit=limit,
         offset=offset,
@@ -170,3 +192,91 @@ async def get_event(
             detail=f"EPCIS event '{event_id}' not found",
         )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Named queries
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/queries",
+    response_model=NamedQueryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_named_query(
+    body: NamedQueryCreate,
+    *,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> NamedQueryResponse:
+    """Create a saved EPCIS named query."""
+    service = EPCISService(db)
+    # Check for duplicate name
+    existing = await service.get_named_query(tenant.tenant_id, body.name)
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Named query '{body.name}' already exists",
+        )
+    return await service.create_named_query(
+        tenant_id=tenant.tenant_id,
+        data=body,
+        created_by=tenant.user.sub,
+    )
+
+
+@router.get(
+    "/queries",
+    response_model=list[NamedQueryResponse],
+)
+async def list_named_queries(
+    *,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> list[NamedQueryResponse]:
+    """List all named queries for the current tenant."""
+    service = EPCISService(db)
+    return await service.list_named_queries(tenant.tenant_id)
+
+
+@router.get(
+    "/queries/{name}/events",
+    response_model=EPCISQueryResponse,
+)
+async def execute_named_query(
+    name: str,
+    *,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> EPCISQueryResponse:
+    """Execute a named query and return matching events."""
+    service = EPCISService(db)
+    try:
+        events = await service.execute_named_query(tenant.tenant_id, name)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Named query '{name}' not found",
+        )
+    return EPCISQueryResponse(event_list=events)
+
+
+@router.delete(
+    "/queries/{name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_named_query(
+    name: str,
+    *,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> None:
+    """Delete a named query by name."""
+    service = EPCISService(db)
+    deleted = await service.delete_named_query(tenant.tenant_id, name)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Named query '{name}' not found",
+        )

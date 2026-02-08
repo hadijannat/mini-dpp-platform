@@ -10,6 +10,7 @@ Reference: https://www.gs1.org/standards/gs1-digital-link
 from __future__ import annotations
 
 import re
+from typing import Any
 from urllib.parse import quote, unquote
 
 # Matches /01/{GTIN} with optional /21/{serial} and /10/{batch}
@@ -91,3 +92,56 @@ def parse_digital_link(uri: str) -> dict[str, str]:
 def is_digital_link(uri: str) -> bool:
     """Check whether a string is a valid GS1 Digital Link URI."""
     return _DIGITAL_LINK_RE.match(uri) is not None
+
+
+# ---------------------------------------------------------------------------
+# DPP-aware digital link helpers
+# ---------------------------------------------------------------------------
+
+# GTIN pattern: 8-14 digits only
+_GTIN_RE = re.compile(r"^\d{8,14}$")
+
+
+def build_digital_link_for_dpp(
+    asset_ids: dict[str, Any],
+    resolver: str = "https://id.gs1.org",
+) -> str | None:
+    """Derive a GS1 Digital Link URI from DPP asset identifiers.
+
+    Scans ``asset_ids`` for a ``manufacturerPartId`` (or ``gtin``) that looks
+    like a valid GTIN (all digits, 8-14 characters). Returns ``None`` if no
+    GTIN-like identifier is found.
+
+    Args:
+        asset_ids: Dict of asset identifier key-value pairs from a DPP.
+        resolver: GS1 resolver base URL.
+
+    Returns:
+        GS1 Digital Link URI string, or ``None`` if no GTIN found.
+    """
+    # Prefer explicit gtin, then manufacturerPartId
+    for key in ("gtin", "manufacturerPartId"):
+        value = asset_ids.get(key)
+        if isinstance(value, str) and _GTIN_RE.match(value.strip()):
+            return build_digital_link(value.strip(), resolver=resolver)
+    return None
+
+
+def enrich_epcis_with_digital_link(
+    payload: dict[str, Any],
+    digital_link: str,
+) -> dict[str, Any]:
+    """Add ``digitalLinkURI`` to an EPCIS payload if not already present.
+
+    Does not overwrite an existing ``digitalLinkURI`` field.
+
+    Args:
+        payload: EPCIS event payload dict.
+        digital_link: GS1 Digital Link URI to inject.
+
+    Returns:
+        The payload dict (mutated in-place for convenience).
+    """
+    if "digitalLinkURI" not in payload:
+        payload["digitalLinkURI"] = digital_link
+    return payload

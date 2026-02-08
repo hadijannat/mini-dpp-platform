@@ -11,13 +11,15 @@ import uuid
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import cast, select
+from sqlalchemy import cast, or_, select
 from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.db.models import EPCISEvent, EPCISEventType
+from app.db.models import EPCISEvent, EPCISEventType, EPCISNamedQuery
 
+from .gs1_validator import validate_against_gs1_schema
 from .schemas import (
     AggregationEventCreate,
     AssociationEventCreate,
@@ -26,6 +28,8 @@ from .schemas import (
     EPCISEventResponse,
     EPCISEventUnion,
     EPCISQueryParams,
+    NamedQueryCreate,
+    NamedQueryResponse,
     ObjectEventCreate,
     TransactionEventCreate,
     TransformationEventCreate,
@@ -62,9 +66,32 @@ class EPCISService:
         Each event is mapped to an ``EPCISEvent`` row with common columns
         extracted and type-specific fields stored in the JSONB ``payload``.
 
+        Raises:
+            ValueError: If a corrective event ID in an error declaration
+                references a non-existent event in this tenant.
+
         Returns:
             ``CaptureResponse`` with a capture UUID and event count.
         """
+        # Pre-validate corrective event references
+        for event in document.epcis_body.event_list:
+            if event.error_declaration and event.error_declaration.corrective_event_ids:
+                await self._validate_corrective_event_ids(
+                    tenant_id, event.error_declaration.corrective_event_ids
+                )
+
+        # Optional GS1 structural validation
+        settings = get_settings()
+        if settings.epcis_validate_gs1_schema:
+            all_errors: list[str] = []
+            for idx, event in enumerate(document.epcis_body.event_list):
+                event_dict = event.model_dump(mode="json", by_alias=True)
+                errors = validate_against_gs1_schema(event_dict)
+                for err in errors:
+                    all_errors.append(f"Event[{idx}]: {err}")
+            if all_errors:
+                raise ValueError(f"GS1 schema validation failed: {'; '.join(all_errors)}")
+
         capture_id = str(uuid.uuid4())
         count = 0
 
@@ -136,6 +163,9 @@ class EPCISService:
         if filters.lt_event_time is not None:
             stmt = stmt.where(EPCISEvent.event_time < filters.lt_event_time)
 
+        if filters.eq_action is not None:
+            stmt = stmt.where(EPCISEvent.action == filters.eq_action)
+
         if filters.eq_biz_step is not None:
             stmt = stmt.where(EPCISEvent.biz_step == filters.eq_biz_step)
 
@@ -148,6 +178,12 @@ class EPCISService:
         if filters.eq_biz_location is not None:
             stmt = stmt.where(EPCISEvent.biz_location == filters.eq_biz_location)
 
+        if filters.ge_record_time is not None:
+            stmt = stmt.where(EPCISEvent.created_at >= filters.ge_record_time)
+
+        if filters.lt_record_time is not None:
+            stmt = stmt.where(EPCISEvent.created_at < filters.lt_record_time)
+
         if filters.dpp_id is not None:
             stmt = stmt.where(EPCISEvent.dpp_id == filters.dpp_id)
 
@@ -155,6 +191,34 @@ class EPCISService:
             # JSONB containment: payload @> '{"epcList": ["<epc>"]}'
             pattern = json.dumps({"epcList": [filters.match_epc]})
             stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(pattern, JSONB_TYPE)))
+
+        if filters.match_any_epc is not None:
+            # Match EPC in any list field (epcList, childEPCs, inputEPCList, outputEPCList)
+            epc = filters.match_any_epc
+            epc_list_pat = json.dumps({"epcList": [epc]})
+            child_pat = json.dumps({"childEPCs": [epc]})
+            input_pat = json.dumps({"inputEPCList": [epc]})
+            output_pat = json.dumps({"outputEPCList": [epc]})
+            stmt = stmt.where(
+                or_(
+                    EPCISEvent.payload.op("@>")(cast(epc_list_pat, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(cast(child_pat, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(cast(input_pat, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(cast(output_pat, JSONB_TYPE)),
+                )
+            )
+
+        if filters.match_parent_id is not None:
+            parent_pat = json.dumps({"parentID": filters.match_parent_id})
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(parent_pat, JSONB_TYPE)))
+
+        if filters.match_input_epc is not None:
+            input_pat = json.dumps({"inputEPCList": [filters.match_input_epc]})
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(input_pat, JSONB_TYPE)))
+
+        if filters.match_output_epc is not None:
+            output_pat = json.dumps({"outputEPCList": [filters.match_output_epc]})
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(output_pat, JSONB_TYPE)))
 
         stmt = stmt.limit(filters.limit).offset(filters.offset)
 
@@ -206,6 +270,130 @@ class EPCISService:
         return [EPCISEventResponse.model_validate(row) for row in rows]
 
     # ------------------------------------------------------------------
+    # Named queries
+    # ------------------------------------------------------------------
+
+    async def create_named_query(
+        self,
+        tenant_id: UUID,
+        data: NamedQueryCreate,
+        created_by: str,
+    ) -> NamedQueryResponse:
+        """Create a named query, storing its filter parameters as JSONB."""
+        row = EPCISNamedQuery(
+            tenant_id=tenant_id,
+            name=data.name,
+            description=data.description,
+            query_params=data.query_params.model_dump(mode="json", exclude_none=True),
+            created_by_subject=created_by,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        await self._session.refresh(row)
+        logger.info(
+            "epcis_named_query_created",
+            tenant_id=str(tenant_id),
+            name=data.name,
+        )
+        return NamedQueryResponse.model_validate(row)
+
+    async def list_named_queries(
+        self,
+        tenant_id: UUID,
+    ) -> list[NamedQueryResponse]:
+        """List all named queries for a tenant."""
+        result = await self._session.execute(
+            select(EPCISNamedQuery)
+            .where(EPCISNamedQuery.tenant_id == tenant_id)
+            .order_by(EPCISNamedQuery.created_at)
+        )
+        rows = result.scalars().all()
+        return [NamedQueryResponse.model_validate(row) for row in rows]
+
+    async def get_named_query(
+        self,
+        tenant_id: UUID,
+        name: str,
+    ) -> NamedQueryResponse | None:
+        """Get a named query by name within a tenant."""
+        result = await self._session.execute(
+            select(EPCISNamedQuery).where(
+                EPCISNamedQuery.tenant_id == tenant_id,
+                EPCISNamedQuery.name == name,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return NamedQueryResponse.model_validate(row)
+
+    async def execute_named_query(
+        self,
+        tenant_id: UUID,
+        name: str,
+    ) -> list[EPCISEventResponse]:
+        """Load a named query and execute it, returning matching events."""
+        result = await self._session.execute(
+            select(EPCISNamedQuery).where(
+                EPCISNamedQuery.tenant_id == tenant_id,
+                EPCISNamedQuery.name == name,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            raise ValueError(f"Named query '{name}' not found")
+
+        filters = EPCISQueryParams.model_validate(row.query_params)
+        return await self.query(tenant_id, filters)
+
+    async def delete_named_query(
+        self,
+        tenant_id: UUID,
+        name: str,
+    ) -> bool:
+        """Delete a named query by name. Returns True if deleted, False if not found."""
+        result = await self._session.execute(
+            select(EPCISNamedQuery).where(
+                EPCISNamedQuery.tenant_id == tenant_id,
+                EPCISNamedQuery.name == name,
+            )
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return False
+        await self._session.delete(row)
+        await self._session.flush()
+        return True
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    async def _validate_corrective_event_ids(
+        self,
+        tenant_id: UUID,
+        corrective_event_ids: list[str],
+    ) -> None:
+        """Verify that all corrective event IDs reference existing events.
+
+        Raises:
+            ValueError: If any referenced event ID is not found in the tenant.
+        """
+        if not corrective_event_ids:
+            return
+
+        result = await self._session.execute(
+            select(EPCISEvent.event_id).where(
+                EPCISEvent.tenant_id == tenant_id,
+                EPCISEvent.event_id.in_(corrective_event_ids),
+            )
+        )
+        found_ids = set(result.scalars().all())
+        missing = set(corrective_event_ids) - found_ids
+        if missing:
+            raise ValueError(f"Corrective event IDs not found: {', '.join(sorted(missing))}")
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
@@ -250,6 +438,8 @@ class EPCISService:
                 ]
             if event.parent_id:
                 payload["parentID"] = event.parent_id
+            if event.ilmd is not None:
+                payload["ilmd"] = event.ilmd
 
         elif isinstance(event, TransformationEventCreate):
             if event.input_epc_list:
@@ -266,6 +456,8 @@ class EPCISService:
                 ]
             if event.transformation_id:
                 payload["transformationID"] = event.transformation_id
+            if event.ilmd is not None:
+                payload["ilmd"] = event.ilmd
 
         elif isinstance(event, AssociationEventCreate):
             if event.parent_id:
