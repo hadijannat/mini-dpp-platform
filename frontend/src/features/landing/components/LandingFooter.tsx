@@ -142,6 +142,11 @@ export default function LandingFooter() {
         <p className="text-center text-sm text-muted-foreground">
           &copy; {new Date().getFullYear()} Mini DPP Platform. Built with IDTA
           DPP4.0 and Asset Administration Shell standards.
+          {import.meta.env.VITE_COMMIT_SHA && (
+            <span className="ml-2 font-mono text-xs text-muted-foreground/60">
+              &middot; {import.meta.env.VITE_COMMIT_SHA.slice(0, 7)}
+            </span>
+          )}
         </p>
       </div>
     </footer>
