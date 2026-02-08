@@ -8,9 +8,10 @@ from datetime import UTC, datetime
 from typing import Annotated, Any, cast
 
 import httpx
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt  # type: ignore[import-untyped]
+from jwt.exceptions import InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -140,7 +141,8 @@ async def _decode_token(token: str) -> TokenPayload:
                 detail="Token missing key ID",
             )
 
-        signing_key = await _jwks_client.get_signing_key(kid)
+        jwk_dict = await _jwks_client.get_signing_key(kid)
+        signing_key = jwt.PyJWK(jwk_dict).key
 
         payload = jwt.decode(
             token,
@@ -228,7 +230,7 @@ async def _decode_token(token: str) -> TokenPayload:
             raw_claims=payload,
         )
 
-    except JWTError as e:
+    except InvalidTokenError as e:
         logger.warning("token_verification_failed", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

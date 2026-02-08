@@ -6,12 +6,11 @@ linked to DPPs within a tenant context.
 
 from __future__ import annotations
 
-import json
 import uuid
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import cast, or_, select
+from sqlalchemy import or_, select, type_coerce
 from sqlalchemy.dialects.postgresql import JSONB as JSONB_TYPE
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -189,36 +188,41 @@ class EPCISService:
 
         if filters.match_epc is not None:
             # JSONB containment: payload @> '{"epcList": ["<epc>"]}'
-            pattern = json.dumps({"epcList": [filters.match_epc]})
-            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(pattern, JSONB_TYPE)))
+            pattern = {"epcList": [filters.match_epc]}
+            stmt = stmt.where(EPCISEvent.payload.op("@>")(type_coerce(pattern, JSONB_TYPE)))
 
         if filters.match_any_epc is not None:
             # Match EPC in any list field (epcList, childEPCs, inputEPCList, outputEPCList)
             epc = filters.match_any_epc
-            epc_list_pat = json.dumps({"epcList": [epc]})
-            child_pat = json.dumps({"childEPCs": [epc]})
-            input_pat = json.dumps({"inputEPCList": [epc]})
-            output_pat = json.dumps({"outputEPCList": [epc]})
             stmt = stmt.where(
                 or_(
-                    EPCISEvent.payload.op("@>")(cast(epc_list_pat, JSONB_TYPE)),
-                    EPCISEvent.payload.op("@>")(cast(child_pat, JSONB_TYPE)),
-                    EPCISEvent.payload.op("@>")(cast(input_pat, JSONB_TYPE)),
-                    EPCISEvent.payload.op("@>")(cast(output_pat, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"epcList": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"childEPCs": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"inputEPCList": [epc]}, JSONB_TYPE)),
+                    EPCISEvent.payload.op("@>")(type_coerce({"outputEPCList": [epc]}, JSONB_TYPE)),
                 )
             )
 
         if filters.match_parent_id is not None:
-            parent_pat = json.dumps({"parentID": filters.match_parent_id})
-            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(parent_pat, JSONB_TYPE)))
+            stmt = stmt.where(
+                EPCISEvent.payload.op("@>")(
+                    type_coerce({"parentID": filters.match_parent_id}, JSONB_TYPE)
+                )
+            )
 
         if filters.match_input_epc is not None:
-            input_pat = json.dumps({"inputEPCList": [filters.match_input_epc]})
-            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(input_pat, JSONB_TYPE)))
+            stmt = stmt.where(
+                EPCISEvent.payload.op("@>")(
+                    type_coerce({"inputEPCList": [filters.match_input_epc]}, JSONB_TYPE)
+                )
+            )
 
         if filters.match_output_epc is not None:
-            output_pat = json.dumps({"outputEPCList": [filters.match_output_epc]})
-            stmt = stmt.where(EPCISEvent.payload.op("@>")(cast(output_pat, JSONB_TYPE)))
+            stmt = stmt.where(
+                EPCISEvent.payload.op("@>")(
+                    type_coerce({"outputEPCList": [filters.match_output_epc]}, JSONB_TYPE)
+                )
+            )
 
         stmt = stmt.limit(filters.limit).offset(filters.offset)
 

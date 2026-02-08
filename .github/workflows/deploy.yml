@@ -133,7 +133,7 @@ jobs:
             # Restart application + monitoring services
             docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy prometheus grafana
 
-            # Verify backend health
+            # Verify backend health (internal — triggers rollback on failure)
             for i in $(seq 1 30); do
               if docker compose -f docker-compose.prod.yml exec -T backend curl -fsS http://localhost:8000/health >/dev/null 2>&1; then
                 echo "Backend healthy"
@@ -147,3 +147,30 @@ jobs:
               fi
               sleep 10
             done
+
+      - name: Verify deployment health
+        run: |
+          echo "Checking public health endpoint..."
+          HEALTH=$(curl -fsS --retry 3 --retry-delay 5 https://dpp-platform.dev/health)
+          echo "$HEALTH" | python3 -m json.tool
+          STATUS=$(echo "$HEALTH" | python3 -c "import sys,json; print(json.load(sys.stdin)['status'])")
+          if [ "$STATUS" != "healthy" ]; then
+            echo "::error::Deployment unhealthy — status: $STATUS"
+            exit 1
+          fi
+          echo "Deployment is healthy"
+
+      - name: Verify deployed version
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          SHORT_SHA="${EXPECTED_SHA:0:7}"
+          echo "Expected commit: $SHORT_SHA ($EXPECTED_SHA)"
+
+          # Check the landing page for the baked-in commit SHA
+          PAGE=$(curl -fsS --retry 3 --retry-delay 5 https://dpp-platform.dev/)
+          if echo "$PAGE" | grep -q "$SHORT_SHA"; then
+            echo "Frontend is serving commit $SHORT_SHA"
+          else
+            echo "::warning::Could not verify frontend commit SHA in page source (may require client-side rendering)"
+          fi
