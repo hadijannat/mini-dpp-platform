@@ -219,6 +219,7 @@ async def create_dpp(
         action="create",
         created_by=tenant.user.sub,
     )
+    await db.commit()
 
     await emit_audit_event(
         db_session=db,
@@ -706,6 +707,7 @@ async def publish_dpp(
             action="publish",
             created_by=tenant.user.sub,
         )
+        await db.commit()
         await emit_audit_event(
             db_session=db,
             action="publish_dpp",
@@ -778,6 +780,7 @@ async def archive_dpp(
             action="archive",
             created_by=tenant.user.sub,
         )
+        await db.commit()
         await emit_audit_event(
             db_session=db,
             action="archive_dpp",
