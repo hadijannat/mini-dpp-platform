@@ -14,7 +14,6 @@ from app.db.models import DPPStatus, EPCISEventType, TenantStatus
 from app.db.session import get_db_session
 from app.modules.epcis.public_router import router
 
-
 # ---------------------------------------------------------------------------
 # Minimal test app
 # ---------------------------------------------------------------------------
