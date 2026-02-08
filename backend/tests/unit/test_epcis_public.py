@@ -141,7 +141,11 @@ async def test_published_dpp_returns_events(_app: FastAPI) -> None:
     body = resp.json()
     assert body["type"] == "EPCISQueryDocument"
     assert len(body["eventList"]) == 1
-    assert body["eventList"][0]["event_id"] == event.event_id
+    evt = body["eventList"][0]
+    assert evt["event_id"] == event.event_id
+    # Internal fields must NOT be exposed in public responses
+    assert "created_by_subject" not in evt
+    assert "created_at" not in evt
 
     _app.dependency_overrides.clear()
 

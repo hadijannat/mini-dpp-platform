@@ -183,9 +183,15 @@ class EPCISService:
         self,
         tenant_id: UUID,
         dpp_id: UUID,
+        *,
+        limit: int | None = None,
     ) -> list[EPCISEventResponse]:
-        """Get all EPCIS events linked to a specific DPP, ordered by time."""
-        result = await self._session.execute(
+        """Get EPCIS events linked to a specific DPP, ordered by time.
+
+        Args:
+            limit: Maximum number of events to return. ``None`` means no limit.
+        """
+        stmt = (
             select(EPCISEvent)
             .where(
                 EPCISEvent.tenant_id == tenant_id,
@@ -193,6 +199,9 @@ class EPCISService:
             )
             .order_by(EPCISEvent.event_time)
         )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self._session.execute(stmt)
         rows = result.scalars().all()
         return [EPCISEventResponse.model_validate(row) for row in rows]
 
