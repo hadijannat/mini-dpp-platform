@@ -108,6 +108,7 @@ export default function DataCarriersPage() {
             }
         } catch (err) {
             console.error('Failed to load GS1 link:', err);
+            setError('Failed to load GS1 Digital Link info.');
         }
     };
 

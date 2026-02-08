@@ -102,6 +102,7 @@ class BasyxV2RegistryAdapter:
                 "error_message": str(e),
             }
         except Exception as e:
+            logger.warning("basyx_registry_health_check_failed", error=str(e))
             return {
                 "status": "error",
                 "error_message": str(e),

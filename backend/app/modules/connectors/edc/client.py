@@ -281,6 +281,7 @@ class EDCManagementClient:
                 "error_message": str(exc),
             }
         except Exception as exc:
+            logger.warning("edc_health_check_failed", error=str(exc))
             return {
                 "status": "error",
                 "error_message": str(exc),
