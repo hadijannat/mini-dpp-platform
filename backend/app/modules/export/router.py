@@ -226,9 +226,7 @@ async def batch_export(
                     continue
 
                 # Inject EPCIS if available
-                epcis_events = await epcis_service.get_for_dpp(
-                    tenant.tenant_id, dpp_id, limit=100
-                )
+                epcis_events = await epcis_service.get_for_dpp(tenant.tenant_id, dpp_id, limit=100)
                 if epcis_events:
                     epcis_url = (
                         str(request.base_url).rstrip("/")

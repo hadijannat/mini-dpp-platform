@@ -307,9 +307,7 @@ async def batch_import_dpps(
             results.append(BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok"))
         except Exception as exc:
             logger.warning("batch_import_item_failed", index=idx, exc_info=True)
-            results.append(
-                BatchImportResultItem(index=idx, status="failed", error=str(exc))
-            )
+            results.append(BatchImportResultItem(index=idx, status="failed", error=str(exc)))
 
     await db.commit()
 
