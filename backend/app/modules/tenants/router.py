@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
@@ -57,6 +58,10 @@ class TenantMemberRequest(BaseModel):
     role: TenantRole = TenantRole.VIEWER
 
 
+class TenantMemberRoleUpdate(BaseModel):
+    role: TenantRole
+
+
 class TenantMemberResponse(BaseModel):
     user_subject: str
     role: str
@@ -66,6 +71,26 @@ class TenantMemberResponse(BaseModel):
 class TenantMemberListResponse(BaseModel):
     members: list[TenantMemberResponse]
     count: int
+
+
+class TenantMetrics(BaseModel):
+    tenant_id: str
+    slug: str
+    name: str
+    status: str
+    total_dpps: int
+    draft_dpps: int
+    published_dpps: int
+    archived_dpps: int
+    total_revisions: int
+    total_members: int
+    total_epcis_events: int
+    total_audit_events: int
+
+
+class PlatformMetricsResponse(BaseModel):
+    tenants: list[TenantMetrics]
+    totals: dict[str, Any]
 
 
 @router.get("/mine", response_model=TenantMembershipListResponse)
@@ -258,6 +283,36 @@ async def add_member(
     )
 
 
+@router.patch("/{tenant_slug}/members/{user_subject}", response_model=TenantMemberResponse)
+async def update_member_role(
+    user_subject: str,
+    request: TenantMemberRoleUpdate,
+    db: DbSession,
+    tenant: TenantAdmin,
+) -> TenantMemberResponse:
+    """Change a member's role (tenant admin)."""
+    if request.role == TenantRole.TENANT_ADMIN and not tenant.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only platform admins can grant tenant_admin",
+        )
+
+    service = TenantService(db)
+    member = await service.update_member_role(tenant.tenant_id, user_subject, request.role)
+    if member is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Member not found",
+        )
+    await db.commit()
+
+    return TenantMemberResponse(
+        user_subject=member.user_subject,
+        role=member.role.value,
+        created_at=member.created_at.isoformat(),
+    )
+
+
 @router.delete(
     "/{tenant_slug}/members/{user_subject}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -272,3 +327,27 @@ async def remove_member(
     service = TenantService(db)
     await service.remove_member(tenant.tenant_id, user_subject)
     await db.commit()
+
+
+@router.get("/metrics/platform", response_model=PlatformMetricsResponse)
+async def get_platform_metrics(
+    db: DbSession,
+    _user: Admin,
+) -> PlatformMetricsResponse:
+    """Get per-tenant usage metrics (platform admin)."""
+    service = TenantService(db)
+    rows = await service.get_platform_metrics()
+
+    totals = {
+        "total_tenants": len(rows),
+        "total_dpps": sum(r["total_dpps"] for r in rows),
+        "total_published": sum(r["published_dpps"] for r in rows),
+        "total_members": sum(r["total_members"] for r in rows),
+        "total_epcis_events": sum(r["total_epcis_events"] for r in rows),
+        "total_audit_events": sum(r["total_audit_events"] for r in rows),
+    }
+
+    return PlatformMetricsResponse(
+        tenants=[TenantMetrics(**r) for r in rows],
+        totals=totals,
+    )

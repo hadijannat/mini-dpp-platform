@@ -5,10 +5,20 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Tenant, TenantMember, TenantRole, TenantStatus
+from app.db.models import (
+    DPP,
+    AuditEvent,
+    DPPRevision,
+    DPPStatus,
+    EPCISEvent,
+    Tenant,
+    TenantMember,
+    TenantRole,
+    TenantStatus,
+)
 
 
 class TenantService:
@@ -89,6 +99,111 @@ class TenantService:
         member = result.scalar_one_or_none()
         if member:
             await self._session.delete(member)
+
+    async def update_member_role(
+        self,
+        tenant_id: UUID,
+        user_subject: str,
+        role: TenantRole,
+    ) -> TenantMember | None:
+        member = await self.get_member(tenant_id, user_subject)
+        if member is None:
+            return None
+        member.role = role
+        await self._session.flush()
+        return member
+
+    async def get_platform_metrics(self) -> list[dict[str, Any]]:
+        """Get per-tenant usage metrics using a single aggregated query."""
+        draft_val = DPPStatus.DRAFT.value
+        published_val = DPPStatus.PUBLISHED.value
+        archived_val = DPPStatus.ARCHIVED.value
+
+        query = (
+            select(
+                Tenant.id.label("tenant_id"),
+                Tenant.slug.label("slug"),
+                Tenant.name.label("name"),
+                Tenant.status.label("status"),
+                func.coalesce(
+                    select(func.count(DPP.id))
+                    .where(DPP.tenant_id == Tenant.id)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("total_dpps"),
+                func.coalesce(
+                    select(func.count(DPP.id))
+                    .where(DPP.tenant_id == Tenant.id, DPP.status == draft_val)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("draft_dpps"),
+                func.coalesce(
+                    select(func.count(DPP.id))
+                    .where(DPP.tenant_id == Tenant.id, DPP.status == published_val)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("published_dpps"),
+                func.coalesce(
+                    select(func.count(DPP.id))
+                    .where(DPP.tenant_id == Tenant.id, DPP.status == archived_val)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("archived_dpps"),
+                func.coalesce(
+                    select(func.count(DPPRevision.id))
+                    .where(DPPRevision.tenant_id == Tenant.id)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("total_revisions"),
+                func.coalesce(
+                    select(func.count(TenantMember.id))
+                    .where(TenantMember.tenant_id == Tenant.id)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("total_members"),
+                func.coalesce(
+                    select(func.count(EPCISEvent.id))
+                    .where(EPCISEvent.tenant_id == Tenant.id)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("total_epcis_events"),
+                func.coalesce(
+                    select(func.count(AuditEvent.id))
+                    .where(AuditEvent.tenant_id == Tenant.id)
+                    .correlate(Tenant)
+                    .scalar_subquery(),
+                    0,
+                ).label("total_audit_events"),
+            )
+            .order_by(Tenant.name.asc())
+        )
+
+        result = await self._session.execute(query)
+        rows = result.all()
+        return [
+            {
+                "tenant_id": str(row.tenant_id),
+                "slug": row.slug,
+                "name": row.name,
+                "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+                "total_dpps": row.total_dpps,
+                "draft_dpps": row.draft_dpps,
+                "published_dpps": row.published_dpps,
+                "archived_dpps": row.archived_dpps,
+                "total_revisions": row.total_revisions,
+                "total_members": row.total_members,
+                "total_epcis_events": row.total_epcis_events,
+                "total_audit_events": row.total_audit_events,
+            }
+            for row in rows
+        ]
 
     async def list_user_tenants(self, user_subject: str) -> list[tuple[Tenant, TenantMember]]:
         result = await self._session.execute(
