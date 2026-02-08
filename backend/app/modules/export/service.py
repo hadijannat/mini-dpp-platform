@@ -21,6 +21,7 @@ from basyx.aas.adapter import xml as basyx_xml
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db.models import DPPRevision
+from app.modules.epcis.schemas import EPCISEventResponse
 
 logger = get_logger(__name__)
 
@@ -37,6 +38,29 @@ class ExportService:
 
     def __init__(self) -> None:
         self._settings = get_settings()
+
+    @staticmethod
+    def inject_traceability_submodel(
+        revision: DPPRevision,
+        epcis_events: list[EPCISEventResponse],
+    ) -> None:
+        """Inject EPCIS Traceability submodel into the revision's AAS environment.
+
+        Mutates ``revision.aas_env_json`` in-place (the revision object is not
+        persisted after export, so this is safe). No-op if events list is empty.
+        """
+        from app.modules.epcis.aas_bridge import build_traceability_submodel
+
+        submodel = build_traceability_submodel(epcis_events)
+        if submodel is None:
+            return
+
+        aas_env = revision.aas_env_json
+        if not isinstance(aas_env, dict):
+            return
+
+        submodels = aas_env.setdefault("submodels", [])
+        submodels.append(submodel)
 
     def export_json(self, revision: DPPRevision) -> bytes:
         """

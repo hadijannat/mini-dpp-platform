@@ -14,6 +14,7 @@ from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
+from app.modules.epcis.service import EPCISService
 from app.modules.export.service import ExportService
 
 router = APIRouter()
@@ -80,6 +81,12 @@ async def export_dpp(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No revision found for DPP",
         )
+
+    # Inject EPCIS Traceability submodel (if events exist for this DPP)
+    epcis_service = EPCISService(db)
+    epcis_events = await epcis_service.get_for_dpp(tenant.tenant_id, dpp_id)
+    if epcis_events:
+        export_service.inject_traceability_submodel(revision, epcis_events)
 
     # Export based on format
     if format == "json":

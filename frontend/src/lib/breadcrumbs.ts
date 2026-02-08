@@ -13,6 +13,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   carriers: 'Data Carriers',
   connectors: 'Connectors',
   compliance: 'Compliance',
+  epcis: 'Supply Chain',
   audit: 'Audit Trail',
   tenants: 'Tenants',
   settings: 'Settings',
