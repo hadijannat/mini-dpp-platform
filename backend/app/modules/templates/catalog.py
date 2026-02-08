@@ -88,9 +88,20 @@ TEMPLATE_CATALOG: dict[str, TemplateDescriptor] = {
         baseline_minor=1,
         aasx_pattern="IDTA 02011-{major}-{minor}-{patch}_Template_HSEBoM.aasx",
     ),
+    "battery-passport": TemplateDescriptor(
+        key="battery-passport",
+        title="Battery Passport",
+        semantic_id="https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0",
+        template_uri="https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0",
+        repo_folder="Battery Passport",
+        baseline_major=1,
+        baseline_minor=0,
+        aasx_pattern=("IDTA 02035-{major}-{minor}-{patch}_Template_BatteryPassport.aasx"),
+    ),
 }
 
 CORE_TEMPLATE_KEYS: tuple[str, ...] = (
+    "battery-passport",
     "carbon-footprint",
     "contact-information",
     "digital-nameplate",

@@ -110,3 +110,46 @@ rules:
     severity: critical
     message: "EU Declaration of Conformity is required per Article 18"
     semantic_id: "https://admin-shell.io/idta/BatteryPassport/LabelsAndCompliance/1/0"
+
+  # --- Battery Passport (IDTA 02035) ---
+  - id: BAT-060
+    field_path: "BatteryPass.CellChemistry"
+    condition: required
+    severity: critical
+    message: "Cell chemistry type is required per EU Battery Regulation Article 13(3)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"
+
+  - id: BAT-061
+    field_path: "BatteryPass.StateOfHealth"
+    condition: required
+    severity: warning
+    message: "State of Health (SoH) should be declared per Article 14"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"
+
+  - id: BAT-062
+    field_path: "BatteryPass.CarbonFootprint.CarbonFootprintPerLifecyclePhaseKg"
+    condition: required
+    severity: critical
+    message: "Carbon footprint per lifecycle phase (kWh) is required per Article 7"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"
+
+  - id: BAT-063
+    field_path: "BatteryPass.RecycledContent"
+    condition: required
+    severity: warning
+    message: "Recycled content percentage should be declared per Article 8"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"
+
+  - id: BAT-064
+    field_path: "BatteryPass.RatedCapacity"
+    condition: required
+    severity: critical
+    message: "Battery capacity in Ah is required per Article 13(2)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"
+
+  - id: BAT-065
+    field_path: "BatteryPass.ExpectedLifetime"
+    condition: required
+    severity: warning
+    message: "Expected battery lifetime should be declared per Article 13(2)"
+    semantic_id: "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0"

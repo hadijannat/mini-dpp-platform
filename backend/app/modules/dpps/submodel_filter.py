@@ -17,6 +17,7 @@ CONSUMER_SUBMODELS: frozenset[str] = frozenset(
         "https://admin-shell.io/zvei/nameplate",  # DigitalNameplate
         "https://admin-shell.io/idta/TechnicalData",  # TechnicalData
         "https://admin-shell.io/idta/CarbonFootprint",  # (basic view)
+        "https://admin-shell.io/idta/BatteryPassport",  # EU 2023/1542 Art.77
     }
 )
 
