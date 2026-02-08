@@ -1305,5 +1305,5 @@ class DPPService:
             return bool(payload.decode("utf-8") == expected_digest)
         except PyJWTError:
             return False
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             return False

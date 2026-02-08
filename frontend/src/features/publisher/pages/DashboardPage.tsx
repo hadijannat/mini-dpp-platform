@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/status-badge';
 import { ErrorBanner } from '@/components/error-banner';
 import { EmptyState } from '@/components/empty-state';
+import type { DPPResponse } from '@/api/types';
 
 async function fetchDPPs(token?: string) {
   const response = await tenantApiFetch('/dpps', {}, token);
@@ -72,8 +73,8 @@ export default function DashboardPage() {
 
   const stats = [
     { name: 'Total DPPs', value: dpps?.count || 0 },
-    { name: 'Published', value: dpps?.dpps?.filter((d: any) => d.status === 'published').length || 0 },
-    { name: 'Drafts', value: dpps?.dpps?.filter((d: any) => d.status === 'draft').length || 0 },
+    { name: 'Published', value: dpps?.dpps?.filter((d: DPPResponse) => d.status === 'published').length || 0 },
+    { name: 'Drafts', value: dpps?.dpps?.filter((d: DPPResponse) => d.status === 'draft').length || 0 },
     { name: 'Templates', value: templates?.count || 0 },
     { name: 'Supply Chain Events', value: recentEpcisEvents.length },
   ];
@@ -226,14 +227,14 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {dpps.dpps.slice(0, 5).map((dpp: any) => (
+                {dpps.dpps.slice(0, 5).map((dpp: DPPResponse) => (
                   <TableRow
                     key={dpp.id}
                     className="cursor-pointer"
                     onClick={() => navigate(`/console/dpps/${dpp.id}`)}
                   >
                     <TableCell className="font-medium">
-                      {dpp.asset_ids?.manufacturerPartId || dpp.id}
+                      {String(dpp.asset_ids?.manufacturerPartId || '') || dpp.id}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={dpp.status} />

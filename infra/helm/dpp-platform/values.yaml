@@ -244,3 +244,5 @@ secrets:
 # -- Network policies
 networkPolicy:
   enabled: true
+  ingressNamespace: ingress-nginx
+  ingressPodLabel: ingress-nginx

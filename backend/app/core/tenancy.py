@@ -103,7 +103,11 @@ async def resolve_tenant_context(
         )
         membership = membership_result.scalar_one_or_none()
         if not membership:
-            if tenant.slug == "default":
+            if (
+                tenant.slug == "default"
+                and settings.environment == "development"
+                and settings.auto_provision_default_tenant
+            ):
                 # Auto-provision membership for the default tenant so new
                 # users can immediately use the platform after registration.
                 if "tenant_admin" in user.roles:

@@ -252,6 +252,7 @@ class DTRClient:
                 "error_message": str(e),
             }
         except Exception as e:
+            logger.warning("dtr_health_check_failed", error=str(e))
             return {
                 "status": "error",
                 "error_message": str(e),

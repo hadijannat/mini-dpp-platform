@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Core Application Settings
     # ==========================================================================
     environment: Literal["development", "staging", "production"] = "development"
+    auto_provision_default_tenant: bool = Field(
+        default=True,
+        description="Auto-provision users into the default tenant (dev convenience, disable in production)",
+    )
     debug: bool = Field(default=False)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 

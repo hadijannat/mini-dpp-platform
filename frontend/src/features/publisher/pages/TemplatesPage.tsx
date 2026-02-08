@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import type { TemplateResponse } from '@/api/types';
 
 type RebuildSummary = {
   total: number;
@@ -169,7 +170,7 @@ export default function TemplatesPage() {
         <LoadingSpinner />
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {templates?.templates?.map((template: any) => (
+          {templates?.templates?.map((template: TemplateResponse) => (
             <Card
               key={template.id}
               data-testid={`template-card-${template.template_key}`}

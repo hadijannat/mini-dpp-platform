@@ -148,6 +148,7 @@ class EDCContractService:
             return {"registered": False, "asset_id": asset_id}
 
         except Exception as exc:
+            logger.warning("edc_asset_check_failed", connector_id=str(connector_id), error=str(exc))
             return {"registered": False, "error": str(exc)}
         finally:
             await client.close()

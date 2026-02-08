@@ -55,6 +55,8 @@ import { StatusBadge } from '@/components/status-badge';
 import { ErrorBanner } from '@/components/error-banner';
 import { EmptyState } from '@/components/empty-state';
 import { LoadingSpinner } from '@/components/loading-spinner';
+import { toast } from 'sonner';
+import type { DPPResponse, TemplateResponse } from '@/api/types';
 import { cn } from '@/lib/utils';
 
 interface MasterItem {
@@ -127,7 +129,7 @@ async function fetchTemplatePackage(
   return response.json();
 }
 
-async function createDPP(data: any, token?: string) {
+async function createDPP(data: Record<string, unknown>, token?: string) {
   const response = await tenantApiFetch('/dpps', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -196,13 +198,14 @@ function findUnresolvedPlaceholders(payload: string, variables: TemplateVariable
 }
 
 function stripGlobalAssetId(payload: Record<string, unknown>) {
-  const cloned = JSON.parse(JSON.stringify(payload)) as Record<string, any>;
-  const env = (cloned.aasEnvironment ?? cloned) as Record<string, any>;
+  const cloned = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+  const env = (cloned.aasEnvironment ?? cloned) as Record<string, unknown>;
   const shells = env?.assetAdministrationShells;
   if (Array.isArray(shells)) {
-    shells.forEach((shell) => {
-      if (shell?.assetInformation && typeof shell.assetInformation === 'object') {
-        delete shell.assetInformation.globalAssetId;
+    shells.forEach((shell: Record<string, unknown>) => {
+      const info = shell?.assetInformation;
+      if (info && typeof info === 'object') {
+        delete (info as Record<string, unknown>).globalAssetId;
       }
     });
   }
@@ -249,7 +252,7 @@ export default function DPPListPage() {
   });
 
   useEffect(() => {
-    const available = templatesData?.templates?.map((template: any) => template.template_key) || [];
+    const available = templatesData?.templates?.map((template: TemplateResponse) => template.template_key) || [];
     setSelectedTemplates((prev) => {
       const filtered = prev.filter((key) => available.includes(key));
       if (filtered.length > 0) return filtered;
@@ -274,11 +277,11 @@ export default function DPPListPage() {
   }, [importProductId, importVersion]);
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => createDPP(data, token),
+    mutationFn: (data: Record<string, unknown>) => createDPP(data, token),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpps', tenantSlug] });
       setShowCreateModal(false);
-      const available = templatesData?.templates?.map((template: any) => template.template_key) || [];
+      const available = templatesData?.templates?.map((template: TemplateResponse) => template.template_key) || [];
       setSelectedTemplates(available.length > 0 ? [available[0]] : []);
     },
   });
@@ -400,7 +403,7 @@ export default function DPPListPage() {
   };
 
   const toggleAllDpps = () => {
-    const allIds = dpps?.dpps?.map((d: any) => d.id as string) ?? [];
+    const allIds = dpps?.dpps?.map((d: DPPResponse) => d.id) ?? [];
     if (selectedDpps.size === allIds.length) {
       setSelectedDpps(new Set());
     } else {
@@ -430,7 +433,7 @@ export default function DPPListPage() {
       URL.revokeObjectURL(url);
       setSelectedDpps(new Set());
     } catch {
-      // Silent — user sees no download
+      toast.error('Batch export failed');
     } finally {
       setBatchExporting(false);
     }
@@ -657,7 +660,7 @@ export default function DPPListPage() {
             <div className="space-y-2">
               <Label>Select Templates</Label>
               <div className="space-y-2 max-h-48 overflow-y-auto rounded-md border p-3">
-                {templatesData?.templates?.map((template: any) => (
+                {templatesData?.templates?.map((template: TemplateResponse) => (
                   <div key={template.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`template-${template.id}`}
@@ -722,7 +725,7 @@ export default function DPPListPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dpps?.dpps?.map((dpp: any) => (
+              {dpps?.dpps?.map((dpp: DPPResponse) => (
                 <TableRow key={dpp.id}>
                   <TableCell>
                     <Checkbox
@@ -732,10 +735,10 @@ export default function DPPListPage() {
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">
-                      {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)}
+                      {String(dpp.asset_ids?.manufacturerPartId || '') || dpp.id.slice(0, 8)}
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {dpp.asset_ids?.serialNumber || '-'}
+                      {String(dpp.asset_ids?.serialNumber || '') || '-'}
                     </div>
                   </TableCell>
                   <TableCell>

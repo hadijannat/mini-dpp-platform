@@ -30,13 +30,21 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { TemplateResponse } from '@/api/types';
 
 type TemplateDescriptor = {
   template_key: string;
   semantic_id: string;
 };
 
-function extractSemanticId(submodel: any): string | null {
+type AASSubmodel = Record<string, unknown> & {
+  idShort?: string;
+  id?: string;
+  semanticId?: { keys?: Array<{ value?: string }> };
+  submodelElements?: Array<Record<string, unknown>>;
+};
+
+function extractSemanticId(submodel: AASSubmodel): string | null {
   const semanticId = submodel?.semanticId;
   if (semanticId && Array.isArray(semanticId.keys) && semanticId.keys[0]?.value) {
     return String(semanticId.keys[0].value);
@@ -44,7 +52,7 @@ function extractSemanticId(submodel: any): string | null {
   return null;
 }
 
-function resolveTemplateKey(submodel: any, templates: TemplateDescriptor[]): string | null {
+function resolveTemplateKey(submodel: AASSubmodel, templates: TemplateDescriptor[]): string | null {
   if (!Array.isArray(templates)) return null;
   const semanticId = extractSemanticId(submodel);
   if (semanticId) {
@@ -56,7 +64,7 @@ function resolveTemplateKey(submodel: any, templates: TemplateDescriptor[]): str
     if (partial) return partial.template_key;
   }
   // Dynamic idShort fallback: match idShort against template keys (kebab-case)
-  const idShort = submodel?.idShort as string | undefined;
+  const idShort = submodel?.idShort;
   if (idShort) {
     const kebab = idShort.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
     const byKey = templates.find((t) =>
@@ -289,15 +297,15 @@ export default function DPPEditorPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const submodels: Array<Record<string, any>> = dpp.aas_environment?.submodels || [];
-  const availableTemplates: TemplateDescriptor[] = templatesData?.templates || [];
+  const submodels: AASSubmodel[] = dpp.aas_environment?.submodels || [];
+  const availableTemplates: TemplateResponse[] = templatesData?.templates || [];
   const existingTemplateKeys = new Set(
     submodels
       .map((submodel) => resolveTemplateKey(submodel, availableTemplates))
       .filter((value: string | null): value is string => Boolean(value))
   );
   const missingTemplates = availableTemplates.filter(
-    (template: any) => !existingTemplateKeys.has(template.template_key)
+    (template: TemplateDescriptor) => !existingTemplateKeys.has(template.template_key)
   );
 
   return (
@@ -426,8 +434,8 @@ export default function DPPEditorPage() {
               No submodels yet. Add one from the templates below.
             </p>
           ) : (
-            <Accordion type="multiple" defaultValue={submodels.map((_: any, i: number) => `sm-${i}`)}>
-              {submodels.map((submodel: any, index: number) => {
+            <Accordion type="multiple" defaultValue={submodels.map((_, i) => `sm-${i}`)}>
+              {submodels.map((submodel, index) => {
                 const templateKey = resolveTemplateKey(submodel, availableTemplates);
                 return (
                   <AccordionItem key={index} value={`sm-${index}`}>
@@ -441,9 +449,9 @@ export default function DPPEditorPage() {
                       <p className="text-xs text-muted-foreground mb-3">{submodel.id}</p>
                       {submodel.submodelElements && (
                         <div className="space-y-2">
-                          {submodel.submodelElements.map((element: any, idx: number) => (
+                          {submodel.submodelElements.map((element: Record<string, unknown>, idx: number) => (
                             <div key={idx} className="flex justify-between text-sm border-b pb-2">
-                              <span className="text-muted-foreground">{element.idShort}</span>
+                              <span className="text-muted-foreground">{String(element.idShort ?? '')}</span>
                               <span>{formatElementValue(element.value)}</span>
                             </div>
                           ))}
@@ -477,7 +485,7 @@ export default function DPPEditorPage() {
               <div className="mt-6 border-t pt-4">
                 <h3 className="text-sm font-semibold mb-3">Available templates</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {missingTemplates.map((template: any) => (
+                  {missingTemplates.map((template) => (
                     <Card key={template.id} className="p-0">
                       <CardContent className="flex items-center justify-between p-3">
                         <div>

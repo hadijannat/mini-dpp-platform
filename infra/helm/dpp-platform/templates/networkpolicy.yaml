@@ -27,7 +27,13 @@ spec:
         operator: In
         values: [frontend, backend, keycloak]
   ingress:
-    - {}  # Allow from ingress controller (namespace selector can be added)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressNamespace | default "ingress-nginx" }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Values.networkPolicy.ingressPodLabel | default "ingress-nginx" }}
   policyTypes:
     - Ingress
 ---

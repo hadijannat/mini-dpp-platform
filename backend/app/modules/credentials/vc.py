@@ -153,7 +153,7 @@ class VCService:
             )
         except jwt.InvalidTokenError as e:
             errors.append(f"Invalid JWS signature: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             errors.append(f"Verification error: {e}")
 
         # Check expiration
