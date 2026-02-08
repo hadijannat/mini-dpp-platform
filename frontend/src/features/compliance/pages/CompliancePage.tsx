@@ -9,9 +9,11 @@ import {
   CheckCircle,
   XCircle,
   Search,
+  ChevronRight,
 } from 'lucide-react';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
+import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/page-header';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { ErrorBanner } from '@/components/error-banner';
@@ -62,12 +64,15 @@ interface ComplianceCheckResult {
 
 interface CategoryRuleset {
   category: string;
-  description?: string;
+  version: string;
+  description: string;
   rules: Array<{
     id: string;
+    field_path: string;
+    condition: string;
     severity: string;
-    description: string;
-    field?: string;
+    message: string;
+    semantic_id?: string;
   }>;
 }
 
@@ -119,6 +124,15 @@ export default function CompliancePage() {
   const [tenantSlug] = useTenantSlug();
   const [dppId, setDppId] = useState('');
   const [category, setCategory] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (cat: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+  };
 
   const { data: rulesData, isLoading: rulesLoading } = useQuery({
     queryKey: ['compliance-rules', tenantSlug],
@@ -307,18 +321,81 @@ export default function CompliancePage() {
           <CardHeader>
             <CardTitle className="text-base">Available Rule Categories</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">
               {rulesData.categories.map((cat) => {
                 const ruleset = rulesData.rulesets[cat];
                 const ruleCount = ruleset?.rules?.length ?? 0;
+                const isExpanded = expandedCategories.has(cat);
                 return (
-                  <Badge key={cat} variant="outline" className="text-sm">
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium transition-colors',
+                      isExpanded
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border text-foreground hover:bg-muted',
+                    )}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        isExpanded && 'rotate-90',
+                      )}
+                    />
                     {cat.charAt(0).toUpperCase() + cat.slice(1)} ({ruleCount} rules)
-                  </Badge>
+                  </button>
                 );
               })}
             </div>
+
+            {rulesData.categories
+              .filter((cat) => expandedCategories.has(cat))
+              .map((cat) => {
+                const ruleset = rulesData.rulesets[cat];
+                if (!ruleset) return null;
+                return (
+                  <div key={cat} className="rounded-lg border">
+                    <div className="flex items-center justify-between border-b px-4 py-3">
+                      <div>
+                        <h4 className="text-sm font-semibold">
+                          {cat.charAt(0).toUpperCase() + cat.slice(1)} Rules
+                        </h4>
+                        {ruleset.description && (
+                          <p className="text-xs text-muted-foreground">{ruleset.description}</p>
+                        )}
+                      </div>
+                      <Badge variant="secondary">{ruleset.rules.length} rules</Badge>
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Rule ID</TableHead>
+                          <TableHead>Severity</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Field Path</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {ruleset.rules.map((rule) => (
+                          <TableRow key={rule.id}>
+                            <TableCell><SeverityIcon severity={rule.severity} /></TableCell>
+                            <TableCell className="font-mono text-sm">{rule.id}</TableCell>
+                            <TableCell><SeverityBadge severity={rule.severity} /></TableCell>
+                            <TableCell>{rule.message}</TableCell>
+                            <TableCell className="font-mono text-xs text-muted-foreground">
+                              {rule.field_path}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                );
+              })}
           </CardContent>
         </Card>
       )}
