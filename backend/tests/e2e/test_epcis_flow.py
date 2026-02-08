@@ -618,6 +618,18 @@ class TestEPCISQueryFilters:
         api_client: httpx.Client,
     ) -> None:
         """MATCH_anyEPC finds EPC in both epcList and childEPCs."""
+        # Debug: query all events for this DPP to inspect payloads
+        debug_resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={"dpp_id": self.filter_dpp_id},
+        )
+        assert debug_resp.status_code == 200, debug_resp.text
+        all_events = debug_resp.json()["eventList"]
+        print(f"DEBUG: filter_dpp_id={self.filter_dpp_id}")
+        print(f"DEBUG: total events for DPP={len(all_events)}")
+        for ev in all_events:
+            print(f"DEBUG: event_type={ev.get('event_type')}, payload={ev.get('payload')}")
+
         epc = "urn:epc:id:sgtin:0614141.107346.JSONB01"
         resp = api_client.get(
             f"{self.epcis_base}/events",
@@ -629,7 +641,7 @@ class TestEPCISQueryFilters:
         assert resp.status_code == 200, resp.text
         events = resp.json()["eventList"]
         # Should find in ObjectEvent (epcList) and AggregationEvent (childEPCs)
-        assert len(events) >= 2
+        assert len(events) >= 2, f"Expected >=2 events, got {len(events)}. All events payload: {[e.get('payload') for e in all_events]}"
         types = {e["event_type"] for e in events}
         assert "ObjectEvent" in types
         assert "AggregationEvent" in types
