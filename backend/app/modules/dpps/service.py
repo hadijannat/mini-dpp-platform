@@ -436,19 +436,23 @@ class DPPService:
             for key in sorted(all_keys):
                 child_path = f"{path}.{key}" if path else key
                 if key not in old:
-                    added.append({
-                        "path": child_path,
-                        "operation": "added",
-                        "old_value": None,
-                        "new_value": new[key],
-                    })
+                    added.append(
+                        {
+                            "path": child_path,
+                            "operation": "added",
+                            "old_value": None,
+                            "new_value": new[key],
+                        }
+                    )
                 elif key not in new:
-                    removed.append({
-                        "path": child_path,
-                        "operation": "removed",
-                        "old_value": old[key],
-                        "new_value": None,
-                    })
+                    removed.append(
+                        {
+                            "path": child_path,
+                            "operation": "removed",
+                            "old_value": old[key],
+                            "new_value": None,
+                        }
+                    )
                 else:
                     a, r, c = DPPService._diff_json(old[key], new[key], child_path)
                     added.extend(a)
@@ -456,12 +460,14 @@ class DPPService:
                     changed.extend(c)
         elif old != new:
             if path:
-                changed.append({
-                    "path": path,
-                    "operation": "changed",
-                    "old_value": old,
-                    "new_value": new,
-                })
+                changed.append(
+                    {
+                        "path": path,
+                        "operation": "changed",
+                        "old_value": old,
+                        "new_value": new,
+                    }
+                )
 
         return added, removed, changed
 
