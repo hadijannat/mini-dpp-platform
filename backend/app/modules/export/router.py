@@ -84,7 +84,7 @@ async def export_dpp(
 
     # Inject EPCIS Traceability submodel (if events exist for this DPP)
     epcis_service = EPCISService(db)
-    epcis_events = await epcis_service.get_for_dpp(tenant.tenant_id, dpp_id)
+    epcis_events = await epcis_service.get_for_dpp(tenant.tenant_id, dpp_id, limit=100)
     if epcis_events:
         export_service.inject_traceability_submodel(revision, epcis_events)
 

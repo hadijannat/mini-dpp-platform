@@ -249,6 +249,48 @@ class EPCISQueryResponse(BaseModel):
     event_list: list[EPCISEventResponse] = Field(alias="eventList")
 
 
+# ---------------------------------------------------------------------------
+# Public response schemas (exclude internal fields like created_by_subject)
+# ---------------------------------------------------------------------------
+
+
+class PublicEPCISEventResponse(BaseModel):
+    """EPCIS event response for public (unauthenticated) endpoints.
+
+    Excludes ``created_by_subject`` and ``created_at`` which are internal
+    fields that should not be exposed to unauthenticated users.
+    """
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: UUID
+    dpp_id: UUID
+    event_id: str
+    event_type: str
+    event_time: datetime
+    event_time_zone_offset: str
+    action: str | None = None
+    biz_step: str | None = None
+    disposition: str | None = None
+    read_point: str | None = None
+    biz_location: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    error_declaration: dict[str, Any] | None = None
+
+
+class PublicEPCISQueryResponse(BaseModel):
+    """EPCIS query result wrapper for public (unauthenticated) endpoints."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    context: list[str] = Field(
+        default=["https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"],
+        alias="@context",
+    )
+    type: str = "EPCISQueryDocument"
+    event_list: list[PublicEPCISEventResponse] = Field(alias="eventList")
+
+
 class CaptureResponse(BaseModel):
     """Response after successful event capture."""
 

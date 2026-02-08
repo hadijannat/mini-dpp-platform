@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.db.models import DPP, DPPStatus, EPCISEvent, Tenant, TenantStatus
 from app.db.session import DbSession
 
-from .schemas import EPCISEventResponse, EPCISQueryResponse
+from .schemas import PublicEPCISEventResponse, PublicEPCISQueryResponse
 
 router = APIRouter()
 
@@ -40,13 +40,13 @@ async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
 
 @router.get(
     "/{tenant_slug}/epcis/events/{dpp_id}",
-    response_model=EPCISQueryResponse,
+    response_model=PublicEPCISQueryResponse,
 )
 async def get_public_epcis_events(
     tenant_slug: str,
     dpp_id: UUID,
     db: DbSession,
-) -> EPCISQueryResponse:
+) -> PublicEPCISQueryResponse:
     """Get EPCIS events for a published DPP (no authentication required).
 
     Only returns events for DPPs with status=PUBLISHED.
@@ -81,6 +81,6 @@ async def get_public_epcis_events(
     )
     rows = events_result.scalars().all()
 
-    return EPCISQueryResponse(
-        event_list=[EPCISEventResponse.model_validate(row) for row in rows],
+    return PublicEPCISQueryResponse(
+        event_list=[PublicEPCISEventResponse.model_validate(row) for row in rows],
     )

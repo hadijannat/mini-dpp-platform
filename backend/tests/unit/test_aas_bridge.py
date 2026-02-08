@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import types
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from app.modules.epcis.aas_bridge import (
@@ -11,6 +13,7 @@ from app.modules.epcis.aas_bridge import (
     build_traceability_submodel,
 )
 from app.modules.epcis.schemas import EPCISEventResponse
+from app.modules.export.service import ExportService
 
 
 def _make_event(
@@ -21,7 +24,7 @@ def _make_event(
     disposition: str | None = "in_transit",
     read_point: str | None = None,
     biz_location: str | None = None,
-    payload: dict | None = None,
+    payload: dict[str, Any] | None = None,
 ) -> EPCISEventResponse:
     return EPCISEventResponse(
         id=uuid4(),
@@ -152,3 +155,59 @@ class TestBuildTraceabilitySubmodel:
         assert len(sem_id["keys"]) == 1
         assert sem_id["keys"][0]["type"] == "GlobalReference"
         assert sem_id["keys"][0]["value"] == TRACEABILITY_SEMANTIC_ID
+
+
+class TestInjectTraceabilitySubmodel:
+    """Tests for ExportService.inject_traceability_submodel()."""
+
+    @staticmethod
+    def _make_revision(aas_env_json: dict[str, Any] | None = None) -> types.SimpleNamespace:
+        """Build a lightweight mock DPPRevision."""
+        return types.SimpleNamespace(
+            aas_env_json=aas_env_json if aas_env_json is not None else {},
+        )
+
+    def test_empty_events_no_modification(self) -> None:
+        """When epcis_events is empty, aas_env_json should not be modified."""
+        revision = self._make_revision({"submodels": [{"idShort": "Existing"}]})
+        original = revision.aas_env_json.copy()
+
+        ExportService.inject_traceability_submodel(revision, [])  # type: ignore[arg-type]
+
+        assert revision.aas_env_json == original
+
+    def test_events_append_traceability_submodel(self) -> None:
+        """When epcis_events has events, a Traceability submodel should be appended."""
+        existing_submodel = {"idShort": "ExistingSubmodel", "modelType": "Submodel"}
+        revision = self._make_revision({"submodels": [existing_submodel]})
+
+        events = [_make_event(), _make_event(event_type="AggregationEvent", action="ADD")]
+        ExportService.inject_traceability_submodel(revision, events)  # type: ignore[arg-type]
+
+        submodels = revision.aas_env_json["submodels"]
+        assert len(submodels) == 2
+        assert submodels[0] == existing_submodel
+        assert submodels[1]["idShort"] == TRACEABILITY_ID_SHORT
+        assert submodels[1]["modelType"] == "Submodel"
+        assert len(submodels[1]["submodelElements"]) == 2
+
+    def test_missing_submodels_key_is_created(self) -> None:
+        """When aas_env_json has no 'submodels' key, it should be created."""
+        revision = self._make_revision({"assetAdministrationShells": []})
+
+        events = [_make_event()]
+        ExportService.inject_traceability_submodel(revision, events)  # type: ignore[arg-type]
+
+        assert "submodels" in revision.aas_env_json
+        assert len(revision.aas_env_json["submodels"]) == 1
+        assert revision.aas_env_json["submodels"][0]["idShort"] == TRACEABILITY_ID_SHORT
+
+    def test_non_dict_aas_env_is_skipped(self) -> None:
+        """When aas_env_json is not a dict, the method should be a no-op."""
+        revision = self._make_revision()
+        revision.aas_env_json = None
+
+        events = [_make_event()]
+        ExportService.inject_traceability_submodel(revision, events)  # type: ignore[arg-type]
+
+        assert revision.aas_env_json is None
