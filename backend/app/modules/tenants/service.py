@@ -119,71 +119,68 @@ class TenantService:
         published_val = DPPStatus.PUBLISHED.value
         archived_val = DPPStatus.ARCHIVED.value
 
-        query = (
-            select(
-                Tenant.id.label("tenant_id"),
-                Tenant.slug.label("slug"),
-                Tenant.name.label("name"),
-                Tenant.status.label("status"),
-                func.coalesce(
-                    select(func.count(DPP.id))
-                    .where(DPP.tenant_id == Tenant.id)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("total_dpps"),
-                func.coalesce(
-                    select(func.count(DPP.id))
-                    .where(DPP.tenant_id == Tenant.id, DPP.status == draft_val)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("draft_dpps"),
-                func.coalesce(
-                    select(func.count(DPP.id))
-                    .where(DPP.tenant_id == Tenant.id, DPP.status == published_val)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("published_dpps"),
-                func.coalesce(
-                    select(func.count(DPP.id))
-                    .where(DPP.tenant_id == Tenant.id, DPP.status == archived_val)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("archived_dpps"),
-                func.coalesce(
-                    select(func.count(DPPRevision.id))
-                    .where(DPPRevision.tenant_id == Tenant.id)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("total_revisions"),
-                func.coalesce(
-                    select(func.count(TenantMember.id))
-                    .where(TenantMember.tenant_id == Tenant.id)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("total_members"),
-                func.coalesce(
-                    select(func.count(EPCISEvent.id))
-                    .where(EPCISEvent.tenant_id == Tenant.id)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("total_epcis_events"),
-                func.coalesce(
-                    select(func.count(AuditEvent.id))
-                    .where(AuditEvent.tenant_id == Tenant.id)
-                    .correlate(Tenant)
-                    .scalar_subquery(),
-                    0,
-                ).label("total_audit_events"),
-            )
-            .order_by(Tenant.name.asc())
-        )
+        query = select(
+            Tenant.id.label("tenant_id"),
+            Tenant.slug.label("slug"),
+            Tenant.name.label("name"),
+            Tenant.status.label("status"),
+            func.coalesce(
+                select(func.count(DPP.id))
+                .where(DPP.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_dpps"),
+            func.coalesce(
+                select(func.count(DPP.id))
+                .where(DPP.tenant_id == Tenant.id, DPP.status == draft_val)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("draft_dpps"),
+            func.coalesce(
+                select(func.count(DPP.id))
+                .where(DPP.tenant_id == Tenant.id, DPP.status == published_val)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("published_dpps"),
+            func.coalesce(
+                select(func.count(DPP.id))
+                .where(DPP.tenant_id == Tenant.id, DPP.status == archived_val)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("archived_dpps"),
+            func.coalesce(
+                select(func.count(DPPRevision.id))
+                .where(DPPRevision.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_revisions"),
+            func.coalesce(
+                select(func.count(TenantMember.id))
+                .where(TenantMember.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_members"),
+            func.coalesce(
+                select(func.count(EPCISEvent.id))
+                .where(EPCISEvent.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_epcis_events"),
+            func.coalesce(
+                select(func.count(AuditEvent.id))
+                .where(AuditEvent.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_audit_events"),
+        ).order_by(Tenant.name.asc())
 
         result = await self._session.execute(query)
         rows = result.all()
