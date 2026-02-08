@@ -4,6 +4,7 @@ import {
   ArrowRightLeft,
   RefreshCw,
   Link2,
+  Thermometer,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -86,6 +87,10 @@ export function EventCard({ event, isLast, onClick }: EventCardProps) {
           <ActionBadge action={event.action} />
           {event.biz_step && (
             <span className="text-xs text-muted-foreground">{event.biz_step}</span>
+          )}
+          {Array.isArray(event.payload?.sensorElementList) &&
+            event.payload.sensorElementList.length > 0 && (
+            <Thermometer className="h-3.5 w-3.5 text-muted-foreground" />
           )}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

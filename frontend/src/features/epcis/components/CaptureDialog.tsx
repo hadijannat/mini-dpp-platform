@@ -43,6 +43,10 @@ const DEFAULT_STATE = {
   childEpcs: '',
   inputEpcList: '',
   outputEpcList: '',
+  sensorDeviceId: '',
+  sensorType: '',
+  sensorValue: '',
+  sensorUom: '',
 };
 
 export function CaptureDialog({ open, onOpenChange, dppId }: CaptureDialogProps) {
@@ -50,6 +54,7 @@ export function CaptureDialog({ open, onOpenChange, dppId }: CaptureDialogProps)
   const token = auth.user?.access_token;
   const queryClient = useQueryClient();
   const [form, setForm] = useState(DEFAULT_STATE);
+  const [showSensor, setShowSensor] = useState(false);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -238,6 +243,54 @@ export function CaptureDialog({ open, onOpenChange, dppId }: CaptureDialogProps)
             </div>
           </div>
 
+          {/* Sensor Data (collapsible) */}
+          <div className="space-y-2">
+            <button
+              type="button"
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowSensor((prev) => !prev)}
+            >
+              {showSensor ? '- Hide Sensor Data' : '+ Add Sensor Data'}
+            </button>
+            {showSensor && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Device ID</Label>
+                  <Input
+                    value={form.sensorDeviceId}
+                    onChange={(e) => update({ sensorDeviceId: e.target.value })}
+                    placeholder="urn:epc:id:giai:..."
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Sensor Type</Label>
+                  <Input
+                    value={form.sensorType}
+                    onChange={(e) => update({ sensorType: e.target.value })}
+                    placeholder="gs1:Temperature"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Value</Label>
+                  <Input
+                    type="number"
+                    value={form.sensorValue}
+                    onChange={(e) => update({ sensorValue: e.target.value })}
+                    placeholder="26.5"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Unit of Measure</Label>
+                  <Input
+                    value={form.sensorUom}
+                    onChange={(e) => update({ sensorUom: e.target.value })}
+                    placeholder="CEL"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           {mutation.isError && (
             <p className="text-sm text-destructive">
               {(mutation.error as Error).message}
@@ -303,6 +356,18 @@ function buildEvent(form: typeof DEFAULT_STATE): Record<string, unknown> {
       if (form.parentId) base.parentID = form.parentId;
       base.childEPCs = splitEpcs(form.childEpcs);
       break;
+  }
+
+  // Sensor data
+  if (form.sensorType && form.sensorValue) {
+    base.sensorElementList = [{
+      sensorMetadata: form.sensorDeviceId ? { deviceID: form.sensorDeviceId } : undefined,
+      sensorReport: [{
+        type: form.sensorType,
+        value: parseFloat(form.sensorValue),
+        uom: form.sensorUom || undefined,
+      }],
+    }];
   }
 
   return base;

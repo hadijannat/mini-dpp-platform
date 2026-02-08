@@ -86,7 +86,15 @@ async def export_dpp(
     epcis_service = EPCISService(db)
     epcis_events = await epcis_service.get_for_dpp(tenant.tenant_id, dpp_id, limit=100)
     if epcis_events:
-        export_service.inject_traceability_submodel(revision, epcis_events)
+        epcis_endpoint_url = (
+            str(request.base_url).rstrip("/")
+            + f"/api/v1/public/{tenant.tenant_slug}/epcis/events/{dpp_id}"
+        )
+        export_service.inject_traceability_submodel(
+            revision,
+            epcis_events,
+            epcis_endpoint_url=epcis_endpoint_url,
+        )
 
     # Export based on format
     if format == "json":

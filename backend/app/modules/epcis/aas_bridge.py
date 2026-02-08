@@ -16,15 +16,53 @@ TRACEABILITY_ID_SHORT = "Traceability"
 
 def build_traceability_submodel(
     events: list[EPCISEventResponse],
+    *,
+    epcis_endpoint_url: str | None = None,
+    digital_link_uri: str | None = None,
 ) -> dict[str, Any] | None:
     """Convert EPCIS events into an AAS Traceability submodel dict.
 
     Returns ``None`` if the event list is empty (don't inject an empty submodel).
+
+    Optional kwargs enrich the submodel with endpoint and link metadata:
+    - ``epcis_endpoint_url``: public EPCIS query endpoint for this DPP
+    - ``digital_link_uri``: GS1 Digital Link URI for the product
     """
     if not events:
         return None
 
-    elements: list[dict[str, Any]] = []
+    top_elements: list[dict[str, Any]] = []
+
+    # -- Optional endpoint / link properties --
+    if epcis_endpoint_url is not None:
+        top_elements.append(_property("EPCISEndpoint", epcis_endpoint_url, "xs:anyURI"))
+    if digital_link_uri is not None:
+        top_elements.append(_property("DigitalLinkURI", digital_link_uri, "xs:anyURI"))
+
+    # -- LatestEventSummary from the last event --
+    last = events[-1]
+    summary_props: list[dict[str, Any]] = [
+        _property("LastEventType", last.event_type),
+        _property("LastEventTime", last.event_time.isoformat()),
+    ]
+    if last.biz_step:
+        summary_props.append(_property("LastBizStep", last.biz_step))
+    if last.disposition:
+        summary_props.append(_property("LastDisposition", last.disposition))
+    if last.biz_location:
+        summary_props.append(_property("LastLocation", last.biz_location))
+    summary_props.append(_property("TotalEventCount", str(len(events))))
+
+    top_elements.append(
+        {
+            "modelType": "SubmodelElementCollection",
+            "idShort": "LatestEventSummary",
+            "value": summary_props,
+        }
+    )
+
+    # -- Per-event collections wrapped in EventHistory --
+    event_collections: list[dict[str, Any]] = []
     for idx, event in enumerate(events):
         props: list[dict[str, Any]] = [
             _property("EventType", event.event_type),
@@ -57,7 +95,15 @@ def build_traceability_submodel(
             "idShort": f"Event{idx + 1:03d}",
             "value": props,
         }
-        elements.append(collection)
+        event_collections.append(collection)
+
+    top_elements.append(
+        {
+            "modelType": "SubmodelElementCollection",
+            "idShort": "EventHistory",
+            "value": event_collections,
+        }
+    )
 
     return {
         "modelType": "Submodel",
@@ -72,16 +118,16 @@ def build_traceability_submodel(
                 }
             ],
         },
-        "submodelElements": elements,
+        "submodelElements": top_elements,
     }
 
 
-def _property(id_short: str, value: str) -> dict[str, Any]:
+def _property(id_short: str, value: str, value_type: str = "xs:string") -> dict[str, Any]:
     """Build an AAS Property element dict."""
     return {
         "modelType": "Property",
         "idShort": id_short,
-        "valueType": "xs:string",
+        "valueType": value_type,
         "value": value,
     }
 

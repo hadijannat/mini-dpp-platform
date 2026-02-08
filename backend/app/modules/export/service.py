@@ -43,6 +43,9 @@ class ExportService:
     def inject_traceability_submodel(
         revision: DPPRevision,
         epcis_events: list[EPCISEventResponse],
+        *,
+        epcis_endpoint_url: str | None = None,
+        digital_link_uri: str | None = None,
     ) -> None:
         """Inject EPCIS Traceability submodel into the revision's AAS environment.
 
@@ -51,7 +54,11 @@ class ExportService:
         """
         from app.modules.epcis.aas_bridge import build_traceability_submodel
 
-        submodel = build_traceability_submodel(epcis_events)
+        submodel = build_traceability_submodel(
+            epcis_events,
+            epcis_endpoint_url=epcis_endpoint_url,
+            digital_link_uri=digital_link_uri,
+        )
         if submodel is None:
             return
 

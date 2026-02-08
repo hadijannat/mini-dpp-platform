@@ -108,6 +108,34 @@ class TestTransactionEvent:
         assert len(event.biz_transaction_list) == 1
         assert event.biz_transaction_list[0].type == "po"
 
+    def test_with_ilmd(self) -> None:
+        data = {
+            "type": "TransactionEvent",
+            "eventTime": NOW_ISO,
+            "eventTimeZoneOffset": "+00:00",
+            "bizTransactionList": [
+                {"type": "po", "bizTransaction": "urn:epcglobal:cbv:bt:0614141073467:PO-123"}
+            ],
+            "action": "ADD",
+            "ilmd": {"lotNumber": "LOT-2026-A", "bestBeforeDate": "2027-01-01"},
+        }
+        event = TransactionEventCreate.model_validate(data)
+        assert event.ilmd is not None
+        assert event.ilmd["lotNumber"] == "LOT-2026-A"
+
+    def test_ilmd_defaults_to_none(self) -> None:
+        data = {
+            "type": "TransactionEvent",
+            "eventTime": NOW_ISO,
+            "eventTimeZoneOffset": "+00:00",
+            "bizTransactionList": [
+                {"type": "po", "bizTransaction": "urn:epcglobal:cbv:bt:0614141073467:PO-123"}
+            ],
+            "action": "ADD",
+        }
+        event = TransactionEventCreate.model_validate(data)
+        assert event.ilmd is None
+
     def test_missing_biz_transaction_list(self) -> None:
         data = {
             "type": "TransactionEvent",
@@ -133,6 +161,30 @@ class TestTransformationEvent:
         assert len(event.input_epc_list) == 1
         assert len(event.output_epc_list) == 1
         assert event.transformation_id is not None
+
+    def test_with_ilmd(self) -> None:
+        data = {
+            "type": "TransformationEvent",
+            "eventTime": NOW_ISO,
+            "eventTimeZoneOffset": "+00:00",
+            "inputEPCList": ["urn:epc:id:sgtin:0614141.107346.100"],
+            "outputEPCList": ["urn:epc:id:sgtin:0614141.107346.200"],
+            "ilmd": {"processType": "recycling", "yieldPercent": 95.5},
+        }
+        event = TransformationEventCreate.model_validate(data)
+        assert event.ilmd is not None
+        assert event.ilmd["processType"] == "recycling"
+
+    def test_ilmd_defaults_to_none(self) -> None:
+        data = {
+            "type": "TransformationEvent",
+            "eventTime": NOW_ISO,
+            "eventTimeZoneOffset": "+00:00",
+            "inputEPCList": ["urn:epc:id:sgtin:0614141.107346.100"],
+            "outputEPCList": ["urn:epc:id:sgtin:0614141.107346.200"],
+        }
+        event = TransformationEventCreate.model_validate(data)
+        assert event.ilmd is None
 
 
 class TestAssociationEvent:

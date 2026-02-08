@@ -140,6 +140,7 @@ class TransactionEventCreate(EPCISEventBase):
     quantity_list: list[QuantityElement] = Field(default_factory=list, alias="quantityList")
     action: Literal["ADD", "OBSERVE", "DELETE"]
     parent_id: str | None = Field(default=None, alias="parentID")
+    ilmd: dict[str, Any] | None = None
 
 
 class TransformationEventCreate(EPCISEventBase):
@@ -155,6 +156,7 @@ class TransformationEventCreate(EPCISEventBase):
         default_factory=list, alias="outputQuantityList"
     )
     transformation_id: str | None = Field(default=None, alias="transformationID")
+    ilmd: dict[str, Any] | None = None
 
 
 class AssociationEventCreate(EPCISEventBase):
@@ -306,11 +308,44 @@ class EPCISQueryParams(BaseModel):
     event_type: EPCISEventType | None = None
     ge_event_time: datetime | None = None
     lt_event_time: datetime | None = None
+    eq_action: str | None = None
     eq_biz_step: str | None = None
     eq_disposition: str | None = None
     match_epc: str | None = None
+    match_any_epc: str | None = None
+    match_parent_id: str | None = None
+    match_input_epc: str | None = None
+    match_output_epc: str | None = None
     eq_read_point: str | None = None
     eq_biz_location: str | None = None
+    ge_record_time: datetime | None = None
+    lt_record_time: datetime | None = None
     dpp_id: UUID | None = None
     limit: int = Field(default=100, le=1000)
     offset: int = Field(default=0, ge=0)
+
+
+# ---------------------------------------------------------------------------
+# Named query schemas
+# ---------------------------------------------------------------------------
+
+
+class NamedQueryCreate(BaseModel):
+    """Input schema for creating a named EPCIS query."""
+
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+    query_params: EPCISQueryParams
+
+
+class NamedQueryResponse(BaseModel):
+    """Persisted named query returned from API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    description: str | None = None
+    query_params: dict[str, Any]
+    created_by_subject: str
+    created_at: datetime

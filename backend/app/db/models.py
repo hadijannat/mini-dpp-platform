@@ -1367,3 +1367,34 @@ class EPCISEvent(TenantScopedMixin, Base):
         Index("ix_epcis_events_biz_step", "biz_step"),
         Index("ix_epcis_events_payload", "payload", postgresql_using="gin"),
     )
+
+
+class EPCISNamedQuery(TenantScopedMixin, Base):
+    """Saved EPCIS query definition for reuse (named query).
+
+    Each named query stores a set of ``EPCISQueryParams`` that can be
+    executed on demand. Names are unique within a tenant.
+    """
+
+    __tablename__ = "epcis_named_queries"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.gen_random_uuid(),
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    query_params: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_epcis_named_queries_tenant_name"),
+    )
