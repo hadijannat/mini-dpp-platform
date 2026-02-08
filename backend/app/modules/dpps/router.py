@@ -3,7 +3,7 @@ API Router for DPP (Digital Product Passport) endpoints.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -149,6 +149,25 @@ class BulkRebuildResponse(BaseModel):
     updated: int
     skipped: int
     errors: list[BulkRebuildError]
+
+
+class DiffEntry(BaseModel):
+    """Individual change between two revisions."""
+
+    path: str
+    operation: Literal["added", "removed", "changed"]
+    old_value: Any | None = None
+    new_value: Any | None = None
+
+
+class DPPDiffResult(BaseModel):
+    """Structured diff between two DPP revisions."""
+
+    from_rev: int
+    to_rev: int
+    added: list[DiffEntry]
+    removed: list[DiffEntry]
+    changed: list[DiffEntry]
 
 
 @router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
@@ -825,3 +844,43 @@ async def list_revisions(
         )
         for rev in dpp.revisions
     ]
+
+
+@router.get("/{dpp_id}/diff", response_model=DPPDiffResult)
+async def diff_revisions(
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+    from_rev: int = Query(..., alias="from", description="Source revision number"),
+    to_rev: int = Query(..., alias="to", description="Target revision number"),
+) -> DPPDiffResult:
+    """Compare two revisions of a DPP."""
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    try:
+        result = await service.diff_revisions(
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            rev_a=from_rev,
+            rev_b=to_rev,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return DPPDiffResult(**result)
