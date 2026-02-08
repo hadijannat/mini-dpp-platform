@@ -1,4 +1,4 @@
-import { tenantApiFetch, getApiErrorMessage } from '@/lib/api';
+import { apiFetch, tenantApiFetch, getApiErrorMessage } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Types — mirrors backend EPCISEventResponse
@@ -84,6 +84,19 @@ export const ACTIONS = ['ADD', 'OBSERVE', 'DELETE'] as const;
 // ---------------------------------------------------------------------------
 // API functions
 // ---------------------------------------------------------------------------
+
+export async function fetchPublicEPCISEvents(
+  tenantSlug: string,
+  dppId: string,
+): Promise<EPCISQueryResponse> {
+  const response = await apiFetch(
+    `/api/v1/public/${encodeURIComponent(tenantSlug)}/epcis/events/${encodeURIComponent(dppId)}`,
+  );
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch EPCIS events'));
+  }
+  return response.json() as Promise<EPCISQueryResponse>;
+}
 
 export async function fetchEPCISEvents(
   filters: EPCISQueryFilters,

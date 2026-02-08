@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { FileText, Send, FileEdit, FileCode, Plus, ArrowRight } from 'lucide-react';
+import { FileText, Send, FileEdit, FileCode, Plus, ArrowRight, Activity } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { fetchEPCISEvents, type EPCISEvent } from '@/features/epcis/lib/epcisApi';
 import { getTenantSlug } from '@/lib/tenant';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeader } from '@/components/page-header';
+import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/status-badge';
 import { ErrorBanner } from '@/components/error-banner';
 import { EmptyState } from '@/components/empty-state';
@@ -35,7 +37,7 @@ async function fetchTemplates(token?: string) {
   return response.json();
 }
 
-const statIcons = [FileText, Send, FileEdit, FileCode] as const;
+const statIcons = [FileText, Send, FileEdit, FileCode, Activity] as const;
 
 export default function DashboardPage() {
   const auth = useAuth();
@@ -55,6 +57,14 @@ export default function DashboardPage() {
     enabled: Boolean(token),
   });
 
+  const { data: epcisData } = useQuery({
+    queryKey: ['epcis-events', 'dashboard', tenantSlug],
+    queryFn: () => fetchEPCISEvents({ limit: 5 }, token),
+    enabled: Boolean(token),
+  });
+
+  const recentEpcisEvents: EPCISEvent[] = epcisData?.eventList ?? [];
+
   const pageError =
     (dppsError ? (dppsErrorObj as Error) : null) ??
     (templatesError ? (templatesErrorObj as Error) : null);
@@ -65,6 +75,7 @@ export default function DashboardPage() {
     { name: 'Published', value: dpps?.dpps?.filter((d: any) => d.status === 'published').length || 0 },
     { name: 'Drafts', value: dpps?.dpps?.filter((d: any) => d.status === 'draft').length || 0 },
     { name: 'Templates', value: templates?.count || 0 },
+    { name: 'Supply Chain Events', value: recentEpcisEvents.length },
   ];
 
   const quickActions = [
@@ -104,7 +115,7 @@ export default function DashboardPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
         {stats.map((stat, index) => {
           const Icon = statIcons[index];
           return (
@@ -145,6 +156,59 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Recent Supply Chain Events */}
+      {recentEpcisEvents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Recent Supply Chain Events
+              </CardTitle>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/console/epcis">
+                  View all <ArrowRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Business Step</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>DPP</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentEpcisEvents.map((event) => (
+                  <TableRow
+                    key={event.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate('/console/epcis')}
+                  >
+                    <TableCell>
+                      <Badge variant="outline">{event.event_type}</Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {event.biz_step || '—'}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(event.event_time).toLocaleString()}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {event.dpp_id.slice(0, 8)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent DPPs */}
       {dpps?.dpps?.length > 0 ? (

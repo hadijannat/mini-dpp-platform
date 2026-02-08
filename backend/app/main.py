@@ -24,6 +24,7 @@ from app.modules.connectors.router import router as connectors_router
 from app.modules.digital_thread.router import router as digital_thread_router
 from app.modules.dpps.public_router import router as public_dpps_router
 from app.modules.dpps.router import router as dpps_router
+from app.modules.epcis.public_router import router as public_epcis_router
 from app.modules.epcis.router import router as epcis_router
 from app.modules.export.router import router as export_router
 from app.modules.lca.router import router as lca_router
@@ -201,6 +202,11 @@ window.onload = function() {{
         public_dpps_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public DPPs"],
+    )
+    app.include_router(
+        public_epcis_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public EPCIS"],
     )
 
     # API v1 routers (authenticated)

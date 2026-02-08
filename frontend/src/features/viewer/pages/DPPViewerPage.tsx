@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
-import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
+import { fetchPublicEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { getTenantSlug } from '@/lib/tenant';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -43,12 +43,12 @@ export default function DPPViewerPage() {
     enabled: !!id && !!resolvedTenant,
   });
 
-  // EPCIS events — fetched using the DPP's UUID once loaded
+  // EPCIS events — fetched via public endpoint (no auth needed)
   const dppUuid = (dpp?.id as string) ?? '';
   const { data: epcisData } = useQuery({
-    queryKey: ['epcis-events', 'viewer', dppUuid],
-    queryFn: () => fetchEPCISEvents({ dpp_id: dppUuid, limit: 50 }, token),
-    enabled: !!dppUuid && !!token,
+    queryKey: ['epcis-events', 'viewer', resolvedTenant, dppUuid],
+    queryFn: () => fetchPublicEPCISEvents(resolvedTenant, dppUuid),
+    enabled: !!dppUuid && !!resolvedTenant,
   });
 
   if (isLoading) return <LoadingSpinner />;
