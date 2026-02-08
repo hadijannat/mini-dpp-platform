@@ -7,6 +7,7 @@ append-only — no update or delete endpoints per the EPCIS specification.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -134,7 +135,7 @@ async def query_events(
     event_type: EPCISEventType | None = None,
     ge_event_time: datetime | None = Query(None, alias="GE_eventTime"),
     lt_event_time: datetime | None = Query(None, alias="LT_eventTime"),
-    eq_action: str | None = Query(None, alias="EQ_action"),
+    eq_action: Literal["ADD", "OBSERVE", "DELETE"] | None = Query(None, alias="EQ_action"),
     eq_biz_step: str | None = Query(None, alias="EQ_bizStep"),
     eq_disposition: str | None = Query(None, alias="EQ_disposition"),
     match_epc: str | None = Query(None, alias="MATCH_epc"),

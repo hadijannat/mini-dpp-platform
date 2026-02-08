@@ -3,7 +3,7 @@ API Router for DPP (Digital Product Passport) endpoints.
 """
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, RootModel
 
 from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
+from app.core.logging import get_logger
 from app.core.security import check_access, require_access
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
@@ -22,6 +23,7 @@ from app.modules.masters.service import DPPMasterService
 from app.modules.templates.service import TemplateRegistryService
 from app.modules.webhooks.service import trigger_webhooks
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -152,6 +154,57 @@ class BulkRebuildResponse(BaseModel):
     errors: list[BulkRebuildError]
 
 
+class BatchImportItem(BaseModel):
+    """Single item in a batch import request."""
+
+    asset_ids: AssetIdsInput
+    selected_templates: list[str] = Field(default=["digital-nameplate"])
+    initial_data: dict[str, Any] | None = None
+
+
+class BatchImportRequest(BaseModel):
+    """Request model for batch DPP import."""
+
+    dpps: list[BatchImportItem] = Field(..., min_length=1, max_length=100)
+
+
+class BatchImportResultItem(BaseModel):
+    """Result for a single batch import item."""
+
+    index: int
+    dpp_id: UUID | None = None
+    status: str
+    error: str | None = None
+
+
+class BatchImportResponse(BaseModel):
+    """Response model for batch import results."""
+
+    total: int
+    succeeded: int
+    failed: int
+    results: list[BatchImportResultItem]
+
+
+class DiffEntry(BaseModel):
+    """Individual change between two revisions."""
+
+    path: str
+    operation: Literal["added", "removed", "changed"]
+    old_value: Any | None = None
+    new_value: Any | None = None
+
+
+class DPPDiffResult(BaseModel):
+    """Structured diff between two DPP revisions."""
+
+    from_rev: int
+    to_rev: int
+    added: list[DiffEntry]
+    removed: list[DiffEntry]
+    changed: list[DiffEntry]
+
+
 @router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
 async def create_dpp(
     body: CreateDPPRequest,
@@ -201,6 +254,7 @@ async def create_dpp(
         action="create",
         created_by=tenant.user.sub,
     )
+    await db.commit()
 
     await emit_audit_event(
         db_session=db,
@@ -227,6 +281,62 @@ async def create_dpp(
         qr_payload=dpp.qr_payload,
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
+    )
+
+
+@router.post("/batch-import", response_model=BatchImportResponse)
+async def batch_import_dpps(
+    body: BatchImportRequest,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> BatchImportResponse:
+    """
+    Batch create multiple DPPs.
+
+    Each item is created in its own savepoint — one failure does not rollback others.
+    Max 100 items per request.
+    """
+    await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
+    service = DPPService(db)
+    results: list[BatchImportResultItem] = []
+
+    for idx, item in enumerate(body.dpps):
+        try:
+            async with db.begin_nested():
+                dpp = await service.create_dpp(
+                    tenant_id=tenant.tenant_id,
+                    tenant_slug=tenant.tenant_slug,
+                    owner_subject=tenant.user.sub,
+                    asset_ids=item.asset_ids.model_dump(exclude_none=True),
+                    selected_templates=item.selected_templates,
+                    initial_data=item.initial_data,
+                )
+            results.append(BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok"))
+        except Exception as exc:
+            logger.warning("batch_import_item_failed", index=idx, exc_info=True)
+            results.append(BatchImportResultItem(index=idx, status="failed", error=str(exc)))
+
+    await db.commit()
+
+    succeeded = sum(1 for r in results if r.status == "ok")
+    failed = len(results) - succeeded
+
+    await emit_audit_event(
+        db_session=db,
+        action="batch_import",
+        resource_type="dpp",
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"total": len(body.dpps), "succeeded": succeeded, "failed": failed},
+    )
+
+    return BatchImportResponse(
+        total=len(body.dpps),
+        succeeded=succeeded,
+        failed=failed,
+        results=results,
     )
 
 
@@ -695,6 +805,7 @@ async def publish_dpp(
             action="publish",
             created_by=tenant.user.sub,
         )
+        await db.commit()
         await emit_audit_event(
             db_session=db,
             action="publish_dpp",
@@ -773,6 +884,7 @@ async def archive_dpp(
             action="archive",
             created_by=tenant.user.sub,
         )
+        await db.commit()
         await emit_audit_event(
             db_session=db,
             action="archive_dpp",
@@ -842,3 +954,43 @@ async def list_revisions(
         )
         for rev in dpp.revisions
     ]
+
+
+@router.get("/{dpp_id}/diff", response_model=DPPDiffResult)
+async def diff_revisions(
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+    from_rev: int = Query(..., alias="from", description="Source revision number"),
+    to_rev: int = Query(..., alias="to", description="Target revision number"),
+) -> DPPDiffResult:
+    """Compare two revisions of a DPP."""
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+
+    try:
+        result = await service.diff_revisions(
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            rev_a=from_rev,
+            rev_b=to_rev,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return DPPDiffResult(**result)

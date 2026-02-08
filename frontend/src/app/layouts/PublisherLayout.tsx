@@ -12,6 +12,8 @@ import {
   Users,
   ShieldCheck,
   Activity,
+  PackagePlus,
+  BarChart3,
   ScrollText,
   Webhook,
   ChevronLeft,
@@ -57,6 +59,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
   { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
+  { name: 'Batch Import', href: '/console/batch-import', icon: PackagePlus },
 ];
 
 function getInitials(name: string | undefined): string {
@@ -77,6 +80,7 @@ export default function PublisherLayout() {
   const navigation: NavItem[] = userIsAdmin
     ? [
         ...baseNavigation,
+        { name: 'Admin', href: '/console/admin', icon: BarChart3 },
         { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
         { name: 'Webhooks', href: '/console/webhooks', icon: Webhook },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
