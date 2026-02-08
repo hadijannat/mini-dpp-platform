@@ -47,6 +47,7 @@ const LINK_TYPES = [
   'gs1:support',
   'gs1:registration',
   'gs1:recallStatus',
+  'iec61406:identificationLink',
 ] as const;
 
 interface ResolverLink {
@@ -69,10 +70,12 @@ interface ResolverLink {
 function linkTypeBadgeVariant(linkType: string): 'default' | 'secondary' | 'outline' {
   if (linkType === 'gs1:hasDigitalProductPassport') return 'default';
   if (linkType === 'gs1:defaultLink') return 'secondary';
+  if (linkType.startsWith('iec61406:')) return 'default';
   return 'outline';
 }
 
 function linkTypeLabel(linkType: string): string {
+  if (linkType.startsWith('iec61406:')) return linkType.replace('iec61406:', '');
   return linkType.replace('gs1:', '');
 }
 

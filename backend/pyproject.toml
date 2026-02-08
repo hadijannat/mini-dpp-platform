@@ -137,6 +137,11 @@ testpaths = ["tests"]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+markers = [
+    "e2e: end-to-end tests requiring running backend",
+    "golden: golden file hash tests (require IDTA GitHub access)",
+    "conformance: AAS conformance tests using aas-test-engines",
+]
 
 [tool.bandit]
 targets = ["app"]

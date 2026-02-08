@@ -139,7 +139,17 @@ async function publishDPP(dppId: string, token?: string) {
   return response.json();
 }
 
-async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', token?: string) {
+type ExportFormat = 'json' | 'aasx' | 'pdf' | 'jsonld' | 'turtle';
+
+const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
+  json: 'json',
+  aasx: 'aasx',
+  pdf: 'pdf',
+  jsonld: 'jsonld',
+  turtle: 'ttl',
+};
+
+async function downloadExport(dppId: string, format: ExportFormat, token?: string) {
   const response = await tenantApiFetch(`/export/${dppId}?format=${format}`, {}, token);
   if (!response.ok) {
     throw new Error(
@@ -150,7 +160,7 @@ async function downloadExport(dppId: string, format: 'json' | 'aasx' | 'pdf', to
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `dpp-${dppId}.${format === 'json' ? 'json' : format}`;
+  link.download = `dpp-${dppId}.${EXPORT_EXTENSIONS[format]}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -260,7 +270,7 @@ export default function DPPEditorPage() {
     );
   }
 
-  const handleExport = async (format: 'json' | 'aasx' | 'pdf') => {
+  const handleExport = async (format: ExportFormat) => {
     setActionError(null);
     try {
       await downloadExport(dpp.id, format, token);
@@ -335,6 +345,12 @@ export default function DPPEditorPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { void handleExport('aasx'); }}>
                   Export AASX
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { void handleExport('jsonld'); }}>
+                  Export JSON-LD
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { void handleExport('turtle'); }}>
+                  Export Turtle
                 </DropdownMenuItem>
                 {dpp.status === 'published' && (
                   <>

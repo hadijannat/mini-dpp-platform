@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { Plus, TestTube, CheckCircle, XCircle, AlertCircle, Link2 } from 'lucide-react';
+import { Plus, TestTube, Send, CheckCircle, XCircle, AlertCircle, Link2 } from 'lucide-react';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
 import { PageHeader } from '@/components/page-header';
@@ -26,6 +26,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
 
 async function fetchConnectors(token?: string) {
@@ -58,9 +65,35 @@ async function testConnector(connectorId: string, token?: string) {
   return response.json();
 }
 
+async function publishToConnector(connectorId: string, dppId: string, token?: string) {
+  const response = await tenantApiFetch(`/connectors/${connectorId}/publish/${dppId}`, {
+    method: 'POST',
+  }, token);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to publish to DTR'));
+  }
+  return response.json();
+}
+
+interface DPPSummary {
+  id: string;
+  status: string;
+  asset_ids?: { manufacturerPartId?: string };
+}
+
+async function fetchPublishedDPPs(token?: string) {
+  const response = await tenantApiFetch('/dpps?status=published&limit=200', {}, token);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to load DPPs'));
+  }
+  return response.json() as Promise<{ dpps: DPPSummary[] }>;
+}
+
 export default function ConnectorsPage() {
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [publishConnectorId, setPublishConnectorId] = useState<string | null>(null);
+  const [selectedDppId, setSelectedDppId] = useState('');
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
@@ -86,7 +119,24 @@ export default function ConnectorsPage() {
     },
   });
 
+  const publishMutation = useMutation({
+    mutationFn: ({ connectorId, dppId }: { connectorId: string; dppId: string }) =>
+      publishToConnector(connectorId, dppId, token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['connectors', tenantSlug] });
+      setPublishConnectorId(null);
+      setSelectedDppId('');
+    },
+  });
+
+  const { data: publishedDppsData } = useQuery({
+    queryKey: ['published-dpps-connectors', tenantSlug],
+    queryFn: () => fetchPublishedDPPs(token),
+    enabled: Boolean(token) && publishConnectorId !== null,
+  });
+
   const pageError =
+    (publishMutation.error as Error | undefined) ??
     (testMutation.error as Error | undefined) ??
     (createMutation.error as Error | undefined) ??
     (isError ? (error as Error) : undefined);
@@ -241,7 +291,7 @@ export default function ConnectorsPage() {
                       ? new Date(connector.last_tested_at).toLocaleString()
                       : 'Never'}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right space-x-1">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -250,6 +300,14 @@ export default function ConnectorsPage() {
                     >
                       <TestTube className="h-4 w-4 mr-1" />
                       Test
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPublishConnectorId(connector.id)}
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      Publish
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -265,6 +323,64 @@ export default function ConnectorsPage() {
           )}
         </Card>
       )}
+
+      {/* Publish to DTR Dialog */}
+      <Dialog
+        open={publishConnectorId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPublishConnectorId(null);
+            setSelectedDppId('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Publish DPP to DTR</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="publish-dpp">Published DPP</Label>
+              <Select value={selectedDppId} onValueChange={setSelectedDppId}>
+                <SelectTrigger id="publish-dpp">
+                  <SelectValue placeholder="Select a published DPP" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(publishedDppsData?.dpps ?? []).map((dpp: DPPSummary) => (
+                    <SelectItem key={dpp.id} value={dpp.id}>
+                      {dpp.asset_ids?.manufacturerPartId || dpp.id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPublishConnectorId(null);
+                setSelectedDppId('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (publishConnectorId && selectedDppId) {
+                  void publishMutation.mutateAsync({
+                    connectorId: publishConnectorId,
+                    dppId: selectedDppId,
+                  });
+                }
+              }}
+              disabled={!selectedDppId || publishMutation.isPending}
+            >
+              {publishMutation.isPending ? 'Publishing...' : 'Publish'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
