@@ -7,6 +7,22 @@ resolution-markers = [
 ]
 
 [[package]]
+name = "aas-test-engines"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fences" },
+    { name = "json-schema-tool" },
+    { name = "jsonpath-ng" },
+    { name = "pyyaml" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c8/8b/91465d446e8479dbbb5649d068fee1836a5f4b4756560513d80abf46df9e/aas_test_engines-1.0.3.tar.gz", hash = "sha256:6f05ef6c87ad2ff6a80c18c94d71047d39074f89824c940681bfd2759a231634", size = 56849, upload-time = "2025-08-05T08:51:54.745Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/03/a85b786431668c83ece17ce0d75f41267f9657beb54fc91dbc3096b6a47d/aas_test_engines-1.0.3-py3-none-any.whl", hash = "sha256:06a9fc998313af6b9f2cb912e0268d67861a173ff87b9f8fe8e13c369df0257f", size = 59837, upload-time = "2025-08-05T08:51:53.691Z" },
+]
+
+[[package]]
 name = "alembic"
 version = "1.17.2"
 source = { registry = "https://pypi.org/simple" }
@@ -587,6 +603,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fences"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a3/9f/4db8ac8c1c60b504b05033a776cab5b1801404cb9dbce3ae4352dc8888c9/fences-1.4.0.tar.gz", hash = "sha256:ec8ba50f588667328d5ff2cf6740ebb2ad91db00912ff96f302c84915ae5e275", size = 65665, upload-time = "2024-10-01T22:12:29.398Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/55/e38c32a5f1ce2a7ededb8b44ff05940ba3bd3e1e0c8229e7bfc7fa90e45d/fences-1.4.0-py3-none-any.whl", hash = "sha256:ab25ce3a7c948de8724cd3a664800ba4f72835b2d4c330cb251e95e3a24226c0", size = 70901, upload-time = "2024-10-01T22:12:28.25Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.20.3"
 source = { registry = "https://pypi.org/simple" }
@@ -840,6 +868,27 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc35312d08ba8bf51fdd999c576889fc2c24cb97f4f10/iniconfig-2.3.0.tar.gz", hash = "sha256:c76315c77db068650d49c5b56314774a7804df16fee4402c1f19d6d15d8c4730", size = 20503, upload-time = "2025-10-18T21:55:43.219Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
+]
+
+[[package]]
+name = "json-schema-tool"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/80/65232d7dea33c876c17e46cb61ced5a1c3880d0f7cf160c4b2b94160f6f1/json_schema_tool-0.4.0.tar.gz", hash = "sha256:2b90109a44ae3fe6237e8da9ff313aff2eb48a4ad367ca1734e9860110f9ffb7", size = 18759, upload-time = "2024-07-19T10:31:24.2Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cd/0c/b6e940d93ffd6b50bad262d20f7eaeaa1dc9f4e28a84574d52daed9fed5c/json_schema_tool-0.4.0-py3-none-any.whl", hash = "sha256:140414cfffd270e3b8f0eef22213c122c60cb5a112edf9596f5816b3aff7ad59", size = 16487, upload-time = "2024-07-19T10:31:21.613Z" },
+]
+
+[[package]]
+name = "jsonpath-ng"
+version = "1.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "ply" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/86/08646239a313f895186ff0a4573452038eed8c86f54380b3ebac34d32fb2/jsonpath-ng-1.7.0.tar.gz", hash = "sha256:f6f5f7fd4e5ff79c785f1573b394043b39849fb2bb47bcead935d12b00beab3c", size = 37838, upload-time = "2024-10-11T15:41:42.404Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/35/5a/73ecb3d82f8615f32ccdadeb9356726d6cae3a4bbc840b437ceb95708063/jsonpath_ng-1.7.0-py3-none-any.whl", hash = "sha256:f3d7f9e848cba1b6da28c55b1c26ff915dc9e0b1ba7e752a53d6da8d5cbd00b6", size = 30105, upload-time = "2024-11-20T17:58:30.418Z" },
 ]
 
 [[package]]
@@ -1127,6 +1176,7 @@ dev = [
     { name = "ruff" },
 ]
 test = [
+    { name = "aas-test-engines" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
@@ -1140,6 +1190,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aas-test-engines", marker = "extra == 'test'", specifier = ">=0.6.0" },
     { name = "alembic", specifier = ">=1.13.0" },
     { name = "asn1crypto", specifier = ">=1.5.0" },
     { name = "asyncpg", specifier = ">=0.29.0" },
@@ -1427,6 +1478,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f9/e2/3e91f31a7d2b083fe6ef3fa267035b518369d9511ffab804f839851d2779/pluggy-1.6.0.tar.gz", hash = "sha256:7dcc130b76258d33b90f61b658791dede3486c3e6bfb003ee5c9bfb396dd22f3", size = 69412, upload-time = "2025-05-15T12:30:07.975Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/20/4d324d65cc6d9205fabedc306948156824eb9f0ee1633355a8f7ec5c66bf/pluggy-1.6.0-py3-none-any.whl", hash = "sha256:e920276dd6813095e9377c0bc5566d94c932c33b27a3e3945d8389c374dd4746", size = 20538, upload-time = "2025-05-15T12:30:06.134Z" },
+]
+
+[[package]]
+name = "ply"
+version = "3.11"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/69/882ee5c9d017149285cab114ebeab373308ef0f874fcdac9beb90e0ac4da/ply-3.11.tar.gz", hash = "sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3", size = 159130, upload-time = "2018-02-15T19:01:31.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/58/35da89ee790598a0700ea49b2a66594140f44dec458c07e8e3d4979137fc/ply-3.11-py2.py3-none-any.whl", hash = "sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce", size = 49567, upload-time = "2018-02-15T19:01:27.172Z" },
 ]
 
 [[package]]

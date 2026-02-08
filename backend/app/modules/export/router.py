@@ -33,7 +33,9 @@ async def export_dpp(
     request: Request,
     db: DbSession,
     tenant: TenantContextDep,
-    format: Literal["json", "aasx", "pdf"] = Query("json", description="Export format"),
+    format: Literal["json", "aasx", "pdf", "jsonld", "turtle"] = Query(
+        "json", description="Export format"
+    ),
     aasx_serialization: Literal["json", "xml"] = Query(
         "json", description="Serialization format inside AASX package (json or xml)"
     ),
@@ -154,6 +156,44 @@ async def export_dpp(
             media_type="application/asset-administration-shell-package+xml",
             headers={
                 "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.aasx"',
+            },
+        )
+    elif format == "jsonld":
+        content = export_service.export_jsonld(revision)
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
+        return Response(
+            content=content,
+            media_type="application/ld+json",
+            headers={
+                "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.jsonld"',
+            },
+        )
+    elif format == "turtle":
+        content = export_service.export_turtle(revision)
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
+        return Response(
+            content=content,
+            media_type="text/turtle",
+            headers={
+                "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.ttl"',
             },
         )
     elif format == "pdf":

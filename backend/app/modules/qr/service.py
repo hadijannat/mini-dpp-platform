@@ -212,6 +212,23 @@ class QRCodeService:
 
         return pdf_buffer.read()
 
+    def build_iec61406_link(self, asset_ids: dict[str, str], base_url: str) -> str:
+        """Build an IEC 61406 identification link URL.
+
+        Encodes ``manufacturerPartId`` and ``serialNumber`` as query
+        parameters on the given *base_url*.
+
+        Args:
+            asset_ids: DPP asset identifiers dict.
+            base_url: Base URL of the DPP resource.
+
+        Returns:
+            IEC 61406 identification link URL.
+        """
+        manufacturer = asset_ids.get("manufacturerPartId", "")
+        serial = asset_ids.get("serialNumber", "")
+        return f"{base_url.rstrip('/')}?mid={quote(manufacturer)}&sn={quote(serial)}"
+
     def build_dpp_url(
         self,
         dpp_id: str,

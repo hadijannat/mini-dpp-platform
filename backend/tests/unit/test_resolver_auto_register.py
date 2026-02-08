@@ -61,14 +61,14 @@ class TestAutoRegisterForDPP:
         tenant_id,
         created_by: str,
     ) -> None:
-        """DPP with valid GTIN+serial gets a resolver link created."""
+        """DPP with valid GTIN+serial gets resolver links created (GS1 + IEC 61406)."""
         mock_qr = MagicMock()
         mock_qr.extract_gtin_from_asset_ids.return_value = ("09520123456788", "SER001", False)
         mock_qr_cls.return_value = mock_qr
 
         dpp = _make_dpp()
 
-        # No existing link
+        # No existing links (GS1 check + IEC 61406 check)
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = None
         mock_session.execute = AsyncMock(return_value=mock_result)
@@ -81,14 +81,18 @@ class TestAutoRegisterForDPP:
             base_url="https://example.com",
         )
 
-        mock_session.add.assert_called_once()
-        added_link = mock_session.add.call_args[0][0]
-        assert added_link.identifier == "01/09520123456788/21/SER001"
-        assert added_link.link_type == "gs1:hasDigitalProductPassport"
-        assert added_link.tenant_id == tenant_id
-        assert added_link.created_by_subject == created_by
-        assert str(dpp.id) in added_link.href
-        mock_session.flush.assert_awaited_once()
+        # Two links added: GS1 DPP + IEC 61406
+        assert mock_session.add.call_count == 2
+        gs1_link = mock_session.add.call_args_list[0][0][0]
+        assert gs1_link.identifier == "01/09520123456788/21/SER001"
+        assert gs1_link.link_type == "gs1:hasDigitalProductPassport"
+        assert gs1_link.tenant_id == tenant_id
+        assert gs1_link.created_by_subject == created_by
+        assert str(dpp.id) in gs1_link.href
+
+        iec_link = mock_session.add.call_args_list[1][0][0]
+        assert iec_link.link_type == "iec61406:identificationLink"
+        assert iec_link.tenant_id == tenant_id
 
     @pytest.mark.asyncio()
     @patch("app.modules.qr.service.QRCodeService")
@@ -190,15 +194,19 @@ class TestAutoRegisterForDPP:
 
         dpp = _make_dpp(tenant_slug=None)
 
-        # First execute: check for existing link (none found)
+        # 1: check for existing GS1 link (none)
         no_link_result = MagicMock()
         no_link_result.scalar_one_or_none.return_value = None
-
-        # Second execute: tenant slug lookup
+        # 2: tenant slug lookup
         tenant_slug_result = MagicMock()
         tenant_slug_result.scalar_one_or_none.return_value = "my-tenant"
+        # 3: check for existing IEC 61406 link (none)
+        no_iec_result = MagicMock()
+        no_iec_result.scalar_one_or_none.return_value = None
 
-        mock_session.execute = AsyncMock(side_effect=[no_link_result, tenant_slug_result])
+        mock_session.execute = AsyncMock(
+            side_effect=[no_link_result, tenant_slug_result, no_iec_result]
+        )
 
         svc = ResolverService(mock_session)
         await svc.auto_register_for_dpp(
@@ -208,9 +216,9 @@ class TestAutoRegisterForDPP:
             base_url="https://example.com",
         )
 
-        mock_session.add.assert_called_once()
-        added_link = mock_session.add.call_args[0][0]
-        assert "/my-tenant/" in added_link.href
+        assert mock_session.add.call_count == 2
+        gs1_link = mock_session.add.call_args_list[0][0][0]
+        assert "/my-tenant/" in gs1_link.href
 
     @pytest.mark.asyncio()
     @patch("app.modules.qr.service.QRCodeService")
@@ -228,14 +236,17 @@ class TestAutoRegisterForDPP:
 
         dpp = _make_dpp(tenant_slug=None)
 
-        # First: no existing link; Second: no tenant found
+        # 1: no existing GS1 link; 2: no tenant found; 3: no IEC link
         no_link_result = MagicMock()
         no_link_result.scalar_one_or_none.return_value = None
-
         no_tenant_result = MagicMock()
         no_tenant_result.scalar_one_or_none.return_value = None
+        no_iec_result = MagicMock()
+        no_iec_result.scalar_one_or_none.return_value = None
 
-        mock_session.execute = AsyncMock(side_effect=[no_link_result, no_tenant_result])
+        mock_session.execute = AsyncMock(
+            side_effect=[no_link_result, no_tenant_result, no_iec_result]
+        )
 
         svc = ResolverService(mock_session)
         await svc.auto_register_for_dpp(
@@ -245,9 +256,9 @@ class TestAutoRegisterForDPP:
             base_url="https://example.com",
         )
 
-        mock_session.add.assert_called_once()
-        added_link = mock_session.add.call_args[0][0]
-        assert "/default/" in added_link.href
+        assert mock_session.add.call_count == 2
+        gs1_link = mock_session.add.call_args_list[0][0][0]
+        assert "/default/" in gs1_link.href
 
     @pytest.mark.asyncio()
     @patch("app.modules.qr.service.QRCodeService")
@@ -277,6 +288,6 @@ class TestAutoRegisterForDPP:
             base_url="https://dpp.example.com/",
         )
 
-        added_link = mock_session.add.call_args[0][0]
+        gs1_link = mock_session.add.call_args_list[0][0][0]
         expected_href = f"https://dpp.example.com/api/v1/public/acme/dpps/{dpp.id}"
-        assert added_link.href == expected_href
+        assert gs1_link.href == expected_href

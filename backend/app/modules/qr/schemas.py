@@ -71,6 +71,15 @@ class GS1DigitalLinkResponse(BaseModel):
     )
 
 
+class IEC61406LinkResponse(BaseModel):
+    """Response model for IEC 61406 identification link generation."""
+
+    dpp_id: UUID
+    identification_link: str = Field(description="IEC 61406 identification link URL")
+    manufacturer_part_id: str = Field(default="", description="Manufacturer part ID")
+    serial_number: str = Field(default="", description="Serial number")
+
+
 class CarrierBatchRequest(BaseModel):
     """Request model for batch carrier generation."""
 

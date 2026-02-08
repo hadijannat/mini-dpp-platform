@@ -1,7 +1,8 @@
-"""AAS environment serialization to JSON-LD and XML formats.
+"""AAS environment serialization to JSON-LD, Turtle (RDF), and XML formats.
 
 Provides conversion from AAS environment dicts to:
 - **JSON-LD** using rdflib for Linked Data interoperability
+- **Turtle** (RDF) via rdflib graph serialization
 - **XML** using BaSyx's built-in XML serializer
 """
 
@@ -11,6 +12,7 @@ import io
 import json
 from typing import Any
 
+import rdflib
 from basyx.aas import model
 from basyx.aas.adapter import json as basyx_json
 from basyx.aas.adapter import xml as basyx_xml
@@ -93,6 +95,27 @@ def aas_to_jsonld(aas_env: dict[str, Any]) -> dict[str, Any]:
         "@type": "aas:Environment",
         "@graph": graph,
     }
+
+
+def aas_to_turtle(aas_env: dict[str, Any]) -> str:
+    """Convert an AAS environment dict to Turtle (RDF) format.
+
+    Generates JSON-LD first, then parses it into an rdflib graph and
+    serializes as Turtle.  This reuses the JSON-LD mapping so that the
+    resulting RDF triples are identical regardless of the output format.
+
+    Args:
+        aas_env: AAS environment as a JSON-compatible dict.
+
+    Returns:
+        A Turtle-serialized string of the RDF graph.
+    """
+    jsonld = aas_to_jsonld(aas_env)
+    jsonld_str = json.dumps(jsonld)
+    g = rdflib.Graph()
+    g.parse(data=jsonld_str, format="json-ld")
+    result: str = g.serialize(format="turtle")
+    return result
 
 
 def aas_to_xml(aas_env: dict[str, Any]) -> bytes:

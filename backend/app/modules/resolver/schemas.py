@@ -23,6 +23,7 @@ class LinkType(str, Enum):
     SUPPORT = "gs1:support"
     REGISTRATION = "gs1:registration"
     RECALL_STATUS = "gs1:recallStatus"
+    IEC61406_ID = "iec61406:identificationLink"
 
 
 class ResolverLinkCreate(BaseModel):

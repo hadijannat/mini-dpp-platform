@@ -15,11 +15,12 @@ from app.modules.aas.references import (
     reference_to_dict,
     reference_to_str,
 )
-from app.modules.aas.serialization import aas_to_jsonld, aas_to_xml
+from app.modules.aas.serialization import aas_to_jsonld, aas_to_turtle, aas_to_xml
 
 __all__ = [
     "AASValidationResult",
     "aas_to_jsonld",
+    "aas_to_turtle",
     "aas_to_xml",
     "clear_parent",
     "clone_identifiable",
