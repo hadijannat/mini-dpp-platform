@@ -1,4 +1,4 @@
-import { Fingerprint, FlaskConical, Leaf, ShieldCheck, Wrench, type LucideIcon } from 'lucide-react';
+import { Fingerprint, FlaskConical, Leaf, ShieldCheck, Wrench, Route, type LucideIcon } from 'lucide-react';
 
 /**
  * Maps IDTA/Catena-X semantic IDs to ESPR category IDs.
@@ -83,6 +83,15 @@ export const ESPR_CATEGORIES: ESPRCategory[] = [
       'repair', 'maintenance', 'sparepart', 'handover', 'documentation',
       'endoflife', 'disassembly', 'recycling', 'disposal', 'lifetime',
       'warranty', 'instruction', 'durability',
+    ],
+  },
+  {
+    id: 'traceability',
+    label: 'Supply Chain',
+    icon: Route,
+    description: 'Supply chain journey and traceability events',
+    patterns: [
+      'traceability', 'supplychain', 'epcis', 'journey',
     ],
   },
 ];

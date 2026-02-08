@@ -2,13 +2,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
+import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { getTenantSlug } from '@/lib/tenant';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { ErrorBanner } from '@/components/error-banner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Activity } from 'lucide-react';
 import { DPPHeader } from '../components/DPPHeader';
 import { ESPRTabs } from '../components/ESPRTabs';
 import { RawSubmodelTree } from '../components/RawSubmodelTree';
@@ -41,6 +43,14 @@ export default function DPPViewerPage() {
     enabled: !!id && !!resolvedTenant,
   });
 
+  // EPCIS events — fetched using the DPP's UUID once loaded
+  const dppUuid = (dpp?.id as string) ?? '';
+  const { data: epcisData } = useQuery({
+    queryKey: ['epcis-events', 'viewer', dppUuid],
+    queryFn: () => fetchEPCISEvents({ dpp_id: dppUuid, limit: 50 }, token),
+    enabled: !!dppUuid && !!token,
+  });
+
   if (isLoading) return <LoadingSpinner />;
 
   if (error) {
@@ -67,6 +77,7 @@ export default function DPPViewerPage() {
   const classified = classifySubmodelElements(submodels);
   const productName =
     (dpp.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
+  const epcisEvents = epcisData?.eventList ?? [];
 
   return (
     <div className="space-y-6">
@@ -88,6 +99,24 @@ export default function DPPViewerPage() {
           </CardHeader>
           <CardContent>
             <ESPRTabs classified={classified} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Supply Chain Traceability */}
+      {epcisEvents.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Supply Chain Journey
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              EPCIS 2.0 traceability events for this product
+            </p>
+          </CardHeader>
+          <CardContent>
+            <EPCISTimeline events={epcisEvents} />
           </CardContent>
         </Card>
       )}

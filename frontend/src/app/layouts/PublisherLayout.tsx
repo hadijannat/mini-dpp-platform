@@ -11,6 +11,7 @@ import {
   Settings,
   Users,
   ShieldCheck,
+  Activity,
   ScrollText,
   ChevronLeft,
   ChevronRight,
@@ -54,6 +55,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Data Carriers', href: '/console/carriers', icon: QrCode },
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
+  { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
 ];
 
 function getInitials(name: string | undefined): string {

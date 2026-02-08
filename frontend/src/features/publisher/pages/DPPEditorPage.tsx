@@ -2,8 +2,11 @@ import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
+import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
+import { CaptureDialog } from '@/features/epcis/components/CaptureDialog';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 import { PageHeader } from '@/components/page-header';
@@ -181,6 +184,7 @@ export default function DPPEditorPage() {
   const [tenantSlug] = useTenantSlug();
   const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [captureOpen, setCaptureOpen] = useState(false);
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
@@ -192,6 +196,12 @@ export default function DPPEditorPage() {
     queryKey: ['templates'],
     queryFn: () => fetchTemplates(token),
     enabled: Boolean(token),
+  });
+
+  const { data: epcisData } = useQuery({
+    queryKey: ['epcis-events', dppId],
+    queryFn: () => fetchEPCISEvents({ dpp_id: dppId!, limit: 50 }, token),
+    enabled: Boolean(token && dppId),
   });
 
   const publishMutation = useMutation({
@@ -518,6 +528,38 @@ export default function DPPEditorPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Supply Chain Events */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Supply Chain
+            {(epcisData?.eventList?.length ?? 0) > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {epcisData!.eventList.length}
+              </Badge>
+            )}
+          </CardTitle>
+          {dpp.status === 'draft' && (
+            <Button variant="outline" size="sm" onClick={() => setCaptureOpen(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Capture Event
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <EPCISTimeline events={epcisData?.eventList ?? []} />
+        </CardContent>
+      </Card>
+
+      {captureOpen && dppId && (
+        <CaptureDialog
+          open={captureOpen}
+          onOpenChange={setCaptureOpen}
+          dppId={dppId}
+        />
       )}
     </div>
   );
