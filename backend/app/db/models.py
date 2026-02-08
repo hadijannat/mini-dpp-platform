@@ -1649,7 +1649,7 @@ class ShellDescriptorRecord(TenantScopedMixin, Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "aas_id", name="uq_shell_descriptors_tenant_aas_id"),
-        Index("ix_shell_descriptors_tenant_id", "tenant_id"),
+        # tenant_id index is auto-created by TenantScopedMixin (index=True)
         Index(
             "ix_shell_descriptors_specific_asset_ids",
             "specific_asset_ids",

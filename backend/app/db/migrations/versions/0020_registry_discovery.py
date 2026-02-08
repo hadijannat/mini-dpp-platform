@@ -66,7 +66,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_index("ix_shell_descriptors_tenant_id", "shell_descriptors", ["tenant_id"])
+    # tenant_id index is auto-created by TenantScopedMixin (index=True)
     op.create_index(
         "ix_shell_descriptors_specific_asset_ids",
         "shell_descriptors",
