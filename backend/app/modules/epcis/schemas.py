@@ -308,7 +308,7 @@ class EPCISQueryParams(BaseModel):
     event_type: EPCISEventType | None = None
     ge_event_time: datetime | None = None
     lt_event_time: datetime | None = None
-    eq_action: str | None = None
+    eq_action: Literal["ADD", "OBSERVE", "DELETE"] | None = None
     eq_biz_step: str | None = None
     eq_disposition: str | None = None
     match_epc: str | None = None
