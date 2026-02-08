@@ -368,3 +368,406 @@ class TestEPCISFilterByType:
         filtered = filt.json()["eventList"]
         assert len(filtered) == 1
         assert filtered[0]["event_type"] == "ObjectEvent"
+
+
+# ---------------------------------------------------------------------------
+# Named query endpoint tests
+# ---------------------------------------------------------------------------
+
+
+def _transformation_event_doc() -> dict:
+    return {
+        "@context": ["https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"],
+        "type": "EPCISDocument",
+        "schemaVersion": "2.0",
+        "creationDate": "2026-02-07T12:00:00Z",
+        "epcisBody": {
+            "eventList": [
+                {
+                    "type": "TransformationEvent",
+                    "eventTime": "2026-02-07T12:00:00Z",
+                    "eventTimeZoneOffset": "+01:00",
+                    "inputEPCList": ["urn:epc:id:sgtin:0614141.107346.IN01"],
+                    "outputEPCList": ["urn:epc:id:sgtin:0614141.107346.OUT01"],
+                    "bizStep": "commissioning",
+                    "disposition": "active",
+                }
+            ]
+        },
+    }
+
+
+@pytest.mark.e2e
+class TestNamedQueryEndpoints:
+    """HTTP-level tests for EPCIS named query CRUD + execution."""
+
+    def test_create_named_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+        dpp_id: str,
+    ) -> None:
+        """POST /queries → 201, verify response shape."""
+        resp = api_client.post(
+            f"{epcis_base}/queries",
+            json={
+                "name": "test-commissioning",
+                "description": "Find commissioning events",
+                "query_params": {
+                    "eq_biz_step": "commissioning",
+                    "dpp_id": dpp_id,
+                },
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["name"] == "test-commissioning"
+        assert body["description"] == "Find commissioning events"
+        assert "id" in body
+        assert "query_params" in body
+        assert "created_at" in body
+
+    def test_create_duplicate_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+        dpp_id: str,
+    ) -> None:
+        """POST same name → 409."""
+        resp = api_client.post(
+            f"{epcis_base}/queries",
+            json={
+                "name": "test-commissioning",
+                "query_params": {"dpp_id": dpp_id},
+            },
+        )
+        assert resp.status_code == 409, resp.text
+
+    def test_list_named_queries(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+    ) -> None:
+        """GET /queries → 200, verify list contains created query."""
+        resp = api_client.get(f"{epcis_base}/queries")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert isinstance(body, list)
+        names = [q["name"] for q in body]
+        assert "test-commissioning" in names
+
+    def test_execute_named_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+    ) -> None:
+        """GET /queries/{name}/events → 200, verify result shape."""
+        resp = api_client.get(f"{epcis_base}/queries/test-commissioning/events")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert "eventList" in body
+        assert isinstance(body["eventList"], list)
+
+    def test_execute_nonexistent_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+    ) -> None:
+        """GET /queries/missing/events → 404."""
+        resp = api_client.get(f"{epcis_base}/queries/no-such-query/events")
+        assert resp.status_code == 404, resp.text
+
+    def test_delete_named_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+    ) -> None:
+        """DELETE /queries/{name} → 204."""
+        resp = api_client.delete(f"{epcis_base}/queries/test-commissioning")
+        assert resp.status_code == 204, resp.text
+
+    def test_delete_nonexistent_query(
+        self,
+        api_client: httpx.Client,
+        epcis_base: str,
+    ) -> None:
+        """DELETE /queries/missing → 404."""
+        resp = api_client.delete(f"{epcis_base}/queries/no-such-query")
+        assert resp.status_code == 404, resp.text
+
+
+# ---------------------------------------------------------------------------
+# JSONB query filter integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.e2e
+class TestEPCISQueryFilters:
+    """Integration tests for JSONB-based query filters across event types."""
+
+    @pytest.fixture(autouse=True)
+    def _setup_filter_data(
+        self,
+        runtime,
+        api_client: httpx.Client,
+    ) -> None:
+        """Create a DPP and capture diverse events for filter testing."""
+        slug = runtime.tenant_slug
+        self.slug = slug
+
+        # Create DPP
+        create = api_client.post(
+            f"/api/v1/tenants/{slug}/dpps",
+            json={
+                "asset_ids": {
+                    "manufacturerPartId": "EPCIS-JSONB-E2E",
+                    "serialNumber": "EPCIS-JSONB-SN-001",
+                },
+                "selected_templates": ["digital-nameplate"],
+            },
+        )
+        assert create.status_code in (200, 201), create.text
+        self.filter_dpp_id = _extract_dpp_id(create.json())
+        self.epcis_base = f"/api/v1/tenants/{slug}/epcis"
+
+        # Capture ObjectEvent with epcList + action=ADD
+        obj_doc = {
+            "@context": ["https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"],
+            "type": "EPCISDocument",
+            "schemaVersion": "2.0",
+            "creationDate": "2026-02-07T10:00:00Z",
+            "epcisBody": {
+                "eventList": [
+                    {
+                        "type": "ObjectEvent",
+                        "eventTime": "2026-02-07T10:00:00Z",
+                        "eventTimeZoneOffset": "+01:00",
+                        "epcList": ["urn:epc:id:sgtin:0614141.107346.JSONB01"],
+                        "action": "ADD",
+                        "bizStep": "commissioning",
+                        "disposition": "active",
+                    }
+                ]
+            },
+        }
+        r1 = api_client.post(
+            f"{self.epcis_base}/capture?dpp_id={self.filter_dpp_id}",
+            json=obj_doc,
+        )
+        assert r1.status_code == 202, r1.text
+
+        # Capture AggregationEvent with childEPCs + parentID
+        agg_doc = {
+            "@context": ["https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"],
+            "type": "EPCISDocument",
+            "schemaVersion": "2.0",
+            "creationDate": "2026-02-07T11:00:00Z",
+            "epcisBody": {
+                "eventList": [
+                    {
+                        "type": "AggregationEvent",
+                        "eventTime": "2026-02-07T11:00:00Z",
+                        "eventTimeZoneOffset": "+01:00",
+                        "parentID": "urn:epc:id:sscc:0614141.JSONB_PARENT",
+                        "childEPCs": ["urn:epc:id:sgtin:0614141.107346.JSONB01"],
+                        "action": "OBSERVE",
+                        "bizStep": "packing",
+                        "disposition": "in_progress",
+                    }
+                ]
+            },
+        }
+        r2 = api_client.post(
+            f"{self.epcis_base}/capture?dpp_id={self.filter_dpp_id}",
+            json=agg_doc,
+        )
+        assert r2.status_code == 202, r2.text
+
+        # Capture TransformationEvent with input/output EPCs
+        trans_doc = {
+            "@context": ["https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"],
+            "type": "EPCISDocument",
+            "schemaVersion": "2.0",
+            "creationDate": "2026-02-07T12:00:00Z",
+            "epcisBody": {
+                "eventList": [
+                    {
+                        "type": "TransformationEvent",
+                        "eventTime": "2026-02-07T12:00:00Z",
+                        "eventTimeZoneOffset": "+01:00",
+                        "inputEPCList": ["urn:epc:id:sgtin:0614141.107346.INPUT01"],
+                        "outputEPCList": ["urn:epc:id:sgtin:0614141.107346.OUTPUT01"],
+                        "bizStep": "commissioning",
+                        "disposition": "active",
+                    }
+                ]
+            },
+        }
+        r3 = api_client.post(
+            f"{self.epcis_base}/capture?dpp_id={self.filter_dpp_id}",
+            json=trans_doc,
+        )
+        assert r3.status_code == 202, r3.text
+
+    def test_match_any_epc_finds_across_lists(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """MATCH_anyEPC finds EPC in both epcList and childEPCs."""
+        epc = "urn:epc:id:sgtin:0614141.107346.JSONB01"
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "MATCH_anyEPC": epc,
+                "dpp_id": self.filter_dpp_id,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        events = resp.json()["eventList"]
+        # Should find in ObjectEvent (epcList) and AggregationEvent (childEPCs)
+        assert len(events) >= 2
+        types = {e["event_type"] for e in events}
+        assert "ObjectEvent" in types
+        assert "AggregationEvent" in types
+
+    def test_match_parent_id(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """MATCH_parentID finds AggregationEvent by parentID."""
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "MATCH_parentID": "urn:epc:id:sscc:0614141.JSONB_PARENT",
+                "dpp_id": self.filter_dpp_id,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        events = resp.json()["eventList"]
+        assert len(events) == 1
+        assert events[0]["event_type"] == "AggregationEvent"
+
+    def test_match_input_epc(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """MATCH_inputEPC finds TransformationEvent by input EPC."""
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "MATCH_inputEPC": "urn:epc:id:sgtin:0614141.107346.INPUT01",
+                "dpp_id": self.filter_dpp_id,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        events = resp.json()["eventList"]
+        assert len(events) == 1
+        assert events[0]["event_type"] == "TransformationEvent"
+
+    def test_match_output_epc(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """MATCH_outputEPC finds TransformationEvent by output EPC."""
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "MATCH_outputEPC": "urn:epc:id:sgtin:0614141.107346.OUTPUT01",
+                "dpp_id": self.filter_dpp_id,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        events = resp.json()["eventList"]
+        assert len(events) == 1
+        assert events[0]["event_type"] == "TransformationEvent"
+
+    def test_eq_action_filter(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """EQ_action filters by ADD vs OBSERVE."""
+        resp_add = api_client.get(
+            f"{self.epcis_base}/events",
+            params={"EQ_action": "ADD", "dpp_id": self.filter_dpp_id},
+        )
+        assert resp_add.status_code == 200, resp_add.text
+        add_events = resp_add.json()["eventList"]
+        assert len(add_events) >= 1
+        assert all(e["action"] == "ADD" for e in add_events)
+
+        resp_obs = api_client.get(
+            f"{self.epcis_base}/events",
+            params={"EQ_action": "OBSERVE", "dpp_id": self.filter_dpp_id},
+        )
+        assert resp_obs.status_code == 200, resp_obs.text
+        obs_events = resp_obs.json()["eventList"]
+        assert len(obs_events) >= 1
+        assert all(e["action"] == "OBSERVE" for e in obs_events)
+
+    def test_combined_filters(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """Combined action + bizStep filters narrow results."""
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "EQ_action": "ADD",
+                "EQ_bizStep": "commissioning",
+                "dpp_id": self.filter_dpp_id,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        events = resp.json()["eventList"]
+        assert len(events) >= 1
+        for e in events:
+            assert e["action"] == "ADD"
+            assert e["biz_step"] == "commissioning"
+
+    def test_time_range_filters(
+        self,
+        api_client: httpx.Client,
+    ) -> None:
+        """GE_recordTime / LT_recordTime narrows results by created_at."""
+        # Get all events first to establish time bounds
+        resp = api_client.get(
+            f"{self.epcis_base}/events",
+            params={"dpp_id": self.filter_dpp_id},
+        )
+        assert resp.status_code == 200, resp.text
+        all_events = resp.json()["eventList"]
+        assert len(all_events) >= 3
+
+        # Query with a far-future LT_recordTime should return all
+        resp2 = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "dpp_id": self.filter_dpp_id,
+                "LT_recordTime": "2099-12-31T23:59:59Z",
+            },
+        )
+        assert resp2.status_code == 200, resp2.text
+        assert len(resp2.json()["eventList"]) >= 3
+
+        # Query with a far-past GE_recordTime + far-future LT should also return all
+        resp3 = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "dpp_id": self.filter_dpp_id,
+                "GE_recordTime": "2020-01-01T00:00:00Z",
+                "LT_recordTime": "2099-12-31T23:59:59Z",
+            },
+        )
+        assert resp3.status_code == 200, resp3.text
+        assert len(resp3.json()["eventList"]) >= 3
+
+        # Query with a far-future GE_recordTime should return nothing
+        resp4 = api_client.get(
+            f"{self.epcis_base}/events",
+            params={
+                "dpp_id": self.filter_dpp_id,
+                "GE_recordTime": "2099-01-01T00:00:00Z",
+            },
+        )
+        assert resp4.status_code == 200, resp4.text
+        assert len(resp4.json()["eventList"]) == 0
