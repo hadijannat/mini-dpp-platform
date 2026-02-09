@@ -57,6 +57,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
                   <input
                     type="text"
                     className="flex-1 border rounded-md px-3 py-2 text-sm"
+                    placeholder={node.smt?.example_value ?? undefined}
                     value={current[lang] ?? ''}
                     onChange={(e) => {
                       field.onChange({ ...current, [lang]: e.target.value });

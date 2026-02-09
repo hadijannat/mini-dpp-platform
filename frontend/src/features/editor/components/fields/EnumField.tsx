@@ -29,6 +29,9 @@ export function EnumField({ name, control, node, schema }: FieldProps) {
             value={(field.value as string) ?? ''}
             onChange={(e) => field.onChange(e.target.value)}
           >
+            <option value="">
+              {node.smt?.example_value ? `e.g. ${node.smt.example_value}` : 'Select...'}
+            </option>
             {options.map((option) => (
               <option key={option} value={option}>
                 {option}
