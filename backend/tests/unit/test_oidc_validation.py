@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException
+from jwt.exceptions import InvalidIssuerError
 
 from app.core.config import get_settings
 from app.core.security.oidc import _decode_token
@@ -175,6 +176,53 @@ async def test_token_with_invalid_issuer_rejected(mock_signing_key, valid_payloa
         mock_header.return_value = {"kid": "test-key-id"}
         mock_jwks.get_signing_key = AsyncMock(return_value=mock_signing_key)
         mock_decode.return_value = valid_payload
+
+        with pytest.raises(HTTPException) as exc:
+            await _decode_token("bad.issuer.token")
+
+        assert exc.value.status_code == 401
+        assert "Invalid token issuer" in exc.value.detail
+
+
+@pytest.mark.asyncio
+async def test_jwt_decode_called_with_verify_iss_true(mock_signing_key, valid_payload, monkeypatch):
+    """jwt.decode should be called with verify_iss=True and issuer list."""
+    monkeypatch.setenv("KEYCLOAK_CLIENT_ID", "dpp-backend")
+    get_settings.cache_clear()
+
+    with (
+        patch("app.core.security.oidc._jwks_client") as mock_jwks,
+        patch("app.core.security.oidc.jwt.decode") as mock_decode,
+        patch("app.core.security.oidc.jwt.get_unverified_header") as mock_header,
+    ):
+        mock_header.return_value = {"kid": "test-key-id"}
+        mock_jwks.get_signing_key = AsyncMock(return_value=mock_signing_key)
+        mock_decode.return_value = valid_payload
+
+        await _decode_token("valid.jwt.token")
+
+        call_kwargs = mock_decode.call_args
+        options = call_kwargs.kwargs.get("options") or call_kwargs[1].get("options")
+        assert options["verify_iss"] is True
+        issuer_arg = call_kwargs.kwargs.get("issuer") or call_kwargs[1].get("issuer")
+        assert isinstance(issuer_arg, list)
+        assert "http://localhost:8080/realms/dpp-platform" in issuer_arg
+
+
+@pytest.mark.asyncio
+async def test_pyjwt_invalid_issuer_error_handled(mock_signing_key, monkeypatch):
+    """PyJWT InvalidIssuerError should be caught and return 401."""
+    monkeypatch.setenv("KEYCLOAK_CLIENT_ID", "dpp-backend")
+    get_settings.cache_clear()
+
+    with (
+        patch("app.core.security.oidc._jwks_client") as mock_jwks,
+        patch("app.core.security.oidc.jwt.decode") as mock_decode,
+        patch("app.core.security.oidc.jwt.get_unverified_header") as mock_header,
+    ):
+        mock_header.return_value = {"kid": "test-key-id"}
+        mock_jwks.get_signing_key = AsyncMock(return_value=mock_signing_key)
+        mock_decode.side_effect = InvalidIssuerError("Invalid issuer")
 
         with pytest.raises(HTTPException) as exc:
             await _decode_token("bad.issuer.token")

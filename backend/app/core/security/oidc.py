@@ -11,7 +11,7 @@ import httpx
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import InvalidIssuerError, InvalidTokenError
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -152,8 +152,9 @@ async def _decode_token(token: str) -> TokenPayload:
                 "verify_aud": False,  # Keycloak puts client ID in azp, not aud
                 "verify_exp": True,
                 "verify_iat": True,
-                "verify_iss": False,
+                "verify_iss": True,
             },
+            issuer=settings.keycloak_allowed_issuers_all,
         )
 
         token_issuer = payload.get("iss")
@@ -230,6 +231,12 @@ async def _decode_token(token: str) -> TokenPayload:
             raw_claims=payload,
         )
 
+    except InvalidIssuerError:
+        logger.warning("token_issuer_rejected_by_pyjwt")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token issuer",
+        )
     except InvalidTokenError as e:
         logger.warning("token_verification_failed", error=str(e))
         raise HTTPException(
