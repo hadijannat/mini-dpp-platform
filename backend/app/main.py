@@ -327,7 +327,39 @@ window.onload = function() {{
     # Prometheus metrics endpoint
     from prometheus_fastapi_instrumentator import Instrumentator
 
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+    instrumentator = Instrumentator().instrument(app)
+
+    if settings.environment == "development" and not settings.metrics_auth_token:
+        # Development: expose metrics without auth for convenience
+        instrumentator.expose(app, endpoint="/metrics")
+    else:
+        # Production / when token is set: auth-gated metrics
+        import hmac as _hmac
+
+        from fastapi import Header, Response
+
+        @app.get("/metrics", include_in_schema=False)
+        async def metrics_endpoint(
+            authorization: str | None = Header(default=None),
+        ) -> Response:
+            if not settings.metrics_auth_token:
+                # No token configured in production — hide the endpoint
+                return Response(status_code=404)
+
+            if not authorization or not authorization.startswith("Bearer "):
+                return Response(status_code=401)
+
+            provided = authorization.removeprefix("Bearer ")
+            if not _hmac.compare_digest(provided, settings.metrics_auth_token):
+                return Response(status_code=401)
+
+            # Generate and return metrics
+            from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
+            return Response(
+                content=generate_latest(),
+                media_type=CONTENT_TYPE_LATEST,
+            )
 
     return app
 

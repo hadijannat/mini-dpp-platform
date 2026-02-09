@@ -126,9 +126,17 @@ async def emit_audit_event(
     # Compute hash chain fields if the columns exist
     if _has_hash_columns():
         try:
-            from sqlalchemy import desc, select
+            from sqlalchemy import desc, select, text
 
             from app.core.crypto.hash_chain import GENESIS_HASH, compute_event_hash
+
+            # Acquire a per-tenant advisory lock to serialize hash chain writes.
+            # Uses hashtext() for tenant_id string, or fixed key 0 for platform events.
+            lock_key = "hashtext(:tid)" if tenant_id is not None else "0"
+            await db_session.execute(
+                text(f"SELECT pg_advisory_xact_lock({lock_key})"),
+                {"tid": str(tenant_id)} if tenant_id is not None else {},
+            )
 
             # Get the previous event hash for this tenant
             prev_query = (

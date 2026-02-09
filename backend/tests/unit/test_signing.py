@@ -63,3 +63,18 @@ def test_dev_config_warns_on_empty_signing_key() -> None:
         )
     signing_warnings = [x for x in w if "dpp_signing_key" in str(x.message)]
     assert len(signing_warnings) >= 1
+
+
+def test_production_config_rejects_auto_provision_default_tenant() -> None:
+    """Settings with env=production and auto_provision_default_tenant=True raises ValueError."""
+    from app.core.config import Settings, get_settings
+
+    get_settings.cache_clear()
+    with pytest.raises(ValueError, match="auto_provision_default_tenant must be False"):
+        Settings(
+            environment="production",
+            encryption_master_key="dGVzdC1rZXktMzItYnl0ZXMtbG9uZy4u",
+            cors_origins=["https://dpp-platform.dev"],
+            dpp_signing_key="fake-key",
+            auto_provision_default_tenant=True,
+        )

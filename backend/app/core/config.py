@@ -195,6 +195,11 @@ class Settings(BaseSettings):
         default="", description="Base64-encoded 256-bit master key for envelope encryption"
     )
 
+    metrics_auth_token: str = Field(
+        default="",
+        description="Bearer token for /metrics endpoint. Empty = unauthenticated in dev, 404 in production.",
+    )
+
     # Trusted proxy CIDRs for X-Forwarded-For / X-Real-IP header trust.
     # Only requests arriving from these CIDRs will have proxy headers honoured.
     trusted_proxy_cidrs: list[str] = Field(
@@ -440,6 +445,10 @@ class Settings(BaseSettings):
                 )
             if not self.opa_enabled:
                 raise ValueError(f"opa_enabled must be True in {self.environment} environment")
+            if self.auto_provision_default_tenant:
+                raise ValueError(
+                    f"auto_provision_default_tenant must be False in {self.environment} environment"
+                )
         else:
             if not self.encryption_master_key:
                 warnings.warn(

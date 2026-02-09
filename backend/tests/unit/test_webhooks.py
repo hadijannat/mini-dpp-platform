@@ -209,6 +209,40 @@ class TestSSRFProtection:
         assert "93.184" in str(wh.url)
 
 
+# ── WebhookUpdate SSRF Protection Tests ──────────────────────────
+
+
+class TestWebhookUpdateSSRF:
+    """Verify that WebhookUpdate also rejects internal/private URLs."""
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://localhost:8000/internal",
+            "http://127.0.0.1:8000/api",
+            "http://10.0.0.1/internal",
+            "http://172.16.0.1/internal",
+            "http://192.168.1.1/internal",
+            "http://169.254.169.254/latest/meta-data/",
+        ],
+    )
+    def test_update_rejects_private_urls(self, url: str) -> None:
+        with pytest.raises(ValidationError, match="private or internal"):
+            WebhookUpdate(url=url)
+
+    def test_update_accepts_public_url(self) -> None:
+        update = WebhookUpdate(url="https://hooks.example.com/dpp")
+        assert "example.com" in str(update.url)
+
+    def test_update_accepts_none_url(self) -> None:
+        update = WebhookUpdate(url=None)
+        assert update.url is None
+
+    def test_update_accepts_no_url(self) -> None:
+        update = WebhookUpdate(active=True)
+        assert update.url is None
+
+
 # ── Event Types Tests ──────────────────────────────────────────────
 
 

@@ -42,6 +42,30 @@ _BLOCKED_HOSTS = re.compile(
 )
 
 
+def _reject_internal_urls(v: HttpUrl) -> HttpUrl:
+    """Reject URLs targeting private/internal addresses (SSRF protection)."""
+    host = v.host
+    if not host:
+        raise ValueError("URL must include a hostname")
+
+    host_clean = host.strip("[]")
+
+    if _BLOCKED_HOSTS.match(host_clean):
+        raise ValueError("Webhook URLs must not target private or internal addresses")
+
+    # Also check via ipaddress for any IP literal we might have missed
+    try:
+        ip = ipaddress.ip_address(host_clean)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError("Webhook URLs must not target private or internal addresses")
+    except ValueError as exc:
+        if "private" in str(exc) or "internal" in str(exc):
+            raise
+        # Not an IP literal — that's fine, it's a hostname
+
+    return v
+
+
 class WebhookCreate(BaseModel):
     url: HttpUrl
     events: list[WebhookEventType] = Field(..., min_length=1)
@@ -49,26 +73,7 @@ class WebhookCreate(BaseModel):
     @field_validator("url")
     @classmethod
     def reject_internal_urls(cls, v: HttpUrl) -> HttpUrl:
-        host = v.host
-        if not host:
-            raise ValueError("URL must include a hostname")
-
-        host_clean = host.strip("[]")
-
-        if _BLOCKED_HOSTS.match(host_clean):
-            raise ValueError("Webhook URLs must not target private or internal addresses")
-
-        # Also check via ipaddress for any IP literal we might have missed
-        try:
-            ip = ipaddress.ip_address(host_clean)
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                raise ValueError("Webhook URLs must not target private or internal addresses")
-        except ValueError as exc:
-            if "private" in str(exc) or "internal" in str(exc):
-                raise
-            # Not an IP literal — that's fine, it's a hostname
-
-        return v
+        return _reject_internal_urls(v)
 
 
 class WebhookResponse(BaseModel):
@@ -85,6 +90,13 @@ class WebhookUpdate(BaseModel):
     url: HttpUrl | None = None
     events: list[WebhookEventType] | None = None
     active: bool | None = None
+
+    @field_validator("url")
+    @classmethod
+    def reject_internal_urls(cls, v: HttpUrl | None) -> HttpUrl | None:
+        if v is None:
+            return v
+        return _reject_internal_urls(v)
 
 
 class DeliveryLogResponse(BaseModel):

@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+_ALLOWED_HREF_SCHEMES = {"http", "https"}
 
 
 class LinkType(str, Enum):
@@ -66,6 +69,14 @@ class ResolverLinkCreate(BaseModel):
         description="Associated DPP ID (optional)",
     )
 
+    @field_validator("href")
+    @classmethod
+    def validate_href_scheme(cls, v: str) -> str:
+        parsed = urlparse(v)
+        if parsed.scheme.lower() not in _ALLOWED_HREF_SCHEMES:
+            raise ValueError(f"href must use http or https scheme, got '{parsed.scheme}'")
+        return v
+
 
 class ResolverLinkUpdate(BaseModel):
     """Partial update schema for resolver links."""
@@ -76,6 +87,16 @@ class ResolverLinkUpdate(BaseModel):
     hreflang: str | None = None
     priority: int | None = Field(default=None, ge=0, le=1000)
     active: bool | None = None
+
+    @field_validator("href")
+    @classmethod
+    def validate_href_scheme(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        parsed = urlparse(v)
+        if parsed.scheme.lower() not in _ALLOWED_HREF_SCHEMES:
+            raise ValueError(f"href must use http or https scheme, got '{parsed.scheme}'")
+        return v
 
 
 class ResolverLinkResponse(BaseModel):
