@@ -1,0 +1,6 @@
+.git
+docs/
+infra/
+*.md
+!backend/README.md
+.github/

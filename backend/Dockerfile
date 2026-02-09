@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     vim \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml uv.lock README.md ./
+# Copy dependency files (context is repo root)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
 # Create a shared virtual environment outside the bind-mounted /app directory.
 RUN python -m venv "$VIRTUAL_ENV"
@@ -45,7 +45,10 @@ RUN python -m venv "$VIRTUAL_ENV"
 RUN uv sync --frozen --extra dev --extra test --active
 
 # Copy application code
-COPY . .
+COPY backend/ .
+
+# Copy shared registry (consumed by semantic_registry.py via parents[3] → /)
+COPY shared/ /shared/
 
 # Development server with hot reload
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -58,8 +61,8 @@ FROM base as production
 # Create non-root user for security
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-# Copy dependency files
-COPY pyproject.toml uv.lock README.md ./
+# Copy dependency files (context is repo root)
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 
 # Create a shared virtual environment outside the bind-mounted /app directory.
 RUN python -m venv "$VIRTUAL_ENV"
@@ -68,7 +71,10 @@ RUN python -m venv "$VIRTUAL_ENV"
 RUN uv sync --frozen --active
 
 # Copy application code
-COPY --chown=appuser:appgroup . .
+COPY --chown=appuser:appgroup backend/ .
+
+# Copy shared registry
+COPY --chown=appuser:appgroup shared/ /shared/
 
 USER appuser
 

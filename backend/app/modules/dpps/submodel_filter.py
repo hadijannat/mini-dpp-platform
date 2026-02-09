@@ -10,22 +10,11 @@ from __future__ import annotations
 import copy
 from typing import Any
 
-# Semantic ID prefixes for tier-based visibility.
-# These match the IDTA DPP4.0 template semantic IDs.
-CONSUMER_SUBMODELS: frozenset[str] = frozenset(
-    {
-        "https://admin-shell.io/zvei/nameplate",  # DigitalNameplate
-        "https://admin-shell.io/idta/TechnicalData",  # TechnicalData
-        "https://admin-shell.io/idta/CarbonFootprint",  # (basic view)
-        "https://admin-shell.io/idta/BatteryPassport",  # EU 2023/1542 Art.77
-    }
-)
+from app.modules.semantic_registry import list_espr_tier_prefixes
 
-RECYCLER_SUBMODELS: frozenset[str] = CONSUMER_SUBMODELS | frozenset(
-    {
-        "https://admin-shell.io/idta/CarbonFootprint",  # Full CarbonFootprint
-    }
-)
+# Semantic ID prefixes for tier-based visibility sourced from shared registry.
+CONSUMER_SUBMODELS: frozenset[str] = frozenset(list_espr_tier_prefixes("consumer"))
+RECYCLER_SUBMODELS: frozenset[str] = frozenset(list_espr_tier_prefixes("recycler"))
 
 AUTHORITY_SUBMODELS: frozenset[str] | None = None  # All visible
 

@@ -1,0 +1,79 @@
+{
+  "templates": {
+    "digital-nameplate": {
+      "semantic_id": "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
+      "espr_category": "identity",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "contact-information": {
+      "semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
+      "espr_category": "identity",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "technical-data": {
+      "semantic_id": "0173-1#01-AHX837#002",
+      "espr_category": "compliance",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "carbon-footprint": {
+      "semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+      "espr_category": "environmental",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "handover-documentation": {
+      "semantic_id": "0173-1#01-AHF578#003",
+      "espr_category": "endoflife",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "hierarchical-structures": {
+      "semantic_id": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
+      "espr_category": "materials",
+      "support_status": "supported",
+      "refresh_enabled": true
+    },
+    "battery-passport": {
+      "semantic_id": "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0",
+      "espr_category": "identity",
+      "support_status": "unavailable",
+      "refresh_enabled": false
+    }
+  },
+  "espr_tier_prefixes": {
+    "consumer": [
+      "https://admin-shell.io/idta/nameplate",
+      "https://admin-shell.io/zvei/nameplate",
+      "0173-1#01-AHX837#002",
+      "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
+      "https://admin-shell.io/idta/TechnicalData",
+      "https://admin-shell.io/idta/CarbonFootprint",
+      "https://admin-shell.io/idta/BatteryPassport"
+    ],
+    "recycler": [
+      "https://admin-shell.io/idta/nameplate",
+      "https://admin-shell.io/zvei/nameplate",
+      "0173-1#01-AHX837#002",
+      "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
+      "https://admin-shell.io/idta/TechnicalData",
+      "https://admin-shell.io/idta/CarbonFootprint",
+      "https://admin-shell.io/idta/BatteryPassport"
+    ],
+    "market_surveillance_authority": [],
+    "manufacturer": []
+  },
+  "legacy_semantic_id_aliases": {
+    "https://admin-shell.io/zvei/nameplate/2/0/Nameplate": "digital-nameplate",
+    "https://admin-shell.io/zvei/nameplate/3/0/Nameplate": "digital-nameplate",
+    "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2": "technical-data",
+    "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/0/9": "carbon-footprint",
+    "https://admin-shell.io/idta/HierarchicalStructures/1/0/Submodel": "hierarchical-structures",
+    "https://admin-shell.io/ZVEI/HandoverDocumentation/Submodel/1/2": "handover-documentation",
+    "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0": "battery-passport",
+    "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0": "battery-passport",
+    "urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass": "battery-passport"
+  }
+}

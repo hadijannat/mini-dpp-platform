@@ -1,5 +1,6 @@
 """Unit tests for deterministic template registry behavior."""
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -228,3 +229,36 @@ class TestTemplateRegistryService:
         # Re-derive schema from the definition in the contract
         re_derived = DefinitionToSchemaConverter().convert(contract["definition"])
         assert contract["schema"] == re_derived
+
+    @pytest.mark.asyncio
+    async def test_refresh_all_templates_reports_skipped_unavailable_templates(self):
+        session = AsyncMock()
+        service = TemplateRegistryService(session)
+
+        async def _fake_refresh(template_key: str):
+            template = MagicMock()
+            template.template_key = template_key
+            template.idta_version = "1.0.1"
+            template.resolved_version = "1.0.1"
+            template.semantic_id = "urn:test:semantic"
+            template.source_url = "https://example.test/template.json"
+            template.source_repo_ref = "main"
+            template.source_file_path = f"published/{template_key}/template.json"
+            template.source_file_sha = "sha123"
+            template.source_kind = "json"
+            template.selection_strategy = "deterministic_v2"
+            template.fetched_at = datetime.now(UTC)
+            return template
+
+        service.refresh_template = AsyncMock(side_effect=_fake_refresh)  # type: ignore[method-assign]
+
+        templates, results = await service.refresh_all_templates()
+
+        skipped = [r for r in results if r.template_key == "battery-passport"]
+        assert skipped and skipped[0].status == "skipped"
+        assert skipped[0].support_status == "unavailable"
+        assert "unavailable" in (skipped[0].error or "")
+
+        refreshed_keys = {t.template_key for t in templates}
+        assert "battery-passport" not in refreshed_keys
+        assert session.commit.await_count == 1

@@ -1,26 +1,45 @@
 import { Fingerprint, FlaskConical, Leaf, ShieldCheck, Wrench, Route, type LucideIcon } from 'lucide-react';
+import semanticRegistry from '@shared/idta_semantic_registry.json';
+
+type RegistryTemplateEntry = {
+  semantic_id: string;
+  espr_category: string;
+};
+
+type SemanticRegistry = {
+  templates: Record<string, RegistryTemplateEntry>;
+  legacy_semantic_id_aliases: Record<string, string>;
+};
+
+const REGISTRY = semanticRegistry as SemanticRegistry;
+
+function normalizeSemanticId(value: string): string {
+  return value.trim().replace(/\/+$/, '').toLowerCase();
+}
 
 /**
- * Maps IDTA/Catena-X semantic IDs to ESPR category IDs.
+ * Maps semantic IDs to ESPR category IDs from shared registry.
  * This is the primary classification mechanism — pattern matching on idShort
  * is used as a fallback when no semantic ID is available.
  */
-const SEMANTIC_ID_TO_CATEGORY: Record<string, string> = {
-  // Nameplate → Identity
-  'https://admin-shell.io/zvei/nameplate/2/0/Nameplate': 'identity',
-  'https://admin-shell.io/zvei/nameplate/3/0/Nameplate': 'identity',
-  '0173-1#01-AHF578#001': 'identity',
-  // Technical Data → Compliance
-  'https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2': 'compliance',
-  // Carbon Footprint → Environmental
-  'https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/0/9': 'environmental',
-  // Hierarchical Structures → Materials (BOM)
-  'https://admin-shell.io/idta/HierarchicalStructures/1/0/Submodel': 'materials',
-  // Handover Documentation → End-of-Life
-  'https://admin-shell.io/ZVEI/HandoverDocumentation/Submodel/1/2': 'endoflife',
-  // Battery Passport submodels (Catena-X)
-  'urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass': 'identity',
-};
+const SEMANTIC_ID_TO_CATEGORY: Record<string, string> = (() => {
+  const categoryByTemplate: Record<string, string> = {};
+  const mapping: Record<string, string> = {};
+
+  for (const [templateKey, template] of Object.entries(REGISTRY.templates ?? {})) {
+    if (!template?.semantic_id || !template?.espr_category) continue;
+    categoryByTemplate[templateKey] = template.espr_category;
+    mapping[normalizeSemanticId(template.semantic_id)] = template.espr_category;
+  }
+
+  for (const [legacySemanticId, templateKey] of Object.entries(REGISTRY.legacy_semantic_id_aliases ?? {})) {
+    const category = categoryByTemplate[templateKey];
+    if (!category) continue;
+    mapping[normalizeSemanticId(legacySemanticId)] = category;
+  }
+
+  return mapping;
+})();
 
 export type ESPRCategory = {
   id: string;
@@ -106,7 +125,7 @@ export function classifyElement(
 ): ESPRCategory | null {
   // Primary: semantic ID lookup
   if (semanticId) {
-    const categoryId = SEMANTIC_ID_TO_CATEGORY[semanticId];
+    const categoryId = SEMANTIC_ID_TO_CATEGORY[normalizeSemanticId(semanticId)];
     if (categoryId) {
       return ESPR_CATEGORIES.find(c => c.id === categoryId) ?? null;
     }

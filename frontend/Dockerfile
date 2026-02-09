@@ -3,23 +3,26 @@
 # =============================================================================
 # Base Stage
 # =============================================================================
-FROM node:20-alpine as base
-
-WORKDIR /app
+FROM node:20-alpine AS base
 
 # =============================================================================
 # Development Stage
 # =============================================================================
-FROM base as development
+FROM base AS development
 
-# Copy package files
-COPY package*.json ./
+WORKDIR /app
+
+# Copy package files (context is repo root)
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY frontend/ .
+
+# Copy shared registry as sibling (mirrors repo layout for @shared alias)
+COPY shared/ /shared/
 
 # Expose development port
 EXPOSE 5173
@@ -28,9 +31,9 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # =============================================================================
-# Build Stage
+# Build Stage — mirrors repo layout: /repo/frontend + /repo/shared
 # =============================================================================
-FROM base as build
+FROM base AS build
 
 # Accept build-time env vars for Vite (baked into the JS bundle)
 ARG VITE_API_BASE_URL
@@ -39,14 +42,24 @@ ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_COMMIT_SHA
 
-# Copy package files
-COPY package*.json ./
+WORKDIR /repo/frontend
+
+# Copy package files (context is repo root)
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY frontend/ .
+
+# Copy shared registry into the project tree and symlink as sibling
+# so both tsconfig paths (../shared/*) and Vite alias resolve correctly.
+# The docker-container BuildKit driver in CI cannot resolve files outside
+# the project root, so the real files must live under /repo/frontend/.
+COPY shared/ ./shared/
+RUN ln -s /repo/frontend/shared /repo/shared
+ENV SHARED_DIR=/repo/frontend/shared
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
@@ -54,13 +67,13 @@ RUN npm run build
 # =============================================================================
 # Production Stage
 # =============================================================================
-FROM nginx:alpine as production
+FROM nginx:alpine AS production
 
 # Copy built files
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /repo/frontend/dist /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Run as non-root user (nginx:alpine includes this user)
 RUN chown -R nginx:nginx /usr/share/nginx/html \

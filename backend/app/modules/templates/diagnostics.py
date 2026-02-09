@@ -182,7 +182,7 @@ async def build_conformance_report() -> dict[str, Any]:
         parser = BasyxTemplateParser()
         builder = TemplateDefinitionBuilder()
 
-        for template_key in list_template_keys():
+        for template_key in list_template_keys(refreshable_only=True):
             descriptor = get_template_descriptor(template_key)
             template = templates_by_key.get(template_key)
             template_report: dict[str, Any] = {

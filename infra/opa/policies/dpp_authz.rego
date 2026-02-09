@@ -21,14 +21,16 @@ tenant_match if {
 
 # Semantic ID prefix sets per ESPR tier
 consumer_allowed := {
+    "https://admin-shell.io/idta/nameplate",
     "https://admin-shell.io/zvei/nameplate",
+    "0173-1#01-AHX837#002",
+    "https://admin-shell.io/ZVEI/TechnicalData/Submodel/1/2",
     "https://admin-shell.io/idta/TechnicalData",
     "https://admin-shell.io/idta/CarbonFootprint",
+    "https://admin-shell.io/idta/BatteryPassport",
 }
 
-recycler_allowed := consumer_allowed | {
-    "https://admin-shell.io/idta/CarbonFootprint",
-}
+recycler_allowed := consumer_allowed
 
 # Helper: check if the resource's semantic_id starts with any prefix in the set
 _semantic_id_allowed(allowed_set) if {

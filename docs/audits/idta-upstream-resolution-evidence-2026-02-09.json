@@ -1,0 +1,133 @@
+[
+  {
+    "template_key": "digital-nameplate",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Digital nameplate",
+    "baseline": "3.0",
+    "catalog_semantic_id": "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "3.0.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02006-3-0-1_Template_Digital Nameplate.json",
+    "expected_aasx": "IDTA 02006-3-0-1_Template_Digital Nameplate.aasx",
+    "selected_json": "IDTA 02006-3-0-1_Template_Digital Nameplate.json",
+    "selected_aasx": "IDTA 02006-3-0-1_Template_Digital Nameplate.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "https://admin-shell.io/idta/nameplate/3/0/Nameplate"
+    ]
+  },
+  {
+    "template_key": "contact-information",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Contact Information",
+    "baseline": "1.0",
+    "catalog_semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "1.0.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02002-1-0-1_Template_ContactInformation.json",
+    "expected_aasx": "IDTA 02002-1-0-1_Template_ContactInformation.aasx",
+    "selected_json": "IDTA 02002-1-0-1_Template_ContactInformation.json",
+    "selected_aasx": "IDTA 02002-1-0-1_Template_ContactInformation.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations"
+    ]
+  },
+  {
+    "template_key": "technical-data",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Technical_Data",
+    "baseline": "2.0",
+    "catalog_semantic_id": "0173-1#01-AHX837#002",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "2.0.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02003_2-0-1_Template_TechnicalData.json",
+    "expected_aasx": "IDTA 02003_2-0-1_Template_TechnicalData.aasx",
+    "selected_json": "IDTA 02003_2-0-1_Template_TechnicalData.json",
+    "selected_aasx": "IDTA 02003_2-0-1_Template_TechnicalData.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "0173-1#01-AHX837#002"
+    ]
+  },
+  {
+    "template_key": "carbon-footprint",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Carbon Footprint",
+    "baseline": "1.0",
+    "catalog_semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "1.0.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02023-1-0-1 _Template_CarbonFootprint.json",
+    "expected_aasx": "IDTA 02023-1-0-1 _Template_CarbonFootprint.aasx",
+    "selected_json": "IDTA 02023-1-0-1 _Template_CarbonFootprint.json",
+    "selected_aasx": "IDTA 02023-1-0-1 _Template_CarbonFootprint.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"
+    ]
+  },
+  {
+    "template_key": "handover-documentation",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Handover Documentation",
+    "baseline": "2.0",
+    "catalog_semantic_id": "0173-1#01-AHF578#003",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "2.0.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02004-2-0-1_Template_HandoverDocumentation.json",
+    "expected_aasx": "IDTA 02004-2-0-1_Template_HandoverDocumentation.aasx",
+    "selected_json": "IDTA 02004-2-0-1_Template_HandoverDocumentation.json",
+    "selected_aasx": "IDTA 02004-2-0-1_Template_HandoverDocumentation.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "0173-1#01-AHF578#003"
+    ]
+  },
+  {
+    "template_key": "hierarchical-structures",
+    "support_status": "supported",
+    "refresh_enabled": true,
+    "repo_folder": "Hierarchical Structures enabling Bills of Material",
+    "baseline": "1.1",
+    "catalog_semantic_id": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
+    "patch_list_status": 200,
+    "latest_patch": 1,
+    "resolved_version": "1.1.1",
+    "artifact_list_status": 200,
+    "expected_json": "IDTA 02011-1-1-1_Template_HSEBoM.json",
+    "expected_aasx": "IDTA 02011-1-1-1_Template_HSEBoM.aasx",
+    "selected_json": "IDTA 02011-1-1-1_Template_HSEBoM.json",
+    "selected_aasx": "IDTA 02011-1-1-1_Template_HSEBoM.aasx",
+    "selection_strategy": "deterministic_v2",
+    "fetched_semantic_ids": [
+      "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel"
+    ]
+  },
+  {
+    "template_key": "battery-passport",
+    "support_status": "unavailable",
+    "refresh_enabled": false,
+    "repo_folder": "Battery Passport",
+    "baseline": "1.0",
+    "catalog_semantic_id": "https://admin-shell.io/idta/BatteryPassport/BatteryPass/1/0",
+    "patch_list_status": 404,
+    "latest_patch": null,
+    "error": "patch_list_unavailable status=404"
+  }
+]
