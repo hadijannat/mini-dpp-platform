@@ -282,6 +282,7 @@ services:
       - REGISTRY_AUTO_REGISTER=${REGISTRY_AUTO_REGISTER:-true}
       - REGISTRY_EXTERNAL_URL=${REGISTRY_EXTERNAL_URL:-}
       - REGISTRY_EXTERNAL_DISCOVERY_URL=${REGISTRY_EXTERNAL_DISCOVERY_URL:-}
+      - AUTO_PROVISION_DEFAULT_TENANT=false
     depends_on:
       postgres:
         condition: service_healthy
