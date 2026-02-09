@@ -3,14 +3,14 @@
 # =============================================================================
 # Base Stage
 # =============================================================================
-FROM node:20-alpine as base
-
-WORKDIR /app
+FROM node:20-alpine AS base
 
 # =============================================================================
 # Development Stage
 # =============================================================================
-FROM base as development
+FROM base AS development
+
+WORKDIR /app
 
 # Copy package files (context is repo root)
 COPY frontend/package*.json ./
@@ -21,7 +21,7 @@ RUN npm ci
 # Copy source code
 COPY frontend/ .
 
-# Copy shared registry for @shared alias
+# Copy shared registry as sibling (mirrors repo layout for @shared alias)
 COPY shared/ /shared/
 
 # Expose development port
@@ -31,9 +31,9 @@ EXPOSE 5173
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 
 # =============================================================================
-# Build Stage
+# Build Stage — mirrors repo layout: /repo/frontend + /repo/shared
 # =============================================================================
-FROM base as build
+FROM base AS build
 
 # Accept build-time env vars for Vite (baked into the JS bundle)
 ARG VITE_API_BASE_URL
@@ -41,6 +41,8 @@ ARG VITE_KEYCLOAK_URL
 ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_COMMIT_SHA
+
+WORKDIR /repo/frontend
 
 # Copy package files (context is repo root)
 COPY frontend/package*.json ./
@@ -51,8 +53,9 @@ RUN npm ci
 # Copy source code
 COPY frontend/ .
 
-# Copy shared registry for @shared alias
-COPY shared/ /shared/
+# Copy shared registry as sibling so @shared alias resolves correctly:
+# vite.config.ts: path.resolve(__dirname, '../shared') → /repo/shared
+COPY shared/ /repo/shared/
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
@@ -60,10 +63,10 @@ RUN npm run build
 # =============================================================================
 # Production Stage
 # =============================================================================
-FROM nginx:alpine as production
+FROM nginx:alpine AS production
 
 # Copy built files
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /repo/frontend/dist /usr/share/nginx/html
 
 # Copy nginx configuration
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
