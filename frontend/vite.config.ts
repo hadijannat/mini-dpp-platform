@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import fs from 'fs';
 
 // SHARED_DIR env var allows Docker builds to specify the absolute path to the
 // shared/ directory.  Falls back to the sibling directory for local dev / CI.
@@ -9,7 +10,21 @@ const sharedDir = process.env.SHARED_DIR
   : path.resolve(__dirname, '../shared');
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Explicit @shared resolver — resolve.alias alone fails under the
+    // docker-container BuildKit driver used in CI.
+    {
+      name: 'resolve-shared',
+      resolveId(source) {
+        if (source.startsWith('@shared/')) {
+          const resolved = source.replace('@shared', sharedDir);
+          if (fs.existsSync(resolved)) return resolved;
+        }
+        return null;
+      },
+    },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
