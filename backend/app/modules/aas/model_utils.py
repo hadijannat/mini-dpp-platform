@@ -73,14 +73,46 @@ def iterable_attr(obj: Any, *names: str) -> list[Any]:
 def clear_parent(element: model.SubmodelElement) -> None:
     """Recursively clear the ``parent`` attribute on *element* and all children.
 
-    Uses :func:`walk_submodel_deep` for complete traversal including Entity
-    statements, AnnotatedRelationshipElement annotations, and Operation variables.
+    Clears parent on the element itself, all SubmodelElement descendants
+    (via :func:`walk_submodel_deep`), and all Qualifier/Extension objects
+    attached to each element. This prevents BaSyx NamespaceSet ownership
+    conflicts ("Object has already a parent").
     """
+    _clear_referable_parent(element)
+    for child in walk_submodel_deep(element):
+        _clear_referable_parent(child)
+
+
+def _clear_referable_parent(element: Any) -> None:
+    """Clear ``parent`` on a BaSyx object and its qualifiers/extensions."""
     if hasattr(element, "parent"):
         element.parent = None
-    for child in walk_submodel_deep(element):
-        if hasattr(child, "parent"):
-            child.parent = None
+    # Qualifiers and Extensions are NamespaceSet-managed with their own parent refs
+    for q in getattr(element, "qualifier", ()):
+        if hasattr(q, "parent"):
+            q.parent = None
+    for ext in getattr(element, "extension", ()):
+        if hasattr(ext, "parent"):
+            ext.parent = None
+
+
+def detach_from_namespace(obj: Any) -> Any:
+    """Deep-copy a BaSyx Referable and clear its parent reference.
+
+    Temporarily detaches the original's parent before deep-copying to avoid
+    pulling the entire parent object graph into the copy.
+    """
+    original_parent = getattr(obj, "parent", None)
+    if original_parent is not None:
+        obj.parent = None
+    try:
+        cloned = copy.deepcopy(obj)
+    finally:
+        # Restore the original object's parent (we only want to detach the COPY)
+        if original_parent is not None:
+            obj.parent = original_parent
+    cloned.parent = None
+    return cloned
 
 
 def clone_identifiable(identifiable: model.Identifiable) -> model.Identifiable:

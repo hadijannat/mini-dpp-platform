@@ -14,7 +14,7 @@ from basyx.aas import model
 from basyx.aas.adapter import json as basyx_json
 
 from app.core.logging import get_logger
-from app.modules.aas.model_utils import clear_parent, clone_identifiable
+from app.modules.aas.model_utils import clear_parent, clone_identifiable, detach_from_namespace
 from app.modules.aas.references import reference_from_dict, reference_to_dict, reference_to_str
 from app.modules.templates.basyx_parser import BasyxTemplateParser
 from app.modules.templates.catalog import get_template_descriptor
@@ -320,19 +320,25 @@ class BasyxDppBuilder:
             for element in template_submodel.submodel_element
         ]
 
+        # Qualifiers and Extensions are BaSyx NamespaceSet-managed: each object
+        # tracks its parent.  We must deep-copy and detach them so they can be
+        # adopted by the new Submodel without "already has a parent" errors.
+        qualifiers = [detach_from_namespace(q) for q in template_submodel.qualifier]
+        extensions = [detach_from_namespace(e) for e in template_submodel.extension]
+
         return model.Submodel(
             id_=submodel_id,
             id_short=template_submodel.id_short,
-            display_name=template_submodel.display_name,
+            display_name=copy.deepcopy(template_submodel.display_name),
             category=template_submodel.category,
-            description=template_submodel.description,
-            administration=template_submodel.administration,
-            semantic_id=template_submodel.semantic_id,
-            qualifier=template_submodel.qualifier,
+            description=copy.deepcopy(template_submodel.description),
+            administration=copy.deepcopy(template_submodel.administration),
+            semantic_id=copy.deepcopy(template_submodel.semantic_id),
+            qualifier=qualifiers,
             kind=model.ModellingKind.INSTANCE,
-            extension=template_submodel.extension,
-            supplemental_semantic_id=template_submodel.supplemental_semantic_id,
-            embedded_data_specifications=template_submodel.embedded_data_specifications,
+            extension=extensions,
+            supplemental_semantic_id=copy.deepcopy(template_submodel.supplemental_semantic_id),
+            embedded_data_specifications=list(template_submodel.embedded_data_specifications),
             submodel_element=elements,
         )
 
