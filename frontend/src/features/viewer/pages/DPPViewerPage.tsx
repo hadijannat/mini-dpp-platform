@@ -1,6 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { apiFetch, getApiErrorMessage } from '@/lib/api';
+import { useAuth } from 'react-oidc-context';
+import { apiFetch, tenantApiFetch, getApiErrorMessage } from '@/lib/api';
 import { fetchPublicEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { getTenantSlug } from '@/lib/tenant';
@@ -20,8 +21,18 @@ import type { PublicDPPResponse } from '@/api/types';
 async function fetchDPP(
   dppId: string,
   tenantSlug: string,
+  token?: string,
   isSlug = false,
 ): Promise<PublicDPPResponse> {
+  // Authenticated users get drafts via tenant API; public visitors use the public endpoint
+  if (token) {
+    const endpoint = isSlug ? `/dpps/by-slug/${dppId}` : `/dpps/${dppId}`;
+    const response = await tenantApiFetch(endpoint, {}, token, tenantSlug);
+    if (!response.ok) {
+      throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
+    }
+    return response.json() as Promise<PublicDPPResponse>;
+  }
   const basePath = `/api/v1/public/${encodeURIComponent(tenantSlug)}/dpps`;
   const endpoint = isSlug
     ? `${basePath}/slug/${encodeURIComponent(dppId)}`
@@ -36,13 +47,15 @@ async function fetchDPP(
 export default function DPPViewerPage() {
   const { dppId, slug, tenantSlug } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
+  const token = auth.isAuthenticated ? auth.user?.access_token : undefined;
   const id = dppId || slug;
   const isSlug = !dppId && !!slug;
   const resolvedTenant = tenantSlug || getTenantSlug();
 
   const { data: dpp, isLoading, error } = useQuery<PublicDPPResponse>({
-    queryKey: ['dpp', resolvedTenant, id, isSlug],
-    queryFn: () => fetchDPP(id!, resolvedTenant, isSlug),
+    queryKey: ['dpp', resolvedTenant, id, isSlug, !!token],
+    queryFn: () => fetchDPP(id!, resolvedTenant, token, isSlug),
     enabled: !!id && !!resolvedTenant,
   });
 
