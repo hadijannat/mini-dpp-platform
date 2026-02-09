@@ -273,6 +273,29 @@ def _element_to_node(element: dict[str, Any]) -> dict[str, Any]:
         if content_type is not None:
             node["aas:contentType"] = content_type
 
+    elif model_type == "Operation":
+        for var_kind in ("inputVariables", "outputVariables", "inoutputVariables"):
+            variables = element.get(var_kind)
+            if isinstance(variables, list):
+                node[f"aas:{var_kind}"] = [_element_to_node(v) for v in variables]
+
+    elif model_type == "BasicEventElement":
+        observed = element.get("observed")
+        if isinstance(observed, dict):
+            node["aas:observed"] = _reference_to_ld(observed)
+        direction = element.get("direction")
+        if direction is not None:
+            node["aas:direction"] = direction
+        state = element.get("state")
+        if state is not None:
+            node["aas:state"] = state
+        message_broker = element.get("messageBroker")
+        if isinstance(message_broker, dict):
+            node["aas:messageBroker"] = _reference_to_ld(message_broker)
+
+    elif model_type == "Capability":
+        pass  # Capability has no additional structural fields
+
     else:
         # Property, ReferenceElement, and other simple types
         value = element.get("value")

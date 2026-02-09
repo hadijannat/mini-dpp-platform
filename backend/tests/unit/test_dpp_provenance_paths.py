@@ -61,7 +61,10 @@ class TestProvenancePropagation:
             )
         )
         service.get_dpp = AsyncMock(
-            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-1"})
+            return_value=SimpleNamespace(
+                asset_ids={"manufacturerPartId": "P-1"},
+                status=DPPStatus.DRAFT,
+            )
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
@@ -99,7 +102,10 @@ class TestProvenancePropagation:
             )
         )
         service.get_dpp = AsyncMock(
-            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-2"})
+            return_value=SimpleNamespace(
+                asset_ids={"manufacturerPartId": "P-2"},
+                status=DPPStatus.DRAFT,
+            )
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(

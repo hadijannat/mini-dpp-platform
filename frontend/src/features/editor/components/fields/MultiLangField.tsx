@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Controller } from 'react-hook-form';
 import type { FieldProps } from '../../types/formTypes';
 import { FieldWrapper } from '../FieldWrapper';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
 
 export function MultiLangField({ name, control, node }: FieldProps) {
+  const fieldId = useId();
   const label = getNodeLabel(node, name.split('.').pop() ?? name);
   const description = getNodeDescription(node);
   const required = isNodeRequired(node);
@@ -42,6 +43,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldId={fieldId}
           >
             {requiredLangs.length > 0 && (
               <p className="text-xs text-gray-400">
@@ -57,6 +59,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
                   <input
                     type="text"
                     className="flex-1 border rounded-md px-3 py-2 text-sm"
+                    aria-label={`${label} (${lang})`}
                     placeholder={node.smt?.example_value ?? undefined}
                     value={current[lang] ?? ''}
                     onChange={(e) => {
@@ -82,6 +85,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
                 <input
                   type="text"
                   className="w-20 border rounded-md px-2 py-1 text-xs"
+                  aria-label="New language code"
                   placeholder="e.g. ja"
                   value={newLang}
                   onChange={(e) => setNewLang(e.target.value)}

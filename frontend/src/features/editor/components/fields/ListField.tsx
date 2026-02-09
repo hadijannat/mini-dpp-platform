@@ -64,6 +64,7 @@ export function ListField({
               <button
                 type="button"
                 className="text-sm text-primary hover:text-primary/80"
+                aria-label={`Add item to ${label}`}
                 onClick={() => {
                   const next = [...list, defaultValueForSchema(itemsSchema)];
                   field.onChange(next);
@@ -143,6 +144,7 @@ function ListItem({
         <button
           type="button"
           className="text-xs text-red-500 hover:text-red-600"
+          aria-label={`Remove item ${index + 1}`}
           onClick={onRemove}
         >
           Remove

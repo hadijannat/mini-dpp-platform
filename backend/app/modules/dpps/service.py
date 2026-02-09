@@ -583,6 +583,8 @@ class DPPService:
             raise ValueError(f"DPP {dpp_id} not found")
 
         dpp = await self.get_dpp(dpp_id, tenant_id)
+        if dpp and dpp.status == DPPStatus.ARCHIVED:
+            raise ValueError("Cannot update an archived DPP")
         asset_ids = dpp.asset_ids if dpp else {}
 
         # Clone current AAS environment
@@ -720,6 +722,9 @@ class DPPService:
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
 
+        if dpp.status == DPPStatus.ARCHIVED:
+            raise ValueError("Cannot publish an archived DPP")
+
         # Compliance pre-publish gate (Contract C)
         if self._settings.compliance_check_on_publish:
             compliance_svc = ComplianceService(self._session)
@@ -826,10 +831,18 @@ class DPPService:
     async def archive_dpp(self, dpp_id: UUID, tenant_id: UUID) -> DPP:
         """
         Archive a DPP, marking it as no longer active.
+
+        Only published DPPs can be archived.  Archiving a draft would
+        skip the review/publish step, violating the intended lifecycle.
         """
         dpp = await self.get_dpp(dpp_id, tenant_id)
         if not dpp:
             raise ValueError(f"DPP {dpp_id} not found")
+
+        if dpp.status == DPPStatus.DRAFT:
+            raise ValueError("Cannot archive a draft DPP — publish it first")
+        if dpp.status == DPPStatus.ARCHIVED:
+            raise ValueError("DPP is already archived")
 
         dpp.status = DPPStatus.ARCHIVED
         await self._session.flush()

@@ -438,6 +438,8 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"cors_origins must be explicitly configured in {self.environment} environment"
                 )
+            if not self.opa_enabled:
+                raise ValueError(f"opa_enabled must be True in {self.environment} environment")
         else:
             if not self.encryption_master_key:
                 warnings.warn(

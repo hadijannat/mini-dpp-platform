@@ -169,6 +169,30 @@ def _full_aas_env() -> dict[str, Any]:
                             "keys": [{"type": "Submodel", "value": "urn:sm:referenced:1"}],
                         },
                     },
+                    {
+                        "idShort": "CalcOperation",
+                        "modelType": "Operation",
+                        "inputVariables": [
+                            {"idShort": "X", "modelType": "Property", "value": "1"},
+                        ],
+                        "outputVariables": [
+                            {"idShort": "Y", "modelType": "Property", "value": "2"},
+                        ],
+                    },
+                    {
+                        "idShort": "TempEvent",
+                        "modelType": "BasicEventElement",
+                        "observed": {
+                            "type": "ModelReference",
+                            "keys": [{"type": "Property", "value": "Temperature"}],
+                        },
+                        "direction": "output",
+                        "state": "on",
+                    },
+                    {
+                        "idShort": "HeatCapability",
+                        "modelType": "Capability",
+                    },
                 ],
             }
         ],
@@ -629,3 +653,165 @@ class TestReferenceToLD:
         ld = _reference_to_ld(ref)
         assert "aas:type" not in ld
         assert "aas:keys" in ld
+
+
+class TestOperationElement:
+    """Tests for Operation element serialization (C-2 fix)."""
+
+    def test_operation_with_all_variable_kinds(self) -> None:
+        node = _element_to_node(
+            {
+                "idShort": "CalcOp",
+                "modelType": "Operation",
+                "inputVariables": [{"idShort": "Input1", "modelType": "Property", "value": "10"}],
+                "outputVariables": [{"idShort": "Output1", "modelType": "Property", "value": "20"}],
+                "inoutputVariables": [
+                    {"idShort": "InOut1", "modelType": "Property", "value": "30"}
+                ],
+            }
+        )
+        assert "Operation" in node["@type"]
+        assert len(node["aas:inputVariables"]) == 1
+        assert node["aas:inputVariables"][0]["aas:idShort"] == "Input1"
+        assert len(node["aas:outputVariables"]) == 1
+        assert len(node["aas:inoutputVariables"]) == 1
+        # Operation should NOT have a generic aas:value
+        assert "aas:value" not in node
+
+    def test_operation_with_no_variables(self) -> None:
+        node = _element_to_node({"idShort": "EmptyOp", "modelType": "Operation"})
+        assert "Operation" in node["@type"]
+        assert "aas:inputVariables" not in node
+        assert "aas:outputVariables" not in node
+        assert "aas:inoutputVariables" not in node
+
+    def test_operation_turtle_round_trip(self) -> None:
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:operation-test",
+                    "idShort": "OperationTest",
+                    "submodelElements": [
+                        {
+                            "idShort": "Calculate",
+                            "modelType": "Operation",
+                            "inputVariables": [
+                                {"idShort": "X", "modelType": "Property", "value": "5"}
+                            ],
+                            "outputVariables": [
+                                {"idShort": "Y", "modelType": "Property", "value": "10"}
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        result = aas_to_turtle(env)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+class TestBasicEventElement:
+    """Tests for BasicEventElement serialization (C-2 fix)."""
+
+    def test_basic_event_element_full(self) -> None:
+        node = _element_to_node(
+            {
+                "idShort": "TempEvent",
+                "modelType": "BasicEventElement",
+                "observed": {
+                    "type": "ModelReference",
+                    "keys": [{"type": "Property", "value": "Temperature"}],
+                },
+                "direction": "output",
+                "state": "on",
+                "messageBroker": {
+                    "type": "ExternalReference",
+                    "keys": [{"type": "GlobalReference", "value": "mqtt://broker:1883"}],
+                },
+            }
+        )
+        assert "BasicEventElement" in node["@type"]
+        assert node["aas:direction"] == "output"
+        assert node["aas:state"] == "on"
+        assert "Reference" in node["aas:observed"]["@type"]
+        assert "Reference" in node["aas:messageBroker"]["@type"]
+        # Should NOT have a generic aas:value
+        assert "aas:value" not in node
+
+    def test_basic_event_element_minimal(self) -> None:
+        node = _element_to_node(
+            {
+                "idShort": "MinEvent",
+                "modelType": "BasicEventElement",
+                "observed": {
+                    "type": "ModelReference",
+                    "keys": [{"type": "Property", "value": "Sensor"}],
+                },
+                "direction": "input",
+                "state": "on",
+            }
+        )
+        assert node["aas:direction"] == "input"
+        assert "aas:messageBroker" not in node
+
+    def test_basic_event_element_turtle_round_trip(self) -> None:
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:event-test",
+                    "idShort": "EventTest",
+                    "submodelElements": [
+                        {
+                            "idShort": "SensorEvent",
+                            "modelType": "BasicEventElement",
+                            "observed": {
+                                "type": "ModelReference",
+                                "keys": [{"type": "Property", "value": "Temp"}],
+                            },
+                            "direction": "output",
+                            "state": "on",
+                        }
+                    ],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        result = aas_to_turtle(env)
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+class TestCapabilityElement:
+    """Tests for Capability element serialization (C-2 fix)."""
+
+    def test_capability_no_extra_fields(self) -> None:
+        node = _element_to_node({"idShort": "Cap1", "modelType": "Capability"})
+        assert "Capability" in node["@type"]
+        assert node["aas:idShort"] == "Cap1"
+        # Capability has no structural fields beyond type and idShort
+        assert "aas:value" not in node
+
+    def test_capability_turtle_round_trip(self) -> None:
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:capability-test",
+                    "idShort": "CapabilityTest",
+                    "submodelElements": [
+                        {"idShort": "CanHeat", "modelType": "Capability"},
+                    ],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        result = aas_to_turtle(env)
+        assert isinstance(result, str)
+        assert len(result) > 0
