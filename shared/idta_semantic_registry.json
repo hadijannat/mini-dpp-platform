@@ -73,6 +73,7 @@
     "https://admin-shell.io/idta/HierarchicalStructures/1/0/Submodel": "hierarchical-structures",
     "https://admin-shell.io/ZVEI/HandoverDocumentation/Submodel/1/2": "handover-documentation",
     "https://admin-shell.io/idta/BatteryPassport/GeneralProductInformation/1/0": "battery-passport",
-    "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0": "battery-passport"
+    "https://admin-shell.io/idta/BatteryPassport/PerformanceAndDurability/1/0": "battery-passport",
+    "urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass": "battery-passport"
   }
 }

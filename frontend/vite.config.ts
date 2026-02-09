@@ -15,7 +15,7 @@ export default defineConfig({
     port: 5173,
     allowedHosts: ['dpp-frontend'],
     fs: {
-      allow: [path.resolve(__dirname, '..')],
+      allow: [path.resolve(__dirname, '.'), path.resolve(__dirname, '../shared')],
     },
     proxy: {
       '/api': {

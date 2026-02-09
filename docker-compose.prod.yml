@@ -238,8 +238,8 @@ services:
   # One-off migration runner (use: docker compose run --rm migrate)
   migrate:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       target: production
     image: dpp-backend:prod
     container_name: dpp-migrate
@@ -292,8 +292,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       target: production
     image: dpp-backend:prod
     container_name: dpp-backend
@@ -328,8 +328,8 @@ services:
   # =============================================================================
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       target: production
       args:
         - VITE_API_BASE_URL=https://dpp-platform.dev

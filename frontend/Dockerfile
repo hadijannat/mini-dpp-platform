@@ -12,14 +12,17 @@ WORKDIR /app
 # =============================================================================
 FROM base as development
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (context is repo root)
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY frontend/ .
+
+# Copy shared registry for @shared alias
+COPY shared/ /shared/
 
 # Expose development port
 EXPOSE 5173
@@ -39,14 +42,17 @@ ARG VITE_KEYCLOAK_REALM
 ARG VITE_KEYCLOAK_CLIENT_ID
 ARG VITE_COMMIT_SHA
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (context is repo root)
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy source code
-COPY . .
+COPY frontend/ .
+
+# Copy shared registry for @shared alias
+COPY shared/ /shared/
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
@@ -60,7 +66,7 @@ FROM nginx:alpine as production
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 
 # Run as non-root user (nginx:alpine includes this user)
 RUN chown -R nginx:nginx /usr/share/nginx/html \

@@ -17,6 +17,7 @@ from app.modules.semantic_registry import (
 
 SupportStatus = Literal["supported", "experimental", "unavailable"]
 
+
 @dataclass(frozen=True)
 class TemplateDescriptor:
     key: str

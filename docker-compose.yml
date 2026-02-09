@@ -144,8 +144,8 @@ services:
   # =============================================================================
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
       target: development
     container_name: dpp-backend
     command: >
@@ -178,6 +178,7 @@ services:
       - REGISTRY_EXTERNAL_DISCOVERY_URL=
     volumes:
       - ./backend:/app:cached
+      - ./shared:/shared:ro
       - backend_cache:/app/.cache
     ports:
       - "${BACKEND_HOST_PORT:-8000}:8000"
@@ -198,8 +199,8 @@ services:
   # =============================================================================
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
       target: development
     container_name: dpp-frontend
     environment:
@@ -211,6 +212,7 @@ services:
       - VITE_KEYCLOAK_CLIENT_ID=dpp-frontend
     volumes:
       - ./frontend:/app:cached
+      - ./shared:/shared:ro
       - /app/node_modules
     ports:
       - "5173:5173"

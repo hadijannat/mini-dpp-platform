@@ -64,4 +64,3 @@ def list_espr_tier_prefixes(tier: str) -> tuple[str, ...]:
     if not isinstance(prefixes, list):
         return ()
     return tuple(prefix for prefix in prefixes if isinstance(prefix, str) and prefix)
-
