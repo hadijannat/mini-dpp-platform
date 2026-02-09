@@ -53,9 +53,9 @@ RUN npm ci
 # Copy source code
 COPY frontend/ .
 
-# Copy shared registry as sibling so @shared alias resolves correctly:
-# vite.config.ts: path.resolve(__dirname, '../shared') → /repo/shared
+# Copy shared registry and tell Vite where to find it
 COPY shared/ /repo/shared/
+ENV SHARED_DIR=/repo/shared
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
