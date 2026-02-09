@@ -249,7 +249,7 @@ async def create_dpp(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"DPP creation failed: {exc}",
+            detail="DPP creation failed due to an internal error",
         ) from exc
 
     await db.commit()
@@ -333,9 +333,9 @@ async def batch_import_dpps(
                     initial_data=item.initial_data,
                 )
             results.append(BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok"))
-        except Exception as exc:
+        except Exception:
             logger.warning("batch_import_item_failed", index=idx, exc_info=True)
-            results.append(BatchImportResultItem(index=idx, status="failed", error=str(exc)))
+            results.append(BatchImportResultItem(index=idx, status="failed", error="Import failed"))
 
     await db.commit()
 

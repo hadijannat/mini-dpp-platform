@@ -134,10 +134,8 @@ class TemplateDefinitionBuilder:
             ]
         elif isinstance(element, model.ReferenceElement):
             node["valueType"] = "reference"
-        elif isinstance(element, model.RelationshipElement):
-            node["first"] = reference_to_str(getattr(element, "first", None))
-            node["second"] = reference_to_str(getattr(element, "second", None))
         elif isinstance(element, model.AnnotatedRelationshipElement):
+            # Must check before RelationshipElement (subclass of it)
             node["first"] = reference_to_str(getattr(element, "first", None))
             node["second"] = reference_to_str(getattr(element, "second", None))
             annotations = self._sorted_elements(iterable_attr(element, "annotation", "annotations"))
@@ -146,6 +144,9 @@ class TemplateDefinitionBuilder:
                 self._element_definition(child, parent_path=annotation_path)
                 for child in annotations
             ]
+        elif isinstance(element, model.RelationshipElement):
+            node["first"] = reference_to_str(getattr(element, "first", None))
+            node["second"] = reference_to_str(getattr(element, "second", None))
         elif isinstance(element, model.Operation):
             for var_kind in ("input_variable", "output_variable", "in_output_variable"):
                 variables = getattr(element, var_kind, None)
