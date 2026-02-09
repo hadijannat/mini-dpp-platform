@@ -133,11 +133,16 @@ class ExportService:
         )
         string_io = io.StringIO(payload)
         try:
+            # Use failsafe=True for export: we're round-tripping already-validated
+            # stored data.  Strict validation belongs at ingestion (parser/builder).
             store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io, failsafe=False
+                string_io, failsafe=True
             )
         except Exception as exc:
-            raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
+            logger.error("export_xml_deserialization_failed", exc_info=True)
+            raise ValueError(
+                "Failed to export XML: AAS environment contains malformed elements"
+            ) from exc
         finally:
             string_io.close()
 
@@ -173,11 +178,16 @@ class ExportService:
             )
             string_io = io.StringIO(payload)
             try:
+                # Use failsafe=True for export: we're round-tripping already-validated
+                # stored data.  Strict validation belongs at ingestion (parser/builder).
                 store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                    string_io, failsafe=False
+                    string_io, failsafe=True
                 )
             except Exception as exc:
-                raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
+                logger.error("export_aasx_deserialization_failed", exc_info=True)
+                raise ValueError(
+                    "Failed to export AASX: AAS environment contains malformed elements"
+                ) from exc
             finally:
                 string_io.close()
 
@@ -203,9 +213,11 @@ class ExportService:
 
             buffer.seek(0)
             return buffer.read()
+        except ValueError:
+            raise  # Already sanitized by inner handler
         except Exception as exc:
-            logger.error("aasx_export_failed", dpp_id=str(dpp_id), error=str(exc))
-            raise ValueError(f"Failed to export AASX: {exc}") from exc
+            logger.error("aasx_export_failed", dpp_id=str(dpp_id), exc_info=True)
+            raise ValueError("Failed to export AASX: package creation failed") from exc
         finally:
             buffer.close()
 

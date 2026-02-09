@@ -39,19 +39,8 @@ class BasyxTemplateParser:
         self,
         json_bytes: bytes,
         expected_semantic_id: str | None = None,
-        *,
-        strict: bool = True,
     ) -> ParsedTemplate:
-        """Parse a JSON AAS environment into a :class:`ParsedTemplate`.
-
-        Args:
-            json_bytes: Raw UTF-8 encoded JSON.
-            expected_semantic_id: If given, select the submodel matching this semantic ID.
-            strict: When ``True``, pass ``failsafe=False`` to BaSyx's JSON
-                    deserializer so that malformed elements raise immediately
-                    instead of being silently skipped.  Defaults to ``True``
-                    to enforce strict validation.
-        """
+        """Parse a JSON AAS environment into a :class:`ParsedTemplate`."""
         try:
             payload = json_bytes.decode("utf-8")
         except UnicodeDecodeError as exc:
@@ -59,12 +48,9 @@ class BasyxTemplateParser:
 
         string_io = io.StringIO(payload)
         try:
-            if strict:
-                store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                    string_io, failsafe=False
-                )
-            else:
-                store = basyx_json.read_aas_json_file(string_io, failsafe=False)  # type: ignore[attr-defined]
+            store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                string_io, failsafe=False
+            )
         except Exception as exc:
             raise ValueError(f"BaSyx deserialization failed: {exc}") from exc
         finally:

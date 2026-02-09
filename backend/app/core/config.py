@@ -397,14 +397,6 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
-    # ESPR Tier Access Control
-    # ==========================================================================
-    espr_default_public_tier: str = Field(
-        default="consumer",
-        description="Default ESPR tier for unauthenticated/anonymous access",
-    )
-
-    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(

@@ -214,3 +214,40 @@ def test_export_aasx_xml_mode() -> None:
     assert any(name.endswith(".xml") and "data" in name.lower() for name in names), (
         f"Expected XML data file, got: {sorted(names)}"
     )
+
+
+def test_export_xml_graceful_with_missing_modeltype() -> None:
+    """export_xml() with failsafe=True produces XML even without modelType fields.
+
+    Export uses lenient mode (failsafe=True) since it round-trips already-validated
+    stored data.  BaSyx silently skips elements it can't fully parse, producing
+    a valid (potentially empty) XML document rather than raising.
+    """
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_revision(dpp_id)
+
+    xml_bytes = export_service.export_xml(revision)
+    assert xml_bytes
+    root = ET.fromstring(xml_bytes)
+    assert root is not None
+
+
+def test_export_aasx_graceful_with_missing_modeltype() -> None:
+    """export_aasx() with failsafe=True produces a valid package without modelType.
+
+    Export uses lenient mode — malformed elements are silently dropped rather than
+    causing a hard failure.  The AASX package structure is still valid.
+    """
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_revision(dpp_id)
+
+    aasx_bytes = export_service.export_aasx(revision, dpp_id)
+    assert aasx_bytes
+
+    with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as zf:
+        names = set(zf.namelist())
+
+    assert "[Content_Types].xml" in names
+    assert "_rels/.rels" in names

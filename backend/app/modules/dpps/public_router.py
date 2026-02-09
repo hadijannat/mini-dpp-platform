@@ -333,7 +333,7 @@ async def list_submodel_refs(
         )
 
     aas_env = _filter_public_aas_environment(revision.aas_env_json)
-    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier, in_place=True)
 
     refs: list[dict[str, Any]] = []
     for sm in aas_env.get("submodels", []):
@@ -381,7 +381,7 @@ async def get_submodel_by_id(
 
     # Apply confidentiality + tier filters, then extract
     aas_env = _filter_public_aas_environment(revision.aas_env_json)
-    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier, in_place=True)
 
     submodel = repo.get_submodel_from_revision(aas_env, submodel_id)
     if not submodel:
@@ -426,7 +426,7 @@ async def get_submodel_value(
         )
 
     aas_env = _filter_public_aas_environment(revision.aas_env_json)
-    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier)
+    aas_env = filter_aas_env_by_espr_tier(aas_env, espr_tier, in_place=True)
 
     submodel = repo.get_submodel_from_revision(aas_env, submodel_id)
     if not submodel:

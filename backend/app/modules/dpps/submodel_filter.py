@@ -43,7 +43,7 @@ def filter_aas_env_by_espr_tier(
         in_place: If True, mutate ``aas_env`` directly instead of deep-copying.
             Use when the caller already owns a mutable copy.
     """
-    if espr_tier is None:
+    if not espr_tier or not espr_tier.strip():
         espr_tier = "consumer"  # deny-by-default for anonymous access
 
     if espr_tier not in ESPR_TIER_SUBMODEL_MAP:
