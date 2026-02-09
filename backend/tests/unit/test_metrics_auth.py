@@ -32,6 +32,7 @@ class TestMetricsAuthProduction:
                 "CORS_ORIGINS": '["https://dpp-platform.dev"]',
                 "METRICS_AUTH_TOKEN": "",
                 "AUTO_PROVISION_DEFAULT_TENANT": "false",
+                "OPA_ENABLED": "true",
             },
             clear=False,
         ):
@@ -53,6 +54,7 @@ class TestMetricsAuthProduction:
                 "CORS_ORIGINS": '["https://dpp-platform.dev"]',
                 "METRICS_AUTH_TOKEN": "super-secret-token",
                 "AUTO_PROVISION_DEFAULT_TENANT": "false",
+                "OPA_ENABLED": "true",
             },
             clear=False,
         ):
@@ -74,6 +76,7 @@ class TestMetricsAuthProduction:
                 "CORS_ORIGINS": '["https://dpp-platform.dev"]',
                 "METRICS_AUTH_TOKEN": "super-secret-token",
                 "AUTO_PROVISION_DEFAULT_TENANT": "false",
+                "OPA_ENABLED": "true",
             },
             clear=False,
         ):
@@ -95,6 +98,7 @@ class TestMetricsAuthProduction:
                 "CORS_ORIGINS": '["https://dpp-platform.dev"]',
                 "METRICS_AUTH_TOKEN": "super-secret-token",
                 "AUTO_PROVISION_DEFAULT_TENANT": "false",
+                "OPA_ENABLED": "true",
             },
             clear=False,
         ):
@@ -102,8 +106,6 @@ class TestMetricsAuthProduction:
 
             test_app = create_application()
             client = TestClient(test_app)
-            resp = client.get(
-                "/metrics", headers={"Authorization": "Bearer super-secret-token"}
-            )
+            resp = client.get("/metrics", headers={"Authorization": "Bearer super-secret-token"})
             assert resp.status_code == 200
             assert "text/plain" in resp.headers.get("content-type", "")

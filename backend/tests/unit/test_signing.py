@@ -46,6 +46,7 @@ def test_production_config_rejects_empty_signing_key() -> None:
             environment="production",
             encryption_master_key="dGVzdC1rZXktMzItYnl0ZXMtbG9uZy4u",
             cors_origins=["https://dpp-platform.dev"],
+            opa_enabled=True,
             dpp_signing_key="",
         )
 
@@ -76,5 +77,6 @@ def test_production_config_rejects_auto_provision_default_tenant() -> None:
             encryption_master_key="dGVzdC1rZXktMzItYnl0ZXMtbG9uZy4u",
             cors_origins=["https://dpp-platform.dev"],
             dpp_signing_key="fake-key",
+            opa_enabled=True,
             auto_provision_default_tenant=True,
         )
