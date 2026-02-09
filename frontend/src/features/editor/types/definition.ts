@@ -53,6 +53,8 @@ export type TemplateResponse = {
   idta_version?: string;
   resolved_version?: string | null;
   semantic_id: string;
+  support_status?: 'supported' | 'experimental' | 'unavailable';
+  refresh_enabled?: boolean;
   source_url?: string;
   source_repo_ref?: string | null;
   source_file_path?: string | null;

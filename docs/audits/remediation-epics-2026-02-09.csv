@@ -1,0 +1,9 @@
+title,description,priority,owner-role,dependencies,acceptance-tests
+"P0-A: Strict parser/export correctness","Enforce fail-fast behavior for malformed templates/exports and remove silent semantic drops.",P0,"Role 1 + Role 3 + Role 5","None","Parser strictness tests; export negative-path tests"
+"P0-B: Public access and tier filtering hardening","Harden anonymous/public endpoints with deny-by-default and published-only exposure.",P0,"Role 7","None","Public access isolation and tenant-boundary tests"
+"P1-A: Revision provenance completeness","Ensure template provenance is present and preserved across all revision creation/update/publish flows.",P1,"Role 6","P0-A","Provenance path unit tests and router serialization checks"
+"P1-B: Refresh API contract + frontend parity","Standardize refresh counters and support metadata across backend + frontend contracts.",P1,"Role 2 + Role 4","P0-A","Template refresh contract tests; frontend typecheck"
+"P1-C: Dynamic form fidelity improvements","Close relationship/entity/list rendering and validation gaps in editor flows.",P1,"Role 4 + Role 3","P1-B","Editor unit/e2e validation scenarios"
+"P1-D: End-to-end conformance CI gate","Automate full refresh->create/edit->publish->export->round-trip verification pipeline in CI.",P1,"Role 8 + Role 5","P1-A|P1-B|P1-C","Pipeline e2e + conformance artifact checks"
+"P2-A: Unsupported template lifecycle UX","Display support state clearly and disable unsupported/unrefreshable templates with reasons.",P2,"Role 4 + Role 2","P1-B","UI behavior tests for disabled/unavailable templates"
+"P2-B: Deep AASX semantic validation","Extend validation beyond ZIP/manifest to semantic IDs, qualifiers, and value-type integrity.",P2,"Role 5","P1-D","AASX semantic validation suite"

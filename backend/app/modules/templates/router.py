@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.core.security import CurrentUser, Publisher, require_access
 from app.db.session import DbSession
+from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.service import (
     TemplateFetchError,
     TemplateParseError,
@@ -33,6 +34,8 @@ class TemplateResponse(BaseModel):
     source_file_sha: str | None = None
     source_kind: str | None = None
     selection_strategy: str | None = None
+    support_status: str = "supported"
+    refresh_enabled: bool = True
     fetched_at: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -43,6 +46,10 @@ class TemplateListResponse(BaseModel):
 
     templates: list[TemplateResponse]
     count: int
+    attempted_count: int | None = None
+    successful_count: int | None = None
+    failed_count: int | None = None
+    skipped_count: int | None = None
     refresh_results: list["TemplateRefreshResultResponse"] | None = None
 
 
@@ -100,6 +107,29 @@ class TemplateContractResponse(BaseModel):
     source_metadata: TemplateSourceMetadataResponse
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def _build_template_response(template: Any) -> TemplateResponse:
+    descriptor = get_template_descriptor(template.template_key)
+    support_status = descriptor.support_status if descriptor is not None else "supported"
+    refresh_enabled = descriptor.refresh_enabled if descriptor is not None else True
+
+    return TemplateResponse(
+        id=template.id,
+        template_key=template.template_key,
+        idta_version=template.idta_version,
+        resolved_version=template.resolved_version,
+        semantic_id=template.semantic_id,
+        source_url=template.source_url,
+        source_repo_ref=template.source_repo_ref,
+        source_file_path=template.source_file_path,
+        source_file_sha=template.source_file_sha,
+        source_kind=template.source_kind,
+        selection_strategy=template.selection_strategy,
+        support_status=support_status,
+        refresh_enabled=refresh_enabled,
+        fetched_at=template.fetched_at.isoformat(),
+    )
 
 
 @router.get("/{template_key}/definition", response_model=TemplateDefinitionResponse)
@@ -182,23 +212,7 @@ async def list_templates(
     templates = await service.get_all_templates()
 
     return TemplateListResponse(
-        templates=[
-            TemplateResponse(
-                id=t.id,
-                template_key=t.template_key,
-                idta_version=t.idta_version,
-                resolved_version=t.resolved_version,
-                semantic_id=t.semantic_id,
-                source_url=t.source_url,
-                source_repo_ref=t.source_repo_ref,
-                source_file_path=t.source_file_path,
-                source_file_sha=t.source_file_sha,
-                source_kind=t.source_kind,
-                selection_strategy=t.selection_strategy,
-                fetched_at=t.fetched_at.isoformat(),
-            )
-            for t in templates
-        ],
+        templates=[_build_template_response(t) for t in templates],
         count=len(templates),
         refresh_results=None,
     )
@@ -226,20 +240,7 @@ async def get_template(
             detail=f"Template '{template_key}' not found",
         )
 
-    return TemplateResponse(
-        id=template.id,
-        template_key=template.template_key,
-        idta_version=template.idta_version,
-        resolved_version=template.resolved_version,
-        semantic_id=template.semantic_id,
-        source_url=template.source_url,
-        source_repo_ref=template.source_repo_ref,
-        source_file_path=template.source_file_path,
-        source_file_sha=template.source_file_sha,
-        source_kind=template.source_kind,
-        selection_strategy=template.selection_strategy,
-        fetched_at=template.fetched_at.isoformat(),
-    )
+    return _build_template_response(template)
 
 
 @router.get("/{template_key}/schema", response_model=UISchemaResponse)
@@ -284,26 +285,18 @@ async def refresh_templates(
     await require_access(user, "refresh", {"type": "template"})
     service = TemplateRegistryService(db)
     templates, refresh_results = await service.refresh_all_templates()
+    attempted_count = len(refresh_results)
+    successful_count = sum(1 for result in refresh_results if result.status == "ok")
+    failed_count = sum(1 for result in refresh_results if result.status == "failed")
+    skipped_count = sum(1 for result in refresh_results if result.status == "skipped")
 
     return TemplateListResponse(
-        templates=[
-            TemplateResponse(
-                id=t.id,
-                template_key=t.template_key,
-                idta_version=t.idta_version,
-                resolved_version=t.resolved_version,
-                semantic_id=t.semantic_id,
-                source_url=t.source_url,
-                source_repo_ref=t.source_repo_ref,
-                source_file_path=t.source_file_path,
-                source_file_sha=t.source_file_sha,
-                source_kind=t.source_kind,
-                selection_strategy=t.selection_strategy,
-                fetched_at=t.fetched_at.isoformat(),
-            )
-            for t in templates
-        ],
-        count=len(templates),
+        templates=[_build_template_response(t) for t in templates],
+        count=successful_count,
+        attempted_count=attempted_count,
+        successful_count=successful_count,
+        failed_count=failed_count,
+        skipped_count=skipped_count,
         refresh_results=[
             TemplateRefreshResultResponse(
                 template_key=result.template_key,
@@ -351,17 +344,4 @@ async def refresh_template(
             detail=str(e),
         )
 
-    return TemplateResponse(
-        id=template.id,
-        template_key=template.template_key,
-        idta_version=template.idta_version,
-        resolved_version=template.resolved_version,
-        semantic_id=template.semantic_id,
-        source_url=template.source_url,
-        source_repo_ref=template.source_repo_ref,
-        source_file_path=template.source_file_path,
-        source_file_sha=template.source_file_sha,
-        source_kind=template.source_kind,
-        selection_strategy=template.selection_strategy,
-        fetched_at=template.fetched_at.isoformat(),
-    )
+    return _build_template_response(template)
