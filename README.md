@@ -423,6 +423,12 @@ mini-dpp-platform/
 
 ---
 
+## Engineering Playbooks
+
+- Multi-agent orchestration and inspection workflow docs: [`docs/agent-teams/README.md`](docs/agent-teams/README.md)
+
+---
+
 ## Troubleshooting
 
 ### Templates not loading / `UndefinedTableError`
