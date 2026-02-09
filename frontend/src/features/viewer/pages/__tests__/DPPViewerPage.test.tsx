@@ -5,8 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import DPPViewerPage from '../DPPViewerPage';
 
+vi.mock('react-oidc-context', () => ({
+  useAuth: () => ({ isAuthenticated: false, user: null }),
+}));
+
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
+  tenantApiFetch: vi.fn(),
   getApiErrorMessage: vi.fn().mockResolvedValue('Failed to fetch DPP'),
 }));
 
