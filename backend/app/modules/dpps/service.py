@@ -660,7 +660,7 @@ class DPPService:
         """
         templates = await self._template_service.get_all_templates()
         if not templates:
-            templates = await self._template_service.refresh_all_templates()
+            templates, _ = await self._template_service.refresh_all_templates()
 
         result = await self._session.execute(select(DPP).where(DPP.tenant_id == tenant_id))
         dpps = list(result.scalars().all())

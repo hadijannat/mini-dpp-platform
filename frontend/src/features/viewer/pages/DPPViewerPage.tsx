@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useAuth } from 'react-oidc-context';
-import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
+import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import { fetchPublicEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { getTenantSlug } from '@/lib/tenant';
@@ -16,14 +15,22 @@ import { ESPRTabs } from '../components/ESPRTabs';
 import { RawSubmodelTree } from '../components/RawSubmodelTree';
 import { IntegrityCard } from '../components/IntegrityCard';
 import { classifySubmodelElements } from '../utils/esprCategories';
+import type { PublicDPPResponse } from '@/api/types';
 
-async function fetchDPP(dppId: string, tenantSlug: string, token?: string, isSlug = false) {
-  const endpoint = isSlug ? `/dpps/by-slug/${dppId}` : `/dpps/${dppId}`;
-  const response = await tenantApiFetch(endpoint, {}, token, tenantSlug);
+async function fetchDPP(
+  dppId: string,
+  tenantSlug: string,
+  isSlug = false,
+): Promise<PublicDPPResponse> {
+  const basePath = `/api/v1/public/${encodeURIComponent(tenantSlug)}/dpps`;
+  const endpoint = isSlug
+    ? `${basePath}/slug/${encodeURIComponent(dppId)}`
+    : `${basePath}/${encodeURIComponent(dppId)}`;
+  const response = await apiFetch(endpoint);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
-  return response.json();
+  return response.json() as Promise<PublicDPPResponse>;
 }
 
 export default function DPPViewerPage() {
@@ -32,14 +39,10 @@ export default function DPPViewerPage() {
   const id = dppId || slug;
   const isSlug = !dppId && !!slug;
   const resolvedTenant = tenantSlug || getTenantSlug();
-  const auth = useAuth();
-  // Token is optional -- unauthenticated visitors can view published DPPs
-  // once the backend public endpoint is available.
-  const token = auth.isAuthenticated ? auth.user?.access_token : undefined;
 
-  const { data: dpp, isLoading, error } = useQuery({
+  const { data: dpp, isLoading, error } = useQuery<PublicDPPResponse>({
     queryKey: ['dpp', resolvedTenant, id, isSlug],
-    queryFn: () => fetchDPP(id!, resolvedTenant, token, isSlug),
+    queryFn: () => fetchDPP(id!, resolvedTenant, isSlug),
     enabled: !!id && !!resolvedTenant,
   });
 

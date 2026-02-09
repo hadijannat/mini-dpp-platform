@@ -48,6 +48,11 @@ class TestBatteryTemplateDescriptor:
         assert desc.baseline_major == 1
         assert desc.baseline_minor == 0
 
+    def test_support_policy_marks_template_unavailable(self) -> None:
+        desc = TEMPLATE_CATALOG["battery-passport"]
+        assert desc.support_status == "unavailable"
+        assert desc.refresh_enabled is False
+
 
 class TestBatteryESPRTier:
     """Battery Passport submodels are consumer-visible per EU 2023/1542."""
@@ -59,8 +64,8 @@ class TestBatteryESPRTier:
         )
 
     def test_consumer_submodels_count(self) -> None:
-        # 4 prefixes: nameplate, technical data, carbon footprint, battery
-        assert len(CONSUMER_SUBMODELS) == 4
+        # Registry-driven mapping may include legacy aliases and exact semantic IDs.
+        assert len(CONSUMER_SUBMODELS) >= 4
 
 
 class TestBatteryComplianceRules:

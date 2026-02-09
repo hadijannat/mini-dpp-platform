@@ -8,6 +8,7 @@ import type { components } from './schema';
 export type DPPResponse = components['schemas']['DPPResponse'];
 export type DPPListResponse = components['schemas']['DPPListResponse'];
 export type DPPDetailResponse = components['schemas']['DPPDetailResponse'];
+export type PublicDPPResponse = components['schemas']['PublicDPPResponse'];
 export type CreateDPPRequest = components['schemas']['CreateDPPRequest'];
 
 // Template types

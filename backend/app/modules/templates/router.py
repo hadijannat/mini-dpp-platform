@@ -43,6 +43,7 @@ class TemplateListResponse(BaseModel):
 
     templates: list[TemplateResponse]
     count: int
+    refresh_results: list["TemplateRefreshResultResponse"] | None = None
 
 
 class UISchemaResponse(BaseModel):
@@ -71,6 +72,21 @@ class TemplateSourceMetadataResponse(BaseModel):
     source_kind: str | None = None
     selection_strategy: str | None = None
     source_url: str
+
+
+class TemplateRefreshResultResponse(BaseModel):
+    """Per-template result from a refresh operation."""
+
+    template_key: str
+    status: str
+    support_status: str
+    error: str | None = None
+    idta_version: str | None = None
+    resolved_version: str | None = None
+    source_metadata: TemplateSourceMetadataResponse | None = None
+
+
+TemplateListResponse.model_rebuild()
 
 
 class TemplateContractResponse(BaseModel):
@@ -184,6 +200,7 @@ async def list_templates(
             for t in templates
         ],
         count=len(templates),
+        refresh_results=None,
     )
 
 
@@ -266,7 +283,7 @@ async def refresh_templates(
     """
     await require_access(user, "refresh", {"type": "template"})
     service = TemplateRegistryService(db)
-    templates = await service.refresh_all_templates()
+    templates, refresh_results = await service.refresh_all_templates()
 
     return TemplateListResponse(
         templates=[
@@ -287,6 +304,22 @@ async def refresh_templates(
             for t in templates
         ],
         count=len(templates),
+        refresh_results=[
+            TemplateRefreshResultResponse(
+                template_key=result.template_key,
+                status=result.status,
+                support_status=result.support_status,
+                error=result.error,
+                idta_version=result.idta_version,
+                resolved_version=result.resolved_version,
+                source_metadata=(
+                    TemplateSourceMetadataResponse(**result.source_metadata)
+                    if result.source_metadata
+                    else None
+                ),
+            )
+            for result in refresh_results
+        ],
     )
 
 

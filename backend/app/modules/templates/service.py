@@ -7,8 +7,9 @@ import io
 import json
 import re
 import zipfile
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 from urllib.parse import quote, urlparse
 
 import httpx
@@ -57,6 +58,17 @@ class TemplateParseError(RuntimeError):
         super().__init__(message)
         self.template_key = template_key
         self.version = version
+
+
+@dataclass(frozen=True)
+class TemplateRefreshResult:
+    template_key: str
+    status: Literal["ok", "failed", "skipped"]
+    support_status: str
+    error: str | None = None
+    idta_version: str | None = None
+    resolved_version: str | None = None
+    source_metadata: dict[str, Any] | None = None
 
 
 class TemplateRegistryService:
@@ -149,6 +161,11 @@ class TemplateRegistryService:
         descriptor = get_template_descriptor(template_key)
         if descriptor is None:
             raise ValueError(f"Unknown template key: {template_key}")
+        if not descriptor.refresh_enabled:
+            raise ValueError(
+                f"Template '{template_key}' is marked as {descriptor.support_status} and cannot "
+                "be refreshed from the upstream repository."
+            )
 
         version = await self._resolve_template_version(descriptor)
 
@@ -382,27 +399,70 @@ class TemplateRegistryService:
 
         return definition
 
-    async def refresh_all_templates(self) -> list[Template]:
+    async def refresh_all_templates(self) -> tuple[list[Template], list[TemplateRefreshResult]]:
         """
         Refresh all DPP4.0 templates from IDTA repository.
 
         Used during initial setup and scheduled template updates.
         """
         templates: list[Template] = []
+        results: list[TemplateRefreshResult] = []
 
         for template_key in list_template_keys():
+            descriptor = get_template_descriptor(template_key)
+            support_status = descriptor.support_status if descriptor else "supported"
+
+            if descriptor is not None and not descriptor.refresh_enabled:
+                message = (
+                    f"Template is marked as {descriptor.support_status}; upstream source currently "
+                    "unavailable."
+                )
+                logger.info(
+                    "template_refresh_skipped",
+                    template_key=template_key,
+                    support_status=descriptor.support_status,
+                    reason=message,
+                )
+                results.append(
+                    TemplateRefreshResult(
+                        template_key=template_key,
+                        status="skipped",
+                        support_status=support_status,
+                        error=message,
+                    )
+                )
+                continue
+
             try:
                 template = await self.refresh_template(template_key)
                 templates.append(template)
+                results.append(
+                    TemplateRefreshResult(
+                        template_key=template_key,
+                        status="ok",
+                        support_status=support_status,
+                        idta_version=template.idta_version,
+                        resolved_version=template.resolved_version or template.idta_version,
+                        source_metadata=self._source_metadata(template),
+                    )
+                )
             except Exception as e:
                 logger.error(
                     "template_refresh_failed",
                     template_key=template_key,
                     error=str(e),
                 )
+                results.append(
+                    TemplateRefreshResult(
+                        template_key=template_key,
+                        status="failed",
+                        support_status=support_status,
+                        error=str(e),
+                    )
+                )
 
         await self._session.commit()
-        return templates
+        return templates, results
 
     async def _resolve_template_version(self, descriptor: TemplateDescriptor) -> str:
         policy = self._settings.template_version_resolution_policy

@@ -68,7 +68,7 @@ async def test_templates_are_convertible_by_codegen_tool(
 ) -> None:
     service = TemplateRegistryService(db_session)
 
-    for template_key in list_template_keys():
+    for template_key in list_template_keys(refreshable_only=True):
         template = await service.refresh_template(template_key)
 
         if template.template_aasx:
