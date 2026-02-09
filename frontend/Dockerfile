@@ -61,6 +61,12 @@ COPY shared/ ./shared/
 RUN ln -s /repo/frontend/shared /repo/shared
 ENV SHARED_DIR=/repo/frontend/shared
 
+# Diagnostic: verify shared files are in place before building
+RUN echo "=== shared dir ===" && ls -la /repo/frontend/shared/ && \
+    echo "=== symlink ===" && ls -la /repo/shared/ && \
+    echo "=== SHARED_DIR=$SHARED_DIR ===" && \
+    node -e "const p=require('path'); console.log('resolved:', p.resolve(process.env.SHARED_DIR || '../shared')); console.log('exists:', require('fs').existsSync(p.resolve(process.env.SHARED_DIR || '../shared', 'idta_semantic_registry.json')))"
+
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
 
