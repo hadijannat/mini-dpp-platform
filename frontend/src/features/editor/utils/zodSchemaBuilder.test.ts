@@ -220,6 +220,95 @@ describe('buildZodSchema', () => {
     });
   });
 
+  describe('RelationshipElement', () => {
+    const definition: TemplateDefinition = {
+      submodel: {
+        idShort: 'Test',
+        elements: [
+          {
+            idShort: 'TestRelationship',
+            modelType: 'RelationshipElement',
+            first: undefined,
+            second: undefined,
+          },
+        ],
+      },
+    };
+
+    it('validates proper AAS Reference structure', () => {
+      const schema = buildZodSchema(definition);
+      const validData = {
+        TestRelationship: {
+          first: {
+            type: 'ModelReference',
+            keys: [{ type: 'Submodel', value: 'urn:example:sm:1' }],
+          },
+          second: {
+            type: 'ExternalReference',
+            keys: [{ type: 'GlobalReference', value: 'https://example.com' }],
+          },
+        },
+      };
+      expect(() => schema.parse(validData)).not.toThrow();
+    });
+
+    it('accepts null references', () => {
+      const schema = buildZodSchema(definition);
+      const data = {
+        TestRelationship: {
+          first: null,
+          second: null,
+        },
+      };
+      expect(() => schema.parse(data)).not.toThrow();
+    });
+
+    it('accepts references without keys', () => {
+      const schema = buildZodSchema(definition);
+      const data = {
+        TestRelationship: {
+          first: { type: 'ModelReference' },
+          second: null,
+        },
+      };
+      expect(() => schema.parse(data)).not.toThrow();
+    });
+  });
+
+  describe('AnnotatedRelationshipElement', () => {
+    const definition: TemplateDefinition = {
+      submodel: {
+        idShort: 'Test',
+        elements: [
+          {
+            idShort: 'TestAnnotatedRel',
+            modelType: 'AnnotatedRelationshipElement',
+            annotations: [
+              { idShort: 'Note', modelType: 'Property', valueType: 'xs:string' },
+            ],
+          },
+        ],
+      },
+    };
+
+    it('validates structured references with annotations', () => {
+      const schema = buildZodSchema(definition);
+      const data = {
+        TestAnnotatedRel: {
+          first: {
+            type: 'ModelReference',
+            keys: [{ type: 'Submodel', value: 'urn:example:1' }],
+          },
+          second: null,
+          annotations: {
+            Note: 'test annotation',
+          },
+        },
+      };
+      expect(() => schema.parse(data)).not.toThrow();
+    });
+  });
+
   describe('UISchema fallback', () => {
     it('builds schema from UISchema when no definition', () => {
       const uiSchema: UISchema = {

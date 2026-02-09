@@ -127,6 +127,7 @@ class RevisionResponse(BaseModel):
     digest_sha256: str
     created_by_subject: str
     created_at: str
+    template_provenance: dict[str, Any] | None = None
 
 
 class SubmodelDefinitionResponse(BaseModel):

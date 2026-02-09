@@ -95,35 +95,36 @@ class TestFullAccessTiers:
 
 
 class TestNoneTier:
-    """None tier = backwards compatible, no filtering."""
+    """None tier = defaults to consumer (deny-by-default for anonymous access)."""
 
-    def test_none_tier_returns_full_env(self) -> None:
+    def test_none_tier_defaults_to_consumer(self) -> None:
         env = _make_aas_env(
             _make_submodel("sm1", "https://admin-shell.io/zvei/nameplate"),
             _make_submodel("secret", "https://example.com/internal/secret"),
         )
         result = filter_aas_env_by_espr_tier(env, None)
-        assert len(result["submodels"]) == 2
+        ids = [sm["id"] for sm in result["submodels"]]
+        assert "sm1" in ids
+        assert "secret" not in ids
 
-    def test_none_tier_does_not_deepcopy(self) -> None:
+    def test_none_tier_filters_like_consumer(self) -> None:
         env = _make_aas_env(
             _make_submodel("sm1", "https://admin-shell.io/zvei/nameplate"),
         )
         result = filter_aas_env_by_espr_tier(env, None)
-        # Should be the same object (no copy for performance)
-        assert result is env
+        assert len(result["submodels"]) == 1
 
 
 class TestNoSemanticId:
-    """Submodels without semanticId should be visible to all tiers."""
+    """Submodels without semanticId are denied by default (security hardening)."""
 
-    def test_no_semantic_id_visible_to_consumer(self) -> None:
+    def test_no_semantic_id_denied_for_consumer(self) -> None:
         sm = {"id": "sm1", "idShort": "Unknown", "submodelElements": []}
         env = _make_aas_env(sm)
         filtered = filter_aas_env_by_espr_tier(env, "consumer")
-        assert len(filtered["submodels"]) == 1
+        assert len(filtered["submodels"]) == 0
 
-    def test_empty_keys_visible_to_consumer(self) -> None:
+    def test_empty_keys_denied_for_consumer(self) -> None:
         sm = {
             "id": "sm1",
             "idShort": "Unknown",
@@ -132,6 +133,12 @@ class TestNoSemanticId:
         }
         env = _make_aas_env(sm)
         filtered = filter_aas_env_by_espr_tier(env, "consumer")
+        assert len(filtered["submodels"]) == 0
+
+    def test_no_semantic_id_visible_to_manufacturer(self) -> None:
+        sm = {"id": "sm1", "idShort": "Unknown", "submodelElements": []}
+        env = _make_aas_env(sm)
+        filtered = filter_aas_env_by_espr_tier(env, "manufacturer")
         assert len(filtered["submodels"]) == 1
 
 

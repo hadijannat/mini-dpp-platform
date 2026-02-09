@@ -232,7 +232,7 @@ class BasyxDppBuilder:
         string_io = io.StringIO(payload)
         try:
             store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io
+                string_io, failsafe=False
             )
         except Exception as exc:
             raise ValueError(f"Failed to parse AAS environment: {exc}") from exc

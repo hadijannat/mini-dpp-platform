@@ -33,7 +33,7 @@ async def export_dpp(
     request: Request,
     db: DbSession,
     tenant: TenantContextDep,
-    format: Literal["json", "aasx", "pdf", "jsonld", "turtle"] = Query(
+    format: Literal["json", "aasx", "pdf", "jsonld", "turtle", "xml"] = Query(
         "json", description="Export format"
     ),
     aasx_serialization: Literal["json", "xml"] = Query(
@@ -213,6 +213,25 @@ async def export_dpp(
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.pdf"',
+            },
+        )
+    elif format == "xml":
+        content = export_service.export_xml(revision)
+        await emit_audit_event(
+            db_session=db,
+            action="export_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={"format": format},
+        )
+        return Response(
+            content=content,
+            media_type="application/xml",
+            headers={
+                "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.xml"',
             },
         )
     else:

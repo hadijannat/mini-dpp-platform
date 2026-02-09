@@ -147,7 +147,7 @@ async function publishDPP(dppId: string, token?: string) {
   return response.json();
 }
 
-type ExportFormat = 'json' | 'aasx' | 'pdf' | 'jsonld' | 'turtle';
+type ExportFormat = 'json' | 'aasx' | 'pdf' | 'jsonld' | 'turtle' | 'xml';
 
 const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
   json: 'json',
@@ -155,6 +155,7 @@ const EXPORT_EXTENSIONS: Record<ExportFormat, string> = {
   pdf: 'pdf',
   jsonld: 'jsonld',
   turtle: 'ttl',
+  xml: 'xml',
 };
 
 async function downloadExport(dppId: string, format: ExportFormat, token?: string) {
@@ -359,6 +360,9 @@ export default function DPPEditorPage() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { void handleExport('turtle'); }}>
                   Export Turtle
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { void handleExport('xml'); }}>
+                  Export XML
                 </DropdownMenuItem>
                 {dpp.status === 'published' && (
                   <>

@@ -140,6 +140,9 @@ class DPPService:
             short_link=False,
         )
 
+        # Capture template provenance for audit trail
+        template_provenance = await self._build_template_provenance(selected_templates)
+
         # Create initial revision
         revision = DPPRevision(
             tenant_id=tenant_id,
@@ -149,6 +152,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=owner_subject,
+            template_provenance=template_provenance,
         )
         self._session.add(revision)
         await self._session.flush()
@@ -634,6 +638,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
+            template_provenance=current_revision.template_provenance,
         )
         self._session.add(revision)
         await self._session.flush()
@@ -745,6 +750,7 @@ class DPPService:
                 digest_sha256=latest_revision.digest_sha256,
                 signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
+                template_provenance=latest_revision.template_provenance,
             )
             self._session.add(revision)
             await self._session.flush()
@@ -864,6 +870,36 @@ class DPPService:
             selected_templates=selected_templates,
             initial_data=initial_data,
         )
+
+    async def _build_template_provenance(
+        self, template_keys: list[str]
+    ) -> dict[str, Any]:
+        """Build provenance metadata for selected templates."""
+        provenance: dict[str, Any] = {}
+        for key in template_keys:
+            descriptor = get_template_descriptor(key)
+            if not descriptor:
+                continue
+            # Query for cached template record
+            result = await self._session.execute(
+                select(Template)
+                .where(Template.template_key == key)
+                .order_by(Template.fetched_at.desc())
+                .limit(1)
+            )
+            template = result.scalar_one_or_none()
+            provenance[key] = {
+                "idta_version": f"{descriptor.baseline_major}.{descriptor.baseline_minor}",
+                "semantic_id": descriptor.semantic_id,
+                "resolved_version": template.resolved_version if template else None,
+                "source_file_sha": template.source_file_sha if template else None,
+                "source_file_path": template.source_file_path if template else None,
+                "source_kind": template.source_kind if template else None,
+                "selection_strategy": (
+                    template.selection_strategy if template else None
+                ),
+            }
+        return provenance
 
     async def _build_initial_environment_legacy(
         self,

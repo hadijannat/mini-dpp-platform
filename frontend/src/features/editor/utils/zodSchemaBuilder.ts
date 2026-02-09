@@ -2,6 +2,15 @@ import { z, type ZodTypeAny } from 'zod';
 import type { DefinitionNode, TemplateDefinition } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
 
+/** AAS Reference schema matching BaSyx model: {type, keys: [{type, value}]} */
+const aasReferenceSchema = z.object({
+  type: z.string().optional(),
+  keys: z.array(z.object({
+    type: z.string(),
+    value: z.string(),
+  })).optional(),
+}).nullable();
+
 /**
  * Builds a Zod schema from a DefinitionNode tree and UISchema.
  * Used with zodResolver to power React Hook Form validation.
@@ -54,7 +63,7 @@ function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
     case 'Entity':
       return buildEntitySchema(node, schema);
     case 'RelationshipElement':
-      return z.object({ first: z.unknown().nullable(), second: z.unknown().nullable() });
+      return z.object({ first: aasReferenceSchema, second: aasReferenceSchema });
     case 'AnnotatedRelationshipElement':
       return buildAnnotatedRelationshipSchema(node, schema);
     case 'Property':
@@ -224,8 +233,8 @@ function buildAnnotatedRelationshipSchema(node: DefinitionNode, schema?: UISchem
     }
   }
   return z.object({
-    first: z.unknown().nullable(),
-    second: z.unknown().nullable(),
+    first: aasReferenceSchema,
+    second: aasReferenceSchema,
     annotations: Object.keys(annotationsShape).length > 0
       ? z.object(annotationsShape).passthrough()
       : z.record(z.string(), z.unknown()),
