@@ -53,9 +53,13 @@ RUN npm ci
 # Copy source code
 COPY frontend/ .
 
-# Copy shared registry and tell Vite where to find it
-COPY shared/ /repo/shared/
-ENV SHARED_DIR=/repo/shared
+# Copy shared registry into the project tree and symlink as sibling
+# so both tsconfig paths (../shared/*) and Vite alias resolve correctly.
+# The docker-container BuildKit driver in CI cannot resolve files outside
+# the project root, so the real files must live under /repo/frontend/.
+COPY shared/ ./shared/
+RUN ln -s /repo/frontend/shared /repo/shared
+ENV SHARED_DIR=/repo/frontend/shared
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build
