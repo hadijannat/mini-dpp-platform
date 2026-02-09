@@ -60,7 +60,9 @@ class TestProvenancePropagation:
                 template_provenance=None,
             )
         )
-        service.get_dpp = AsyncMock(return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-1"}))
+        service.get_dpp = AsyncMock(
+            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-1"})
+        )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
             get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
@@ -96,7 +98,9 @@ class TestProvenancePropagation:
                 template_provenance=existing,
             )
         )
-        service.get_dpp = AsyncMock(return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-2"}))
+        service.get_dpp = AsyncMock(
+            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "P-2"})
+        )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
             get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
@@ -138,8 +142,12 @@ class TestProvenancePropagation:
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
 
-        dpp = SimpleNamespace(id=uuid4(), tenant_id=uuid4(), asset_ids={"manufacturerPartId": "P-3"})
-        updated = await service._rebuild_dpp_from_templates(dpp=dpp, templates=[], updated_by_subject="owner")
+        dpp = SimpleNamespace(
+            id=uuid4(), tenant_id=uuid4(), asset_ids={"manufacturerPartId": "P-3"}
+        )
+        updated = await service._rebuild_dpp_from_templates(
+            dpp=dpp, templates=[], updated_by_subject="owner"
+        )
 
         assert updated is True
         added_revision = session.add.call_args_list[-1].args[0]
