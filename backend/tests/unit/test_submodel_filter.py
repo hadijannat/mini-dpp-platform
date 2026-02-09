@@ -88,6 +88,20 @@ class TestEsprTierFiltering:
         assert result is env
         assert len(env["submodels"]) == 0
 
+    def test_empty_string_tier_defaults_to_consumer(self) -> None:
+        """espr_tier='' should default to consumer tier (deny-by-default)."""
+        sm = _make_submodel("https://example.com/unknown")
+        env = _make_env(sm)
+        result = filter_aas_env_by_espr_tier(env, "")
+        assert len(result["submodels"]) == 0
+
+    def test_whitespace_only_tier_defaults_to_consumer(self) -> None:
+        """espr_tier='  ' should default to consumer tier (deny-by-default)."""
+        sm = _make_submodel("https://example.com/unknown")
+        env = _make_env(sm)
+        result = filter_aas_env_by_espr_tier(env, "   ")
+        assert len(result["submodels"]) == 0
+
     def test_tier_map_completeness(self) -> None:
         """All expected tiers should be in the tier map."""
         expected = {"consumer", "recycler", "market_surveillance_authority", "manufacturer"}

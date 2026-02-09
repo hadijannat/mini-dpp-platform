@@ -209,9 +209,11 @@ class ExportService:
 
             buffer.seek(0)
             return buffer.read()
+        except ValueError:
+            raise  # Already sanitized by inner handler
         except Exception as exc:
-            logger.error("aasx_export_failed", dpp_id=str(dpp_id), error=str(exc))
-            raise ValueError(f"Failed to export AASX: {exc}") from exc
+            logger.error("aasx_export_failed", dpp_id=str(dpp_id), exc_info=True)
+            raise ValueError("Failed to export AASX: package creation failed") from exc
         finally:
             buffer.close()
 
