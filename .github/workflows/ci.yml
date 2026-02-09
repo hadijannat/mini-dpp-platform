@@ -302,7 +302,7 @@ jobs:
           push: false
           tags: dpp-platform-backend:${{ github.sha }}
           cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+          cache-to: type=gha,mode=max,scope=backend,ignore-error=true
 
       - name: Build frontend image
         uses: docker/build-push-action@v5
@@ -312,4 +312,4 @@ jobs:
           push: false
           tags: dpp-platform-frontend:${{ github.sha }}
           cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend,ignore-error=true
