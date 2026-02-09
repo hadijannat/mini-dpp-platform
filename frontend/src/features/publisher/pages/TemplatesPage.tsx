@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import type { TemplateResponse } from '@/api/types';
+import type { TemplateListResponse, TemplateResponse } from '@/api/types';
 
 type RebuildSummary = {
   total: number;
@@ -22,22 +22,22 @@ type RebuildSummary = {
   errors: Array<{ dpp_id: string; error: string }>;
 };
 
-async function fetchTemplates(token?: string) {
+async function fetchTemplates(token?: string): Promise<TemplateListResponse> {
   const response = await apiFetch('/api/v1/templates', {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch templates'));
   }
-  return response.json();
+  return response.json() as Promise<TemplateListResponse>;
 }
 
-async function refreshTemplates(token?: string) {
+async function refreshTemplates(token?: string): Promise<TemplateListResponse> {
   const response = await apiFetch('/api/v1/templates/refresh', {
     method: 'POST',
   }, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to refresh templates'));
   }
-  return response.json();
+  return response.json() as Promise<TemplateListResponse>;
 }
 
 async function refreshAndRebuildAll(token?: string) {
@@ -145,6 +145,17 @@ export default function TemplatesPage() {
           message={(refreshMutation.error as Error)?.message || 'Failed to refresh templates.'}
         />
       )}
+      {refreshMutation.isSuccess && refreshMutation.data && (
+        <Alert>
+          <AlertTitle>Template refresh complete</AlertTitle>
+          <AlertDescription>
+            Attempted: {refreshMutation.data.attempted_count ?? refreshMutation.data.count} ·
+            Successful: {refreshMutation.data.successful_count ?? refreshMutation.data.count} ·
+            Failed: {refreshMutation.data.failed_count ?? 0} ·
+            Skipped: {refreshMutation.data.skipped_count ?? 0}
+          </AlertDescription>
+        </Alert>
+      )}
       {rebuildMutation.isError && (
         <ErrorBanner
           message={(rebuildMutation.error as Error)?.message || 'Failed to rebuild all DPPs.'}
@@ -178,7 +189,16 @@ export default function TemplatesPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{template.template_key}</CardTitle>
-                  <Badge variant="secondary">{template.idta_version}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">{template.idta_version}</Badge>
+                    {template.support_status && (
+                      <Badge
+                        variant={template.support_status === 'unavailable' ? 'destructive' : 'outline'}
+                      >
+                        {template.support_status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -194,6 +214,10 @@ export default function TemplatesPage() {
                     <dd>
                       {new Date(template.fetched_at).toLocaleString()}
                     </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground">Refresh</dt>
+                    <dd>{template.refresh_enabled === false ? 'Disabled' : 'Enabled'}</dd>
                   </div>
                 </dl>
               </CardContent>

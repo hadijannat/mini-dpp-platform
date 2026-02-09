@@ -223,6 +223,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=owner_subject,
+            template_provenance={},
         )
         self._session.add(revision)
         await self._session.flush()
@@ -638,7 +639,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
-            template_provenance=current_revision.template_provenance,
+            template_provenance=current_revision.template_provenance or {},
         )
         self._session.add(revision)
         await self._session.flush()
@@ -750,7 +751,7 @@ class DPPService:
                 digest_sha256=latest_revision.digest_sha256,
                 signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
-                template_provenance=latest_revision.template_provenance,
+                template_provenance=latest_revision.template_provenance or {},
             )
             self._session.add(revision)
             await self._session.flush()
@@ -808,6 +809,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
+            template_provenance=current_revision.template_provenance or {},
         )
         self._session.add(revision)
         await self._session.flush()

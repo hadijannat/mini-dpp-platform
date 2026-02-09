@@ -42,6 +42,12 @@ interface TemplateOption {
   id: string;
   template_key: string;
   idta_version: string;
+  support_status?: 'supported' | 'experimental' | 'unavailable';
+  refresh_enabled?: boolean;
+}
+
+function isTemplateSelectable(template: TemplateOption): boolean {
+  return template.support_status !== 'unavailable' && template.refresh_enabled !== false;
 }
 
 type PlaceholderPaths = Record<string, string[]>;
@@ -446,11 +452,12 @@ export default function MastersPage() {
       .filter((template) => formData.get(`tpl-${template.template_key}`))
       .map((template) => template.template_key);
 
+    const selectableTemplates = templates.filter((template) => isTemplateSelectable(template));
     const normalizedTemplates =
       selectedTemplates.length > 0
         ? selectedTemplates
-        : templates.length > 0
-          ? [templates[0].template_key]
+        : selectableTemplates.length > 0
+          ? [selectableTemplates[0].template_key]
           : [];
 
     if (normalizedTemplates.length === 0) {
@@ -934,10 +941,14 @@ export default function MastersPage() {
                     <input
                       type="checkbox"
                       name={`tpl-${template.template_key}`}
+                      disabled={!isTemplateSelectable(template)}
                       className="h-4 w-4 rounded border-gray-300 text-primary"
                     />
                     <span>{template.template_key}</span>
                     <span className="text-xs text-muted-foreground">v{template.idta_version}</span>
+                    {template.support_status === 'unavailable' && (
+                      <span className="text-xs text-destructive">unavailable</span>
+                    )}
                   </label>
                 ))}
                 {templates.length === 0 && (

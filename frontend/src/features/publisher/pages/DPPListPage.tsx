@@ -82,6 +82,10 @@ interface TemplatePackage {
   variables: TemplateVariable[];
 }
 
+function isTemplateSelectable(template: TemplateResponse): boolean {
+  return template.support_status !== 'unavailable' && template.refresh_enabled !== false;
+}
+
 const PAGE_SIZE = 50;
 
 async function fetchDPPs(token?: string, page = 0) {
@@ -252,7 +256,9 @@ export default function DPPListPage() {
   });
 
   useEffect(() => {
-    const available = templatesData?.templates?.map((template: TemplateResponse) => template.template_key) || [];
+    const available = templatesData?.templates
+      ?.filter((template: TemplateResponse) => isTemplateSelectable(template))
+      .map((template: TemplateResponse) => template.template_key) || [];
     setSelectedTemplates((prev) => {
       const filtered = prev.filter((key) => available.includes(key));
       if (filtered.length > 0) return filtered;
@@ -281,7 +287,9 @@ export default function DPPListPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dpps', tenantSlug] });
       setShowCreateModal(false);
-      const available = templatesData?.templates?.map((template: TemplateResponse) => template.template_key) || [];
+      const available = templatesData?.templates
+        ?.filter((template: TemplateResponse) => isTemplateSelectable(template))
+        .map((template: TemplateResponse) => template.template_key) || [];
       setSelectedTemplates(available.length > 0 ? [available[0]] : []);
     },
   });
@@ -385,7 +393,9 @@ export default function DPPListPage() {
     });
   };
 
-  const handleTemplateToggle = (templateKey: string) => {
+  const handleTemplateToggle = (template: TemplateResponse) => {
+    if (!isTemplateSelectable(template)) return;
+    const templateKey = template.template_key;
     setSelectedTemplates(prev =>
       prev.includes(templateKey)
         ? prev.filter(t => t !== templateKey)
@@ -664,15 +674,22 @@ export default function DPPListPage() {
                   <div key={template.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`template-${template.id}`}
+                      disabled={!isTemplateSelectable(template)}
                       checked={selectedTemplates.includes(template.template_key)}
-                      onCheckedChange={() => handleTemplateToggle(template.template_key)}
+                      onCheckedChange={() => handleTemplateToggle(template)}
                     />
                     <label
                       htmlFor={`template-${template.id}`}
-                      className="flex items-center gap-2 text-sm cursor-pointer"
+                      className={cn(
+                        'flex items-center gap-2 text-sm',
+                        isTemplateSelectable(template) ? 'cursor-pointer' : 'cursor-not-allowed text-muted-foreground'
+                      )}
                     >
                       <span>{template.template_key}</span>
                       <span className="text-xs text-muted-foreground">v{template.idta_version}</span>
+                      {template.support_status === 'unavailable' && (
+                        <span className="text-xs text-destructive">unavailable</span>
+                      )}
                     </label>
                   </div>
                 ))}

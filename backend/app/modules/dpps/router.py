@@ -723,6 +723,7 @@ async def update_submodel(
         digest_sha256=revision.digest_sha256,
         created_by_subject=revision.created_by_subject,
         created_at=revision.created_at.isoformat(),
+        template_provenance=revision.template_provenance,
     )
 
 
@@ -1003,6 +1004,7 @@ async def list_revisions(
             digest_sha256=rev.digest_sha256,
             created_by_subject=rev.created_by_subject,
             created_at=rev.created_at.isoformat(),
+            template_provenance=rev.template_provenance,
         )
         for rev in dpp.revisions
     ]
