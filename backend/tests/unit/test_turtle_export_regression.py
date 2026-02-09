@@ -387,6 +387,34 @@ class TestTurtleRoundTrip:
         # The submodel ID should appear in the Turtle output
         assert "urn:sm:regression:1" in result
 
+    def test_no_crash_on_idta_placeholder_braces(self) -> None:
+        """IDTA templates use placeholder URIs like ``{arbitrary}`` in concept
+        description IDs.  Curly braces are invalid in N3/Turtle syntax; the
+        serializer must encode them so rdflib can produce valid output."""
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:placeholder-test",
+                    "idShort": "PlaceholderTest",
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [
+                {
+                    "id": "https://admin-shell.io/IDTA/TechnicalData/{arbitrary}/2/0",
+                    "idShort": "ArbitraryCd",
+                },
+            ],
+        }
+        result = aas_to_turtle(env)
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # Curly braces must be percent-encoded in the output
+        assert "%7B" in result or "%7b" in result
+        assert "{arbitrary}" not in result
+
 
 class TestElementToNode:
     def test_property_simple_value(self) -> None:

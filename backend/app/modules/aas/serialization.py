@@ -20,6 +20,11 @@ from basyx.aas.adapter import xml as basyx_xml
 from app.core.logging import get_logger
 from app.modules.aas.references import extract_semantic_id_str
 
+# Characters that are invalid in RFC 3986 URIs but appear in IDTA template
+# placeholder IDs (e.g. "https://…/{arbitrary}/2/0").  Encode them so rdflib
+# can serialise the graph as Turtle / N3 without crashing.
+_IRI_UNSAFE = str.maketrans({"{": "%7B", "}": "%7D"})
+
 logger = get_logger(__name__)
 
 # AAS / W3C context URIs for JSON-LD output
@@ -157,7 +162,7 @@ def _identifiable_to_node(
     }
     obj_id = obj.get("id")
     if obj_id:
-        node["@id"] = str(obj_id)
+        node["@id"] = str(obj_id).translate(_IRI_UNSAFE)
     id_short = obj.get("idShort")
     if id_short:
         node["aas:idShort"] = id_short
