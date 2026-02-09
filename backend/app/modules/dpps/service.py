@@ -871,9 +871,7 @@ class DPPService:
             initial_data=initial_data,
         )
 
-    async def _build_template_provenance(
-        self, template_keys: list[str]
-    ) -> dict[str, Any]:
+    async def _build_template_provenance(self, template_keys: list[str]) -> dict[str, Any]:
         """Build provenance metadata for selected templates."""
         provenance: dict[str, Any] = {}
         for key in template_keys:
@@ -895,9 +893,7 @@ class DPPService:
                 "source_file_sha": template.source_file_sha if template else None,
                 "source_file_path": template.source_file_path if template else None,
                 "source_kind": template.source_kind if template else None,
-                "selection_strategy": (
-                    template.selection_strategy if template else None
-                ),
+                "selection_strategy": (template.selection_strategy if template else None),
             }
         return provenance
 
