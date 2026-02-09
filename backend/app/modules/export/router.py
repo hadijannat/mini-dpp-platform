@@ -315,10 +315,10 @@ async def batch_export(
 
                 zf.writestr(f"dpp-{dpp_id}.{ext}", content)
                 results.append(BatchExportResultItem(dpp_id=dpp_id, status="ok"))
-            except Exception as exc:
+            except Exception:
                 logger.warning("batch_export_item_failed", dpp_id=str(dpp_id), exc_info=True)
                 results.append(
-                    BatchExportResultItem(dpp_id=dpp_id, status="failed", error=str(exc))
+                    BatchExportResultItem(dpp_id=dpp_id, status="failed", error="Export failed")
                 )
 
     succeeded = sum(1 for r in results if r.status == "ok")

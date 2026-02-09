@@ -1,6 +1,6 @@
 """Add template_provenance column to dpp_revisions
 
-Revision ID: 0023_dpp_revision_template_provenance
+Revision ID: 0023_template_provenance
 Revises: 0022_complete_tenant_rls
 Create Date: 2026-02-09
 """
@@ -10,7 +10,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "0023_dpp_revision_template_provenance"
+revision = "0023_template_provenance"
 down_revision = "0022_complete_tenant_rls"
 branch_labels = None
 depends_on = None

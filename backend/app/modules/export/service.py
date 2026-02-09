@@ -137,7 +137,10 @@ class ExportService:
                 string_io, failsafe=False
             )
         except Exception as exc:
-            raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
+            logger.error("export_xml_deserialization_failed", exc_info=True)
+            raise ValueError(
+                "Failed to export XML: AAS environment contains malformed elements"
+            ) from exc
         finally:
             string_io.close()
 
@@ -177,7 +180,10 @@ class ExportService:
                     string_io, failsafe=False
                 )
             except Exception as exc:
-                raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
+                logger.error("export_aasx_deserialization_failed", exc_info=True)
+                raise ValueError(
+                    "Failed to export AASX: AAS environment contains malformed elements"
+                ) from exc
             finally:
                 string_io.close()
 

@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 from xml.etree import ElementTree as ET
 
+import pytest
+
 from app.db.models import DPPRevision, RevisionState
 from app.modules.export.service import ExportService
 
@@ -214,3 +216,23 @@ def test_export_aasx_xml_mode() -> None:
     assert any(name.endswith(".xml") and "data" in name.lower() for name in names), (
         f"Expected XML data file, got: {sorted(names)}"
     )
+
+
+def test_export_xml_raises_on_malformed_aas() -> None:
+    """export_xml() should raise ValueError for malformed AAS data."""
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_revision(dpp_id)
+
+    with pytest.raises(ValueError, match="malformed"):
+        export_service.export_xml(revision)
+
+
+def test_export_aasx_raises_on_malformed_aas() -> None:
+    """export_aasx() should raise ValueError for malformed AAS data."""
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_revision(dpp_id)
+
+    with pytest.raises(ValueError, match="malformed"):
+        export_service.export_aasx(revision, dpp_id)
