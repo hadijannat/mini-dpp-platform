@@ -80,7 +80,7 @@ def test_export_json_includes_metadata() -> None:
 def test_export_aasx_structure_is_valid() -> None:
     export_service = ExportService()
     dpp_id = uuid4()
-    revision = _make_revision(dpp_id)
+    revision = _make_basyx_revision(dpp_id)
 
     aasx_bytes = export_service.export_aasx(revision, dpp_id)
 
@@ -108,7 +108,7 @@ def test_export_aasx_compliance_roundtrip() -> None:
     """Exported AASX passes BaSyx compliance validation (no hard errors)."""
     export_service = ExportService()
     dpp_id = uuid4()
-    revision = _make_revision(dpp_id)
+    revision = _make_basyx_revision(dpp_id)
 
     aasx_bytes = export_service.export_aasx(revision, dpp_id)
 
@@ -120,7 +120,7 @@ def test_validate_aasx_delegates_to_compliance() -> None:
     """validate_aasx() delegates to validate_aasx_compliance()."""
     export_service = ExportService()
     dpp_id = uuid4()
-    revision = _make_revision(dpp_id)
+    revision = _make_basyx_revision(dpp_id)
     aasx_bytes = export_service.export_aasx(revision, dpp_id)
 
     result = export_service.validate_aasx(aasx_bytes)

@@ -2,6 +2,35 @@ import { Controller } from 'react-hook-form';
 import type { FieldProps } from '../../types/formTypes';
 import { FieldWrapper } from '../FieldWrapper';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
+import { Badge } from '@/components/ui/badge';
+
+type AASKey = { type?: string; value?: string };
+type AASReference = { type?: string; keys?: AASKey[] } | null;
+
+function ReferenceDisplay({ reference }: { reference: AASReference }) {
+  if (!reference) {
+    return <span className="text-xs text-muted-foreground italic">Not set</span>;
+  }
+  return (
+    <div className="space-y-1">
+      {reference.type && (
+        <Badge variant="outline" className="text-xs">{reference.type}</Badge>
+      )}
+      {reference.keys && reference.keys.length > 0 ? (
+        <ul className="space-y-1">
+          {reference.keys.map((key, i) => (
+            <li key={i} className="flex gap-2 text-xs">
+              <span className="text-muted-foreground font-medium">{key.type}:</span>
+              <span className="font-mono break-all">{key.value}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <span className="text-xs text-muted-foreground italic">No keys</span>
+      )}
+    </div>
+  );
+}
 
 export function RelationshipField({ name, control, node }: FieldProps) {
   const label = getNodeLabel(node, name.split('.').pop() ?? name);
@@ -20,14 +49,12 @@ export function RelationshipField({ name, control, node }: FieldProps) {
             : { first: null, second: null };
 
         const renderRef = (refKey: 'first' | 'second', refLabel: string) => {
-          const ref = current[refKey] as Record<string, unknown> | null;
+          const ref = current[refKey] as AASReference;
           return (
             <div className="border rounded-md p-3">
-              <p className="text-xs font-medium text-gray-600 mb-2">{refLabel}</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">{refLabel}</p>
               {ref ? (
-                <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-                  {JSON.stringify(ref, null, 2)}
-                </pre>
+                <ReferenceDisplay reference={ref} />
               ) : (
                 <input
                   type="text"

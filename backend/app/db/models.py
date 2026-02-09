@@ -473,6 +473,11 @@ class DPPRevision(TenantScopedMixin, Base):
         comment="JWS signature of the digest for integrity verification",
     )
     created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    template_provenance: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Template version metadata captured at creation time",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

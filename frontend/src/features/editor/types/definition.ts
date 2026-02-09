@@ -11,6 +11,12 @@ export type SmtQualifiers = {
   allowed_value_regex?: string | null;
   allowed_range?: { min?: number; max?: number; raw?: string | null } | null;
   form_choices?: string[] | null;
+  default_value?: string | null;
+  initial_value?: string | null;
+  example_value?: string | null;
+  naming?: string | null;
+  allowed_id_short?: string[];
+  edit_id_short?: boolean | null;
 };
 
 export type DefinitionNode = {

@@ -34,16 +34,17 @@ def filter_aas_env_by_espr_tier(
 ) -> dict[str, Any]:
     """Filter an AAS environment based on the caller's ESPR tier.
 
-    If espr_tier is None or "manufacturer" or "market_surveillance_authority",
-    returns the full environment. Otherwise, filters submodels
-    based on semantic ID prefix matching against the tier's allowed set.
+    Anonymous/unauthenticated callers (``espr_tier=None``) default to the
+    ``"consumer"`` tier (deny-by-default).  ``"manufacturer"`` and
+    ``"market_surveillance_authority"`` tiers receive the full environment.
+    All other tiers are filtered by semantic ID prefix matching.
 
     Args:
         in_place: If True, mutate ``aas_env`` directly instead of deep-copying.
             Use when the caller already owns a mutable copy.
     """
     if espr_tier is None:
-        return aas_env  # No tier = no filtering (backwards compatible)
+        espr_tier = "consumer"  # deny-by-default for anonymous access
 
     if espr_tier not in ESPR_TIER_SUBMODEL_MAP:
         # Unknown tier gets no submodel access (deny-by-default)
@@ -68,7 +69,7 @@ def _submodel_matches_tier(
     """Check if a submodel's semantic ID matches any allowed prefix."""
     semantic_id = _extract_semantic_id(submodel)
     if not semantic_id:
-        return True  # No semantic ID = visible to all (defensive default)
+        return False  # No semantic ID = deny-by-default
     return any(semantic_id.startswith(prefix) for prefix in allowed_prefixes)
 
 

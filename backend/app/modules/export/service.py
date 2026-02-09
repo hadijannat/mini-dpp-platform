@@ -134,8 +134,10 @@ class ExportService:
         string_io = io.StringIO(payload)
         try:
             store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io
+                string_io, failsafe=False
             )
+        except Exception as exc:
+            raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
         finally:
             string_io.close()
 
@@ -172,8 +174,10 @@ class ExportService:
             string_io = io.StringIO(payload)
             try:
                 store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                    string_io
+                    string_io, failsafe=False
                 )
+            except Exception as exc:
+                raise ValueError(f"AAS environment contains malformed elements: {exc}") from exc
             finally:
                 string_io.close()
 
