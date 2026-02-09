@@ -8,8 +8,6 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 from xml.etree import ElementTree as ET
 
-import pytest
-
 from app.db.models import DPPRevision, RevisionState
 from app.modules.export.service import ExportService
 
@@ -218,21 +216,38 @@ def test_export_aasx_xml_mode() -> None:
     )
 
 
-def test_export_xml_raises_on_malformed_aas() -> None:
-    """export_xml() should raise ValueError for malformed AAS data."""
+def test_export_xml_graceful_with_missing_modeltype() -> None:
+    """export_xml() with failsafe=True produces XML even without modelType fields.
+
+    Export uses lenient mode (failsafe=True) since it round-trips already-validated
+    stored data.  BaSyx silently skips elements it can't fully parse, producing
+    a valid (potentially empty) XML document rather than raising.
+    """
     export_service = ExportService()
     dpp_id = uuid4()
     revision = _make_revision(dpp_id)
 
-    with pytest.raises(ValueError, match="malformed"):
-        export_service.export_xml(revision)
+    xml_bytes = export_service.export_xml(revision)
+    assert xml_bytes
+    root = ET.fromstring(xml_bytes)
+    assert root is not None
 
 
-def test_export_aasx_raises_on_malformed_aas() -> None:
-    """export_aasx() should raise ValueError for malformed AAS data."""
+def test_export_aasx_graceful_with_missing_modeltype() -> None:
+    """export_aasx() with failsafe=True produces a valid package without modelType.
+
+    Export uses lenient mode — malformed elements are silently dropped rather than
+    causing a hard failure.  The AASX package structure is still valid.
+    """
     export_service = ExportService()
     dpp_id = uuid4()
     revision = _make_revision(dpp_id)
 
-    with pytest.raises(ValueError, match="malformed"):
-        export_service.export_aasx(revision, dpp_id)
+    aasx_bytes = export_service.export_aasx(revision, dpp_id)
+    assert aasx_bytes
+
+    with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as zf:
+        names = set(zf.namelist())
+
+    assert "[Content_Types].xml" in names
+    assert "_rels/.rels" in names

@@ -133,8 +133,10 @@ class ExportService:
         )
         string_io = io.StringIO(payload)
         try:
+            # Use failsafe=True for export: we're round-tripping already-validated
+            # stored data.  Strict validation belongs at ingestion (parser/builder).
             store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                string_io, failsafe=False
+                string_io, failsafe=True
             )
         except Exception as exc:
             logger.error("export_xml_deserialization_failed", exc_info=True)
@@ -176,8 +178,10 @@ class ExportService:
             )
             string_io = io.StringIO(payload)
             try:
+                # Use failsafe=True for export: we're round-tripping already-validated
+                # stored data.  Strict validation belongs at ingestion (parser/builder).
                 store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-                    string_io, failsafe=False
+                    string_io, failsafe=True
                 )
             except Exception as exc:
                 logger.error("export_aasx_deserialization_failed", exc_info=True)
