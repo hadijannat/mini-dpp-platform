@@ -169,18 +169,15 @@ def test_pipeline_refresh_build_export(
         f"/api/v1/tenants/{runtime.tenant_slug}/export/{dpp_id}",
         params={"format": "turtle"},
     )
-    # Turtle export has a pre-existing 500 from PR #45 (aas_to_turtle serialization).
-    # Track as a separate issue; don't block this PR's CI.
-    turtle_ok = export_turtle.status_code == 200
+    assert export_turtle.status_code == 200, export_turtle.text
     turtle_path = artifacts / f"{dpp_id}.aas.ttl"
-    if turtle_ok:
-        _save_bytes(turtle_path, export_turtle.content)
-        assert turtle_path.stat().st_size > 0
+    _save_bytes(turtle_path, export_turtle.content)
+    assert turtle_path.stat().st_size > 0
 
     report["steps"]["export_extended"] = {
         "xml_path": str(xml_path),
         "jsonld_path": str(jsonld_path),
-        "turtle_path": str(turtle_path) if turtle_ok else "SKIPPED (500)",
+        "turtle_path": str(turtle_path),
     }
 
     # 8) Optional compliance check (if tool installed)

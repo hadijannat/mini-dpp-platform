@@ -228,7 +228,10 @@ def _parse_allowed_range_value(value: Any) -> AllowedRange | None:
         return None
     parsed = parse_allowed_range(raw)
     if parsed:
-        return AllowedRange(min=parsed[0], max=parsed[1], raw=raw)
+        min_val, max_val = parsed
+        if min_val > max_val:
+            return AllowedRange(raw=raw)
+        return AllowedRange(min=min_val, max=max_val, raw=raw)
     return AllowedRange(raw=raw)
 
 
@@ -258,8 +261,8 @@ def _string_value(value: Any) -> str | None:
     if value is None:
         return None
     if isinstance(value, str):
-        return value
-    return str(value)
+        return value.strip()
+    return str(value).strip()
 
 
 def _string_bool(value: Any) -> bool | None:

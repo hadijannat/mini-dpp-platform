@@ -134,7 +134,8 @@ def aas_to_xml(aas_env: dict[str, Any]) -> bytes:
     string_io = io.StringIO(payload)
     try:
         store: model.DictObjectStore[model.Identifiable] = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
-            string_io
+            string_io,
+            failsafe=True,
         )
     finally:
         string_io.close()
@@ -168,8 +169,23 @@ def _identifiable_to_node(
     return node
 
 
+def _reference_to_ld(ref: dict[str, Any]) -> dict[str, Any]:
+    """Convert an AAS Reference dict to a JSON-LD representation."""
+    ld: dict[str, Any] = {"@type": f"{_AAS_NAMESPACE}Reference"}
+    ref_type = ref.get("type")
+    if ref_type:
+        ld["aas:type"] = ref_type
+    keys = ref.get("keys")
+    if isinstance(keys, list):
+        ld["aas:keys"] = keys
+    return ld
+
+
 def _element_to_node(element: dict[str, Any]) -> dict[str, Any]:
-    """Build a JSON-LD node for a submodel element."""
+    """Build a JSON-LD node for a submodel element.
+
+    Dispatches on ``modelType`` to handle type-specific fields correctly.
+    """
     model_type = element.get("modelType", "SubmodelElement")
     rdf_type = _MODEL_TYPE_TO_RDF.get(model_type, f"{_AAS_NAMESPACE}{model_type}")
     node: dict[str, Any] = {
@@ -184,14 +200,78 @@ def _element_to_node(element: dict[str, Any]) -> dict[str, Any]:
     if sem_id:
         node["aas:semanticId"] = sem_id
 
-    # Handle value for Property elements
-    value = element.get("value")
-    if value is not None:
-        node["aas:value"] = value
+    # --- type-specific handling ---
+    if model_type == "SubmodelElementCollection":
+        children = element.get("value")
+        if isinstance(children, list):
+            node["aas:value"] = [_element_to_node(c) for c in children]
 
-    # Recurse into collection children
-    children = element.get("value")
-    if isinstance(children, list):
-        node["aas:value"] = [_element_to_node(c) for c in children]
+    elif model_type == "SubmodelElementList":
+        items = element.get("value")
+        if isinstance(items, list):
+            converted: list[Any] = []
+            for item in items:
+                if isinstance(item, dict) and "modelType" in item:
+                    converted.append(_element_to_node(item))
+                else:
+                    converted.append(item)
+            node["aas:value"] = converted
+
+    elif model_type == "Entity":
+        statements = element.get("statements")
+        if isinstance(statements, list):
+            node["aas:statements"] = [_element_to_node(s) for s in statements]
+        entity_type = element.get("entityType")
+        if entity_type is not None:
+            node["aas:entityType"] = entity_type
+        global_asset_id = element.get("globalAssetId")
+        if global_asset_id is not None:
+            node["aas:globalAssetId"] = global_asset_id
+
+    elif model_type == "RelationshipElement":
+        first = element.get("first")
+        if isinstance(first, dict):
+            node["aas:first"] = _reference_to_ld(first)
+        second = element.get("second")
+        if isinstance(second, dict):
+            node["aas:second"] = _reference_to_ld(second)
+
+    elif model_type == "AnnotatedRelationshipElement":
+        first = element.get("first")
+        if isinstance(first, dict):
+            node["aas:first"] = _reference_to_ld(first)
+        second = element.get("second")
+        if isinstance(second, dict):
+            node["aas:second"] = _reference_to_ld(second)
+        annotations = element.get("annotations")
+        if isinstance(annotations, list):
+            node["aas:annotations"] = [_element_to_node(a) for a in annotations]
+
+    elif model_type == "MultiLanguageProperty":
+        value = element.get("value")
+        if value is not None:
+            node["aas:value"] = value
+
+    elif model_type == "Range":
+        min_val = element.get("min")
+        if min_val is not None:
+            node["aas:min"] = min_val
+        max_val = element.get("max")
+        if max_val is not None:
+            node["aas:max"] = max_val
+
+    elif model_type in ("File", "Blob"):
+        value = element.get("value")
+        if value is not None:
+            node["aas:value"] = value
+        content_type = element.get("contentType")
+        if content_type is not None:
+            node["aas:contentType"] = content_type
+
+    else:
+        # Property, ReferenceElement, and other simple types
+        value = element.get("value")
+        if value is not None:
+            node["aas:value"] = value
 
     return node

@@ -809,7 +809,7 @@ class DPPService:
             aas_env_json=aas_env,
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
-            template_provenance=current_revision.template_provenance or {},
+            template_provenance=await self._build_provenance_from_db_templates(templates),
         )
         self._session.add(revision)
         await self._session.flush()
@@ -896,6 +896,28 @@ class DPPService:
                 "source_file_path": template.source_file_path if template else None,
                 "source_kind": template.source_kind if template else None,
                 "selection_strategy": (template.selection_strategy if template else None),
+            }
+        return provenance
+
+    async def _build_provenance_from_db_templates(
+        self, templates: list[Template]
+    ) -> dict[str, Any]:
+        """Build fresh provenance from Template DB objects (used during rebuild)."""
+        provenance: dict[str, Any] = {}
+        for tmpl in templates:
+            descriptor = get_template_descriptor(tmpl.template_key)
+            provenance[tmpl.template_key] = {
+                "idta_version": (
+                    f"{descriptor.baseline_major}.{descriptor.baseline_minor}"
+                    if descriptor
+                    else tmpl.idta_version
+                ),
+                "semantic_id": descriptor.semantic_id if descriptor else None,
+                "resolved_version": tmpl.resolved_version,
+                "source_file_sha": tmpl.source_file_sha,
+                "source_file_path": tmpl.source_file_path,
+                "source_kind": tmpl.source_kind,
+                "selection_strategy": tmpl.selection_strategy,
             }
         return provenance
 
