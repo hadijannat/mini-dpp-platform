@@ -387,6 +387,102 @@ class TestTurtleRoundTrip:
         # The submodel ID should appear in the Turtle output
         assert "urn:sm:regression:1" in result
 
+    def test_no_crash_on_idta_placeholder_braces(self) -> None:
+        """IDTA templates use placeholder URIs like ``{arbitrary}`` in concept
+        description IDs.  Curly braces are invalid in N3/Turtle syntax; the
+        serializer must encode them so rdflib can produce valid output."""
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:placeholder-test",
+                    "idShort": "PlaceholderTest",
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [
+                {
+                    "id": "https://admin-shell.io/IDTA/TechnicalData/{arbitrary}/2/0",
+                    "idShort": "ArbitraryCd",
+                },
+            ],
+        }
+        result = aas_to_turtle(env)
+        assert isinstance(result, str)
+        assert len(result) > 0
+        # Curly braces must be percent-encoded in the output
+        assert "%7B" in result or "%7b" in result
+        assert "{arbitrary}" not in result
+
+    def test_jsonld_encodes_braces_in_ids(self) -> None:
+        """JSON-LD output must also percent-encode braces in @id values."""
+        from app.modules.aas.serialization import aas_to_jsonld
+
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [
+                {
+                    "id": "https://admin-shell.io/IDTA/Data/{placeholder}/1/0",
+                    "idShort": "PlaceholderCD",
+                },
+            ],
+        }
+        result = aas_to_jsonld(env)
+        cds = [n for n in result["@graph"] if "ConceptDescription" in n.get("@type", "")]
+        assert len(cds) == 1
+        assert "%7B" in cds[0]["@id"]
+        assert "{placeholder}" not in cds[0]["@id"]
+
+    def test_encodes_braces_in_all_identifiable_types(self) -> None:
+        """Brace encoding applies to shells, submodels, AND concept descriptions."""
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [
+                {
+                    "id": "urn:aas:{dev}:1",
+                    "idShort": "DevAAS",
+                    "assetInformation": {"assetKind": "Instance"},
+                }
+            ],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:{version}/test",
+                    "idShort": "VersionedSM",
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        result = aas_to_turtle(env)
+        assert "{dev}" not in result
+        assert "{version}" not in result
+        assert "%7B" in result or "%7b" in result
+
+    def test_does_not_encode_valid_uri_characters(self) -> None:
+        """Normal URIs and URNs must pass through unmodified."""
+        env: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "modelType": "Submodel",
+                    "id": "urn:sm:nameplate:v2.0",
+                    "idShort": "Nameplate",
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [
+                {
+                    "id": "https://admin-shell.io/IDTA/TechnicalData/Spec/2/0",
+                    "idShort": "ValidCD",
+                },
+            ],
+        }
+        result = aas_to_turtle(env)
+        assert "urn:sm:nameplate:v2.0" in result
+        assert "https://admin-shell.io/IDTA/TechnicalData/Spec/2/0" in result
+
 
 class TestElementToNode:
     def test_property_simple_value(self) -> None:
