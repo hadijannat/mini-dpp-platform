@@ -377,15 +377,8 @@ class BasyxDppBuilder:
                 reference = reference_from_dict(element_value)
                 if reference is not None:
                     element.value = reference
-        elif isinstance(element, model.RelationshipElement):
-            if isinstance(element_value, dict):
-                first = reference_from_dict(element_value.get("first"))
-                second = reference_from_dict(element_value.get("second"))
-                if first is not None:
-                    element.first = first
-                if second is not None:
-                    element.second = second
         elif isinstance(element, model.AnnotatedRelationshipElement):
+            # Must check before RelationshipElement (AnnotatedRE is a subclass)
             if isinstance(element_value, dict):
                 first = reference_from_dict(element_value.get("first"))
                 second = reference_from_dict(element_value.get("second"))
@@ -399,6 +392,14 @@ class BasyxDppBuilder:
                     element.annotation = cast(
                         Any, self._hydrate_children(annotations, annotation_values)
                     )
+        elif isinstance(element, model.RelationshipElement):
+            if isinstance(element_value, dict):
+                first = reference_from_dict(element_value.get("first"))
+                second = reference_from_dict(element_value.get("second"))
+                if first is not None:
+                    element.first = first
+                if second is not None:
+                    element.second = second
         elif isinstance(element, model.Entity) and isinstance(element_value, dict):
             if element_value.get("globalAssetId") is not None:
                 element.global_asset_id = element_value.get("globalAssetId")
@@ -446,16 +447,17 @@ class BasyxDppBuilder:
                 "globalAssetId": element.global_asset_id,
                 "statements": self._extract_elements(element.statement),
             }
-        if isinstance(element, model.RelationshipElement):
-            return {
-                "first": reference_to_dict(element.first),
-                "second": reference_to_dict(element.second),
-            }
         if isinstance(element, model.AnnotatedRelationshipElement):
+            # Must check before RelationshipElement (AnnotatedRE is a subclass)
             return {
                 "first": reference_to_dict(element.first),
                 "second": reference_to_dict(element.second),
                 "annotations": self._extract_elements(element.annotation),
+            }
+        if isinstance(element, model.RelationshipElement):
+            return {
+                "first": reference_to_dict(element.first),
+                "second": reference_to_dict(element.second),
             }
         if isinstance(element, model.Property):
             return element.value

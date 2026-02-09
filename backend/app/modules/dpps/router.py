@@ -238,6 +238,18 @@ async def create_dpp(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        logger.error(
+            "create_dpp_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            templates=body.selected_templates,
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"DPP creation failed: {exc}",
+        ) from exc
 
     await db.commit()
     await db.refresh(dpp)
