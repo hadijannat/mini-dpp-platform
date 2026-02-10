@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from 'react-oidc-context';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
+import { hasRoleLevel } from '@/lib/auth';
 
 const REDIRECT_STORAGE_KEY = 'auth.redirectUrl';
 
@@ -43,13 +44,21 @@ export default function CallbackPage() {
       if (cancelled) return;
       setChecked(true);
 
-      // If not provisioned, go to welcome page
-      if (status && !status.provisioned) {
+      // Non-provisioned or viewer users should land on welcome.
+      if (status && (!status.provisioned || status.role === 'viewer')) {
         navigate('/welcome', { replace: true });
         return;
       }
 
-      // Otherwise, restore original route or go to console
+      const canAccessConsole = hasRoleLevel(auth.user, 'publisher');
+
+      // If onboarding status is unavailable, avoid routing viewers into a protected dead-end.
+      if (!status && !canAccessConsole) {
+        navigate('/welcome', { replace: true });
+        return;
+      }
+
+      // Publisher+ can restore original route or default to console.
       const redirectUrl = sessionStorage.getItem(REDIRECT_STORAGE_KEY);
       sessionStorage.removeItem(REDIRECT_STORAGE_KEY);
 
@@ -63,7 +72,7 @@ export default function CallbackPage() {
 
     void doRedirect();
     return () => { cancelled = true; };
-  }, [auth.isAuthenticated, auth.user?.access_token, navigate, checked]);
+  }, [auth.isAuthenticated, auth.user, auth.user?.access_token, navigate, checked]);
 
   return (
     <div className="min-h-screen flex items-center justify-center">

@@ -9,14 +9,23 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.audit import emit_audit_event
+from app.core.config import get_settings
 from app.core.keycloak_admin import KeycloakAdminClient
 from app.core.logging import get_logger
+from app.core.notifications import (
+    EmailClient,
+    build_role_request_decision_email,
+    build_role_request_submitted_admin_email,
+    build_role_request_submitted_requester_email,
+)
 from app.core.security.oidc import TokenPayload
 from app.db.models import (
     RoleRequestStatus,
     RoleUpgradeRequest,
+    Tenant,
     TenantMember,
     TenantRole,
+    User,
 )
 
 logger = get_logger(__name__)
@@ -84,6 +93,10 @@ class RoleRequestService:
             "role_upgrade_requested",
             sub=user.sub,
             requested_role=requested_role,
+        )
+        await self._safe_notify_request_created(
+            request=request,
+            requester_email=user.email,
         )
         return request
 
@@ -183,4 +196,188 @@ class RoleRequestService:
             },
         )
 
+        await self._safe_notify_request_reviewed(
+            request=request,
+            approved=approved,
+        )
+
         return request
+
+    async def _safe_notify_request_created(
+        self,
+        *,
+        request: RoleUpgradeRequest,
+        requester_email: str | None,
+    ) -> None:
+        """Best-effort wrapper around submit notification delivery."""
+        try:
+            await self._notify_request_created(
+                request=request,
+                tenant_slug=await self._get_tenant_slug(request.tenant_id),
+                requester_email=requester_email,
+            )
+        except Exception:
+            logger.exception(
+                "role_request_submit_notifications_failed",
+                request_id=str(request.id),
+                tenant_id=str(request.tenant_id),
+            )
+
+    async def _safe_notify_request_reviewed(
+        self,
+        *,
+        request: RoleUpgradeRequest,
+        approved: bool,
+    ) -> None:
+        """Best-effort wrapper around decision notification delivery."""
+        try:
+            await self._notify_request_reviewed(
+                request=request,
+                tenant_slug=await self._get_tenant_slug(request.tenant_id),
+                approved=approved,
+            )
+        except Exception:
+            logger.exception(
+                "role_request_decision_notifications_failed",
+                request_id=str(request.id),
+                tenant_id=str(request.tenant_id),
+                approved=approved,
+            )
+
+    async def _get_tenant_slug(self, tenant_id: UUID) -> str:
+        """Resolve tenant slug for human-facing notifications."""
+        result = await self._db.execute(select(Tenant.slug).where(Tenant.id == tenant_id))
+        slug = result.scalar_one_or_none()
+        if isinstance(slug, str) and slug.strip():
+            return slug
+        return "unknown"
+
+    async def _get_user_email(self, subject: str) -> str | None:
+        """Resolve user email by subject from the users table."""
+        result = await self._db.execute(
+            select(User.email).where(User.subject == subject, User.email.is_not(None))
+        )
+        email = result.scalar_one_or_none()
+        if isinstance(email, str) and email.strip():
+            return email.strip()
+        return None
+
+    async def _resolve_tenant_admin_emails(self, tenant_id: UUID) -> list[str]:
+        """Resolve tenant admin email recipients for tenant-scoped notifications."""
+        result = await self._db.execute(
+            select(User.email)
+            .join(TenantMember, User.subject == TenantMember.user_subject)
+            .where(
+                TenantMember.tenant_id == tenant_id,
+                TenantMember.role == TenantRole.TENANT_ADMIN,
+                User.email.is_not(None),
+            )
+        )
+        emails = [
+            email.strip() for email in result.scalars().all() if isinstance(email, str) and email
+        ]
+        return self._dedupe_emails(emails)
+
+    def _resolve_admin_fallback_emails(self) -> list[str]:
+        settings = get_settings()
+        return self._dedupe_emails(settings.notifications_admin_fallback_emails_all)
+
+    async def _notify_request_created(
+        self,
+        *,
+        request: RoleUpgradeRequest,
+        tenant_slug: str,
+        requester_email: str | None,
+    ) -> None:
+        email_client = EmailClient()
+        requester_template = build_role_request_submitted_requester_email(
+            tenant_slug=tenant_slug,
+            requested_role=request.requested_role.value,
+            reason=request.reason,
+        )
+        admin_template = build_role_request_submitted_admin_email(
+            tenant_slug=tenant_slug,
+            requested_role=request.requested_role.value,
+            requester_subject=request.user_subject,
+            reason=request.reason,
+        )
+
+        requester_recipient = (requester_email or "").strip() or await self._get_user_email(
+            request.user_subject
+        )
+        if requester_recipient:
+            await email_client.send_email(
+                [requester_recipient],
+                subject=requester_template.subject,
+                text_body=requester_template.text_body,
+                html_body=requester_template.html_body,
+            )
+        else:
+            logger.warning(
+                "role_request_requester_email_missing",
+                request_id=str(request.id),
+                user_subject=request.user_subject,
+            )
+
+        admin_recipients = await self._resolve_tenant_admin_emails(request.tenant_id)
+        if not admin_recipients:
+            admin_recipients = self._resolve_admin_fallback_emails()
+
+        if admin_recipients:
+            await email_client.send_email(
+                admin_recipients,
+                subject=admin_template.subject,
+                text_body=admin_template.text_body,
+                html_body=admin_template.html_body,
+            )
+        else:
+            logger.warning(
+                "role_request_admin_recipients_missing",
+                request_id=str(request.id),
+                tenant_id=str(request.tenant_id),
+            )
+
+    async def _notify_request_reviewed(
+        self,
+        *,
+        request: RoleUpgradeRequest,
+        tenant_slug: str,
+        approved: bool,
+    ) -> None:
+        requester_email = await self._get_user_email(request.user_subject)
+        if not requester_email:
+            logger.warning(
+                "role_request_decision_email_missing",
+                request_id=str(request.id),
+                user_subject=request.user_subject,
+            )
+            return
+
+        template = build_role_request_decision_email(
+            tenant_slug=tenant_slug,
+            requested_role=request.requested_role.value,
+            approved=approved,
+            review_note=request.review_note,
+        )
+        email_client = EmailClient()
+        await email_client.send_email(
+            [requester_email],
+            subject=template.subject,
+            text_body=template.text_body,
+            html_body=template.html_body,
+        )
+
+    @staticmethod
+    def _dedupe_emails(emails: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for email in emails:
+            normalized = email.strip()
+            if not normalized:
+                continue
+            lowered = normalized.lower()
+            if lowered in seen:
+                continue
+            seen.add(lowered)
+            result.append(normalized)
+        return result

@@ -362,6 +362,58 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Email Notifications
+    # ==========================================================================
+    notifications_email_enabled: bool = Field(
+        default=False, description="Enable SMTP email notifications for onboarding workflows"
+    )
+    notifications_smtp_host: str = Field(
+        default="", description="SMTP relay hostname for notification emails"
+    )
+    notifications_smtp_port: int = Field(default=587, ge=1, le=65535)
+    notifications_smtp_user: str | None = Field(
+        default=None, description="Optional SMTP username for notification emails"
+    )
+    notifications_smtp_password: str | None = Field(
+        default=None, description="Optional SMTP password for notification emails"
+    )
+    notifications_smtp_starttls: bool = Field(
+        default=True, description="Use STARTTLS for SMTP notification transport"
+    )
+    notifications_from_email: str = Field(
+        default="", description="From email address for notification messages"
+    )
+    notifications_from_name: str = Field(
+        default="DPP Platform", description="From display name for notification messages"
+    )
+    notifications_admin_fallback_emails: str | None = Field(
+        default=None,
+        description=(
+            "Fallback recipients for admin notifications when tenant admin emails cannot be resolved. "
+            "Supports comma-separated values or a JSON array string."
+        ),
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def notifications_admin_fallback_emails_all(self) -> list[str]:
+        """Parsed fallback admin email recipients."""
+        raw = self.notifications_admin_fallback_emails
+        if raw is None:
+            return []
+        raw = raw.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in raw.split(",") if item.strip()]
+
+    # ==========================================================================
     # GS1 Digital Link Resolver
     # ==========================================================================
     resolver_enabled: bool = Field(default=False, description="Enable GS1 Digital Link resolver")

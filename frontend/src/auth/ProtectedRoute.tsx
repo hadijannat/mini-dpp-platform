@@ -21,6 +21,13 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   // Check role if required (extracts from both realm and client roles)
   if (requiredRole && !hasRoleLevel(auth.user, requiredRole)) {
+    if (requiredRole !== 'viewer' && hasRoleLevel(auth.user, 'viewer')) {
+      const params = new URLSearchParams({
+        reason: 'insufficient_role',
+        next: `${location.pathname}${location.search}`,
+      });
+      return <Navigate to={`/welcome?${params.toString()}`} replace />;
+    }
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="text-center">

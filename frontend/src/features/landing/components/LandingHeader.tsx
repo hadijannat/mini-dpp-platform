@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { Fingerprint, LogIn, LayoutDashboard, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isPublisher } from '@/lib/auth';
 import {
   Sheet,
   SheetContent,
@@ -21,9 +22,10 @@ export default function LandingHeader() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const consoleEnabled = auth.isAuthenticated && isPublisher(auth.user);
 
   const handleSignIn = () => auth.signinRedirect();
-  const handleDashboard = () => navigate('/console');
+  const handleDashboard = () => navigate(consoleEnabled ? '/console' : '/welcome');
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">

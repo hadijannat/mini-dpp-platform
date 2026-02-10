@@ -105,3 +105,34 @@ class KeycloakAdminClient:
         except Exception:
             logger.exception("keycloak_role_remove_failed", user_id=user_id, role=role_name)
             return False
+
+    async def send_verify_email(
+        self,
+        user_id: str,
+        redirect_uri: str | None = None,
+        client_id: str | None = None,
+    ) -> bool:
+        """Send VERIFY_EMAIL required action email to a Keycloak user."""
+        try:
+            token = await self._get_service_account_token()
+            params: dict[str, str] = {}
+            if redirect_uri:
+                params["redirect_uri"] = redirect_uri
+            if client_id:
+                params["client_id"] = client_id
+
+            async with httpx.AsyncClient() as client:
+                resp = await client.put(
+                    f"{self._base}/users/{user_id}/execute-actions-email",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params=params or None,
+                    json=["VERIFY_EMAIL"],
+                    timeout=10.0,
+                )
+                resp.raise_for_status()
+
+            logger.info("keycloak_verify_email_enqueued", user_id=user_id)
+            return True
+        except Exception:
+            logger.exception("keycloak_verify_email_enqueue_failed", user_id=user_id)
+            return False
