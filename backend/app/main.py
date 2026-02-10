@@ -31,6 +31,8 @@ from app.modules.epcis.router import router as epcis_router
 from app.modules.export.router import router as export_router
 from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
+from app.modules.onboarding.role_request_router import router as role_request_router
+from app.modules.onboarding.router import router as onboarding_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
 from app.modules.registry.public_router import router as public_registry_router
@@ -231,6 +233,13 @@ window.onload = function() {{
         tags=["Public Credentials"],
     )
 
+    # Onboarding (authenticated, not tenant-scoped)
+    app.include_router(
+        onboarding_router,
+        prefix=f"{settings.api_v1_prefix}/onboarding",
+        tags=["Onboarding"],
+    )
+
     # API v1 routers (authenticated)
     app.include_router(
         tenants_router,
@@ -322,6 +331,11 @@ window.onload = function() {{
         credentials_router,
         prefix=f"{tenant_prefix}/credentials",
         tags=["Credentials"],
+    )
+    app.include_router(
+        role_request_router,
+        prefix=f"{tenant_prefix}/role-requests",
+        tags=["Role Requests"],
     )
 
     # Prometheus metrics endpoint

@@ -126,6 +126,14 @@ class ConnectorStatus(str, PyEnum):
     ERROR = "error"
 
 
+class RoleRequestStatus(str, PyEnum):
+    """Status of a role upgrade request."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+
+
 class TenantStatus(str, PyEnum):
     """Lifecycle status for tenants."""
 
@@ -1777,4 +1785,64 @@ class IssuedCredential(TenantScopedMixin, Base):
             "dpp_id",
             name="uq_issued_credentials_tenant_dpp",
         ),
+    )
+
+
+# =============================================================================
+# Role Upgrade Requests
+# =============================================================================
+
+
+class RoleUpgradeRequest(TenantScopedMixin, Base):
+    """User request to upgrade their tenant role (e.g. viewer → publisher)."""
+
+    __tablename__ = "role_upgrade_requests"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    user_subject: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="OIDC subject of the requesting user",
+    )
+    requested_role: Mapped[TenantRole] = mapped_column(
+        Enum(TenantRole, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        comment="Role being requested",
+    )
+    status: Mapped[RoleRequestStatus] = mapped_column(
+        Enum(RoleRequestStatus, values_callable=lambda e: [m.value for m in e]),
+        default=RoleRequestStatus.PENDING,
+        nullable=False,
+    )
+    reason: Mapped[str | None] = mapped_column(
+        Text,
+        comment="User-provided reason for the request",
+    )
+    reviewed_by: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="OIDC subject of the reviewing admin",
+    )
+    review_note: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Admin note on the review decision",
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_role_upgrade_requests_tenant_user", "tenant_id", "user_subject"),
+        Index("ix_role_upgrade_requests_status", "status"),
     )

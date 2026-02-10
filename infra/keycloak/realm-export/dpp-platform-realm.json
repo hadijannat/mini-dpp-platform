@@ -2,8 +2,10 @@
   "realm": "dpp-platform",
   "enabled": true,
   "sslRequired": "none",
-  "registrationAllowed": false,
+  "registrationAllowed": true,
+  "verifyEmail": true,
   "resetPasswordAllowed": true,
+  "defaultRoles": ["viewer"],
   "clients": [
     {
       "clientId": "dpp-frontend",
@@ -39,6 +41,9 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect",
+      "serviceAccountClientRoles": {
+        "realm-management": ["manage-users", "view-users"]
+      },
       "defaultClientScopes": [
         "openid",
         "profile",

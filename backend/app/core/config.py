@@ -402,6 +402,18 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # User Onboarding
+    # ==========================================================================
+    onboarding_auto_join_tenant_slug: str | None = Field(
+        default="default",
+        description="Tenant slug to auto-join on first login (None to disable)",
+    )
+    onboarding_require_email_verified: bool = Field(
+        default=True,
+        description="Require email_verified=True in JWT for auto-provisioning",
+    )
+
+    # ==========================================================================
     # Data Carrier / GS1 Configuration
     # ==========================================================================
     gs1_resolver_url: str = Field(
