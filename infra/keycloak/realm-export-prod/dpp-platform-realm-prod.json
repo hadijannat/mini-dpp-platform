@@ -3,9 +3,23 @@
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": true,
+  "verifyEmail": true,
   "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
+  "smtpServer": {
+    "host": "${KEYCLOAK_SMTP_HOST}",
+    "port": "${KEYCLOAK_SMTP_PORT}",
+    "from": "${KEYCLOAK_SMTP_FROM}",
+    "fromDisplayName": "${KEYCLOAK_SMTP_FROM_DISPLAY_NAME}",
+    "replyTo": "${KEYCLOAK_SMTP_REPLY_TO}",
+    "replyToDisplayName": "${KEYCLOAK_SMTP_REPLY_TO_DISPLAY_NAME}",
+    "auth": "${KEYCLOAK_SMTP_AUTH}",
+    "starttls": "${KEYCLOAK_SMTP_STARTTLS}",
+    "ssl": "${KEYCLOAK_SMTP_SSL}",
+    "user": "${KEYCLOAK_SMTP_USER}",
+    "password": "${KEYCLOAK_SMTP_PASSWORD}"
+  },
   "defaultRoles": ["viewer"],
   "clients": [
     {

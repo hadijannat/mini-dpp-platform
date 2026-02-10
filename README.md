@@ -447,6 +447,39 @@ docker compose up -d
 docker exec dpp-backend alembic upgrade head
 ```
 
+### Production verify-email settings not applied after deploy
+**Cause:** Keycloak realm import (`--import-realm`) only applies when the realm is first created.
+If `dpp-platform` already exists, changes in `infra/keycloak/realm-export-prod/dpp-platform-realm-prod.json`
+won't overwrite live realm settings.
+
+Apply updates manually on an existing production realm:
+
+```bash
+docker compose -f docker-compose.prod.yml exec keycloak \
+  /opt/keycloak/bin/kcadm.sh config credentials \
+  --server http://localhost:8080 --realm master \
+  --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD"
+
+docker compose -f docker-compose.prod.yml exec keycloak \
+  /opt/keycloak/bin/kcadm.sh update realms/dpp-platform -s verifyEmail=true
+
+docker compose -f docker-compose.prod.yml exec keycloak \
+  /opt/keycloak/bin/kcadm.sh update realms/dpp-platform \
+  -s "smtpServer.host=$KEYCLOAK_SMTP_HOST" \
+  -s "smtpServer.port=$KEYCLOAK_SMTP_PORT" \
+  -s "smtpServer.from=$KEYCLOAK_SMTP_FROM" \
+  -s "smtpServer.fromDisplayName=$KEYCLOAK_SMTP_FROM_DISPLAY_NAME" \
+  -s "smtpServer.replyTo=$KEYCLOAK_SMTP_REPLY_TO" \
+  -s "smtpServer.replyToDisplayName=$KEYCLOAK_SMTP_REPLY_TO_DISPLAY_NAME" \
+  -s "smtpServer.auth=$KEYCLOAK_SMTP_AUTH" \
+  -s "smtpServer.starttls=$KEYCLOAK_SMTP_STARTTLS" \
+  -s "smtpServer.ssl=$KEYCLOAK_SMTP_SSL" \
+  -s "smtpServer.user=$KEYCLOAK_SMTP_USER" \
+  -s "smtpServer.password=$KEYCLOAK_SMTP_PASSWORD"
+```
+
+After this, create a new test registration and confirm a verification email is delivered.
+
 ### Port conflicts
 Set custom ports in `.env`:
 

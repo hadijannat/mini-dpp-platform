@@ -1,8 +1,22 @@
 """Pydantic schemas for the onboarding module."""
 
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+OnboardingBlocker = Literal[
+    "email_unverified",
+    "tenant_missing",
+    "tenant_inactive",
+    "onboarding_disabled",
+]
+OnboardingNextAction = Literal[
+    "provision",
+    "resend_verification",
+    "request_role_upgrade",
+    "go_home",
+]
 
 
 class OnboardingStatusResponse(BaseModel):
@@ -11,6 +25,15 @@ class OnboardingStatusResponse(BaseModel):
     provisioned: bool
     tenant_slug: str | None = None
     role: str | None = None
+    email_verified: bool
+    blockers: list[OnboardingBlocker] = Field(default_factory=list)
+    next_actions: list[OnboardingNextAction] = Field(default_factory=list)
+
+
+class ResendVerificationResponse(BaseModel):
+    """Response for resend verification endpoint."""
+
+    queued: bool
 
 
 class RoleRequestCreate(BaseModel):

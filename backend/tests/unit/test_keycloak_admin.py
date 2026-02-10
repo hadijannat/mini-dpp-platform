@@ -109,3 +109,45 @@ async def test_remove_realm_role_success(kc_client: KeycloakAdminClient) -> None
         result = await kc_client.remove_realm_role("user-id-1", "publisher")
 
     assert result is True
+
+
+@pytest.mark.asyncio
+async def test_send_verify_email_success(kc_client: KeycloakAdminClient) -> None:
+    """Successful verify-email enqueue returns True."""
+    token_resp = _response(200, {"access_token": "test-token", "token_type": "Bearer"})
+    enqueue_resp = _response(204)
+
+    with patch("app.core.keycloak_admin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=token_resp)
+        mock_client.put = AsyncMock(return_value=enqueue_resp)
+        mock_client_cls.return_value = mock_client
+
+        result = await kc_client.send_verify_email(
+            "user-id-1",
+            redirect_uri="https://dpp-platform.dev/welcome",
+            client_id="dpp-frontend",
+        )
+
+    assert result is True
+
+
+@pytest.mark.asyncio
+async def test_send_verify_email_failure(kc_client: KeycloakAdminClient) -> None:
+    """Returns False when verify-email enqueue fails."""
+    token_resp = _response(200, {"access_token": "test-token", "token_type": "Bearer"})
+    enqueue_resp = _response(500)
+
+    with patch("app.core.keycloak_admin.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(return_value=token_resp)
+        mock_client.put = AsyncMock(return_value=enqueue_resp)
+        mock_client_cls.return_value = mock_client
+
+        result = await kc_client.send_verify_email("user-id-1")
+
+    assert result is False
