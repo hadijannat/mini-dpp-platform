@@ -25,7 +25,7 @@ git clone https://github.com/hadijannat/mini-dpp-platform.git
 cd mini-dpp-platform
 
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d
 ```
 
 Migrations run automatically in the backend container startup command. To run them manually:
@@ -33,6 +33,8 @@ Migrations run automatically in the backend container startup command. To run th
 ```bash
 docker exec dpp-backend alembic upgrade head
 ```
+
+Use `docker compose up -d --build` on first run or when Dockerfiles/dependencies change.
 
 You can override ports via `.env` (for example `BACKEND_HOST_PORT`, `KEYCLOAK_HOST_PORT`).
 
@@ -90,6 +92,8 @@ uv run ruff check .
 uv run ruff format .
 uv run mypy app
 ```
+
+Backend test fixtures default to a PostgreSQL endpoint on `localhost:5433`. For a reproducible full run, start `docker-compose.inspection.yml` or set `TEST_DATABASE_URL` explicitly (see Validation Snapshot).
 
 ### Frontend (`frontend/`)
 

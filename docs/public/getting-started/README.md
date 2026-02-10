@@ -17,7 +17,7 @@ git clone https://github.com/hadijannat/mini-dpp-platform.git
 cd mini-dpp-platform
 
 cp .env.example .env
-docker compose up -d --build
+docker compose up -d
 ```
 
 Check health:
@@ -30,6 +30,7 @@ curl -fsS http://localhost:8000/health
 Notes:
 
 - Backend migrations run automatically at container start.
+- Use `docker compose up -d --build` on first run or when Dockerfiles/dependencies change.
 - You can override host ports with `.env` values such as `BACKEND_HOST_PORT` and `KEYCLOAK_HOST_PORT`.
 
 ### Path B: Run App Code Locally, Keep Infra in Docker

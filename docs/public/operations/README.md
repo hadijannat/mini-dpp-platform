@@ -6,11 +6,13 @@ This playbook focuses on runtime operations, compose/deployment variants, enviro
 
 | File | Purpose | Typical Command |
 |---|---|---|
-| `docker-compose.yml` | Default local development stack | `docker compose up -d --build` |
+| `docker-compose.yml` | Default local development stack | `docker compose up -d` |
 | `docker-compose.prod.yml` | Production-oriented stack with Caddy, monitoring, backup, migrate profile | `docker compose -f docker-compose.prod.yml up -d` |
 | `docker-compose.inspection.yml` | Inspection/audit-oriented local environment | `docker compose -f docker-compose.inspection.yml up -d` |
 | `docker-compose.edc.yml` | Adds EDC controlplane/dataplane + vault + EDC DB | `docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d` |
 | `docker-compose.dtr.yml` | Adds DTR service for Catena-X style registry flow | `docker compose -f docker-compose.yml -f docker-compose.dtr.yml up -d` |
+
+Use `--build` when Dockerfiles or dependency layers changed, not on every startup.
 
 ## Migration Behavior
 
