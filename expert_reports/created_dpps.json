@@ -1,0 +1,189 @@
+{
+  "description": "DPP configurations for Phase 3b export testing. Each entry defines a test DPP with its template combination and expected export characteristics.",
+  "created_at": "2026-02-10",
+  "phase": "3a",
+  "fixture_file": "backend/tests/fixtures/inspection_dpps.json",
+  "dpps": [
+    {
+      "fixture_key": "minimal_nameplate",
+      "templates": ["digital-nameplate"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-MINIMAL-001",
+        "serialNumber": "SN-MINIMAL-001"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_aas_shell": true},
+        "aasx": {"valid_zip": true, "contains_aas_env": true},
+        "jsonld": {"has_context": true, "has_identifiable_nodes": true},
+        "turtle": {"valid_n3": true, "has_iri_safe_ids": true},
+        "xml": {"valid_aas_xml": true}
+      },
+      "provenance": {
+        "expected_keys": ["digital-nameplate"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "full_nameplate",
+      "templates": ["digital-nameplate", "technical-data", "contact-information"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-FULL-002",
+        "serialNumber": "SN-FULL-002",
+        "batchId": "BATCH-INSP-001"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 3, "has_aas_shell": true},
+        "aasx": {"valid_zip": true, "contains_aas_env": true},
+        "jsonld": {"has_context": true, "has_identifiable_nodes": true},
+        "turtle": {"valid_n3": true, "has_iri_safe_ids": true, "note": "Technical Data template has curly-brace URIs — verify %7B/%7D encoding"},
+        "xml": {"valid_aas_xml": true}
+      },
+      "provenance": {
+        "expected_keys": ["digital-nameplate", "technical-data", "contact-information"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "battery_passport",
+      "templates": ["battery-passport"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-BAT-003",
+        "serialNumber": "SN-BAT-003"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_aas_shell": true},
+        "aasx": {"valid_zip": true, "contains_aas_env": true},
+        "jsonld": {"has_context": true},
+        "turtle": {"valid_n3": true, "note": "Battery passport template is experimental — may fail if upstream source unavailable"},
+        "xml": {"valid_aas_xml": true}
+      },
+      "provenance": {
+        "expected_keys": ["battery-passport"],
+        "has_semantic_id": true,
+        "has_idta_version": true,
+        "note": "source_file_sha may be null if template not yet fetched from GitHub (IDTA 02035 not yet published)"
+      }
+    },
+    {
+      "fixture_key": "hierarchical_structures",
+      "templates": ["hierarchical-structures"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-HIER-004",
+        "serialNumber": "SN-HIER-004"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_aas_shell": true, "has_entity_elements": true},
+        "aasx": {"valid_zip": true, "contains_aas_env": true},
+        "jsonld": {"has_context": true, "note": "Entity and Relationship elements must be serialized by _element_to_node()"},
+        "turtle": {"valid_n3": true},
+        "xml": {"valid_aas_xml": true}
+      },
+      "provenance": {
+        "expected_keys": ["hierarchical-structures"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "edge_case_empty_collections",
+      "templates": ["hierarchical-structures"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-EDGE-EMPTY-005",
+        "serialNumber": "SN-EDGE-EMPTY-005"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_empty_collections": true},
+        "aasx": {"valid_zip": true},
+        "jsonld": {"has_context": true, "note": "Empty collections should serialize as empty arrays"},
+        "turtle": {"valid_n3": true}
+      },
+      "provenance": {
+        "expected_keys": ["hierarchical-structures"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "edge_case_multilang",
+      "templates": ["digital-nameplate"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-EDGE-MULTI-006",
+        "serialNumber": "SN-EDGE-MULTI-006"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_multilang_properties": true, "language_count": 6},
+        "aasx": {"valid_zip": true},
+        "jsonld": {"has_context": true, "note": "MultiLanguageProperty should emit langStringSet"},
+        "turtle": {"valid_n3": true, "note": "6-language MLP should serialize correctly to RDF language-tagged literals"}
+      },
+      "provenance": {
+        "expected_keys": ["digital-nameplate"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "carbon_footprint",
+      "templates": ["carbon-footprint"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-PCF-007",
+        "serialNumber": "SN-PCF-007"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_aas_shell": true},
+        "aasx": {"valid_zip": true},
+        "jsonld": {"has_context": true},
+        "turtle": {"valid_n3": true}
+      },
+      "provenance": {
+        "expected_keys": ["carbon-footprint"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    },
+    {
+      "fixture_key": "technical_data",
+      "templates": ["technical-data"],
+      "asset_ids": {
+        "manufacturerPartId": "INSP-TECH-008",
+        "serialNumber": "SN-TECH-008"
+      },
+      "export_expectations": {
+        "json": {"submodel_count": 1, "has_aas_shell": true},
+        "aasx": {"valid_zip": true},
+        "jsonld": {"has_context": true},
+        "turtle": {"valid_n3": true, "note": "Technical Data template concept description #21 has curly-brace URI — verify IRI encoding"}
+      },
+      "provenance": {
+        "expected_keys": ["technical-data"],
+        "has_semantic_id": true,
+        "has_idta_version": true
+      }
+    }
+  ],
+  "lifecycle_test_matrix": {
+    "description": "DPP lifecycle states to test for export. Phase 3b should create DPPs, transition them, and export at each state.",
+    "states": [
+      {
+        "state": "draft",
+        "base_fixture": "minimal_nameplate",
+        "export_available": true,
+        "note": "Draft DPPs can be exported but have no signed_jws"
+      },
+      {
+        "state": "published",
+        "base_fixture": "minimal_nameplate",
+        "export_available": true,
+        "note": "Published DPPs have signed_jws and EPCIS traceability submodel injection"
+      },
+      {
+        "state": "archived",
+        "base_fixture": "minimal_nameplate",
+        "export_available": true,
+        "note": "Archived DPPs are immutable — export should succeed on last published revision"
+      }
+    ]
+  }
+}

@@ -1,0 +1,429 @@
+{
+  "analysis_date": "2026-02-10",
+  "analyst": "IDTA SMT Specialist",
+  "templates_audited": 6,
+  "templates_unavailable": 1,
+  "unavailable_templates": ["battery-passport"],
+
+  "per_template_summary": {
+    "carbon-footprint": {
+      "version": "1.0.1",
+      "total_elements": 27,
+      "editable_elements": 27,
+      "readonly_elements": 0,
+      "editable_coverage_pct": 100.0,
+      "concept_descriptions": 29,
+      "semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+      "espr_category": "environmental",
+      "model_types": { "Property": 14, "SubmodelElementCollection": 6, "SubmodelElementList": 5, "File": 2 },
+      "qualifier_types": ["SMT/Cardinality"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": ["1 childless SubmodelElementCollection (GoodsHandoverAddress)"]
+    },
+    "contact-information": {
+      "version": "1.0.1",
+      "total_elements": 36,
+      "editable_elements": 36,
+      "readonly_elements": 0,
+      "editable_coverage_pct": 100.0,
+      "concept_descriptions": 35,
+      "semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations",
+      "espr_category": "identity",
+      "model_types": { "MultiLanguageProperty": 21, "Property": 10, "SubmodelElementCollection": 5 },
+      "qualifier_types": ["Multiplicity"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": []
+    },
+    "digital-nameplate": {
+      "version": "3.0.1",
+      "total_elements": 36,
+      "editable_elements": 36,
+      "readonly_elements": 0,
+      "editable_coverage_pct": 100.0,
+      "concept_descriptions": 30,
+      "semantic_id": "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
+      "espr_category": "identity",
+      "model_types": { "Property": 20, "MultiLanguageProperty": 6, "SubmodelElementCollection": 4, "File": 4, "SubmodelElementList": 2 },
+      "qualifier_types": ["SMT/Cardinality"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": ["1 childless SubmodelElementCollection (AddressInformation)"]
+    },
+    "handover-documentation": {
+      "version": "2.0.1",
+      "total_elements": 38,
+      "editable_elements": 38,
+      "readonly_elements": 0,
+      "editable_coverage_pct": 100.0,
+      "concept_descriptions": 34,
+      "semantic_id": "0173-1#01-AHF578#003",
+      "espr_category": "endoflife",
+      "model_types": { "Property": 11, "SubmodelElementList": 11, "MultiLanguageProperty": 5, "SubmodelElementCollection": 4, "ReferenceElement": 4, "File": 2, "Entity": 1 },
+      "qualifier_types": ["AllowedIdShort", "ExampleValue", "SMT/Cardinality"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": ["1 statementless Entity"]
+    },
+    "hierarchical-structures": {
+      "version": "1.1.1",
+      "total_elements": 11,
+      "editable_elements": 11,
+      "readonly_elements": 0,
+      "editable_coverage_pct": 100.0,
+      "concept_descriptions": 8,
+      "semantic_id": "https://admin-shell.io/idta/HierarchicalStructures/1/1/Submodel",
+      "espr_category": "materials",
+      "model_types": { "RelationshipElement": 6, "Entity": 3, "Property": 2 },
+      "qualifier_types": ["EditIdShort", "FormChoices", "SMT/Cardinality"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": ["1 statementless Entity", "6 RelationshipElements rendered as JSON text"]
+    },
+    "technical-data": {
+      "version": "2.0.1",
+      "total_elements": 68,
+      "editable_elements": 62,
+      "readonly_elements": 6,
+      "editable_coverage_pct": 91.2,
+      "concept_descriptions": 28,
+      "semantic_id": "0173-1#01-AHX837#002",
+      "espr_category": "compliance",
+      "model_types": { "SubmodelElementCollection": 18, "Property": 15, "MultiLanguageProperty": 10, "SubmodelElementList": 10, "SubmodelElement": 6, "Range": 6, "File": 2, "ReferenceElement": 1 },
+      "qualifier_types": ["Naming", "SMT/Cardinality", "SMT/ExampleValue/CDD", "SMT/ExampleValue/CustomerSpecific", "SMT/ExampleValue/ECLASS", "SMT/ExampleValue/UNSPSC"],
+      "schema_coverage_pct": 100.0,
+      "structural_gaps": ["8 childless SubmodelElementCollections", "6 SubmodelElement (abstract base type) items rendered as ReadOnly"]
+    }
+  },
+
+  "aggregate_statistics": {
+    "total_elements": 216,
+    "total_editable": 210,
+    "total_readonly": 6,
+    "overall_editable_pct": 97.2,
+    "total_concept_descriptions": 164,
+    "total_unique_semantic_ids_in_elements": "all 216 elements carry semantic IDs",
+    "schema_coverage_pct": 100.0,
+    "aggregate_model_types": {
+      "Property": 72,
+      "MultiLanguageProperty": 42,
+      "SubmodelElementCollection": 37,
+      "SubmodelElementList": 28,
+      "File": 10,
+      "RelationshipElement": 6,
+      "Range": 6,
+      "SubmodelElement": 6,
+      "ReferenceElement": 5,
+      "Entity": 4
+    }
+  },
+
+  "qualifier_inventory": {
+    "total_unique_qualifier_type_strings": 11,
+    "qualifier_types_found": [
+      "AllowedIdShort",
+      "EditIdShort",
+      "ExampleValue",
+      "FormChoices",
+      "Multiplicity",
+      "Naming",
+      "SMT/Cardinality",
+      "SMT/ExampleValue/CDD",
+      "SMT/ExampleValue/CustomerSpecific",
+      "SMT/ExampleValue/ECLASS",
+      "SMT/ExampleValue/UNSPSC"
+    ],
+    "qualifier_types_normalized_to_smt_dataclass": {
+      "cardinality": {
+        "raw_types": ["SMT/Cardinality", "Multiplicity"],
+        "templates_using": ["carbon-footprint", "digital-nameplate", "handover-documentation", "hierarchical-structures", "technical-data", "contact-information"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Used to derive JSON Schema `required` array (One/OneToMany = required). In Zod: `isNodeRequired()` checks cardinality. Lists use cardinality for `minItems`. x-cardinality emitted in schema."
+      },
+      "example_value": {
+        "raw_types": ["ExampleValue", "SMT/ExampleValue/CDD", "SMT/ExampleValue/CustomerSpecific", "SMT/ExampleValue/ECLASS", "SMT/ExampleValue/UNSPSC"],
+        "templates_using": ["handover-documentation", "technical-data"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend emits `examples` array in JSON Schema. Frontend: PropertyField, MultiLangField, EnumField all use `node.smt?.example_value` as placeholder text."
+      },
+      "form_choices": {
+        "raw_types": ["FormChoices"],
+        "templates_using": ["hierarchical-structures"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `enum` in JSON Schema + `x-form-choices`. Frontend: PropertyField delegates to EnumField when `form_choices` present. Zod: `z.enum()` created from choices list."
+      },
+      "allowed_id_short": {
+        "raw_types": ["AllowedIdShort"],
+        "templates_using": ["handover-documentation"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": false,
+        "enforcement_details": "Backend maps to `x-allowed-id-short` in JSON Schema. Frontend: UISchema type does NOT include `x-allowed-id-short`. No component reads or validates it. Zod builder ignores it.",
+        "gap": "MEDIUM: Users can enter arbitrary idShort values that violate the template constraint. Only affects Handover Documentation template."
+      },
+      "edit_id_short": {
+        "raw_types": ["EditIdShort"],
+        "templates_using": ["hierarchical-structures"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": false,
+        "enforcement_details": "Backend maps to `x-edit-id-short` in JSON Schema. Frontend: UISchema type does NOT include `x-edit-id-short`. No component enables/disables idShort editing based on this flag.",
+        "gap": "LOW: Affects Node entity idShort editability in Hierarchical Structures. Currently idShort is never editable in the form regardless."
+      },
+      "naming": {
+        "raw_types": ["Naming"],
+        "templates_using": ["technical-data"],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": false,
+        "enforcement_details": "Backend maps to `x-naming` in JSON Schema. Frontend: UISchema type does NOT include `x-naming`. No component uses it for idShort generation hints.",
+        "gap": "LOW: Naming is a hint for dynamically generating idShort values. Only relevant for 'arbitrary' collections in Technical Data."
+      },
+      "required_lang": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `x-required-languages`. Frontend: MultiLangField reads `node.smt?.required_lang`, pre-populates language rows, prevents removal of required languages. Zod validates required languages are non-empty.",
+        "note": "Currently no template uses RequiredLang qualifiers, but the pipeline handles them correctly."
+      },
+      "access_mode": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `readOnly`/`writeOnly` + `x-readonly` in schema. Frontend: AASRenderer checks `node.smt?.access_mode` and routes to ReadOnlyField.",
+        "note": "Currently no template uses AccessMode qualifiers, but the pipeline handles them correctly."
+      },
+      "either_or": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `x-either-or`. Frontend: `useEitherOrGroups` hook extracts groups from definition tree, `validate()` checks at least one member of each group has a value.",
+        "note": "Currently no template uses EitherOr qualifiers, but the pipeline handles them correctly."
+      },
+      "default_value": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": false,
+        "enforcement_details": "Backend maps to JSON Schema `default`. Frontend: UISchema type includes `default` but no component reads it to pre-populate fields.",
+        "gap": "LOW: Default values are not pre-populated in the form. Currently no template uses DefaultValue qualifiers."
+      },
+      "initial_value": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": false,
+        "frontend_enforced": false,
+        "enforcement_details": "Backend parses `initial_value` into SmtQualifiers but does NOT emit it to JSON Schema (no `x-initial-value` or `default` mapping). Frontend has the type but nothing reads it.",
+        "gap": "LOW: Initial values are parsed but never surfaced. Currently no template uses InitialValue qualifiers."
+      },
+      "allowed_range": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `minimum`/`maximum` in JSON Schema + `x-allowed-range` for raw fallback. Frontend Zod builder reads `node.smt?.allowed_range` and applies `.min()/.max()`. PropertyField renders number inputs with step.",
+        "note": "Currently no template uses AllowedRange qualifiers, but the pipeline handles them correctly."
+      },
+      "allowed_value_regex": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `pattern` + `x-allowed-value` in schema. Frontend Zod builder applies `.regex()` from `node.smt?.allowed_value_regex`.",
+        "note": "Currently no template uses AllowedValue qualifiers, but the pipeline handles them correctly."
+      },
+      "form_title": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to schema `title` + `x-form-title`. Frontend: `getNodeLabel()` checks `node.smt?.form_title` first.",
+        "note": "Currently no template uses FormTitle qualifiers, but the pipeline handles them correctly."
+      },
+      "form_info": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to schema `description` + `x-form-info`. Frontend: `getNodeDescription()` checks `node.smt?.form_info` first. Shown in tooltip.",
+        "note": "Currently no template uses FormInfo qualifiers, but the pipeline handles them correctly."
+      },
+      "form_url": {
+        "raw_types": [],
+        "templates_using": [],
+        "backend_enforced": true,
+        "schema_mapped": true,
+        "frontend_enforced": true,
+        "enforcement_details": "Backend maps to `x-form-url`. Frontend: All field components check `node.smt?.form_url` and FieldWrapper renders 'Learn more' link.",
+        "note": "Currently no template uses FormUrl qualifiers, but the pipeline handles them correctly."
+      }
+    }
+  },
+
+  "findings": [
+    {
+      "id": "SMT-FIND-01",
+      "severity": "INFO",
+      "title": "Battery Passport template unavailable",
+      "description": "IDTA 02035-1 source JSON not yet published in admin-shell-io/submodel-templates GitHub repo. Template is cataloged with support_status='unavailable' and refresh_enabled=false. Cannot audit semantic IDs or qualifiers.",
+      "affected": "battery-passport",
+      "recommendation": "Monitor upstream IDTA GitHub repo for publication. Once available, add golden file and run full audit."
+    },
+    {
+      "id": "SMT-FIND-02",
+      "severity": "MEDIUM",
+      "title": "AllowedIdShort qualifier not enforced in frontend",
+      "description": "Handover Documentation template uses AllowedIdShort qualifier to constrain entity names. Backend emits x-allowed-id-short in schema but frontend UISchema type omits it and no component validates against it.",
+      "affected": "handover-documentation",
+      "recommendation": "Add 'x-allowed-id-short' to UISchema type. Validate in EntityField or ListField when adding items with idShort."
+    },
+    {
+      "id": "SMT-FIND-03",
+      "severity": "LOW",
+      "title": "EditIdShort qualifier not enforced in frontend",
+      "description": "Hierarchical Structures template uses EditIdShort=true on Node entities. Backend emits x-edit-id-short but frontend does not render an idShort editor when this is true. Currently moot because idShort is never user-editable.",
+      "affected": "hierarchical-structures",
+      "recommendation": "If idShort editing is ever enabled, read x-edit-id-short to gate the feature."
+    },
+    {
+      "id": "SMT-FIND-04",
+      "severity": "LOW",
+      "title": "Naming qualifier not surfaced in frontend",
+      "description": "Technical Data template uses Naming qualifier for arbitrary collections/properties. Backend emits x-naming but frontend ignores it. This is a hint for dynamic idShort generation in 'arbitrary' fields.",
+      "affected": "technical-data",
+      "recommendation": "When supporting dynamic 'arbitrary' field addition, use x-naming to auto-generate idShort values."
+    },
+    {
+      "id": "SMT-FIND-05",
+      "severity": "LOW",
+      "title": "DefaultValue and InitialValue qualifiers not pre-populated",
+      "description": "SmtQualifiers parses default_value and initial_value. default_value is mapped to JSON Schema 'default' but frontend never reads it to pre-populate. initial_value is not mapped to schema at all.",
+      "affected": "all (latent — no template currently uses these qualifiers)",
+      "recommendation": "In formDefaults.ts, read UISchema 'default' to set initial form values. Map initial_value to x-initial-value in schema_from_definition.py."
+    },
+    {
+      "id": "SMT-FIND-06",
+      "severity": "INFO",
+      "title": "6 abstract SubmodelElement items in Technical Data",
+      "description": "Technical Data template has 6 SubmodelElementList items typed as 'SubmodelElement' (the abstract base type). These are rendered as ReadOnlyField because no concrete type can be determined. This is correct behavior — the IDTA template intentionally uses the abstract type for 'arbitrary' list items.",
+      "affected": "technical-data",
+      "recommendation": "No action needed. ReadOnly rendering is the correct degradation for abstract SubmodelElement."
+    },
+    {
+      "id": "SMT-FIND-07",
+      "severity": "INFO",
+      "title": "10 childless/statementless containers across templates",
+      "description": "10 structural gaps: 10 childless SubmodelElementCollections (mostly 'arbitrary' placeholders in Technical Data), 2 statementless Entities. These represent intentionally empty template placeholders.",
+      "affected": "carbon-footprint (1), digital-nameplate (1), technical-data (8), handover-documentation (1 entity), hierarchical-structures (1 entity)",
+      "recommendation": "CollectionField correctly falls back to schema-driven rendering for childless collections. EntityField shows JSON fallback for statementless entities. No action needed."
+    },
+    {
+      "id": "SMT-FIND-08",
+      "severity": "MEDIUM",
+      "title": "RelationshipElement references rendered as JSON text input",
+      "description": "6 RelationshipElements in Hierarchical Structures (HasPart, IsPartOf, SameAs) have first/second references that must be entered as raw JSON. No structured reference picker exists.",
+      "affected": "hierarchical-structures",
+      "recommendation": "RelationshipField already has structured ReferenceDisplay for viewing. Consider adding a structured reference builder (type dropdown + key type/value inputs) similar to ReferenceField for editing."
+    },
+    {
+      "id": "SMT-FIND-09",
+      "severity": "INFO",
+      "title": "Qualifier type naming inconsistency across templates",
+      "description": "Templates use different naming conventions: 'SMT/Cardinality' vs bare 'Multiplicity', 'SMT/ExampleValue/CDD' vs 'ExampleValue'. The qualifiers.py parser handles all variants correctly via dual matching (type string OR semantic ID).",
+      "affected": "all",
+      "recommendation": "No action needed. Parser handles all variants. Document the normalization in qualifiers.py."
+    },
+    {
+      "id": "SMT-FIND-10",
+      "severity": "INFO",
+      "title": "UISchema type missing several x- extension fields",
+      "description": "UISchema TypeScript type only declares x-multi-language, x-range, x-file-upload, x-reference, x-entity, x-relationship, x-annotated-relationship, x-readonly, x-blob, x-form-url, x-required-languages, x-allowed-range. Missing: x-cardinality, x-form-title, x-form-info, x-form-choices, x-allowed-value, x-allowed-id-short, x-edit-id-short, x-naming, x-semantic-id.",
+      "affected": "frontend/src/features/editor/types/uiSchema.ts",
+      "recommendation": "Add missing x- fields to UISchema type for type safety, even if not all are consumed by components today."
+    }
+  ],
+
+  "frontend_component_qualifier_mapping": {
+    "PropertyField": {
+      "qualifiers_consumed": ["form_choices (delegates to EnumField)", "example_value (placeholder)", "form_url (FieldWrapper link)"],
+      "validation_via_zod": ["cardinality (required)", "allowed_range (min/max)", "allowed_value_regex (pattern)", "form_choices (enum)"]
+    },
+    "MultiLangField": {
+      "qualifiers_consumed": ["required_lang (pre-populated language rows)", "example_value (placeholder)", "form_url (FieldWrapper link)"],
+      "validation_via_zod": ["required_lang (refine: non-empty for each required language)"]
+    },
+    "EnumField": {
+      "qualifiers_consumed": ["form_choices (options list)", "example_value (placeholder in first option)", "form_url (FieldWrapper link)"],
+      "validation_via_zod": ["form_choices (z.enum)"]
+    },
+    "CollectionField": {
+      "qualifiers_consumed": ["form_url (indirectly via child FieldWrappers)"],
+      "validation_via_zod": ["cardinality (required children via schema.required)"]
+    },
+    "ListField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["cardinality (minItems for OneToMany)"]
+    },
+    "EntityField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["cardinality (required)"]
+    },
+    "RangeField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["min <= max refine"]
+    },
+    "FileField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["contentType + value as strings"]
+    },
+    "ReferenceField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["type + keys array"]
+    },
+    "RelationshipField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["first/second as AAS reference"]
+    },
+    "AnnotatedRelationshipField": {
+      "qualifiers_consumed": ["form_url (FieldWrapper link)"],
+      "validation_via_zod": ["first/second as AAS reference, annotations as object"]
+    },
+    "ReadOnlyField": {
+      "qualifiers_consumed": ["access_mode (routing trigger)"],
+      "validation_via_zod": ["z.unknown() (no validation)"]
+    },
+    "BooleanField": {
+      "qualifiers_consumed": [],
+      "validation_via_zod": ["z.boolean()"]
+    },
+    "FieldWrapper": {
+      "qualifiers_consumed": ["form_title (via getNodeLabel)", "form_info (via getNodeDescription, tooltip)", "form_url (Learn more link)", "cardinality (required asterisk via isNodeRequired)"],
+      "validation_via_zod": []
+    },
+    "useEitherOrGroups hook": {
+      "qualifiers_consumed": ["either_or (cross-field group validation)"],
+      "validation_via_zod": ["custom validate() checks at least one member filled"]
+    }
+  },
+
+  "qualifier_enforcement_summary": {
+    "fully_enforced": ["cardinality", "example_value", "form_choices", "required_lang", "access_mode", "either_or", "allowed_range", "allowed_value_regex", "form_title", "form_info", "form_url"],
+    "partially_enforced": ["default_value"],
+    "not_enforced": ["allowed_id_short", "edit_id_short", "naming", "initial_value"],
+    "enforcement_score": "11/15 fully enforced (73%), 1/15 partial (7%), 3/15 not enforced but low-use (20%)"
+  }
+}
