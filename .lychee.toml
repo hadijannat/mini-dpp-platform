@@ -2,7 +2,7 @@ verbose = "info"
 no_progress = true
 max_retries = 2
 retry_wait_time = 2
-accept = [200, 403]
+accept = [200, 202, 403]
 exclude_path = [
   "(^|/)node_modules/",
   "(^|/)\\.venv/",
