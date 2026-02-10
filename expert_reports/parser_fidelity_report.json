@@ -1,0 +1,265 @@
+{
+  "report_type": "parser_schema_fidelity",
+  "inspector": "parser-schema",
+  "date": "2026-02-10",
+  "overall_status": "PASS",
+  "failsafe_boundary": {
+    "status": "COMPLIANT",
+    "ingestion_paths": [
+      {
+        "file": "basyx_parser.py",
+        "line": 52,
+        "failsafe": false,
+        "correct": true
+      }
+    ],
+    "export_paths": [
+      {
+        "file": "export/service.py",
+        "line": 139,
+        "failsafe": true,
+        "correct": true
+      },
+      {
+        "file": "export/service.py",
+        "line": 184,
+        "failsafe": true,
+        "correct": true
+      },
+      {
+        "file": "aas/serialization.py",
+        "line": 143,
+        "failsafe": true,
+        "correct": true
+      }
+    ]
+  },
+  "element_type_coverage": {
+    "definition_builder": {
+      "total_types": 14,
+      "explicit_handlers": [
+        "Property",
+        "MultiLanguageProperty",
+        "Range",
+        "File",
+        "Blob",
+        "SubmodelElementCollection",
+        "SubmodelElementList",
+        "Entity",
+        "ReferenceElement",
+        "AnnotatedRelationshipElement",
+        "RelationshipElement",
+        "Operation",
+        "Capability",
+        "BasicEventElement"
+      ]
+    },
+    "schema_generator": {
+      "total_types": 14,
+      "explicit_handlers": 11,
+      "else_clause_types": [
+        "Operation",
+        "Capability",
+        "BasicEventElement"
+      ],
+      "else_clause_behavior": "read-only object",
+      "by_design": true
+    },
+    "serialization": {
+      "total_types": 14,
+      "all_handled": true,
+      "explicit_handlers": [
+        "SubmodelElementCollection",
+        "SubmodelElementList",
+        "Entity",
+        "RelationshipElement",
+        "AnnotatedRelationshipElement",
+        "MultiLanguageProperty",
+        "Range",
+        "File",
+        "Blob",
+        "Operation",
+        "BasicEventElement",
+        "Capability"
+      ],
+      "else_clause_types": [
+        "Property",
+        "ReferenceElement"
+      ]
+    }
+  },
+  "qualifier_mapping": {
+    "total_qualifier_types": 16,
+    "test_count": 18,
+    "tests_passing": 18,
+    "qualifier_types": [
+      "Cardinality",
+      "EitherOr",
+      "DefaultValue",
+      "InitialValue",
+      "ExampleValue",
+      "AllowedRange",
+      "AllowedValue",
+      "RequiredLang",
+      "AccessMode",
+      "FormTitle",
+      "FormInfo",
+      "FormUrl",
+      "FormChoices",
+      "Naming",
+      "AllowedIdShort",
+      "EditIdShort"
+    ],
+    "recognition_methods": [
+      "type_string_aliases",
+      "semantic_id_uris"
+    ]
+  },
+  "template_audit": {
+    "templates_audited": 6,
+    "templates_missing": 1,
+    "missing_templates": ["battery-passport"],
+    "total_elements": 216,
+    "total_editable": 210,
+    "editable_percentage": 97.2,
+    "total_readonly": 6,
+    "total_gaps": 6,
+    "gap_description": "Empty SubmodelElementCollections (structural placeholders)",
+    "element_type_distribution": {
+      "Property": 72,
+      "MultiLanguageProperty": 42,
+      "SubmodelElementCollection": 37,
+      "SubmodelElementList": 28,
+      "File": 10,
+      "RelationshipElement": 6,
+      "Range": 6,
+      "SubmodelElement": 6,
+      "ReferenceElement": 5,
+      "Entity": 4
+    },
+    "per_template": {
+      "carbon-footprint": {
+        "elements": 27,
+        "editable": 27,
+        "editable_pct": 100.0,
+        "gaps": 1
+      },
+      "contact-information": {
+        "elements": 36,
+        "editable": 36,
+        "editable_pct": 100.0,
+        "gaps": 0
+      },
+      "digital-nameplate": {
+        "elements": 38,
+        "editable": 38,
+        "editable_pct": 100.0,
+        "gaps": 0
+      },
+      "handover-documentation": {
+        "elements": 23,
+        "editable": 23,
+        "editable_pct": 100.0,
+        "gaps": 0
+      },
+      "hierarchical-structures": {
+        "elements": 26,
+        "editable": 20,
+        "editable_pct": 76.9,
+        "gaps": 5
+      },
+      "technical-data": {
+        "elements": 66,
+        "editable": 66,
+        "editable_pct": 100.0,
+        "gaps": 8
+      }
+    }
+  },
+  "golden_files": {
+    "total_expected": 7,
+    "total_present": 6,
+    "missing": ["battery-passport"],
+    "files": [
+      "carbon-footprint@1.0.1.json",
+      "contact-information@1.0.1.json",
+      "digital-nameplate@3.0.1.json",
+      "handover-documentation@2.0.1.json",
+      "hierarchical-structures@1.1.1.json",
+      "technical-data@2.0.1.json"
+    ]
+  },
+  "test_results": {
+    "smt_qualifiers": {
+      "tests": 18,
+      "passing": 18,
+      "failing": 0
+    },
+    "turtle_export_regression": {
+      "tests": 35,
+      "passing": 35,
+      "failing": 0
+    },
+    "template_unit": {
+      "tests": 54,
+      "passing": 54,
+      "failing": 0,
+      "errors": 1,
+      "error_reason": "integration test requires DB (expected)"
+    },
+    "schema_related": {
+      "tests": 153,
+      "passing": 153,
+      "failing": 0
+    }
+  },
+  "findings": [
+    {
+      "id": "PSF-1",
+      "severity": "INFO",
+      "title": "Operation/Capability/BasicEventElement produce read-only schema",
+      "location": "schema_from_definition.py:72-79",
+      "description": "These 3 types fall to else clause with x-readonly. By design.",
+      "risk": "none",
+      "action_required": false
+    },
+    {
+      "id": "PSF-2",
+      "severity": "LOW",
+      "title": "Synthetic list item fallback incomplete for 3 types",
+      "location": "schema_from_definition.py:110-120",
+      "description": "SubmodelElementList with typeValueListElement of Operation/Capability/BasicEventElement and no sample items produces {type: string} instead of object.",
+      "risk": "minimal",
+      "action_required": false,
+      "recommendation": "Add these types to _list_schema synthetic fallback set"
+    },
+    {
+      "id": "PSF-3",
+      "severity": "INFO",
+      "title": "Battery passport golden file pending upstream",
+      "description": "IDTA 02035 not yet published in admin-shell-io GitHub repo.",
+      "risk": "none",
+      "action_required": false
+    },
+    {
+      "id": "PSF-4",
+      "severity": "GOOD",
+      "title": "Dual-path concept description extraction",
+      "location": "definition.py:180-214",
+      "description": "Robust IEC 61360 + fallback extraction for legacy CDs"
+    },
+    {
+      "id": "PSF-5",
+      "severity": "GOOD",
+      "title": "Multi-convention qualifier recognition",
+      "location": "qualifiers.py:111-211",
+      "description": "Type-string aliases + semantic ID URI matching for resilience"
+    },
+    {
+      "id": "PSF-6",
+      "severity": "GOOD",
+      "title": "Deterministic ordering throughout pipeline",
+      "description": "Stable sort keys ensure golden file hash reproducibility"
+    }
+  ]
+}

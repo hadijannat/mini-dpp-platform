@@ -1,0 +1,179 @@
+{
+  "minimal_nameplate": {
+    "template_id": "digital-nameplate",
+    "name": "Minimal Nameplate Test DPP",
+    "description": "Minimal test case with only required fields",
+    "data": {
+      "manufacturerName": "ACME Corp",
+      "serialNumber": "SN-MINIMAL-001"
+    }
+  },
+  "full_nameplate": {
+    "template_id": "digital-nameplate",
+    "name": "Full Nameplate Test DPP",
+    "description": "Complete test case with all optional fields populated",
+    "data": {
+      "manufacturerName": [
+        {"language": "en-US", "text": "ACME Corporation"},
+        {"language": "de-DE", "text": "ACME Gesellschaft"},
+        {"language": "fr-FR", "text": "ACME Société"}
+      ],
+      "serialNumber": "SN-FULL-002",
+      "yearOfConstruction": "2024",
+      "dateOfManufacture": "2024-01-15",
+      "productDesignation": [
+        {"language": "en-US", "text": "Industrial Battery Module"},
+        {"language": "de-DE", "text": "Industrie-Batteriemodul"}
+      ],
+      "partNumber": "PN-12345",
+      "orderCode": "OC-67890",
+      "manufacturerArticleNumber": "MAN-ABC123",
+      "physicalAddress": {
+        "street": "123 Innovation Drive",
+        "zipCode": "12345",
+        "city": "Tech City",
+        "country": "US"
+      }
+    }
+  },
+  "carbon_footprint": {
+    "template_id": "carbon-footprint",
+    "name": "Carbon Footprint Test DPP",
+    "description": "Product carbon footprint declaration",
+    "data": {
+      "pcfGoodsAddressHandover": {
+        "country": "DE"
+      },
+      "pcfCalculationMethod": "ISO 14067",
+      "pcfCO2eq": 125.5,
+      "pcfReferenceValue": "kg CO2eq per unit",
+      "pcfQuantityOfMeasure": "1 unit",
+      "pcfLifeCyclePhase": "A1-A3",
+      "distributionStagePCF": {
+        "A4": 15.2
+      }
+    }
+  },
+  "technical_data": {
+    "template_id": "technical-data",
+    "name": "Technical Data Test DPP",
+    "description": "Technical specifications and properties",
+    "data": {
+      "generalInformation": {
+        "manufacturerName": "ACME Tech",
+        "productDesignation": "Smart Sensor Model X"
+      },
+      "technicalProperties": {
+        "operatingTemperature": {
+          "min": -20,
+          "max": 85,
+          "unit": "°C"
+        },
+        "inputVoltage": {
+          "typical": 24,
+          "unit": "V DC"
+        },
+        "dimensions": {
+          "width": 100,
+          "height": 50,
+          "depth": 30,
+          "unit": "mm"
+        }
+      }
+    }
+  },
+  "hierarchical_structures": {
+    "template_id": "hierarchical-structures",
+    "name": "Hierarchical BOM Test DPP",
+    "description": "Bill of materials with parent-child relationships",
+    "data": {
+      "entryNode": {
+        "id": "root-assembly",
+        "name": "Main Assembly"
+      },
+      "components": [
+        {
+          "id": "comp-001",
+          "name": "Battery Cell",
+          "quantity": 48,
+          "unit": "pieces"
+        },
+        {
+          "id": "comp-002",
+          "name": "Battery Management System",
+          "quantity": 1,
+          "unit": "pieces"
+        },
+        {
+          "id": "comp-003",
+          "name": "Housing",
+          "quantity": 1,
+          "unit": "pieces"
+        }
+      ]
+    }
+  },
+  "battery_passport": {
+    "template_id": "battery-passport",
+    "name": "Battery Passport Test DPP",
+    "description": "EU Battery Regulation compliant passport",
+    "data": {
+      "batteryIdentification": {
+        "batteryModel": "LFP-48V-100AH",
+        "batteryType": "Lithium Iron Phosphate",
+        "batteryCategory": "Industrial battery",
+        "manufacturerIdentification": "ACME Battery Corp"
+      },
+      "batteryStatus": {
+        "stateOfHealth": 98.5,
+        "expectedLifetime": 10,
+        "numberOfChargingCycles": 150,
+        "dateOfManufacture": "2024-01-15"
+      },
+      "cellChemistry": {
+        "cathodeMaterial": "LiFePO4",
+        "anodeMaterial": "Graphite",
+        "electrolyteComposition": "LiPF6"
+      },
+      "carbonFootprint": {
+        "totalCarbonFootprint": 245.8,
+        "carbonFootprintPerKWh": 2.5,
+        "shareOfRenewableEnergy": 65.0
+      },
+      "recycledContent": {
+        "cobalt": 15.5,
+        "lithium": 12.0,
+        "nickel": 8.5,
+        "lead": 0.0
+      }
+    }
+  },
+  "edge_case_empty_collections": {
+    "template_id": "hierarchical-structures",
+    "name": "Edge Case: Empty Collections",
+    "description": "Test DPP with empty optional collections",
+    "data": {
+      "entryNode": {
+        "id": "root-only",
+        "name": "Standalone Component"
+      },
+      "components": []
+    }
+  },
+  "edge_case_multilang": {
+    "template_id": "digital-nameplate",
+    "name": "Edge Case: Multilingual",
+    "description": "Test DPP with 5+ languages",
+    "data": {
+      "manufacturerName": [
+        {"language": "en-US", "text": "ACME Corporation"},
+        {"language": "de-DE", "text": "ACME Gesellschaft"},
+        {"language": "fr-FR", "text": "ACME Société"},
+        {"language": "es-ES", "text": "ACME Corporación"},
+        {"language": "it-IT", "text": "ACME Società"},
+        {"language": "ja-JP", "text": "ACMEコーポレーション"}
+      ],
+      "serialNumber": "SN-MULTILANG-999"
+    }
+  }
+}
