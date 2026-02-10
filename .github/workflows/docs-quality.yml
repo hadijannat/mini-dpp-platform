@@ -1,0 +1,34 @@
+name: Docs Quality
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  docs-quality:
+    name: docs-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdown tools
+        run: npm i -g markdownlint-cli2
+
+      - name: Run markdown lint
+        run: markdownlint-cli2 'README.md' 'CHANGELOG.md' 'docs/**/*.md'
+
+      - name: Run link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          fail: true
+          args: >-
+            --config .lychee.toml
+            README.md
+            docs/**/*.md

@@ -111,17 +111,17 @@ Create two tenants (`alpha` and `beta`) as admin, assign publisher to `alpha`, t
 
 | Step | Screenshot |
 |------|------------|
-| 1. Login page | ![Login](docs/storyboard/01-login.png) |
-| 2. Keycloak sign-in | ![Keycloak](docs/storyboard/02-keycloak-login.png) |
-| 3. Admin dashboard | ![Dashboard](docs/storyboard/03-admin-dashboard.png) |
-| 4. Tenants list | ![Tenants](docs/storyboard/04-tenants-list.png) |
-| 5. Create tenants | ![Create tenant](docs/storyboard/05-create-tenant.png) |
-| 6. Add publisher to `alpha` (use OIDC sub) | ![Add member](docs/storyboard/06-tenant-members.png) |
-| 7. Switch to `alpha` as publisher | ![Switcher](docs/storyboard/07-publisher-tenant-switcher.png) |
-| 8. Create DPP in `alpha` | ![Create DPP](docs/storyboard/08-create-dpp.png) |
-| 9. DPP list for `alpha` | ![Alpha DPPs](docs/storyboard/09-dpp-list-alpha.png) |
-| 10. `beta` is empty | ![Beta empty](docs/storyboard/10-dpp-list-beta-empty.png) |
-| 11. Viewer route (`/t/alpha/dpp/{id}`) | ![Viewer](docs/storyboard/11-viewer-route.png) |
+| 1. Login page | ![Login](docs/public/assets/storyboard/01-login.png) |
+| 2. Keycloak sign-in | ![Keycloak](docs/public/assets/storyboard/02-keycloak-login.png) |
+| 3. Admin dashboard | ![Dashboard](docs/public/assets/storyboard/03-admin-dashboard.png) |
+| 4. Tenants list | ![Tenants](docs/public/assets/storyboard/04-tenants-list.png) |
+| 5. Create tenants | ![Create tenant](docs/public/assets/storyboard/05-create-tenant.png) |
+| 6. Add publisher to `alpha` (use OIDC sub) | ![Add member](docs/public/assets/storyboard/06-tenant-members.png) |
+| 7. Switch to `alpha` as publisher | ![Switcher](docs/public/assets/storyboard/07-publisher-tenant-switcher.png) |
+| 8. Create DPP in `alpha` | ![Create DPP](docs/public/assets/storyboard/08-create-dpp.png) |
+| 9. DPP list for `alpha` | ![Alpha DPPs](docs/public/assets/storyboard/09-dpp-list-alpha.png) |
+| 10. `beta` is empty | ![Beta empty](docs/public/assets/storyboard/10-dpp-list-beta-empty.png) |
+| 11. Viewer route (`/t/alpha/dpp/{id}`) | ![Viewer](docs/public/assets/storyboard/11-viewer-route.png) |
 
 </details>
 
@@ -136,11 +136,11 @@ Templates generate the UI. Select templates, create a DPP, and edit each submode
 
 | Step | Screenshot |
 |------|------------|
-| 12. Select templates | ![Template selection](docs/storyboard/12-template-selection.png) |
-| 13. DPP in list | ![DPP list](docs/storyboard/13-dpp-list-new.png) |
-| 14. Submodel edit links | ![Edit links](docs/storyboard/14-dpp-submodels-edit.png) |
-| 15. Carbon Footprint form | ![Carbon form](docs/storyboard/15-carbon-footprint-form.png) |
-| 16. Nameplate form | ![Nameplate form](docs/storyboard/16-nameplate-form.png) |
+| 12. Select templates | ![Template selection](docs/public/assets/storyboard/12-template-selection.png) |
+| 13. DPP in list | ![DPP list](docs/public/assets/storyboard/13-dpp-list-new.png) |
+| 14. Submodel edit links | ![Edit links](docs/public/assets/storyboard/14-dpp-submodels-edit.png) |
+| 15. Carbon Footprint form | ![Carbon form](docs/public/assets/storyboard/15-carbon-footprint-form.png) |
+| 16. Nameplate form | ![Nameplate form](docs/public/assets/storyboard/16-nameplate-form.png) |
 
 </details>
 
@@ -151,19 +151,19 @@ Templates generate the UI. Select templates, create a DPP, and edit each submode
 Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/asset/*`).
 
 **Step A:** Open Settings
-![Admin settings page](docs/images/admin-id-prefix-01-settings.png)
+![Admin settings page](docs/public/assets/images/admin-id-prefix-01-settings.png)
 
 **Step B:** Edit the prefix (must start with `http://` and end with `/`)
-![Edit base URI](docs/images/admin-id-prefix-02-edit.png)
+![Edit base URI](docs/public/assets/images/admin-id-prefix-02-edit.png)
 
 **Step C:** Save and verify
-![Settings saved](docs/images/admin-id-prefix-03-saved.png)
+![Settings saved](docs/public/assets/images/admin-id-prefix-03-saved.png)
 
 ---
 
 ### Data Carriers (QR / GS1 Digital Link)
 
-![Data Carriers page](docs/images/data_carriers.png)
+![Data Carriers page](docs/public/assets/images/data_carriers.png)
 
 - Standard QR encodes the viewer URL
 - GS1 Digital Link format: `https://id.gs1.org/01/{GTIN}/21/{serial}`
@@ -416,16 +416,24 @@ mini-dpp-platform/
 | [Eclipse BaSyx Python SDK 2.0.0](https://github.com/eclipse-basyx/basyx-python-sdk) | AAS reference implementation | Object model, serialization, compliance validation |
 | [IDTA 01001 / 01002](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AAS metamodel (Part 1 & 2) | Core data model for submodels and elements |
 | [IDTA 01005](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AASX package format (Part 5) | Export packaging |
-| [IDTA DPP4.0](https://industrialdigitaltwin.org/content-hub/submodels) | Digital Product Passport templates | 6 templates: Nameplate, Technical Data, Carbon Footprint, BOM, Handover Documentation, Hierarchical Structures |
+| [IDTA DPP4.0](https://industrialdigitaltwin.org/dpp4-0) | Digital Product Passport templates | 6 templates: Nameplate, Technical Data, Carbon Footprint, BOM, Handover Documentation, Hierarchical Structures |
 | [IEC 61360](https://www.iec.ch/dyn/www/f?p=103:7:::::FSP_ORG_ID:1452) | Concept description data specifications | Property definitions and value formats |
 | [GS1 Digital Link](https://www.gs1.org/standards/gs1-digital-link) | URI-based product identification | QR code data carriers |
-| [EU ESPR](https://environment.ec.europa.eu/topics/circular-economy/digital-product-passport_en) | European Sustainability & Product Regulation | Public viewer classification categories |
+| [EU ESPR](https://eur-lex.europa.eu/eli/reg/2024/1781/oj) | European Sustainability & Product Regulation | Public viewer classification categories |
+
+---
+
+## Documentation
+
+- Documentation hub: [`docs/README.md`](docs/README.md)
+- Public docs: [`docs/public/README.md`](docs/public/README.md)
+- Internal docs: [`docs/internal/README.md`](docs/internal/README.md)
 
 ---
 
 ## Engineering Playbooks
 
-- Multi-agent orchestration and inspection workflow docs: [`docs/agent-teams/README.md`](docs/agent-teams/README.md)
+- Multi-agent orchestration and inspection workflow docs: [`docs/internal/agent-teams/README.md`](docs/internal/agent-teams/README.md)
 
 ---
 
