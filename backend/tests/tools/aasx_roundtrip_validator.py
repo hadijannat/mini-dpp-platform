@@ -169,7 +169,9 @@ def validate_aasx_structure(aasx_bytes: bytes) -> dict[str, Any]:
             if "_rels/.rels" not in entries:
                 errors.append("Missing _rels/.rels")
 
-            data_files = [n for n in entries if n.startswith("aasx/") and n.endswith((".json", ".xml"))]
+            data_files = [
+                n for n in entries if n.startswith("aasx/") and n.endswith((".json", ".xml"))
+            ]
             if not data_files:
                 errors.append("No AAS data file found in /aasx/")
 
@@ -293,8 +295,7 @@ def roundtrip_validate(aas_env: dict[str, Any]) -> dict[str, Any]:
         }
         if not json_match:
             report["errors"].append(
-                "JSON serializations differ after round-trip "
-                f"(len {len(json_1)} vs {len(json_2)})"
+                f"JSON serializations differ after round-trip (len {len(json_1)} vs {len(json_2)})"
             )
     except Exception as exc:
         report["steps"]["json_comparison"] = {"status": "failed", "error": str(exc)}

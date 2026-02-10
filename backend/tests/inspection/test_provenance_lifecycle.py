@@ -267,9 +267,7 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(
-                return_value=SimpleNamespace(template_key="digital-nameplate")
-            )
+            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -312,9 +310,7 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(
-                return_value=SimpleNamespace(template_key="digital-nameplate")
-            )
+            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -354,9 +350,7 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(
-                return_value=SimpleNamespace(template_key="digital-nameplate")
-            )
+            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -759,9 +753,7 @@ class TestProvenanceNullSafety:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(
-                return_value=SimpleNamespace(template_key="digital-nameplate")
-            )
+            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(return_value={"submodels": []})

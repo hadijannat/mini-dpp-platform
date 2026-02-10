@@ -9,6 +9,7 @@ This script:
 Usage:
     uv run python tests/tools/inspection_setup.py
 """
+
 import asyncio
 import json
 from datetime import datetime
@@ -37,9 +38,7 @@ def get_evidence_dir() -> Path:
     return run_dir
 
 
-async def ingest_template(
-    template_key: str, service: Any, evidence_dir: Path
-) -> dict[str, Any]:
+async def ingest_template(template_key: str, service: Any, evidence_dir: Path) -> dict[str, Any]:
     """Ingest a single template and save artifacts.
 
     Args:
