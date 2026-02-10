@@ -63,7 +63,9 @@ def upgrade() -> None:
         sa.Column("user_subject", sa.String(length=255), nullable=False),
         sa.Column("permission", sa.String(length=32), nullable=False, server_default="read"),
         sa.Column("granted_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -100,7 +102,9 @@ def upgrade() -> None:
         sa.Column("total", sa.Integer(), nullable=False),
         sa.Column("succeeded", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("failed", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -131,10 +135,14 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("item_index", sa.Integer(), nullable=False),
-        sa.Column("dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="SET NULL"), nullable=True
+        ),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("job_id", "item_index", name="uq_batch_import_job_item_index"),
     )

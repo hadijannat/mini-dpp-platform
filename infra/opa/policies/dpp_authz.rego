@@ -27,6 +27,18 @@ is_tenant_visible if {
     input.resource.visibility_scope == "tenant"
 }
 
+is_owner_team_accessible if {
+    is_owner
+}
+
+is_owner_team_accessible if {
+    is_shared
+}
+
+is_owner_team_accessible if {
+    is_tenant_visible
+}
+
 # =============================================================================
 # ESPR Tier Helpers (must be defined before the decision else-chain)
 # =============================================================================
@@ -151,7 +163,7 @@ else := {
     not input.subject.is_admin
     input.action == "read"
     input.resource.type == "dpp"
-    (is_owner or is_shared or is_tenant_visible)
+    is_owner_team_accessible
     tenant_match
 }
 
@@ -167,7 +179,7 @@ else := {
     not input.subject.is_admin
     input.action == "list"
     input.resource.type == "dpp"
-    (is_owner or is_shared or is_tenant_visible)
+    is_owner_team_accessible
     tenant_match
 }
 
@@ -335,7 +347,7 @@ else := {
     input.action in ["read", "list"]
     input.resource.type == "connector"
     input.subject.is_publisher
-    (is_owner or is_shared or is_tenant_visible)
+    is_owner_team_accessible
     tenant_match
 }
 

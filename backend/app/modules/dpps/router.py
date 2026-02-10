@@ -35,9 +35,7 @@ router = APIRouter()
 
 def _can_view_drafts(dpp: Any, tenant: TenantContext, *, shared_with_current_user: bool) -> bool:
     return (
-        dpp.owner_subject == tenant.user.sub
-        or tenant.is_tenant_admin
-        or shared_with_current_user
+        dpp.owner_subject == tenant.user.sub or tenant.is_tenant_admin or shared_with_current_user
     )
 
 

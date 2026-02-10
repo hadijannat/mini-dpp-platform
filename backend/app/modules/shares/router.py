@@ -217,7 +217,9 @@ async def grant_resource_share(
     return _share_payload(share, users)
 
 
-@router.delete("/{resource_type}/{resource_id}/{user_subject}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{resource_type}/{resource_id}/{user_subject}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def revoke_resource_share(
     resource_type: ResourceType,
     resource_id: UUID,

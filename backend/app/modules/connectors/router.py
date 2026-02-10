@@ -129,7 +129,11 @@ def _connector_access_source(
     creator_subject: str,
     shared_with_current_user: bool,
 ) -> str:
-    if tenant.is_tenant_admin and tenant.user.sub != creator_subject and not shared_with_current_user:
+    if (
+        tenant.is_tenant_admin
+        and tenant.user.sub != creator_subject
+        and not shared_with_current_user
+    ):
         return "tenant_admin"
     if shared_with_current_user and tenant.user.sub != creator_subject:
         return "share"
