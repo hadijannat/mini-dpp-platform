@@ -4,53 +4,19 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
-[![BaSyx Python SDK](https://img.shields.io/badge/BaSyx_SDK-2.0.0-blue?logo=eclipse&logoColor=white)](https://github.com/eclipse-basyx/basyx-python-sdk)
-[![AAS](https://img.shields.io/badge/AAS-IDTA_2001%2F2002-009999)](https://industrialdigitaltwin.org/)
-[![IDTA DPP4.0](https://img.shields.io/badge/IDTA-DPP4.0-009999)](https://industrialdigitaltwin.org/)
 
-> **A Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 standards.**
+A contributor-focused Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 templates, with FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.
 
-Create, manage, and publish Digital Product Passports with Keycloak auth, multi-tenant support, dynamic forms, and AASX/JSON exports.
+## What This Repository Is
 
----
+This repository contains a full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. It includes a production-oriented backend and frontend, infra manifests, CI/CD workflows, and an expanding public/internal documentation set.
 
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| AAS Engine | [BaSyx Python SDK 2.0.0](https://github.com/eclipse-basyx/basyx-python-sdk) |
-| Backend | FastAPI, SQLAlchemy 2.0 (async), Pydantic v2 |
-| Frontend | React 18, TanStack Query, React Hook Form, shadcn/ui |
-| Auth | Keycloak (OIDC) + OPA (ABAC) |
-| Database | PostgreSQL 16, Redis 7 |
-| Storage | MinIO (S3-compatible) |
-| CI/CD | GitHub Actions, GHCR, Trivy, Bandit |
-
----
-
-## Highlights
-
-- **AAS & BaSyx Aligned** — BaSyx Python SDK 2.0.0 with AASX compliance validation (round-trip serialization checks)
-- **Auth + Access Control** — Keycloak OIDC + OPA ABAC policies with tenant-scoped authorization
-- **Multi-tenant** — tenant-scoped APIs, UI switcher, `tenant_admin` role
-- **Dynamic Forms** — UI generated from IDTA Submodel Templates with qualifier enforcement
-- **DPP Lifecycle** — Draft → Edit → Publish → Archive with revision history
-- **DPP Masters** — product-level masters with placeholders, versioning, and `latest` alias
-- **JSON Import** — one-shot import from released master templates with validation
-- **Catena-X Ready** — DTR publishing with optional EDC metadata
-- **Export** — AASX (IDTA Part 5), JSON, QR codes, and GS1 Digital Link
-- **Public DPP Viewer** — unauthenticated viewer with EU ESPR compliance categories
-- **Field-level Encryption** — Fernet encryption for sensitive DPP values
-- **Audit Logging** — structured audit events for all CRUD, export, and publish operations
-- **Rate Limiting** — Redis-backed per-IP + per-user throttling (fails open when Redis unavailable)
-
----
-
-## Quick Start (Docker)
+## Quick Start (Docker Compose)
 
 ### Prerequisites
-- Docker + Docker Compose
-- Ports: `5173`, `8001`, `8081`, `5432`
+
+- Docker Desktop (or Docker Engine + Compose plugin)
+- Available ports by default: `5173`, `8000`, `8080`, `5432`, `6379`, `8181`, `9000`, `9001`
 
 ### Start the stack
 
@@ -58,455 +24,145 @@ Create, manage, and publish Digital Product Passports with Keycloak auth, multi-
 git clone https://github.com/hadijannat/mini-dpp-platform.git
 cd mini-dpp-platform
 
-docker compose up -d
+cp .env.example .env
+docker compose up -d --build
+```
 
-# Run database migrations (first start)
+Migrations run automatically in the backend container startup command. To run them manually:
+
+```bash
 docker exec dpp-backend alembic upgrade head
 ```
 
-### Access points
-
-| Service | URL | Notes |
-|---------|-----|-------|
-| Frontend | http://localhost:5173 | UI (tenant aware) |
-| API Docs | http://localhost:8001/api/v1/docs | Swagger UI (or `BACKEND_HOST_PORT` from `.env`) |
-| Keycloak | http://localhost:8081/admin | admin / admin |
-
-### Default users
-
-| Username | Password | Role | Notes |
-|----------|----------|------|------|
-| `admin` | `admin123` | platform admin | Full platform access |
-| `publisher` | `publisher123` | publisher | Create/manage DPPs |
-| `viewer` | `viewer123` | viewer | View published DPPs |
-
-> `tenant_admin` is a tenant-scoped role you can assign via tenant membership.
-
-### Dockerized UI notes (Playwright/E2E)
-
-When the UI is accessed from another container (for example Playwright running in Docker),
-the frontend switches to internal service URLs if they are provided:
-
-- `VITE_API_BASE_URL_INTERNAL=http://backend:8000`
-- `VITE_KEYCLOAK_URL_INTERNAL=http://keycloak:8080`
-
-`docker-compose.yml` sets these for the frontend container.
-
-### Dev convenience
-
-In **development** mode only, users who access the `default` tenant and are not yet
-members are auto-added to that tenant with a role inferred from their realm roles
-(`publisher` → tenant publisher, otherwise viewer).
-
----
-
-## Walkthrough
-
-### Multi-tenant Demo (Docker)
-
-Create two tenants (`alpha` and `beta`) as admin, assign publisher to `alpha`, then build a tenant-scoped DPP.
-
-<details>
-<summary>View all steps (11 screenshots)</summary>
-
-| Step | Screenshot |
-|------|------------|
-| 1. Login page | ![Login](docs/public/assets/storyboard/01-login.png) |
-| 2. Keycloak sign-in | ![Keycloak](docs/public/assets/storyboard/02-keycloak-login.png) |
-| 3. Admin dashboard | ![Dashboard](docs/public/assets/storyboard/03-admin-dashboard.png) |
-| 4. Tenants list | ![Tenants](docs/public/assets/storyboard/04-tenants-list.png) |
-| 5. Create tenants | ![Create tenant](docs/public/assets/storyboard/05-create-tenant.png) |
-| 6. Add publisher to `alpha` (use OIDC sub) | ![Add member](docs/public/assets/storyboard/06-tenant-members.png) |
-| 7. Switch to `alpha` as publisher | ![Switcher](docs/public/assets/storyboard/07-publisher-tenant-switcher.png) |
-| 8. Create DPP in `alpha` | ![Create DPP](docs/public/assets/storyboard/08-create-dpp.png) |
-| 9. DPP list for `alpha` | ![Alpha DPPs](docs/public/assets/storyboard/09-dpp-list-alpha.png) |
-| 10. `beta` is empty | ![Beta empty](docs/public/assets/storyboard/10-dpp-list-beta-empty.png) |
-| 11. Viewer route (`/t/alpha/dpp/{id}`) | ![Viewer](docs/public/assets/storyboard/11-viewer-route.png) |
-
-</details>
-
----
-
-### Dynamic Forms Demo
-
-Templates generate the UI. Select templates, create a DPP, and edit each submodel with its generated form.
-
-<details>
-<summary>View all steps (5 screenshots)</summary>
-
-| Step | Screenshot |
-|------|------------|
-| 12. Select templates | ![Template selection](docs/public/assets/storyboard/12-template-selection.png) |
-| 13. DPP in list | ![DPP list](docs/public/assets/storyboard/13-dpp-list-new.png) |
-| 14. Submodel edit links | ![Edit links](docs/public/assets/storyboard/14-dpp-submodels-edit.png) |
-| 15. Carbon Footprint form | ![Carbon form](docs/public/assets/storyboard/15-carbon-footprint-form.png) |
-| 16. Nameplate form | ![Nameplate form](docs/public/assets/storyboard/16-nameplate-form.png) |
-
-</details>
-
----
-
-### Admin: Global Asset ID Prefix
-
-Change the HTTP prefix used for global asset IDs (e.g., `https://example.com/asset/*`).
-
-**Step A:** Open Settings
-![Admin settings page](docs/public/assets/images/admin-id-prefix-01-settings.png)
-
-**Step B:** Edit the prefix (must start with `http://` and end with `/`)
-![Edit base URI](docs/public/assets/images/admin-id-prefix-02-edit.png)
-
-**Step C:** Save and verify
-![Settings saved](docs/public/assets/images/admin-id-prefix-03-saved.png)
-
----
-
-### Data Carriers (QR / GS1 Digital Link)
-
-![Data Carriers page](docs/public/assets/images/data_carriers.png)
-
-- Standard QR encodes the viewer URL
-- GS1 Digital Link format: `https://id.gs1.org/01/{GTIN}/21/{serial}`
-- QR generation is available for **published** DPPs
-
----
-
-## How Dynamic Forms Work
-
-- Templates are fetched from the **IDTA Submodel Template repository** and cached
-- The backend parses templates and generates:
-  - A **definition tree** (submodel structure)
-  - A **JSON schema** for UI rendering
-- The frontend renders each submodel dynamically and enforces template qualifiers
-  (cardinality, allowed ranges, read-only, required languages, etc.)
-
----
-
-## API Usage
-
-### Get access token
-
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8081/realms/dpp-platform/protocol/openid-connect/token" \
-  -d "client_id=dpp-backend" \
-  -d "client_secret=backend-secret-dev" \
-  -d "username=publisher" \
-  -d "password=publisher123" \
-  -d "grant_type=password" | jq -r '.access_token')
-```
-
-### Refresh templates (IDTA)
-
-```bash
-curl -X POST "http://localhost:8001/api/v1/templates/refresh" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Create a DPP
-
-> Tenant APIs use `/api/v1/tenants/{tenant}`. Default tenant: `default`.
-
-```bash
-curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "asset_ids": {
-      "manufacturerPartId": "MOTOR-DRIVE-3000",
-      "serialNumber": "SN-2024-API-001"
-    },
-    "selected_templates": ["digital-nameplate", "technical-data"]
-  }'
-```
-
-### DPP Masters: fetch released template + variables
-
-```bash
-curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template" \
-  -H "Authorization: Bearer $TOKEN"
-
-curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/variables" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Optional: fetch raw template string (text/plain)
-curl -X GET "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/template/raw" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Validate a filled template payload without creating a DPP
-curl -X POST "http://localhost:8001/api/v1/tenants/default/masters/by-product/MOTOR-DRIVE-3000/versions/latest/validate" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d @filled-template.json
-```
-
-### Import a DPP from a master template (single shot)
-
-```bash
-curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps/import?master_product_id=MOTOR-DRIVE-3000&master_version=latest" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d @filled-template.json
-```
-
-> If a DPP already exists for the same `manufacturerPartId` + `serialNumber`,
-> the API returns `409 Conflict` with the existing `dpp_id`.
-> If placeholders are still present or required values are missing, the API
-> returns `422` with a structured `errors` array (code, name, path).
-
-> The UI includes an import panel to load a released master and fill placeholders.
-
-### Publish a DPP
-
-```bash
-curl -X POST "http://localhost:8001/api/v1/tenants/default/dpps/{dpp_id}/publish" \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-### Export as AASX
-
-```bash
-curl -O -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8001/api/v1/tenants/default/export/{dpp_id}/aasx"
-```
-
----
-
-## Template Diagnostics
-
-Generate a conformance report (schema coverage + qualifier support):
-
-```bash
-docker compose exec -T backend python -m app.modules.templates.diagnostics > /tmp/template-report.json
-```
-
----
-
-## Template Goldens (Snapshots)
-
-Golden files lock the **template definition + schema** hashes so we can detect
-unexpected changes in dynamic form generation.
-
-### Update goldens
-
-```bash
-docker compose up -d
-docker exec dpp-backend alembic upgrade head
-
-# Backend runs on 8001 in docker-compose by default
-cd backend
-DPP_BASE_URL=http://localhost:8001 uv run python -m tests.tools.update_template_goldens
-```
-
-### Run golden checks
-
-```bash
-cd backend
-RUN_E2E=1 RUN_GOLDENS=1 DPP_BASE_URL=http://localhost:8001 KEYCLOAK_BASE_URL=http://localhost:8081 \
-  uv run pytest -m golden --run-e2e --run-goldens
-```
-
----
-
-## API Endpoints (Summary)
-
-### Tenants
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/tenants/mine` | List my tenants |
-| GET | `/api/v1/tenants` | List all tenants (platform admin) |
-| POST | `/api/v1/tenants` | Create tenant (platform admin) |
-| GET | `/api/v1/tenants/{tenant}` | Get tenant details |
-| GET | `/api/v1/tenants/{tenant}/members` | List tenant members |
-| POST | `/api/v1/tenants/{tenant}/members` | Add tenant member |
-| DELETE | `/api/v1/tenants/{tenant}/members/{user_subject}` | Remove tenant member |
-
-### Templates
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/templates` | List templates |
-| GET | `/api/v1/templates/{key}` | Template metadata |
-| GET | `/api/v1/templates/{key}/definition` | Template definition |
-| GET | `/api/v1/templates/{key}/schema` | Template UI schema |
-| POST | `/api/v1/templates/refresh` | Refresh all templates |
-| POST | `/api/v1/templates/refresh/{key}` | Refresh a single template |
-
-### DPPs
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/tenants/{tenant}/dpps` | Create DPP |
-| POST | `/api/v1/tenants/{tenant}/dpps/import` | Import DPP from filled AAS JSON |
-| GET | `/api/v1/tenants/{tenant}/dpps` | List DPPs |
-| GET | `/api/v1/tenants/{tenant}/dpps/{id}` | Get DPP |
-| PUT | `/api/v1/tenants/{tenant}/dpps/{id}/submodel` | Update submodel data |
-| POST | `/api/v1/tenants/{tenant}/dpps/{id}/publish` | Publish DPP |
-
-### DPP Masters
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/tenants/{tenant}/masters` | List master templates |
-| POST | `/api/v1/tenants/{tenant}/masters` | Create master template |
-| GET | `/api/v1/tenants/{tenant}/masters/{id}` | Get master template |
-| PATCH | `/api/v1/tenants/{tenant}/masters/{id}` | Update master template |
-| GET | `/api/v1/tenants/{tenant}/masters/{id}/versions` | List master versions |
-| POST | `/api/v1/tenants/{tenant}/masters/{id}/versions` | Release master version |
-| PATCH | `/api/v1/tenants/{tenant}/masters/{id}/versions/{version}/aliases` | Update version aliases |
-| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/template` | Get released template package |
-| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/template/raw` | Get raw template string |
-| GET | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/variables` | Get released variables |
-| POST | `/api/v1/tenants/{tenant}/masters/by-product/{productId}/versions/{version}/validate` | Validate filled payload |
-
-### Export & Data Carriers
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/tenants/{tenant}/export/{id}/aasx` | Export AASX |
-| GET | `/api/v1/tenants/{tenant}/export/{id}/json` | Export JSON |
-| GET | `/api/v1/tenants/{tenant}/qr/{id}` | Basic QR code |
-| POST | `/api/v1/tenants/{tenant}/qr/{id}/carrier` | Custom data carrier |
-| GET | `/api/v1/tenants/{tenant}/qr/{id}/gs1` | GS1 Digital Link URL |
-
----
-
-## Project Structure
-
-```
+You can override ports via `.env` (for example `BACKEND_HOST_PORT`, `KEYCLOAK_HOST_PORT`).
+
+## Service Endpoints
+
+| Service | URL (default) | Notes |
+|---|---|---|
+| Frontend | http://localhost:5173 | Publisher/admin console and public landing page |
+| API Docs | http://localhost:8000/api/v1/docs | Swagger UI served by custom docs endpoint |
+| API OpenAPI | http://localhost:8000/api/v1/openapi.json | Contract source for client generation |
+| API Health | http://localhost:8000/health | Returns `healthy` or `degraded` with dependency checks |
+| Keycloak | http://localhost:8080 | Realm `dpp-platform`; admin console at `/admin` |
+| OPA | http://localhost:8181/health | Policy engine health endpoint |
+| MinIO API | http://localhost:9000 | S3-compatible object storage |
+| MinIO Console | http://localhost:9001 | Local object storage console |
+
+## Project Structure at a Glance
+
+```text
 mini-dpp-platform/
-├── backend/
-│   ├── app/
-│   │   ├── core/               # Config, logging, security
-│   │   │   ├── audit.py        # Structured audit event logging
-│   │   │   ├── config.py       # Pydantic-settings with production validators
-│   │   │   ├── encryption.py   # Fernet field-level encryption
-│   │   │   ├── middleware.py    # Security headers (CSP, HSTS)
-│   │   │   ├── rate_limit.py   # Redis-backed rate limiting
-│   │   │   └── security/       # JWT validation, OIDC
-│   │   ├── db/                 # Models, Alembic migrations, async sessions
-│   │   └── modules/
-│   │       ├── aas/            # Shared BaSyx utilities (references, traversal, cloning)
-│   │       ├── templates/      # IDTA template registry + diagnostics
-│   │       ├── dpps/           # DPP lifecycle + public viewer router
-│   │       ├── masters/        # DPP masters (versioning, placeholders)
-│   │       ├── export/         # AASX/JSON export (IDTA Part 5)
-│   │       ├── qr/             # QR code + GS1 Digital Link generation
-│   │       ├── connectors/     # Catena-X DTR integration
-│   │       ├── policies/       # OPA ABAC authorization
-│   │       ├── tenants/        # Tenant management + membership
-│   │       └── settings/       # Platform settings (asset ID prefix, etc.)
-│   └── tests/
-├── frontend/
-│   └── src/
-│       ├── features/
-│       │   ├── admin/          # Admin dashboard, tenants, settings
-│       │   ├── editor/         # Dynamic AAS form editor
-│       │   ├── publisher/      # DPP management, masters, import
-│       │   ├── viewer/         # Public DPP viewer (EU ESPR categories)
-│       │   └── connectors/     # Catena-X DTR UI
-│       └── components/         # Shared UI components (shadcn/ui primitives)
-├── infra/
-│   ├── keycloak/               # Realm configuration
-│   └── opa/                    # ABAC policies (Rego)
-└── docker-compose.yml
+├── backend/                  # FastAPI app, modules, DB models/migrations, tests
+├── frontend/                 # React + Vite app, feature modules, Playwright/Vitest tests
+├── infra/                    # Keycloak, OPA, Helm, monitoring, ArgoCD, postgres init
+├── docs/
+│   ├── public/               # Public contributor/operator docs
+│   └── internal/             # Audits, evidence, planning, internal reviews
+├── docker-compose.yml        # Default local development stack
+├── docker-compose.prod.yml   # Production-oriented compose profile
+└── .github/workflows/        # CI, security, docs quality, deploy workflows
 ```
 
----
+## Capabilities by Module
+
+| Area | Key Backend Modules | Key Frontend Features |
+|---|---|---|
+| Tenant & Access | `tenants`, `policies`, `shares`, `onboarding` | `admin`, `onboarding`, role-gated routes |
+| DPP Lifecycle | `dpps`, `masters`, `templates` | `publisher`, `editor` |
+| Public Consumption | `dpps/public_router`, `registry/public_router`, `resolver/public_router` | `viewer` |
+| Exports & Carriers | `export`, `qr` | `publisher/DataCarriersPage` |
+| Compliance & Audit | `compliance`, `audit`, `activity` | `compliance`, `audit`, `activity` |
+| Supply Chain Events | `epcis`, `digital_thread`, `lca` | `epcis`, dashboard EPCIS widgets |
+| Dataspace/Registry Integrations | `connectors`, `registry`, `resolver`, `credentials` | `connectors`, admin registry/resolver/credentials pages |
+| Platform Settings | `settings`, `webhooks` | admin settings + webhooks pages |
+
+## Developer Workflows
+
+### Backend (`backend/`)
+
+```bash
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8000
+uv run pytest
+uv run ruff check .
+uv run ruff format .
+uv run mypy app
+```
+
+### Frontend (`frontend/`)
+
+```bash
+npm ci
+npm run dev
+npm run build
+npm test -- --run
+npm run test:e2e
+npm run lint
+npm run typecheck
+npm run generate-api
+```
+
+`npm run generate-api` expects a running backend on `http://localhost:8000`.
+
+## Validation Snapshot (2026-02-10)
+
+| Area | Command | Result |
+|---|---|---|
+| Backend lint | `uv run ruff check .` (in `backend/`) | Pass |
+| Backend typecheck | `uv run mypy app` (in `backend/`) | Pass |
+| Backend tests (default env) | `uv run pytest -q` (in `backend/`) | Fails integration setup (test fixture expects `localhost:5433` test DB credentials) |
+| Backend tests (aligned env) | `TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/dpp_inspection uv run pytest -q` | Pass (`1104 passed`, `34 skipped`) |
+| Frontend unit tests | `npm test -- --run` (in `frontend/`) | Pass (`28 files`, `263 tests`) |
+| Frontend lint | `npm run lint` (in `frontend/`) | Pass with 2 warnings |
+| Frontend typecheck | `npm run typecheck` (in `frontend/`) | Pass |
+| Frontend E2E | `npm run test:e2e` (in `frontend/`) | Fail (`15/15` timeout waiting for `templates-refresh-all`; Vite overlay import error: `sonner`) |
+| Docs lint | `npx markdownlint-cli2 'README.md' 'CHANGELOG.md' 'docs/**/*.md'` | Pass |
+| Link check | `lychee --config .lychee.toml README.md 'docs/**/*.md'` | Pass |
+
+## Known E2E Caveat
+
+The current Playwright E2E failures are not random: all failing scenarios time out while waiting for `data-testid="templates-refresh-all"`, and failure traces show the Vite overlay error:
+
+`[plugin:vite:import-analysis] Failed to resolve import "sonner" from "src/main.tsx"`
+
+Observed precondition: running E2E against a frontend container/runtime with stale dependencies after lockfile changes. Before rerunning E2E, rebuild/reinstall frontend dependencies in the active runtime:
+
+```bash
+docker compose build frontend
+docker compose up -d frontend
+docker compose exec frontend npm ci
+```
+
+Failure traces and screenshots are stored under `frontend/test-results/`.
 
 ## Standards Alignment
 
-| Standard | Description | Usage |
-|----------|-------------|-------|
-| [Eclipse BaSyx Python SDK 2.0.0](https://github.com/eclipse-basyx/basyx-python-sdk) | AAS reference implementation | Object model, serialization, compliance validation |
-| [IDTA 01001 / 01002](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AAS metamodel (Part 1 & 2) | Core data model for submodels and elements |
-| [IDTA 01005](https://industrialdigitaltwin.org/content-hub/aasspecifications) | AASX package format (Part 5) | Export packaging |
-| [IDTA DPP4.0](https://industrialdigitaltwin.org/dpp4-0) | Digital Product Passport templates | 6 templates: Nameplate, Technical Data, Carbon Footprint, BOM, Handover Documentation, Hierarchical Structures |
-| [IEC 61360](https://www.iec.ch/dyn/www/f?p=103:7:::::FSP_ORG_ID:1452) | Concept description data specifications | Property definitions and value formats |
-| [GS1 Digital Link](https://www.gs1.org/standards/gs1-digital-link) | URI-based product identification | QR code data carriers |
-| [EU ESPR](https://eur-lex.europa.eu/eli/reg/2024/1781/oj) | European Sustainability & Product Regulation | Public viewer classification categories |
+| Standard / Spec | Role in This Repository |
+|---|---|
+| IDTA AAS (Part 1/2) | Core model structure for shells, submodels, and elements |
+| IDTA AASX (Part 5) | AASX package export support |
+| IDTA DPP4.0 templates | Dynamic template-driven DPP authoring and validation |
+| Eclipse BaSyx Python SDK 2.0.0 | AAS object model and serialization/deserialization |
+| GS1 Digital Link | Data carrier and resolver flows |
+| EU ESPR context | Public viewer categorization and disclosure framing |
 
----
+## Where to Go Next
 
-## Documentation
-
-- Documentation hub: [`docs/README.md`](docs/README.md)
-- Public docs: [`docs/public/README.md`](docs/public/README.md)
-- Internal docs: [`docs/internal/README.md`](docs/internal/README.md)
-
----
-
-## Engineering Playbooks
-
-- Multi-agent orchestration and inspection workflow docs: [`docs/internal/agent-teams/README.md`](docs/internal/agent-teams/README.md)
-
----
-
-## Troubleshooting
-
-### Templates not loading / `UndefinedTableError`
-**Cause:** Database migrations haven't been run.
-
-```bash
-docker exec dpp-backend alembic upgrade head
-```
-
-### Login credentials not working
-**Cause:** Keycloak might have stale data from a previous installation.
-
-```bash
-docker compose down -v
-docker compose up -d
-docker exec dpp-backend alembic upgrade head
-```
-
-### Production verify-email settings not applied after deploy
-**Cause:** Keycloak realm import (`--import-realm`) only applies when the realm is first created.
-If `dpp-platform` already exists, changes in `infra/keycloak/realm-export-prod/dpp-platform-realm-prod.json`
-won't overwrite live realm settings.
-
-Apply updates manually on an existing production realm:
-
-```bash
-docker compose -f docker-compose.prod.yml exec keycloak \
-  /opt/keycloak/bin/kcadm.sh config credentials \
-  --server http://localhost:8080 --realm master \
-  --user "$KEYCLOAK_ADMIN" --password "$KEYCLOAK_ADMIN_PASSWORD"
-
-docker compose -f docker-compose.prod.yml exec keycloak \
-  /opt/keycloak/bin/kcadm.sh update realms/dpp-platform -s verifyEmail=true
-
-docker compose -f docker-compose.prod.yml exec keycloak \
-  /opt/keycloak/bin/kcadm.sh update realms/dpp-platform \
-  -s "smtpServer.host=$KEYCLOAK_SMTP_HOST" \
-  -s "smtpServer.port=$KEYCLOAK_SMTP_PORT" \
-  -s "smtpServer.from=$KEYCLOAK_SMTP_FROM" \
-  -s "smtpServer.fromDisplayName=$KEYCLOAK_SMTP_FROM_DISPLAY_NAME" \
-  -s "smtpServer.replyTo=$KEYCLOAK_SMTP_REPLY_TO" \
-  -s "smtpServer.replyToDisplayName=$KEYCLOAK_SMTP_REPLY_TO_DISPLAY_NAME" \
-  -s "smtpServer.auth=$KEYCLOAK_SMTP_AUTH" \
-  -s "smtpServer.starttls=$KEYCLOAK_SMTP_STARTTLS" \
-  -s "smtpServer.ssl=$KEYCLOAK_SMTP_SSL" \
-  -s "smtpServer.user=$KEYCLOAK_SMTP_USER" \
-  -s "smtpServer.password=$KEYCLOAK_SMTP_PASSWORD"
-```
-
-After this, create a new test registration and confirm a verification email is delivered.
-
-### Port conflicts
-Set custom ports in `.env`:
-
-```bash
-cp .env.example .env
-# Edit KEYCLOAK_HOST_PORT, BACKEND_HOST_PORT as needed
-```
-
----
+- Public docs index: [`docs/public/README.md`](docs/public/README.md)
+- Getting started and walkthroughs: [`docs/public/getting-started/README.md`](docs/public/getting-started/README.md)
+- Architecture reference: [`docs/public/architecture/README.md`](docs/public/architecture/README.md)
+- Operations playbook: [`docs/public/operations/README.md`](docs/public/operations/README.md)
+- Release process: [`docs/public/releases/release-guide.md`](docs/public/releases/release-guide.md)
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Run tests: `cd backend && uv run pytest`
-4. Submit a pull request
-
----
+1. Create a branch from `main`.
+2. Run relevant checks locally (`backend` + `frontend` + docs quality).
+3. Open a pull request with a concise summary, testing evidence, and screenshots for UI changes.
+4. Note migrations and infra impacts explicitly.
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT. See [`LICENSE`](LICENSE).
