@@ -19,6 +19,7 @@ import {
   Globe,
   Search,
   Award,
+  UserCheck,
   ChevronLeft,
   ChevronRight,
   Menu,
@@ -89,6 +90,7 @@ export default function PublisherLayout() {
         { name: 'Resolver', href: '/console/resolver', icon: Globe },
         { name: 'Registry', href: '/console/registry', icon: Search },
         { name: 'Credentials', href: '/console/credentials', icon: Award },
+        { name: 'Role Requests', href: '/console/role-requests', icon: UserCheck },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]

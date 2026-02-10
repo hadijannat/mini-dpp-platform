@@ -34,6 +34,8 @@ const WebhooksPage = lazy(() => import('./features/admin/pages/WebhooksPage'));
 const ResolverPage = lazy(() => import('./features/admin/pages/ResolverPage'));
 const RegistryPage = lazy(() => import('./features/admin/pages/RegistryPage'));
 const CredentialsPage = lazy(() => import('./features/admin/pages/CredentialsPage'));
+const WelcomePage = lazy(() => import('./features/onboarding/pages/WelcomePage'));
+const RoleRequestsPage = lazy(() => import('./features/admin/pages/RoleRequestsPage'));
 
 function App() {
   const auth = useAuth();
@@ -52,6 +54,16 @@ function App() {
           <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
           <Route path="/p/:slug" element={<DPPViewerPage />} />
         </Route>
+
+        {/* Onboarding (authenticated, any role) */}
+        <Route
+          path="/welcome"
+          element={
+            <ProtectedRoute requiredRole="viewer">
+              <WelcomePage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Publisher routes (authenticated, publisher role) */}
         {/* Show loading spinner while OIDC discovery is in progress for auth routes */}
@@ -141,6 +153,14 @@ function App() {
             element={
               <ProtectedRoute requiredRole="admin">
                 <CredentialsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="role-requests"
+            element={
+              <ProtectedRoute requiredRole="admin">
+                <RoleRequestsPage />
               </ProtectedRoute>
             }
           />

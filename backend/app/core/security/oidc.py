@@ -31,6 +31,7 @@ class TokenPayload:
 
     sub: str
     email: str | None
+    email_verified: bool
     preferred_username: str | None
     roles: list[str]
     bpn: str | None  # Catena-X Business Partner Number
@@ -221,6 +222,7 @@ async def _decode_token(token: str) -> TokenPayload:
         return TokenPayload(
             sub=payload["sub"],
             email=payload.get("email"),
+            email_verified=bool(payload.get("email_verified", False)),
             preferred_username=payload.get("preferred_username"),
             roles=list(set(roles)),  # Deduplicate
             bpn=payload.get("bpn"),

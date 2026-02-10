@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.security.oidc import CurrentUser, TokenPayload
 from app.db.models import Tenant, TenantMember, TenantRole, TenantStatus
 from app.db.session import DbSession
+from app.modules.onboarding.service import OnboardingService
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,17 @@ async def resolve_tenant_context(
                 )
                 db.add(membership)
                 await db.flush()
+            elif (
+                settings.onboarding_auto_join_tenant_slug
+                and tenant.slug == settings.onboarding_auto_join_tenant_slug
+            ):
+                svc = OnboardingService(db)
+                membership = await svc.try_auto_provision(user)
+                if not membership:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="User is not a member of this tenant",
+                    )
             else:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
