@@ -1,0 +1,22 @@
+verbose = "info"
+no_progress = true
+max_retries = 2
+retry_wait_time = 2
+accept = [200, 403]
+exclude_path = [
+  "(^|/)node_modules/",
+  "(^|/)\\.venv/",
+  "(^|/)\\.pytest_cache/",
+  "(^|/)dist/",
+  "(^|/)coverage/"
+]
+exclude = [
+  "^http://localhost",
+  "^https://localhost",
+  "^http://127\\.0\\.0\\.1",
+  "^https://127\\.0\\.0\\.1",
+  "^http://keycloak:8080",
+  "^http://backend:8000",
+  "^https://auth\\.dpp-platform\\.dev/admin/",
+  "^https://dpp-platform\\.dev/health$"
+]
