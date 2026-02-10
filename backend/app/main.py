@@ -18,6 +18,7 @@ from app.core.middleware import SecurityHeadersMiddleware
 from app.core.rate_limit import RateLimitMiddleware, close_redis, get_redis
 from app.core.security.abac import close_opa_client
 from app.db.session import close_db, get_db_session, init_db
+from app.modules.activity.router import router as activity_router
 from app.modules.audit.router import router as audit_router
 from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
@@ -40,6 +41,7 @@ from app.modules.registry.router import router as registry_router
 from app.modules.resolver.public_router import router as public_resolver_router
 from app.modules.resolver.router import router as resolver_router
 from app.modules.settings.router import router as settings_router
+from app.modules.shares.router import router as shares_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tenants.router import router as tenants_router
 from app.modules.webhooks.router import router as webhooks_router
@@ -271,6 +273,16 @@ window.onload = function() {{
         connectors_router,
         prefix=f"{tenant_prefix}/connectors",
         tags=["Connectors"],
+    )
+    app.include_router(
+        shares_router,
+        prefix=f"{tenant_prefix}/shares",
+        tags=["Resource Shares"],
+    )
+    app.include_router(
+        activity_router,
+        prefix=f"{tenant_prefix}/activity",
+        tags=["Activity"],
     )
     app.include_router(
         export_router,

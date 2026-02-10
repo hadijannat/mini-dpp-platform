@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronDown,
   FileText,
+  History,
   AlertTriangle,
 } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
@@ -52,11 +53,13 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
+import { ActorBadge } from '@/components/actor-badge';
 import { ErrorBanner } from '@/components/error-banner';
 import { EmptyState } from '@/components/empty-state';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { toast } from 'sonner';
 import type { DPPResponse, TemplateResponse } from '@/api/types';
+import { hasRole } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 interface MasterItem {
@@ -82,16 +85,38 @@ interface TemplatePackage {
   variables: TemplateVariable[];
 }
 
+interface ActorSummary {
+  subject: string;
+  display_name?: string | null;
+  email_masked?: string | null;
+}
+
+interface AccessSummary {
+  can_read: boolean;
+  can_update: boolean;
+  can_publish: boolean;
+  can_archive: boolean;
+  source: 'owner' | 'share' | 'tenant_admin';
+}
+
+interface DPPListItem extends DPPResponse {
+  visibility_scope?: 'owner_team' | 'tenant';
+  owner?: ActorSummary;
+  access?: AccessSummary;
+}
+
+type DppScopeFilter = 'mine' | 'shared' | 'all';
+
 function isTemplateSelectable(template: TemplateResponse): boolean {
   return template.support_status !== 'unavailable' && template.refresh_enabled !== false;
 }
 
 const PAGE_SIZE = 50;
 
-async function fetchDPPs(token?: string, page = 0) {
+async function fetchDPPs(token?: string, page = 0, scope: DppScopeFilter = 'mine') {
   const offset = page * PAGE_SIZE;
   const response = await tenantApiFetch(
-    `/dpps?limit=${PAGE_SIZE}&offset=${offset}`,
+    `/dpps?limit=${PAGE_SIZE}&offset=${offset}&scope=${scope}`,
     {},
     token,
   );
@@ -219,6 +244,7 @@ function stripGlobalAssetId(payload: Record<string, unknown>) {
 export default function DPPListPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [scope, setScope] = useState<DppScopeFilter>('mine');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
   const [importProductId, setImportProductId] = useState('');
@@ -236,10 +262,11 @@ export default function DPPListPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
   const tenantSlug = getTenantSlug();
+  const userIsTenantAdmin = hasRole(auth.user, 'tenant_admin') || hasRole(auth.user, 'admin');
 
   const { data: dpps, isLoading, isError: dppsError, error: dppsErrorObj } = useQuery({
-    queryKey: ['dpps', tenantSlug, page],
-    queryFn: () => fetchDPPs(token, page),
+    queryKey: ['dpps', tenantSlug, page, scope],
+    queryFn: () => fetchDPPs(token, page, scope),
     enabled: Boolean(token),
   });
 
@@ -281,6 +308,10 @@ export default function DPPListPage() {
     setImportError(null);
     setImportSuccess(null);
   }, [importProductId, importVersion]);
+
+  useEffect(() => {
+    setSelectedDpps(new Set());
+  }, [scope, page]);
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => createDPP(data, token),
@@ -413,7 +444,7 @@ export default function DPPListPage() {
   };
 
   const toggleAllDpps = () => {
-    const allIds = dpps?.dpps?.map((d: DPPResponse) => d.id) ?? [];
+    const allIds = dpps?.dpps?.map((d: DPPListItem) => d.id) ?? [];
     if (selectedDpps.size === allIds.length) {
       setSelectedDpps(new Set());
     } else {
@@ -458,6 +489,22 @@ export default function DPPListPage() {
         description="Manage your product passports"
         actions={
           <div className="flex gap-2">
+            <Select
+              value={scope}
+              onValueChange={(value) => {
+                setScope(value as DppScopeFilter);
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter ownership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mine">Mine</SelectItem>
+                <SelectItem value="shared">Shared with me</SelectItem>
+                {userIsTenantAdmin && <SelectItem value="all">All (tenant admin)</SelectItem>}
+              </SelectContent>
+            </Select>
             {selectedDpps.size > 0 && (
               <Button
                 variant="outline"
@@ -737,12 +784,14 @@ export default function DPPListPage() {
                 </TableHead>
                 <TableHead>Product ID</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Owner</TableHead>
+                <TableHead>Visibility</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {dpps?.dpps?.map((dpp: DPPResponse) => (
+              {dpps?.dpps?.map((dpp: DPPListItem) => (
                 <TableRow key={dpp.id}>
                   <TableCell>
                     <Checkbox
@@ -760,6 +809,12 @@ export default function DPPListPage() {
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={dpp.status} />
+                  </TableCell>
+                  <TableCell>
+                    <ActorBadge actor={dpp.owner} fallbackSubject={dpp.owner_subject} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground capitalize">
+                    {dpp.visibility_scope === 'tenant' ? 'Tenant' : 'Owner/team'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(dpp.created_at).toLocaleDateString()}
@@ -781,13 +836,25 @@ export default function DPPListPage() {
                         variant="ghost"
                         size="icon"
                         asChild
-                        title="Edit"
-                        data-testid={`dpp-edit-${dpp.id}`}
+                        title="Activity timeline"
                       >
-                        <Link to={`/console/dpps/${dpp.id}`}>
-                          <Edit className="h-4 w-4" />
+                        <Link to={`/console/activity?type=dpp&id=${dpp.id}`}>
+                          <History className="h-4 w-4" />
                         </Link>
                       </Button>
+                      {dpp.access?.can_update !== false && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          title="Edit"
+                          data-testid={`dpp-edit-${dpp.id}`}
+                        >
+                          <Link to={`/console/dpps/${dpp.id}`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

@@ -10,6 +10,11 @@ from pydantic import BaseModel
 
 from app.core.audit import emit_audit_event
 from app.core.security import require_access
+from app.core.security.actor_metadata import actor_payload, load_users_by_subject
+from app.core.security.resource_context import (
+    build_connector_resource_context,
+    build_dpp_resource_context,
+)
 from app.core.tenancy import TenantPublisher
 from app.db.models import ConnectorType
 from app.db.session import DbSession
@@ -22,16 +27,22 @@ from app.modules.dpps.service import DPPService
 router = APIRouter()
 
 
-def _connector_resource(connector: Any) -> dict[str, Any]:
-    """Build ABAC resource context for a connector."""
-    return {
-        "type": "connector",
-        "id": str(connector.id),
-        "owner_subject": connector.created_by_subject,
-        "status": connector.status.value
-        if hasattr(connector.status, "value")
-        else str(connector.status),
-    }
+class ActorSummary(BaseModel):
+    """Actor identity summary for ownership metadata."""
+
+    subject: str
+    display_name: str | None = None
+    email_masked: str | None = None
+
+
+class AccessSummary(BaseModel):
+    """Current user's effective access to a connector resource."""
+
+    can_read: bool
+    can_update: bool
+    can_publish: bool
+    can_archive: bool
+    source: str
 
 
 class ConnectorCreateRequest(BaseModel):
@@ -48,6 +59,10 @@ class ConnectorResponse(BaseModel):
     name: str
     connector_type: str
     status: str
+    created_by_subject: str
+    created_by: ActorSummary
+    visibility_scope: str
+    access: AccessSummary
     last_tested_at: str | None
     last_test_result: dict[str, Any] | None
     created_at: str
@@ -108,31 +123,98 @@ class EDCHealthResponse(BaseModel):
     error_message: str | None = None
 
 
+def _connector_access_source(
+    *,
+    tenant: TenantPublisher,
+    creator_subject: str,
+    shared_with_current_user: bool,
+) -> str:
+    if tenant.is_tenant_admin and tenant.user.sub != creator_subject and not shared_with_current_user:
+        return "tenant_admin"
+    if shared_with_current_user and tenant.user.sub != creator_subject:
+        return "share"
+    return "owner"
+
+
+def _connector_response_payload(
+    connector: Any,
+    *,
+    tenant: TenantPublisher,
+    created_by: dict[str, str | None],
+    shared_with_current_user: bool,
+) -> ConnectorResponse:
+    is_owner = connector.created_by_subject == tenant.user.sub
+    can_mutate = tenant.is_tenant_admin or is_owner
+    return ConnectorResponse(
+        id=connector.id,
+        name=connector.name,
+        connector_type=connector.connector_type.value,
+        status=connector.status.value,
+        created_by_subject=connector.created_by_subject,
+        created_by=ActorSummary(**created_by),
+        visibility_scope=(
+            connector.visibility_scope.value
+            if hasattr(connector.visibility_scope, "value")
+            else str(connector.visibility_scope)
+        ),
+        access=AccessSummary(
+            can_read=True,
+            can_update=can_mutate,
+            can_publish=can_mutate,
+            can_archive=can_mutate,
+            source=_connector_access_source(
+                tenant=tenant,
+                creator_subject=connector.created_by_subject,
+                shared_with_current_user=shared_with_current_user,
+            ),
+        ),
+        last_tested_at=connector.last_tested_at.isoformat() if connector.last_tested_at else None,
+        last_test_result=connector.last_test_result,
+        created_at=connector.created_at.isoformat(),
+    )
+
+
 @router.get("", response_model=ConnectorListResponse)
 async def list_connectors(
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
     connector_type: ConnectorType | None = Query(None, description="Filter by connector type"),
+    scope: str = Query("mine", description="mine, shared, or all accessible connectors"),
 ) -> ConnectorListResponse:
     """
     List all connectors.
 
     Requires publisher role.
     """
-    await require_access(tenant.user, "list", {"type": "connector"}, tenant=tenant)
     service = CatenaXConnectorService(db)
-    connectors = await service.get_connectors(tenant.tenant_id, connector_type)
+    normalized_scope = scope if scope in {"mine", "shared", "all"} else "mine"
+    connectors, shared_ids = await service.get_connectors_for_subject(
+        tenant_id=tenant.tenant_id,
+        user_subject=tenant.user.sub,
+        is_tenant_admin=tenant.is_tenant_admin,
+        scope=normalized_scope,
+        connector_type=connector_type,
+    )
+    users = await load_users_by_subject(db, [c.created_by_subject for c in connectors])
+
+    await emit_audit_event(
+        db_session=db,
+        action="list_connectors",
+        resource_type="connector",
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"count": len(connectors), "scope": normalized_scope},
+    )
 
     return ConnectorListResponse(
         connectors=[
-            ConnectorResponse(
-                id=c.id,
-                name=c.name,
-                connector_type=c.connector_type.value,
-                status=c.status.value,
-                last_tested_at=c.last_tested_at.isoformat() if c.last_tested_at else None,
-                last_test_result=c.last_test_result,
-                created_at=c.created_at.isoformat(),
+            _connector_response_payload(
+                c,
+                tenant=tenant,
+                created_by=actor_payload(c.created_by_subject, users),
+                shared_with_current_user=c.id in shared_ids,
             )
             for c in connectors
         ],
@@ -142,7 +224,8 @@ async def list_connectors(
 
 @router.post("", response_model=ConnectorResponse, status_code=status.HTTP_201_CREATED)
 async def create_connector(
-    request: ConnectorCreateRequest,
+    body: ConnectorCreateRequest,
+    http_request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> ConnectorResponse:
@@ -163,26 +246,34 @@ async def create_connector(
 
     connector = await service.create_connector(
         tenant_id=tenant.tenant_id,
-        name=request.name,
-        config=request.config,
+        name=body.name,
+        config=body.config,
         created_by_subject=tenant.user.sub,
     )
     await db.commit()
+    users = await load_users_by_subject(db, [connector.created_by_subject])
+    await emit_audit_event(
+        db_session=db,
+        action="create_connector",
+        resource_type="connector",
+        resource_id=str(connector.id),
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=http_request,
+    )
 
-    return ConnectorResponse(
-        id=connector.id,
-        name=connector.name,
-        connector_type=connector.connector_type.value,
-        status=connector.status.value,
-        last_tested_at=None,
-        last_test_result=None,
-        created_at=connector.created_at.isoformat(),
+    return _connector_response_payload(
+        connector,
+        tenant=tenant,
+        created_by=actor_payload(connector.created_by_subject, users),
+        shared_with_current_user=False,
     )
 
 
 @router.get("/{connector_id}", response_model=ConnectorResponse)
 async def get_connector(
     connector_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> ConnectorResponse:
@@ -198,22 +289,42 @@ async def get_connector(
             detail=f"Connector {connector_id} not found",
         )
 
-    await require_access(tenant.user, "read", _connector_resource(connector), tenant=tenant)
-
-    return ConnectorResponse(
-        id=connector.id,
-        name=connector.name,
-        connector_type=connector.connector_type.value,
-        status=connector.status.value,
-        last_tested_at=connector.last_tested_at.isoformat() if connector.last_tested_at else None,
-        last_test_result=connector.last_test_result,
-        created_at=connector.created_at.isoformat(),
+    shared_with_current_user = await service.is_connector_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        connector_id=connector.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(
+            connector,
+            shared_with_current_user=shared_with_current_user,
+        ),
+        tenant=tenant,
+    )
+    users = await load_users_by_subject(db, [connector.created_by_subject])
+    await emit_audit_event(
+        db_session=db,
+        action="read_connector",
+        resource_type="connector",
+        resource_id=str(connector.id),
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+    )
+    return _connector_response_payload(
+        connector,
+        tenant=tenant,
+        created_by=actor_payload(connector.created_by_subject, users),
+        shared_with_current_user=shared_with_current_user,
     )
 
 
 @router.post("/{connector_id}/test", response_model=TestResultResponse)
 async def test_connector(
     connector_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> TestResultResponse:
@@ -230,10 +341,33 @@ async def test_connector(
             error_message="Connector not found",
         )
 
-    await require_access(tenant.user, "test", _connector_resource(connector), tenant=tenant)
+    shared_with_current_user = await service.is_connector_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        connector_id=connector.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "test",
+        build_connector_resource_context(
+            connector,
+            shared_with_current_user=shared_with_current_user,
+        ),
+        tenant=tenant,
+    )
 
     result = await service.test_connector(connector_id, tenant.tenant_id)
     await db.commit()
+    await emit_audit_event(
+        db_session=db,
+        action="test_connector",
+        resource_type="connector",
+        resource_id=str(connector.id),
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"status": result.get("status", "error")},
+    )
 
     return TestResultResponse(
         status=result.get("status", "error"),
@@ -258,6 +392,26 @@ async def publish_dpp_to_connector(
     the shell descriptor in the DTR.
     """
     service = CatenaXConnectorService(db)
+    connector = await service.get_connector(connector_id, tenant.tenant_id)
+    if not connector:
+        return PublishResultResponse(
+            status="error",
+            error_message=f"Connector {connector_id} not found",
+        )
+    shared_connector = await service.is_connector_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        connector_id=connector.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(
+            connector,
+            shared_with_current_user=shared_connector,
+        ),
+        tenant=tenant,
+    )
 
     dpp_service = DPPService(db)
     dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
@@ -266,16 +420,20 @@ async def publish_dpp_to_connector(
             status="error",
             error_message=f"DPP {dpp_id} not found",
         )
+    shared_dpp = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "publish_to_connector",
-        {
-            "type": "dpp",
-            "id": str(dpp.id),
-            "owner_subject": dpp.owner_subject,
-            "status": dpp.status.value,
-        },
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_dpp,
+        ),
         tenant=tenant,
     )
 
@@ -337,16 +495,20 @@ async def publish_dpp_to_dataspace(
             status="error",
             error_message=f"DPP {dpp_id} not found",
         )
+    shared_dpp = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "publish_to_connector",
-        {
-            "type": "dpp",
-            "id": str(dpp.id),
-            "owner_subject": dpp.owner_subject,
-            "status": dpp.status.value,
-        },
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_dpp,
+        ),
         tenant=tenant,
     )
 
@@ -391,6 +553,51 @@ async def get_dataspace_status(
     """
     Check whether a DPP is registered in the EDC catalog.
     """
+    cx_service = CatenaXConnectorService(db)
+    connector = await cx_service.get_connector(connector_id, tenant.tenant_id)
+    if not connector:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Connector {connector_id} not found",
+        )
+    shared_connector = await cx_service.is_connector_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        connector_id=connector.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(
+            connector,
+            shared_with_current_user=shared_connector,
+        ),
+        tenant=tenant,
+    )
+
+    dpp_service = DPPService(db)
+    dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+    shared_dpp = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_dpp,
+        ),
+        tenant=tenant,
+    )
+
     service = EDCContractService(db)
     result = await service.get_dataspace_status(dpp_id, connector_id, tenant.tenant_id)
 
@@ -407,6 +614,7 @@ async def get_dataspace_status(
 )
 async def check_connector_edc_health(
     connector_id: UUID,
+    request: Request,
     db: DbSession,
     tenant: TenantPublisher,
 ) -> EDCHealthResponse:
@@ -422,7 +630,20 @@ async def check_connector_edc_health(
             detail=f"Connector {connector_id} not found",
         )
 
-    await require_access(tenant.user, "read", _connector_resource(connector), tenant=tenant)
+    shared_with_current_user = await cx_service.is_connector_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        connector_id=connector.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(
+            connector,
+            shared_with_current_user=shared_with_current_user,
+        ),
+        tenant=tenant,
+    )
 
     config = connector.config
     edc_config = EDCConfig(
@@ -435,6 +656,17 @@ async def check_connector_edc_health(
         result = await check_edc_health(client)
     finally:
         await client.close()
+
+    await emit_audit_event(
+        db_session=db,
+        action="check_connector_edc_health",
+        resource_type="connector",
+        resource_id=str(connector.id),
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"status": result.get("status", "error")},
+    )
 
     return EDCHealthResponse(
         status=result.get("status", "error"),

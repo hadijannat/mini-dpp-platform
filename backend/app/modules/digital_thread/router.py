@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.core.audit import emit_audit_event
 from app.core.security import require_access
+from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantPublisher
 from app.db.models import DPP, LifecyclePhase
 from app.db.session import DbSession
@@ -33,11 +34,6 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-def _dpp_resource(dpp_id: UUID, owner_subject: str) -> dict[str, str]:
-    """Build an ABAC resource context dict for a DPP."""
-    return {"type": "dpp", "id": str(dpp_id), "owner_subject": owner_subject}
-
-
 async def _get_dpp_or_404(
     dpp_id: UUID,
     tenant: TenantPublisher,
@@ -53,10 +49,19 @@ async def _get_dpp_or_404(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
     await require_access(
         tenant.user,
         action,
-        _dpp_resource(dpp.id, dpp.owner_subject),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
     return dpp

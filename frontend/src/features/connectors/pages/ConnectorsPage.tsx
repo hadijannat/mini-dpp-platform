@@ -1,10 +1,21 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { Plus, TestTube, Send, CheckCircle, XCircle, AlertCircle, Link2 } from 'lucide-react';
+import {
+  Plus,
+  TestTube,
+  Send,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Link2,
+  History,
+} from 'lucide-react';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
 import { PageHeader } from '@/components/page-header';
+import { ActorBadge } from '@/components/actor-badge';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { EmptyState } from '@/components/empty-state';
 import { ErrorBanner } from '@/components/error-banner';
@@ -34,9 +45,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card } from '@/components/ui/card';
+import { hasRole } from '@/lib/auth';
 
-async function fetchConnectors(token?: string) {
-  const response = await tenantApiFetch('/connectors', {}, token);
+async function fetchConnectors(token?: string, scope: 'mine' | 'shared' | 'all' = 'mine') {
+  const response = await tenantApiFetch(`/connectors?scope=${scope}`, {}, token);
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch connectors'));
   }
@@ -81,6 +93,34 @@ interface DPPSummary {
   asset_ids?: { manufacturerPartId?: string };
 }
 
+interface ActorSummary {
+  subject: string;
+  display_name?: string | null;
+  email_masked?: string | null;
+}
+
+interface ConnectorAccessSummary {
+  can_read: boolean;
+  can_update: boolean;
+  can_publish: boolean;
+  can_archive: boolean;
+  source: 'owner' | 'share' | 'tenant_admin';
+}
+
+interface ConnectorItem {
+  id: string;
+  name: string;
+  connector_type: string;
+  status: string;
+  created_by_subject?: string;
+  created_by?: ActorSummary;
+  visibility_scope?: 'owner_team' | 'tenant';
+  access?: ConnectorAccessSummary;
+  last_tested_at?: string | null;
+  last_test_result?: Record<string, unknown> | null;
+  created_at: string;
+}
+
 async function fetchPublishedDPPs(token?: string) {
   const response = await tenantApiFetch('/dpps?status=published&limit=200', {}, token);
   if (!response.ok) {
@@ -94,13 +134,15 @@ export default function ConnectorsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [publishConnectorId, setPublishConnectorId] = useState<string | null>(null);
   const [selectedDppId, setSelectedDppId] = useState('');
+  const [scope, setScope] = useState<'mine' | 'shared' | 'all'>('mine');
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
+  const userIsTenantAdmin = hasRole(auth.user, 'tenant_admin') || hasRole(auth.user, 'admin');
 
   const { data: connectors, isLoading, isError, error } = useQuery({
-    queryKey: ['connectors', tenantSlug],
-    queryFn: () => fetchConnectors(token),
+    queryKey: ['connectors', tenantSlug, scope],
+    queryFn: () => fetchConnectors(token, scope),
     enabled: Boolean(token),
   });
 
@@ -179,10 +221,25 @@ export default function ConnectorsPage() {
         title="Connectors"
         description="Manage Catena-X DTR publishing"
         actions={
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Connector
-          </Button>
+          <div className="flex gap-2">
+            <Select
+              value={scope}
+              onValueChange={(value) => setScope(value as 'mine' | 'shared' | 'all')}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter ownership" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mine">Mine</SelectItem>
+                <SelectItem value="shared">Shared with me</SelectItem>
+                {userIsTenantAdmin && <SelectItem value="all">All (tenant admin)</SelectItem>}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Connector
+            </Button>
+          </div>
         }
       />
 
@@ -267,12 +324,14 @@ export default function ConnectorsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Created By</TableHead>
+                <TableHead>Visibility</TableHead>
                 <TableHead>Last Tested</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {connectors?.connectors?.map((connector: any) => (
+              {connectors?.connectors?.map((connector: ConnectorItem) => (
                 <TableRow key={connector.id}>
                   <TableCell className="font-medium">
                     {connector.name}
@@ -285,6 +344,15 @@ export default function ConnectorsPage() {
                       {getStatusIcon(connector.status)}
                       <span className="ml-2">{connector.status}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <ActorBadge
+                      actor={connector.created_by}
+                      fallbackSubject={connector.created_by_subject}
+                    />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {connector.visibility_scope === 'tenant' ? 'Tenant' : 'Owner/team'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {connector.last_tested_at
@@ -301,10 +369,17 @@ export default function ConnectorsPage() {
                       <TestTube className="h-4 w-4 mr-1" />
                       Test
                     </Button>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link to={`/console/activity?type=connector&id=${connector.id}`}>
+                        <History className="h-4 w-4 mr-1" />
+                        Activity
+                      </Link>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setPublishConnectorId(connector.id)}
+                      disabled={connector.access?.can_publish === false}
                     >
                       <Send className="h-4 w-4 mr-1" />
                       Publish

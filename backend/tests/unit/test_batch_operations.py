@@ -72,6 +72,7 @@ class TestBatchImportSchemas:
 
     def test_batch_import_response_model(self) -> None:
         resp = BatchImportResponse(
+            job_id=uuid4(),
             total=3,
             succeeded=2,
             failed=1,
@@ -212,6 +213,7 @@ class TestBatchImportIsolation:
         failed = len(results) - succeeded
 
         resp = BatchImportResponse(
+            job_id=uuid4(),
             total=len(results),
             succeeded=succeeded,
             failed=failed,
@@ -224,7 +226,13 @@ class TestBatchImportIsolation:
     def test_all_succeed(self) -> None:
         results = [BatchImportResultItem(index=i, dpp_id=uuid4(), status="ok") for i in range(5)]
         succeeded = sum(1 for r in results if r.status == "ok")
-        resp = BatchImportResponse(total=5, succeeded=succeeded, failed=0, results=results)
+        resp = BatchImportResponse(
+            job_id=uuid4(),
+            total=5,
+            succeeded=succeeded,
+            failed=0,
+            results=results,
+        )
         assert resp.succeeded == 5
         assert resp.failed == 0
 
@@ -233,6 +241,12 @@ class TestBatchImportIsolation:
             BatchImportResultItem(index=i, status="failed", error=f"err-{i}") for i in range(3)
         ]
         succeeded = sum(1 for r in results if r.status == "ok")
-        resp = BatchImportResponse(total=3, succeeded=succeeded, failed=3, results=results)
+        resp = BatchImportResponse(
+            job_id=uuid4(),
+            total=3,
+            succeeded=succeeded,
+            failed=3,
+            results=results,
+        )
         assert resp.succeeded == 0
         assert resp.failed == 3

@@ -126,6 +126,13 @@ class ConnectorStatus(str, PyEnum):
     ERROR = "error"
 
 
+class VisibilityScope(str, PyEnum):
+    """Visibility scope for tenant resources."""
+
+    OWNER_TEAM = "owner_team"
+    TENANT = "tenant"
+
+
 class RoleRequestStatus(str, PyEnum):
     """Status of a role upgrade request."""
 
@@ -387,6 +394,11 @@ class DPP(TenantScopedMixin, Base):
         ForeignKey("users.subject"),
         nullable=False,
     )
+    visibility_scope: Mapped[VisibilityScope] = mapped_column(
+        Enum(VisibilityScope, values_callable=lambda e: [m.value for m in e]),
+        default=VisibilityScope.OWNER_TEAM,
+        nullable=False,
+    )
     asset_ids: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
         default=dict,
@@ -505,6 +517,70 @@ class DPPRevision(TenantScopedMixin, Base):
         UniqueConstraint("dpp_id", "revision_no", name="uq_dpp_revision_no"),
         Index("ix_dpp_revisions_dpp_id", "dpp_id"),
         Index("ix_dpp_revisions_state", "state"),
+    )
+
+
+class BatchImportJob(TenantScopedMixin, Base):
+    """Persisted batch import execution metadata."""
+
+    __tablename__ = "batch_import_jobs"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    requested_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    total: Mapped[int] = mapped_column(Integer, nullable=False)
+    succeeded: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    items: Mapped[list["BatchImportJobItem"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        order_by="BatchImportJobItem.item_index.asc()",
+    )
+
+    __table_args__ = (
+        Index("ix_batch_import_jobs_tenant_created", "tenant_id", "created_at"),
+        Index("ix_batch_import_jobs_requested_by", "requested_by_subject"),
+    )
+
+
+class BatchImportJobItem(TenantScopedMixin, Base):
+    """Per-item result row for a persisted batch import job."""
+
+    __tablename__ = "batch_import_job_items"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    job_id: Mapped[UUID] = mapped_column(
+        ForeignKey("batch_import_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    item_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    dpp_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dpps.id", ondelete="SET NULL"),
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    job: Mapped["BatchImportJob"] = relationship(back_populates="items")
+
+    __table_args__ = (
+        Index("ix_batch_import_job_items_job", "job_id"),
+        Index("ix_batch_import_job_items_tenant_job", "tenant_id", "job_id"),
+        UniqueConstraint("job_id", "item_index", name="uq_batch_import_job_item_index"),
     )
 
 
@@ -902,6 +978,11 @@ class Connector(TenantScopedMixin, Base):
         Enum(ConnectorStatus, values_callable=lambda e: [m.value for m in e]),
         default=ConnectorStatus.DISABLED,
     )
+    visibility_scope: Mapped[VisibilityScope] = mapped_column(
+        Enum(VisibilityScope, values_callable=lambda e: [m.value for m in e]),
+        default=VisibilityScope.OWNER_TEAM,
+        nullable=False,
+    )
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_test_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -918,6 +999,39 @@ class Connector(TenantScopedMixin, Base):
     __table_args__ = (
         Index("ix_connectors_type", "connector_type"),
         Index("ix_connectors_status", "status"),
+    )
+
+
+class ResourceShare(TenantScopedMixin, Base):
+    """Explicit user-level sharing grants for tenant resources."""
+
+    __tablename__ = "resource_shares"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_id: Mapped[UUID] = mapped_column(nullable=False)
+    user_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    permission: Mapped[str] = mapped_column(String(32), nullable=False, default="read")
+    granted_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "resource_type",
+            "resource_id",
+            "user_subject",
+            name="uq_resource_shares_target_user",
+        ),
+        Index("ix_resource_shares_lookup", "tenant_id", "resource_type", "resource_id"),
+        Index("ix_resource_shares_user", "tenant_id", "user_subject"),
     )
 
 

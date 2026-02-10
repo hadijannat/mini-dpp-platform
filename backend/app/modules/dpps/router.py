@@ -3,6 +3,8 @@ API Router for DPP (Digital Product Passport) endpoints.
 """
 
 import asyncio
+import hashlib
+import json
 from typing import Any, Literal
 from uuid import UUID
 
@@ -12,7 +14,9 @@ from pydantic import BaseModel, Field, RootModel
 from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
 from app.core.logging import get_logger
-from app.core.security import check_access, require_access
+from app.core.security import require_access
+from app.core.security.actor_metadata import actor_payload, load_users_by_subject
+from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
@@ -29,28 +33,41 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-def _dpp_resource(dpp: Any) -> dict[str, Any]:
-    """Build ABAC resource context for a DPP."""
-    return {
-        "type": "dpp",
-        "id": str(dpp.id),
-        "owner_subject": dpp.owner_subject,
-        "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
-    }
-
-
-def _can_view_drafts(dpp: Any, tenant: TenantContext) -> bool:
-    return dpp.owner_subject == tenant.user.sub or tenant.is_publisher
+def _can_view_drafts(dpp: Any, tenant: TenantContext, *, shared_with_current_user: bool) -> bool:
+    return (
+        dpp.owner_subject == tenant.user.sub
+        or tenant.is_tenant_admin
+        or shared_with_current_user
+    )
 
 
 async def _resolve_revision(
     service: DPPService,
     dpp: Any,
     tenant: TenantContext,
+    *,
+    shared_with_current_user: bool,
 ) -> Any | None:
-    if dpp.status == DPPStatus.PUBLISHED and not _can_view_drafts(dpp, tenant):
+    if dpp.status == DPPStatus.PUBLISHED and not _can_view_drafts(
+        dpp,
+        tenant,
+        shared_with_current_user=shared_with_current_user,
+    ):
         return await service.get_published_revision(dpp.id, tenant.tenant_id)
     return await service.get_latest_revision(dpp.id, tenant.tenant_id)
+
+
+def _access_source(
+    *,
+    tenant: TenantContext,
+    owner_subject: str,
+    shared_with_current_user: bool,
+) -> Literal["owner", "share", "tenant_admin"]:
+    if tenant.is_tenant_admin and tenant.user.sub != owner_subject and not shared_with_current_user:
+        return "tenant_admin"
+    if shared_with_current_user and tenant.user.sub != owner_subject:
+        return "share"
+    return "owner"
 
 
 class AssetIdsInput(BaseModel):
@@ -85,12 +102,33 @@ class UpdateSubmodelRequest(BaseModel):
     rebuild_from_template: bool = False
 
 
+class ActorSummary(BaseModel):
+    """Actor identity summary for ownership and provenance fields."""
+
+    subject: str
+    display_name: str | None = None
+    email_masked: str | None = None
+
+
+class AccessSummary(BaseModel):
+    """Current user's effective access to the resource."""
+
+    can_read: bool
+    can_update: bool
+    can_publish: bool
+    can_archive: bool
+    source: Literal["owner", "share", "tenant_admin"]
+
+
 class DPPResponse(BaseModel):
     """Response model for DPP data."""
 
     id: UUID
     status: str
     owner_subject: str
+    visibility_scope: Literal["owner_team", "tenant"]
+    owner: ActorSummary
+    access: AccessSummary
     asset_ids: dict[str, Any]
     qr_payload: str | None
     created_at: str
@@ -183,10 +221,49 @@ class BatchImportResultItem(BaseModel):
 class BatchImportResponse(BaseModel):
     """Response model for batch import results."""
 
+    job_id: UUID
     total: int
     succeeded: int
     failed: int
     results: list[BatchImportResultItem]
+
+
+class BatchImportJobItemResponse(BaseModel):
+    """Persisted batch import item result."""
+
+    index: int
+    dpp_id: UUID | None = None
+    status: str
+    error: str | None = None
+    created_at: str
+
+
+class BatchImportJobSummaryResponse(BaseModel):
+    """Persisted batch import job summary row."""
+
+    id: UUID
+    requested_by_subject: str
+    requested_by: ActorSummary
+    total: int
+    succeeded: int
+    failed: int
+    created_at: str
+
+
+class BatchImportJobListResponse(BaseModel):
+    """Paginated batch import job listing."""
+
+    jobs: list[BatchImportJobSummaryResponse]
+    count: int
+    total_count: int
+    limit: int
+    offset: int
+
+
+class BatchImportJobDetailResponse(BatchImportJobSummaryResponse):
+    """Batch import job with per-item outcomes."""
+
+    items: list[BatchImportJobItemResponse]
 
 
 class DiffEntry(BaseModel):
@@ -206,6 +283,43 @@ class DPPDiffResult(BaseModel):
     added: list[DiffEntry]
     removed: list[DiffEntry]
     changed: list[DiffEntry]
+
+
+def _dpp_response_payload(
+    dpp: Any,
+    *,
+    owner: dict[str, str | None],
+    tenant: TenantContext,
+    shared_with_current_user: bool,
+) -> DPPResponse:
+    is_owner = dpp.owner_subject == tenant.user.sub
+    can_mutate = tenant.is_tenant_admin or is_owner
+    return DPPResponse(
+        id=dpp.id,
+        status=dpp.status.value,
+        owner_subject=dpp.owner_subject,
+        visibility_scope=(
+            dpp.visibility_scope.value
+            if hasattr(dpp.visibility_scope, "value")
+            else str(dpp.visibility_scope)
+        ),
+        owner=ActorSummary(**owner),
+        access=AccessSummary(
+            can_read=True,
+            can_update=can_mutate,
+            can_publish=can_mutate,
+            can_archive=can_mutate,
+            source=_access_source(
+                tenant=tenant,
+                owner_subject=dpp.owner_subject,
+                shared_with_current_user=shared_with_current_user,
+            ),
+        ),
+        asset_ids=dpp.asset_ids,
+        qr_payload=dpp.qr_payload,
+        created_at=dpp.created_at.isoformat(),
+        updated_at=dpp.updated_at.isoformat(),
+    )
 
 
 @router.post("", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
@@ -293,14 +407,12 @@ async def create_dpp(
         },
     )
 
-    return DPPResponse(
-        id=dpp.id,
-        status=dpp.status.value,
-        owner_subject=dpp.owner_subject,
-        asset_ids=dpp.asset_ids,
-        qr_payload=dpp.qr_payload,
-        created_at=dpp.created_at.isoformat(),
-        updated_at=dpp.updated_at.isoformat(),
+    owners = await load_users_by_subject(db, [dpp.owner_subject])
+    return _dpp_response_payload(
+        dpp,
+        owner=actor_payload(dpp.owner_subject, owners),
+        tenant=tenant,
+        shared_with_current_user=False,
     )
 
 
@@ -320,6 +432,25 @@ async def batch_import_dpps(
     await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
     service = DPPService(db)
     results: list[BatchImportResultItem] = []
+    payload_hash = hashlib.sha256(
+        json.dumps(body.model_dump(mode="json"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    job = await service.create_batch_import_job(
+        tenant_id=tenant.tenant_id,
+        requested_by_subject=tenant.user.sub,
+        payload_hash=payload_hash,
+        total=len(body.dpps),
+    )
+    await emit_audit_event(
+        db_session=db,
+        action="batch_import_job_created",
+        resource_type="batch_import_job",
+        resource_id=str(job.id),
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"total": len(body.dpps)},
+    )
 
     for idx, item in enumerate(body.dpps):
         try:
@@ -332,31 +463,154 @@ async def batch_import_dpps(
                     selected_templates=item.selected_templates,
                     initial_data=item.initial_data,
                 )
-            results.append(BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok"))
+            result_item = BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok")
+            results.append(result_item)
+            await service.add_batch_import_item(
+                tenant_id=tenant.tenant_id,
+                job_id=job.id,
+                item_index=idx,
+                status="ok",
+                dpp_id=dpp.id,
+            )
+            await emit_audit_event(
+                db_session=db,
+                action="batch_import_item",
+                resource_type="batch_import_job",
+                resource_id=str(job.id),
+                tenant_id=tenant.tenant_id,
+                user=tenant.user,
+                request=request,
+                metadata={"index": idx, "status": "ok", "dpp_id": str(dpp.id)},
+            )
         except Exception:
             logger.warning("batch_import_item_failed", index=idx, exc_info=True)
-            results.append(BatchImportResultItem(index=idx, status="failed", error="Import failed"))
-
-    await db.commit()
+            result_item = BatchImportResultItem(index=idx, status="failed", error="Import failed")
+            results.append(result_item)
+            await service.add_batch_import_item(
+                tenant_id=tenant.tenant_id,
+                job_id=job.id,
+                item_index=idx,
+                status="failed",
+                error="Import failed",
+            )
+            await emit_audit_event(
+                db_session=db,
+                action="batch_import_item",
+                resource_type="batch_import_job",
+                resource_id=str(job.id),
+                tenant_id=tenant.tenant_id,
+                user=tenant.user,
+                request=request,
+                metadata={"index": idx, "status": "failed"},
+            )
 
     succeeded = sum(1 for r in results if r.status == "ok")
     failed = len(results) - succeeded
+    await service.finalize_batch_import_job(job=job, succeeded=succeeded, failed=failed)
+    await db.commit()
 
     await emit_audit_event(
         db_session=db,
         action="batch_import",
-        resource_type="dpp",
+        resource_type="batch_import_job",
+        resource_id=str(job.id),
         tenant_id=tenant.tenant_id,
         user=tenant.user,
         request=request,
-        metadata={"total": len(body.dpps), "succeeded": succeeded, "failed": failed},
+        metadata={
+            "total": len(body.dpps),
+            "succeeded": succeeded,
+            "failed": failed,
+            "job_id": str(job.id),
+        },
     )
 
     return BatchImportResponse(
+        job_id=job.id,
         total=len(body.dpps),
         succeeded=succeeded,
         failed=failed,
         results=results,
+    )
+
+
+@router.get("/batch-import/jobs", response_model=BatchImportJobListResponse)
+async def list_batch_import_jobs(
+    db: DbSession,
+    tenant: TenantPublisher,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> BatchImportJobListResponse:
+    """List persisted batch import jobs for this tenant."""
+    service = DPPService(db)
+    jobs, total_count = await service.list_batch_import_jobs(
+        tenant_id=tenant.tenant_id,
+        requester_subject=tenant.user.sub,
+        is_tenant_admin=tenant.is_tenant_admin,
+        limit=limit,
+        offset=offset,
+    )
+    subjects = [job.requested_by_subject for job in jobs]
+    users = await load_users_by_subject(db, subjects)
+    payload = [
+        BatchImportJobSummaryResponse(
+            id=job.id,
+            requested_by_subject=job.requested_by_subject,
+            requested_by=ActorSummary(**actor_payload(job.requested_by_subject, users)),
+            total=job.total,
+            succeeded=job.succeeded,
+            failed=job.failed,
+            created_at=job.created_at.isoformat(),
+        )
+        for job in jobs
+    ]
+    return BatchImportJobListResponse(
+        jobs=payload,
+        count=len(payload),
+        total_count=total_count,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/batch-import/jobs/{job_id}", response_model=BatchImportJobDetailResponse)
+async def get_batch_import_job(
+    job_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> BatchImportJobDetailResponse:
+    """Get one persisted batch import job and its item outcomes."""
+    service = DPPService(db)
+    job = await service.get_batch_import_job(tenant_id=tenant.tenant_id, job_id=job_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Batch import job {job_id} not found",
+        )
+    if not tenant.is_tenant_admin and job.requested_by_subject != tenant.user.sub:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied",
+        )
+    users = await load_users_by_subject(db, [job.requested_by_subject])
+    return BatchImportJobDetailResponse(
+        id=job.id,
+        requested_by_subject=job.requested_by_subject,
+        requested_by=ActorSummary(**actor_payload(job.requested_by_subject, users)),
+        total=job.total,
+        succeeded=job.succeeded,
+        failed=job.failed,
+        created_at=job.created_at.isoformat(),
+        items=[
+            BatchImportJobItemResponse(
+                index=item.item_index,
+                dpp_id=item.dpp_id,
+                status=item.status,
+                error=item.error,
+                created_at=item.created_at.isoformat(),
+            )
+            for item in job.items
+        ],
     )
 
 
@@ -456,14 +710,12 @@ async def import_dpp(
         request=request,
     )
 
-    return DPPResponse(
-        id=dpp.id,
-        status=dpp.status.value,
-        owner_subject=dpp.owner_subject,
-        asset_ids=dpp.asset_ids,
-        qr_payload=dpp.qr_payload,
-        created_at=dpp.created_at.isoformat(),
-        updated_at=dpp.updated_at.isoformat(),
+    owners = await load_users_by_subject(db, [dpp.owner_subject])
+    return _dpp_response_payload(
+        dpp,
+        owner=actor_payload(dpp.owner_subject, owners),
+        tenant=tenant,
+        shared_with_current_user=False,
     )
 
 
@@ -503,71 +755,39 @@ async def list_dpps(
     db: DbSession,
     tenant: TenantContextDep,
     status_filter: DPPStatus | None = Query(None, alias="status"),
+    scope: Literal["mine", "shared", "all"] = Query(
+        "mine",
+        description="Visibility filter: mine, shared, or all accessible resources",
+    ),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ) -> DPPListResponse:
     """
     List DPPs accessible to the current user.
-
-    Access is controlled via ABAC policies. Typically:
-    - Tenant admins see all DPPs in tenant
-    - Publishers see their own DPPs
-    - Viewers see all published DPPs
     """
     service = DPPService(db)
-
-    total_count = await service.count_dpps_for_tenant(
+    dpps, total_count, shared_ids = await service.list_accessible_dpps(
         tenant_id=tenant.tenant_id,
+        user_subject=tenant.user.sub,
+        is_tenant_admin=tenant.is_tenant_admin,
         status=status_filter,
+        scope=scope,
+        limit=limit,
+        offset=offset,
     )
-
-    # Fetch candidate DPPs for the tenant in batches to account for ABAC filtering
-    accessible_dpps: list[Any] = []
-    batch_size = limit
-    current_offset = offset
-
-    while len(accessible_dpps) < limit:
-        candidate_dpps = await service.get_dpps_for_tenant(
-            tenant_id=tenant.tenant_id,
-            status=status_filter,
-            limit=batch_size,
-            offset=current_offset,
-        )
-        if not candidate_dpps:
-            break
-
-        # Evaluate OPA decisions concurrently for the batch
-        decisions = await asyncio.gather(
-            *(
-                check_access(tenant.user, "list", _dpp_resource(dpp), tenant=tenant)
-                for dpp in candidate_dpps
-            )
-        )
-
-        for dpp, decision in zip(candidate_dpps, decisions, strict=True):
-            if decision.is_allowed:
-                accessible_dpps.append(dpp)
-            if len(accessible_dpps) >= limit:
-                break
-
-        current_offset += len(candidate_dpps)
-        if len(candidate_dpps) < batch_size:
-            break
+    owners = await load_users_by_subject(db, [dpp.owner_subject for dpp in dpps])
 
     return DPPListResponse(
         dpps=[
-            DPPResponse(
-                id=dpp.id,
-                status=dpp.status.value,
-                owner_subject=dpp.owner_subject,
-                asset_ids=dpp.asset_ids,
-                qr_payload=dpp.qr_payload,
-                created_at=dpp.created_at.isoformat(),
-                updated_at=dpp.updated_at.isoformat(),
+            _dpp_response_payload(
+                dpp,
+                owner=actor_payload(dpp.owner_subject, owners),
+                tenant=tenant,
+                shared_with_current_user=dpp.id in shared_ids,
             )
-            for dpp in accessible_dpps
+            for dpp in dpps
         ],
-        count=len(accessible_dpps),
+        count=len(dpps),
         total_count=total_count,
         limit=limit,
         offset=offset,
@@ -601,19 +821,36 @@ async def get_dpp_by_slug(
             detail=f"DPP with slug {slug} not found",
         )
 
-    # Check access via ABAC
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
-    revision = await _resolve_revision(service, dpp, tenant)
+    # Check access via ABAC
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
+
+    revision = await _resolve_revision(
+        service,
+        dpp,
+        tenant,
+        shared_with_current_user=shared_with_current_user,
+    )
+    owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
-        id=dpp.id,
-        status=dpp.status.value,
-        owner_subject=dpp.owner_subject,
-        asset_ids=dpp.asset_ids,
-        qr_payload=dpp.qr_payload,
-        created_at=dpp.created_at.isoformat(),
-        updated_at=dpp.updated_at.isoformat(),
+        **_dpp_response_payload(
+            dpp,
+            owner=actor_payload(dpp.owner_subject, owners),
+            tenant=tenant,
+            shared_with_current_user=shared_with_current_user,
+        ).model_dump(),
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
@@ -640,19 +877,36 @@ async def get_dpp(
             detail=f"DPP {dpp_id} not found",
         )
 
-    # Check access via ABAC
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
-    revision = await _resolve_revision(service, dpp, tenant)
+    # Check access via ABAC
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
+
+    revision = await _resolve_revision(
+        service,
+        dpp,
+        tenant,
+        shared_with_current_user=shared_with_current_user,
+    )
+    owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
-        id=dpp.id,
-        status=dpp.status.value,
-        owner_subject=dpp.owner_subject,
-        asset_ids=dpp.asset_ids,
-        qr_payload=dpp.qr_payload,
-        created_at=dpp.created_at.isoformat(),
-        updated_at=dpp.updated_at.isoformat(),
+        **_dpp_response_payload(
+            dpp,
+            owner=actor_payload(dpp.owner_subject, owners),
+            tenant=tenant,
+            shared_with_current_user=shared_with_current_user,
+        ).model_dump(),
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
@@ -688,7 +942,12 @@ async def update_submodel(
             detail="Only the owner can edit this DPP",
         )
 
-    await require_access(tenant.user, "update", _dpp_resource(dpp), tenant=tenant)
+    await require_access(
+        tenant.user,
+        "update",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
 
     try:
         revision = await service.update_submodel(
@@ -750,7 +1009,18 @@ async def get_submodel_definition(
             detail=f"DPP {dpp_id} not found",
         )
 
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
 
     try:
         definition, used_revision = await service.get_submodel_definition(
@@ -802,7 +1072,12 @@ async def publish_dpp(
             detail="Only the owner can publish this DPP",
         )
 
-    await require_access(tenant.user, "publish", _dpp_resource(dpp), tenant=tenant)
+    await require_access(
+        tenant.user,
+        "publish",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
 
     try:
         published_dpp = await service.publish_dpp(
@@ -875,14 +1150,12 @@ async def publish_dpp(
             detail=str(e),
         )
 
-    return DPPResponse(
-        id=published_dpp.id,
-        status=published_dpp.status.value,
-        owner_subject=published_dpp.owner_subject,
-        asset_ids=published_dpp.asset_ids,
-        qr_payload=published_dpp.qr_payload,
-        created_at=published_dpp.created_at.isoformat(),
-        updated_at=published_dpp.updated_at.isoformat(),
+    owners = await load_users_by_subject(db, [published_dpp.owner_subject])
+    return _dpp_response_payload(
+        published_dpp,
+        owner=actor_payload(published_dpp.owner_subject, owners),
+        tenant=tenant,
+        shared_with_current_user=False,
     )
 
 
@@ -912,7 +1185,12 @@ async def archive_dpp(
             detail="Only the owner can archive this DPP",
         )
 
-    await require_access(tenant.user, "archive", _dpp_resource(dpp), tenant=tenant)
+    await require_access(
+        tenant.user,
+        "archive",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
 
     try:
         archived_dpp = await service.archive_dpp(dpp_id, tenant.tenant_id)
@@ -959,14 +1237,12 @@ async def archive_dpp(
             detail=str(e),
         )
 
-    return DPPResponse(
-        id=archived_dpp.id,
-        status=archived_dpp.status.value,
-        owner_subject=archived_dpp.owner_subject,
-        asset_ids=archived_dpp.asset_ids,
-        qr_payload=archived_dpp.qr_payload,
-        created_at=archived_dpp.created_at.isoformat(),
-        updated_at=archived_dpp.updated_at.isoformat(),
+    owners = await load_users_by_subject(db, [archived_dpp.owner_subject])
+    return _dpp_response_payload(
+        archived_dpp,
+        owner=actor_payload(archived_dpp.owner_subject, owners),
+        tenant=tenant,
+        shared_with_current_user=False,
     )
 
 

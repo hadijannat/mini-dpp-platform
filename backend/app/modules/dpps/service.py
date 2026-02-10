@@ -5,12 +5,13 @@ Handles DPP lifecycle, revision management, and data hydration.
 
 import hashlib
 import json
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from jwt import api_jws
 from jwt.exceptions import PyJWTError
-from sqlalchemy import String, cast, func, select
+from sqlalchemy import String, cast, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -22,7 +23,19 @@ from app.core.identifiers import (
 )
 from app.core.logging import get_logger
 from app.core.settings_service import SettingsService
-from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template, User, UserRole
+from app.db.models import (
+    DPP,
+    BatchImportJob,
+    BatchImportJobItem,
+    DPPRevision,
+    DPPStatus,
+    ResourceShare,
+    RevisionState,
+    Template,
+    User,
+    UserRole,
+    VisibilityScope,
+)
 from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.qr.service import QRCodeService
@@ -345,6 +358,120 @@ class DPPService:
         result = await self._session.execute(query)
         return result.scalar_one()
 
+    async def get_shared_resource_ids(
+        self,
+        *,
+        tenant_id: UUID,
+        resource_type: str,
+        user_subject: str,
+    ) -> set[UUID]:
+        """Get active shares for a user and resource type."""
+        now = datetime.now(UTC)
+        result = await self._session.execute(
+            select(ResourceShare.resource_id).where(
+                ResourceShare.tenant_id == tenant_id,
+                ResourceShare.resource_type == resource_type,
+                ResourceShare.user_subject == user_subject,
+                or_(
+                    ResourceShare.expires_at.is_(None),
+                    ResourceShare.expires_at > now,
+                ),
+            )
+        )
+        return set(result.scalars().all())
+
+    async def is_resource_shared_with_user(
+        self,
+        *,
+        tenant_id: UUID,
+        resource_type: str,
+        resource_id: UUID,
+        user_subject: str,
+    ) -> bool:
+        """Check whether a specific resource is actively shared with a user."""
+        now = datetime.now(UTC)
+        result = await self._session.execute(
+            select(ResourceShare.id).where(
+                ResourceShare.tenant_id == tenant_id,
+                ResourceShare.resource_type == resource_type,
+                ResourceShare.resource_id == resource_id,
+                ResourceShare.user_subject == user_subject,
+                or_(
+                    ResourceShare.expires_at.is_(None),
+                    ResourceShare.expires_at > now,
+                ),
+            )
+        )
+        return result.scalar_one_or_none() is not None
+
+    async def list_accessible_dpps(
+        self,
+        *,
+        tenant_id: UUID,
+        user_subject: str,
+        is_tenant_admin: bool,
+        status: DPPStatus | None = None,
+        scope: str = "mine",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[DPP], int, set[UUID]]:
+        """
+        List DPPs visible to the current tenant member with SQL prefiltering.
+
+        Scope values:
+        - mine: resources owned by caller
+        - shared: resources shared to caller
+        - all: all accessible resources (tenant admin sees all)
+        """
+        shared_ids = await self.get_shared_resource_ids(
+            tenant_id=tenant_id,
+            resource_type="dpp",
+            user_subject=user_subject,
+        )
+
+        query = select(DPP).where(DPP.tenant_id == tenant_id)
+        if status:
+            query = query.where(DPP.status == status)
+
+        if is_tenant_admin:
+            if scope == "mine":
+                query = query.where(DPP.owner_subject == user_subject)
+            elif scope == "shared":
+                if shared_ids:
+                    query = query.where(
+                        DPP.id.in_(shared_ids),
+                        DPP.owner_subject != user_subject,
+                    )
+                else:
+                    query = query.where(false())
+        else:
+            if scope == "mine":
+                query = query.where(DPP.owner_subject == user_subject)
+            elif scope == "shared":
+                if shared_ids:
+                    query = query.where(
+                        DPP.id.in_(shared_ids),
+                        DPP.owner_subject != user_subject,
+                    )
+                else:
+                    query = query.where(false())
+            else:
+                access_conditions = [
+                    DPP.owner_subject == user_subject,
+                    DPP.visibility_scope == VisibilityScope.TENANT,
+                ]
+                if shared_ids:
+                    access_conditions.append(DPP.id.in_(shared_ids))
+                query = query.where(or_(*access_conditions))
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self._session.execute(count_query)
+        total_count = int(count_result.scalar_one())
+
+        query = query.order_by(DPP.updated_at.desc()).limit(limit).offset(offset)
+        result = await self._session.execute(query)
+        return list(result.scalars().all()), total_count, shared_ids
+
     async def get_dpps_for_tenant(
         self,
         tenant_id: UUID,
@@ -386,6 +513,103 @@ class DPPService:
 
         result = await self._session.execute(query)
         return list(result.scalars().all())
+
+    async def create_batch_import_job(
+        self,
+        *,
+        tenant_id: UUID,
+        requested_by_subject: str,
+        payload_hash: str,
+        total: int,
+    ) -> BatchImportJob:
+        """Create a persisted batch import job."""
+        job = BatchImportJob(
+            tenant_id=tenant_id,
+            requested_by_subject=requested_by_subject,
+            payload_hash=payload_hash,
+            total=total,
+            succeeded=0,
+            failed=0,
+        )
+        self._session.add(job)
+        await self._session.flush()
+        return job
+
+    async def add_batch_import_item(
+        self,
+        *,
+        tenant_id: UUID,
+        job_id: UUID,
+        item_index: int,
+        status: str,
+        dpp_id: UUID | None = None,
+        error: str | None = None,
+    ) -> BatchImportJobItem:
+        """Persist one batch import item result."""
+        item = BatchImportJobItem(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            item_index=item_index,
+            status=status,
+            dpp_id=dpp_id,
+            error=error,
+        )
+        self._session.add(item)
+        await self._session.flush()
+        return item
+
+    async def finalize_batch_import_job(
+        self,
+        *,
+        job: BatchImportJob,
+        succeeded: int,
+        failed: int,
+    ) -> BatchImportJob:
+        """Update final counts for a persisted batch import job."""
+        job.succeeded = succeeded
+        job.failed = failed
+        await self._session.flush()
+        return job
+
+    async def list_batch_import_jobs(
+        self,
+        *,
+        tenant_id: UUID,
+        requester_subject: str,
+        is_tenant_admin: bool,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[BatchImportJob], int]:
+        """List batch import jobs visible to current user."""
+        query = select(BatchImportJob).where(BatchImportJob.tenant_id == tenant_id)
+        if not is_tenant_admin:
+            query = query.where(BatchImportJob.requested_by_subject == requester_subject)
+
+        count_query = select(func.count()).select_from(query.subquery())
+        count_result = await self._session.execute(count_query)
+        total_count = int(count_result.scalar_one())
+
+        result = await self._session.execute(
+            query.order_by(BatchImportJob.created_at.desc()).limit(limit).offset(offset)
+        )
+        return list(result.scalars().all()), total_count
+
+    async def get_batch_import_job(
+        self,
+        *,
+        tenant_id: UUID,
+        job_id: UUID,
+    ) -> BatchImportJob | None:
+        """Get a batch import job with its items."""
+        result = await self._session.execute(
+            select(BatchImportJob)
+            .options(selectinload(BatchImportJob.items))
+            .where(
+                BatchImportJob.id == job_id,
+                BatchImportJob.tenant_id == tenant_id,
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def get_latest_revision(self, dpp_id: UUID, tenant_id: UUID) -> DPPRevision | None:
         """

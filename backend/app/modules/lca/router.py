@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 
 from app.core.audit import emit_audit_event
 from app.core.security import require_access
+from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantPublisher
 from app.db.session import DbSession
 from app.modules.dpps.service import DPPService
@@ -18,16 +19,6 @@ from app.modules.lca.schemas import ComparisonReport, ComparisonRequest, LCARepo
 from app.modules.lca.service import LCAService
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _dpp_resource(dpp_id: UUID, owner_subject: str) -> dict[str, str]:
-    """Build an ABAC resource context dict for a DPP."""
-    return {"type": "dpp", "id": str(dpp_id), "owner_subject": owner_subject}
 
 
 # ---------------------------------------------------------------------------
@@ -60,11 +51,20 @@ async def calculate_pcf(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "read",
-        _dpp_resource(dpp.id, dpp.owner_subject),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
 
@@ -117,11 +117,20 @@ async def get_report(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "read",
-        _dpp_resource(dpp.id, dpp.owner_subject),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
 
@@ -156,11 +165,20 @@ async def compare_revisions(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {body.dpp_id} not found",
         )
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "read",
-        _dpp_resource(dpp.id, dpp.owner_subject),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
 

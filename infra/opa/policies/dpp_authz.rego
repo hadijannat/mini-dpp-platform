@@ -15,6 +15,18 @@ tenant_match if {
     input.resource.tenant_id == input.subject.tenant_id
 }
 
+is_owner if {
+    input.resource.owner_subject == input.subject.sub
+}
+
+is_shared if {
+    input.resource.shared_with_current_user == true
+}
+
+is_tenant_visible if {
+    input.resource.visibility_scope == "tenant"
+}
+
 # =============================================================================
 # ESPR Tier Helpers (must be defined before the decision else-chain)
 # =============================================================================
@@ -134,26 +146,12 @@ else := {
 # Viewers can only read published DPPs
 else := {
     "effect": "allow",
-    "policy_id": "dpp-read-published"
+    "policy_id": "dpp-read-owner-team"
 } if {
     not input.subject.is_admin
     input.action == "read"
     input.resource.type == "dpp"
-    input.resource.status == "published"
-    tenant_match
-}
-
-# Publishers can read their own drafts
-else := {
-    "effect": "allow",
-    "policy_id": "dpp-read-own-draft"
-} if {
-    not input.subject.is_admin
-    input.action == "read"
-    input.resource.type == "dpp"
-    input.resource.status == "draft"
-    input.resource.owner_subject == input.subject.sub
-    input.subject.is_publisher
+    (is_owner or is_shared or is_tenant_visible)
     tenant_match
 }
 
@@ -161,29 +159,15 @@ else := {
 # DPP List Policies
 # =============================================================================
 
-# Anyone in tenant can list published DPPs
+# List DPPs in owner/team scope
 else := {
     "effect": "allow",
-    "policy_id": "dpp-list-published"
+    "policy_id": "dpp-list-owner-team"
 } if {
     not input.subject.is_admin
     input.action == "list"
     input.resource.type == "dpp"
-    input.resource.status == "published"
-    tenant_match
-}
-
-# Publishers can list their own drafts
-else := {
-    "effect": "allow",
-    "policy_id": "dpp-list-own-draft"
-} if {
-    not input.subject.is_admin
-    input.action == "list"
-    input.resource.type == "dpp"
-    input.resource.status != "published"
-    input.resource.owner_subject == input.subject.sub
-    input.subject.is_publisher
+    (is_owner or is_shared or is_tenant_visible)
     tenant_match
 }
 
@@ -342,7 +326,7 @@ else := {
 # Connector Policies
 # =============================================================================
 
-# Publishers can read connectors
+# Publishers can read connectors in owner/team scope
 else := {
     "effect": "allow",
     "policy_id": "connector-read"
@@ -351,18 +335,32 @@ else := {
     input.action in ["read", "list"]
     input.resource.type == "connector"
     input.subject.is_publisher
+    (is_owner or is_shared or is_tenant_visible)
     tenant_match
 }
 
-# Publishers can manage connectors
+# Publishers can create connectors
 else := {
     "effect": "allow",
-    "policy_id": "connector-manage"
+    "policy_id": "connector-create"
 } if {
     not input.subject.is_admin
-    input.action in ["create", "update", "delete", "test"]
+    input.action == "create"
     input.resource.type == "connector"
     input.subject.is_publisher
+    tenant_match
+}
+
+# Connector owner/team can manage connectors
+else := {
+    "effect": "allow",
+    "policy_id": "connector-manage-owner-team"
+} if {
+    not input.subject.is_admin
+    input.action in ["update", "delete", "test"]
+    input.resource.type == "connector"
+    input.subject.is_publisher
+    is_owner
     tenant_match
 }
 
