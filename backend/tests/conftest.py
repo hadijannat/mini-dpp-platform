@@ -108,6 +108,7 @@ async def test_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
         return TokenPayload(
             sub="test-user-123",
             email="test@example.com",
+            email_verified=True,
             preferred_username="testuser",
             roles=["publisher"],
             bpn="BPNL00000001TEST",

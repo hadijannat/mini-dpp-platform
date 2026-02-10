@@ -41,9 +41,6 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "protocol": "openid-connect",
-      "serviceAccountClientRoles": {
-        "realm-management": ["manage-users", "view-users"]
-      },
       "defaultClientScopes": [
         "openid",
         "profile",
@@ -126,6 +123,14 @@
       "realmRoles": [
         "admin"
       ]
+    },
+    {
+      "username": "service-account-dpp-backend",
+      "enabled": true,
+      "serviceAccountClientId": "dpp-backend",
+      "clientRoles": {
+        "realm-management": ["manage-users", "view-users"]
+      }
     }
   ],
   "clientScopes": [

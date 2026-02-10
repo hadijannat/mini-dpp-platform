@@ -93,9 +93,7 @@ class RoleRequestService:
         status_filter: RoleRequestStatus | None = None,
     ) -> list[RoleUpgradeRequest]:
         """List role upgrade requests for a tenant (admin view)."""
-        stmt = select(RoleUpgradeRequest).where(
-            RoleUpgradeRequest.tenant_id == tenant_id
-        )
+        stmt = select(RoleUpgradeRequest).where(RoleUpgradeRequest.tenant_id == tenant_id)
         if status_filter:
             stmt = stmt.where(RoleUpgradeRequest.status == status_filter)
         stmt = stmt.order_by(RoleUpgradeRequest.created_at.desc())
@@ -139,13 +137,9 @@ class RoleRequestService:
             raise ValueError("Role request not found")
 
         if request.status != RoleRequestStatus.PENDING:
-            raise ValueError(
-                f"Request already {request.status.value}"
-            )
+            raise ValueError(f"Request already {request.status.value}")
 
-        request.status = (
-            RoleRequestStatus.APPROVED if approved else RoleRequestStatus.DENIED
-        )
+        request.status = RoleRequestStatus.APPROVED if approved else RoleRequestStatus.DENIED
         request.reviewed_by = reviewer.sub
         request.review_note = review_note
         request.reviewed_at = datetime.now(UTC)
@@ -165,9 +159,7 @@ class RoleRequestService:
             # Best-effort Keycloak sync
             try:
                 kc = KeycloakAdminClient()
-                await kc.assign_realm_role(
-                    request.user_subject, request.requested_role.value
-                )
+                await kc.assign_realm_role(request.user_subject, request.requested_role.value)
             except Exception:
                 logger.exception(
                     "keycloak_sync_failed_on_approval",

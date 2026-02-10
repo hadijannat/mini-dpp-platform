@@ -28,10 +28,7 @@ class KeycloakAdminClient:
 
     async def _get_service_account_token(self) -> str:
         """Obtain an access token via client_credentials grant."""
-        token_url = (
-            f"{self._server_url}/realms/{self._realm}"
-            "/protocol/openid-connect/token"
-        )
+        token_url = f"{self._server_url}/realms/{self._realm}/protocol/openid-connect/token"
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 token_url,
@@ -46,9 +43,7 @@ class KeycloakAdminClient:
             data: dict[str, Any] = resp.json()
             return str(data["access_token"])
 
-    async def _get_role_representation(
-        self, token: str, role_name: str
-    ) -> dict[str, Any] | None:
+    async def _get_role_representation(self, token: str, role_name: str) -> dict[str, Any] | None:
         """Look up a realm role by name."""
         async with httpx.AsyncClient() as client:
             resp = await client.get(

@@ -29,9 +29,7 @@ class OnboardingService:
     def __init__(self, db: AsyncSession) -> None:
         self._db = db
 
-    async def try_auto_provision(
-        self, user: TokenPayload
-    ) -> TenantMember | None:
+    async def try_auto_provision(self, user: TokenPayload) -> TenantMember | None:
         """
         Auto-provision a user into the default tenant as VIEWER.
 
@@ -55,9 +53,7 @@ class OnboardingService:
             return None
 
         # Look up target tenant
-        result = await self._db.execute(
-            select(Tenant).where(Tenant.slug == slug)
-        )
+        result = await self._db.execute(select(Tenant).where(Tenant.slug == slug))
         tenant = result.scalar_one_or_none()
         if not tenant or tenant.status != TenantStatus.ACTIVE:
             return None
@@ -103,18 +99,14 @@ class OnboardingService:
         )
         return membership
 
-    async def get_onboarding_status(
-        self, user: TokenPayload
-    ) -> dict[str, object]:
+    async def get_onboarding_status(self, user: TokenPayload) -> dict[str, object]:
         """Check whether the user has been provisioned into a tenant."""
         settings = get_settings()
         slug = settings.onboarding_auto_join_tenant_slug
         if not slug:
             return {"provisioned": False, "tenant_slug": None, "role": None}
 
-        result = await self._db.execute(
-            select(Tenant).where(Tenant.slug == slug)
-        )
+        result = await self._db.execute(select(Tenant).where(Tenant.slug == slug))
         tenant = result.scalar_one_or_none()
         if not tenant:
             return {"provisioned": False, "tenant_slug": None, "role": None}
@@ -137,9 +129,7 @@ class OnboardingService:
 
     async def _ensure_user_record(self, user: TokenPayload) -> None:
         """Create or update the User row from JWT claims."""
-        result = await self._db.execute(
-            select(User).where(User.subject == user.sub)
-        )
+        result = await self._db.execute(select(User).where(User.subject == user.sub))
         existing_user = result.scalar_one_or_none()
         if existing_user:
             if user.email and existing_user.email != user.email:

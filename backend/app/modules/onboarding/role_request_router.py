@@ -69,9 +69,7 @@ async def list_my_requests(
 ) -> list[RoleRequestResponse]:
     """List the current user's role requests."""
     svc = RoleRequestService(db)
-    requests = await svc.get_user_requests(
-        context.tenant_id, context.user.sub
-    )
+    requests = await svc.get_user_requests(context.tenant_id, context.user.sub)
     return [_to_response(r) for r in requests]
 
 

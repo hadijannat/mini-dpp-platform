@@ -15,6 +15,7 @@ def _mock_user(roles: list[str]) -> TokenPayload:
     return TokenPayload(
         sub="test-user-123",
         email="test@example.com",
+        email_verified=True,
         preferred_username="test",
         roles=roles,
         bpn="BPNL00000001TEST",

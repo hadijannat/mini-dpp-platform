@@ -36,7 +36,9 @@ def upgrade() -> None:
         sa.Column(
             "requested_role",
             postgresql.ENUM(
-                "viewer", "publisher", "tenant_admin",
+                "viewer",
+                "publisher",
+                "tenant_admin",
                 name="tenantrole",
                 create_type=False,
             ),
@@ -45,7 +47,9 @@ def upgrade() -> None:
         sa.Column(
             "status",
             postgresql.ENUM(
-                "pending", "approved", "denied",
+                "pending",
+                "approved",
+                "denied",
                 name="rolerequeststatus",
                 create_type=False,
             ),
@@ -83,12 +87,8 @@ def upgrade() -> None:
     )
 
     # RLS policy (matches 0022 pattern)
-    op.execute(
-        "ALTER TABLE role_upgrade_requests ENABLE ROW LEVEL SECURITY"
-    )
-    op.execute(
-        "ALTER TABLE role_upgrade_requests FORCE ROW LEVEL SECURITY"
-    )
+    op.execute("ALTER TABLE role_upgrade_requests ENABLE ROW LEVEL SECURITY")
+    op.execute("ALTER TABLE role_upgrade_requests FORCE ROW LEVEL SECURITY")
     op.execute("""
         CREATE POLICY tenant_isolation_role_upgrade_requests
         ON role_upgrade_requests
@@ -97,7 +97,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP POLICY IF EXISTS tenant_isolation_role_upgrade_requests ON role_upgrade_requests")
+    op.execute(
+        "DROP POLICY IF EXISTS tenant_isolation_role_upgrade_requests ON role_upgrade_requests"
+    )
     op.execute("ALTER TABLE role_upgrade_requests DISABLE ROW LEVEL SECURITY")
     op.drop_table("role_upgrade_requests")
     sa.Enum("pending", "approved", "denied", name="rolerequeststatus").drop(

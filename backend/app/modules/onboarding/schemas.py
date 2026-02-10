@@ -16,12 +16,8 @@ class OnboardingStatusResponse(BaseModel):
 class RoleRequestCreate(BaseModel):
     """Request body for submitting a role upgrade request."""
 
-    requested_role: str = Field(
-        ..., description="Role to request (e.g. 'publisher')"
-    )
-    reason: str | None = Field(
-        None, max_length=1000, description="Optional reason for the request"
-    )
+    requested_role: str = Field(..., description="Role to request (e.g. 'publisher')")
+    reason: str | None = Field(None, max_length=1000, description="Optional reason for the request")
 
 
 class RoleRequestReview(BaseModel):

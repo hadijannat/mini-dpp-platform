@@ -62,9 +62,7 @@ async def test_auto_provision_creates_membership(mock_db: AsyncMock) -> None:
     user_result = MagicMock()
     user_result.scalar_one_or_none.return_value = None
 
-    mock_db.execute = AsyncMock(
-        side_effect=[tenant_result, membership_result, user_result]
-    )
+    mock_db.execute = AsyncMock(side_effect=[tenant_result, membership_result, user_result])
     mock_db.add = MagicMock()
     mock_db.flush = AsyncMock()
 

@@ -21,6 +21,7 @@ def _make_user(sub: str = "user-123") -> TokenPayload:
     return TokenPayload(
         sub=sub,
         email="test@example.com",
+        email_verified=True,
         preferred_username="testuser",
         roles=["publisher"],
         bpn=None,

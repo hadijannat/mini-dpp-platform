@@ -35,7 +35,12 @@ _RLS_0022 = {
     "issued_credentials",
 }
 
-TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022
+# Tables with RLS from migration 0024
+_RLS_0024 = {
+    "role_upgrade_requests",
+}
+
+TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024
 
 
 def _tenant_scoped_tables() -> set[str]:
