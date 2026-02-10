@@ -76,6 +76,7 @@
     {
       "username": "viewer",
       "email": "viewer@example.com",
+      "emailVerified": true,
       "firstName": "Viewer",
       "lastName": "User",
       "enabled": true,
@@ -93,6 +94,7 @@
     {
       "username": "publisher",
       "email": "publisher@example.com",
+      "emailVerified": true,
       "firstName": "Publisher",
       "lastName": "User",
       "enabled": true,
@@ -110,6 +112,7 @@
     {
       "username": "admin",
       "email": "admin@example.com",
+      "emailVerified": true,
       "firstName": "Admin",
       "lastName": "User",
       "enabled": true,
