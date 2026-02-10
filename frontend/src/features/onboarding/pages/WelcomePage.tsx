@@ -85,8 +85,12 @@ export default function WelcomePage() {
   const [info, setInfo] = useState<string | null>(null);
 
   const refreshStatus = useCallback(
-    async (mode: 'initial' | 'manual' | 'poll' = 'manual') => {
-      if (!token) {
+    async (
+      mode: 'initial' | 'manual' | 'poll' = 'manual',
+      tokenOverride?: string,
+    ) => {
+      const activeToken = tokenOverride ?? token;
+      if (!activeToken) {
         if (mode === 'initial') {
           setLoading(false);
         }
@@ -101,7 +105,7 @@ export default function WelcomePage() {
       }
 
       try {
-        const resp = await apiFetch('/api/v1/onboarding/status', {}, token);
+        const resp = await apiFetch('/api/v1/onboarding/status', {}, activeToken);
         if (!resp.ok) {
           throw new Error(await getApiErrorMessage(resp, 'Failed to check onboarding status'));
         }
@@ -180,6 +184,23 @@ export default function WelcomePage() {
     } finally {
       setProvisioning(false);
     }
+  }
+
+  async function handleRefreshAccess() {
+    setError(null);
+    setInfo(null);
+
+    let effectiveToken = token;
+    try {
+      if (typeof auth.signinSilent === 'function') {
+        const refreshedUser = await auth.signinSilent();
+        effectiveToken = refreshedUser?.access_token ?? effectiveToken;
+      }
+    } catch {
+      setInfo('Session refresh failed. If your role was changed, sign out and sign in again.');
+    }
+
+    await refreshStatus('manual', effectiveToken);
   }
 
   async function handleResendVerification() {
@@ -312,7 +333,7 @@ export default function WelcomePage() {
                 variant="outline"
                 className="w-full"
                 onClick={() => {
-                  void refreshStatus('manual');
+                  void handleRefreshAccess();
                 }}
                 disabled={refreshing}
               >
