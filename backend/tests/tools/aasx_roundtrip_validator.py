@@ -332,8 +332,8 @@ def main() -> None:
         aas_env = _BUILTIN_AAS_ENV
         source = "built-in test environment"
 
-    print(f"AASX Round-Trip Validator")
-    print(f"========================")
+    print("AASX Round-Trip Validator")
+    print("========================")
     print(f"Source: {source}")
     print()
 

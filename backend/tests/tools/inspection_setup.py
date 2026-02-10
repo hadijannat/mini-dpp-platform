@@ -13,9 +13,8 @@ import asyncio
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-from app.core.config import get_settings
 from app.modules.templates.service import get_template_service
 
 # Template keys to fetch
@@ -32,7 +31,6 @@ TEMPLATES = [
 
 def get_evidence_dir() -> Path:
     """Get or create evidence directory for this inspection run."""
-    settings = get_settings()
     base_dir = Path("/evidence") if Path("/evidence").exists() else Path("evidence")
     run_dir = base_dir / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -41,7 +39,7 @@ def get_evidence_dir() -> Path:
 
 async def ingest_template(
     template_key: str, service: Any, evidence_dir: Path
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Ingest a single template and save artifacts.
 
     Args:

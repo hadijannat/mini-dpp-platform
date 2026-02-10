@@ -202,11 +202,9 @@ test.describe('Qualifier Enforcement: Required Language', () => {
       const firstRow = langRows.first();
       if (await firstRow.isVisible()) {
         // Required language rows should be non-removable
-        const removeButton = firstRow.locator('button', { hasText: 'Remove' });
-        const hasRemove = await removeButton.count();
-        // If this is a required language, Remove should not appear
-        // (the component only shows Remove for non-required languages)
-        // This is a structural assertion — actual enforcement is via Zod
+        // Required language rows should be non-removable —
+        // the component only shows Remove for non-required languages.
+        // Actual enforcement is via Zod; this exercises the structural path.
       }
     }
   });
@@ -295,10 +293,8 @@ test.describe('Qualifier Enforcement: Allowed Range', () => {
       await numberInput.dispatchEvent('change');
       await page.waitForTimeout(1000);
 
-      // Check for validation error message (Zod validates on change)
-      const errorMessages = page.locator('[role="alert"]');
-      // We don't assert specific errors since not all number fields have ranges,
-      // but the mechanism is exercised
+      // Zod validates on change — we don't assert specific errors since
+      // not all number fields have ranges, but the mechanism is exercised
     }
   });
 
@@ -344,9 +340,7 @@ test.describe('Qualifier Enforcement: Either/Or Exclusivity', () => {
       await saveButton.click();
       await page.waitForTimeout(2000);
 
-      // Check for either-or error message
-      const eitherOrError = page.locator('text=Either-or group');
-      // This may or may not appear depending on template configuration
+      // Either-or error may or may not appear depending on template configuration.
       // The test exercises the save path which runs validateEitherOrGroups()
     }
   });

@@ -19,12 +19,11 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.models import DPP, DPPRevision, DPPStatus, RevisionState, Template
+from app.db.models import DPPRevision, DPPStatus, RevisionState
 from app.modules.dpps.service import DPPService
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.service import (
     SELECTION_STRATEGY,
-    TemplateRegistryService,
     _definition_cache,
 )
 
