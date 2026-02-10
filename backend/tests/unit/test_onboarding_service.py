@@ -7,7 +7,14 @@ from uuid import uuid4
 import pytest
 
 from app.core.security.oidc import TokenPayload
-from app.db.models import Tenant, TenantMember, TenantRole, TenantStatus
+from app.db.models import (
+    RoleRequestStatus,
+    RoleUpgradeRequest,
+    Tenant,
+    TenantMember,
+    TenantRole,
+    TenantStatus,
+)
 from app.modules.onboarding.service import OnboardingProvisioningError, OnboardingService
 
 
@@ -15,13 +22,14 @@ def _make_user(
     sub: str = "user-1",
     email: str = "user@example.com",
     email_verified: bool = True,
+    roles: list[str] | None = None,
 ) -> TokenPayload:
     return TokenPayload(
         sub=sub,
         email=email,
         email_verified=email_verified,
         preferred_username="testuser",
-        roles=["viewer"],
+        roles=roles or ["viewer"],
         bpn=None,
         org=None,
         clearance=None,
@@ -136,6 +144,36 @@ async def test_auto_provision_idempotent(mock_db: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
+async def test_auto_provision_uses_publisher_role_from_identity(mock_db: AsyncMock) -> None:
+    """Auto-provision infers publisher membership when identity role is publisher."""
+    tenant = _make_tenant()
+    user = _make_user(roles=["publisher"])
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+
+    membership_result = MagicMock()
+    membership_result.scalar_one_or_none.return_value = None
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = None
+
+    mock_db.execute = AsyncMock(side_effect=[tenant_result, membership_result, user_result])
+    mock_db.add = MagicMock()
+    mock_db.flush = AsyncMock()
+
+    with patch("app.modules.onboarding.service.emit_audit_event", new_callable=AsyncMock):
+        svc = OnboardingService(mock_db)
+        result = await svc.try_auto_provision(user)
+
+    assert result is not None
+    added_objects = [call.args[0] for call in mock_db.add.call_args_list]
+    member = next((obj for obj in added_objects if isinstance(obj, TenantMember)), None)
+    assert member is not None
+    assert member.role == TenantRole.PUBLISHER
+
+
+@pytest.mark.asyncio
 async def test_get_onboarding_status_provisioned(mock_db: AsyncMock) -> None:
     """Returns provisioned=True when membership exists."""
     tenant = _make_tenant()
@@ -203,6 +241,52 @@ async def test_get_onboarding_status_unverified_email_blocker(mock_db: AsyncMock
     assert result["provisioned"] is False
     assert result["blockers"] == ["email_unverified"]
     assert result["next_actions"] == ["resend_verification", "go_home"]
+
+
+@pytest.mark.asyncio
+async def test_get_onboarding_status_syncs_external_role_and_auto_approves_pending(
+    mock_db: AsyncMock,
+) -> None:
+    """Status call reconciles membership + pending request after external role assignment."""
+    tenant = _make_tenant()
+    user = _make_user(roles=["publisher"])
+
+    member = MagicMock(spec=TenantMember)
+    member.id = uuid4()
+    member.tenant_id = tenant.id
+    member.user_subject = user.sub
+    member.role = TenantRole.VIEWER
+
+    pending_request = RoleUpgradeRequest(
+        tenant_id=tenant.id,
+        user_subject=user.sub,
+        requested_role=TenantRole.PUBLISHER,
+        status=RoleRequestStatus.PENDING,
+        reason="Need to publish",
+    )
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    membership_result = MagicMock()
+    membership_result.scalar_one_or_none.return_value = member
+    pending_scalars = MagicMock()
+    pending_scalars.all.return_value = [pending_request]
+    pending_result = MagicMock()
+    pending_result.scalars.return_value = pending_scalars
+
+    mock_db.execute = AsyncMock(side_effect=[tenant_result, membership_result, pending_result])
+    mock_db.flush = AsyncMock()
+
+    svc = OnboardingService(mock_db)
+    result = await svc.get_onboarding_status(user)
+
+    assert result["provisioned"] is True
+    assert result["role"] == "publisher"
+    assert result["next_actions"] == ["go_home"]
+    assert member.role == TenantRole.PUBLISHER
+    assert pending_request.status == RoleRequestStatus.APPROVED
+    assert pending_request.reviewed_by == "system:keycloak-sync"
+    mock_db.flush.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -5,7 +5,9 @@ Creates tenant memberships and user records on first login.
 """
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import cast
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +17,8 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security.oidc import TokenPayload
 from app.db.models import (
+    RoleRequestStatus,
+    RoleUpgradeRequest,
     Tenant,
     TenantMember,
     TenantRole,
@@ -92,7 +96,7 @@ class OnboardingService:
         membership = TenantMember(
             tenant_id=evaluation.tenant.id,
             user_subject=user.sub,
-            role=TenantRole.VIEWER,
+            role=self._inferred_membership_role(user),
         )
         self._db.add(membership)
 
@@ -115,7 +119,7 @@ class OnboardingService:
             "user_auto_provisioned",
             sub=user.sub,
             tenant=evaluation.tenant_slug,
-            role=TenantRole.VIEWER.value,
+            role=membership.role.value,
         )
         return membership
 
@@ -135,6 +139,7 @@ class OnboardingService:
             membership = membership_result.scalar_one_or_none()
             if membership:
                 provisioned = True
+                await self._sync_membership_role_from_identity(membership=membership, user=user)
                 role = membership.role.value
 
         next_actions = self._compute_next_actions(
@@ -241,6 +246,84 @@ class OnboardingService:
                 "Onboarding target tenant is inactive.",
             )
         return ("onboarding_blocked", "Onboarding is currently blocked.")
+
+    def _inferred_membership_role(self, user: TokenPayload) -> TenantRole:
+        """Infer tenant membership role from trusted identity claims."""
+        if "admin" in user.roles or "tenant_admin" in user.roles:
+            return TenantRole.TENANT_ADMIN
+        if "publisher" in user.roles:
+            return TenantRole.PUBLISHER
+        return TenantRole.VIEWER
+
+    async def _sync_membership_role_from_identity(
+        self,
+        *,
+        membership: TenantMember,
+        user: TokenPayload,
+    ) -> None:
+        """Promote membership when identity roles were elevated outside app workflow."""
+        target_role = self._inferred_membership_role(user)
+        if self._role_rank(target_role) <= self._role_rank(membership.role):
+            return
+
+        previous_role = membership.role
+        membership.role = target_role
+        auto_approved = await self._auto_approve_pending_requests_for_role(
+            tenant_id=membership.tenant_id,
+            user_subject=user.sub,
+            target_role=target_role,
+        )
+        await self._db.flush()
+
+        logger.info(
+            "membership_role_synced_from_identity",
+            sub=user.sub,
+            tenant_id=str(membership.tenant_id),
+            from_role=previous_role.value,
+            to_role=target_role.value,
+            auto_approved_requests=auto_approved,
+        )
+
+    async def _auto_approve_pending_requests_for_role(
+        self,
+        *,
+        tenant_id: UUID,
+        user_subject: str,
+        target_role: TenantRole,
+    ) -> int:
+        """Auto-resolve pending requests already satisfied by identity role assignment."""
+        if target_role == TenantRole.VIEWER:
+            return 0
+
+        result = await self._db.execute(
+            select(RoleUpgradeRequest).where(
+                RoleUpgradeRequest.tenant_id == tenant_id,
+                RoleUpgradeRequest.user_subject == user_subject,
+                RoleUpgradeRequest.status == RoleRequestStatus.PENDING,
+            )
+        )
+        pending_requests = list(result.scalars().all())
+        approved = 0
+        for request in pending_requests:
+            if self._role_rank(request.requested_role) > self._role_rank(target_role):
+                continue
+            request.status = RoleRequestStatus.APPROVED
+            request.reviewed_by = "system:keycloak-sync"
+            request.review_note = (
+                "Auto-approved after role elevation detected from identity provider."
+            )
+            request.reviewed_at = datetime.now(UTC)
+            approved += 1
+
+        return approved
+
+    @staticmethod
+    def _role_rank(role: TenantRole) -> int:
+        if role == TenantRole.TENANT_ADMIN:
+            return 3
+        if role == TenantRole.PUBLISHER:
+            return 2
+        return 1
 
     async def _ensure_user_record(self, user: TokenPayload) -> None:
         """Create or update the User row from JWT claims."""
