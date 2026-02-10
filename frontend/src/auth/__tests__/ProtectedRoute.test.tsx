@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const authState: {
   isAuthenticated: boolean;
@@ -17,6 +17,11 @@ vi.mock('react-oidc-context', () => ({
 
 import ProtectedRoute from '../ProtectedRoute';
 
+function WelcomeProbe() {
+  const location = useLocation();
+  return <div>Welcome Page {location.search}</div>;
+}
+
 function renderRoutes(initialEntry: string = '/console') {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -29,7 +34,7 @@ function renderRoutes(initialEntry: string = '/console') {
             </ProtectedRoute>
           }
         />
-        <Route path="/welcome" element={<div>Welcome Page</div>} />
+        <Route path="/welcome" element={<WelcomeProbe />} />
         <Route path="/" element={<div>Landing</div>} />
       </Routes>
     </MemoryRouter>,
@@ -47,8 +52,10 @@ describe('ProtectedRoute', () => {
   it('redirects authenticated viewers to welcome for publisher-only routes', async () => {
     renderRoutes('/console');
 
-    expect(await screen.findByText('Welcome Page')).toBeTruthy();
+    expect(await screen.findByText(/Welcome Page/)).toBeTruthy();
     expect(screen.queryByText('Console')).toBeNull();
+    expect(screen.getByText(/reason=insufficient_role/)).toBeTruthy();
+    expect(screen.getByText(/next=%2Fconsole/)).toBeTruthy();
   });
 
   it('redirects unauthenticated users to landing and stores intended route', async () => {

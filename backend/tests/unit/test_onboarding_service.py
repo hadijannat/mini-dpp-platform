@@ -220,3 +220,100 @@ async def test_provision_user_raises_on_unverified_email(mock_db: AsyncMock) -> 
     svc = OnboardingService(mock_db)
     with pytest.raises(OnboardingProvisioningError, match="Email verification is required"):
         await svc.provision_user(user)
+
+
+@pytest.mark.asyncio
+async def test_provision_user_raises_when_onboarding_disabled(mock_db: AsyncMock) -> None:
+    """Explicit provisioning raises deterministic error when onboarding is disabled."""
+    user = _make_user()
+
+    with patch("app.modules.onboarding.service.get_settings") as mock_settings:
+        settings = MagicMock()
+        settings.onboarding_auto_join_tenant_slug = None
+        settings.onboarding_require_email_verified = True
+        mock_settings.return_value = settings
+
+        svc = OnboardingService(mock_db)
+        with pytest.raises(OnboardingProvisioningError) as exc:
+            await svc.provision_user(user)
+
+    assert exc.value.code == "onboarding_disabled"
+    assert exc.value.message == "Onboarding is currently disabled."
+
+
+@pytest.mark.asyncio
+async def test_provision_user_raises_when_tenant_missing(mock_db: AsyncMock) -> None:
+    """Explicit provisioning raises deterministic error when target tenant is missing."""
+    user = _make_user()
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = None
+    mock_db.execute = AsyncMock(return_value=tenant_result)
+
+    svc = OnboardingService(mock_db)
+    with pytest.raises(OnboardingProvisioningError) as exc:
+        await svc.provision_user(user)
+
+    assert exc.value.code == "onboarding_tenant_not_found"
+    assert exc.value.message == "Onboarding target tenant was not found."
+
+
+@pytest.mark.asyncio
+async def test_provision_user_raises_when_tenant_inactive(mock_db: AsyncMock) -> None:
+    """Explicit provisioning raises deterministic error when target tenant is inactive."""
+    tenant = _make_tenant()
+    tenant.status = TenantStatus.DISABLED
+    user = _make_user()
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    mock_db.execute = AsyncMock(return_value=tenant_result)
+
+    svc = OnboardingService(mock_db)
+    with pytest.raises(OnboardingProvisioningError) as exc:
+        await svc.provision_user(user)
+
+    assert exc.value.code == "onboarding_tenant_inactive"
+    assert exc.value.message == "Onboarding target tenant is inactive."
+
+
+@pytest.mark.asyncio
+async def test_provision_user_returns_provisioned_payload_after_success(mock_db: AsyncMock) -> None:
+    """Explicit provisioning returns an enriched provisioned payload on success."""
+    tenant = _make_tenant()
+    user = _make_user()
+
+    tenant_result_initial = MagicMock()
+    tenant_result_initial.scalar_one_or_none.return_value = tenant
+    membership_result_initial = MagicMock()
+    membership_result_initial.scalar_one_or_none.return_value = None
+
+    tenant_result_provision = MagicMock()
+    tenant_result_provision.scalar_one_or_none.return_value = tenant
+    membership_result_provision = MagicMock()
+    membership_result_provision.scalar_one_or_none.return_value = None
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = None
+
+    mock_db.execute = AsyncMock(
+        side_effect=[
+            tenant_result_initial,
+            membership_result_initial,
+            tenant_result_provision,
+            membership_result_provision,
+            user_result,
+        ]
+    )
+    mock_db.add = MagicMock()
+    mock_db.flush = AsyncMock()
+
+    with patch("app.modules.onboarding.service.emit_audit_event", new_callable=AsyncMock):
+        svc = OnboardingService(mock_db)
+        result = await svc.provision_user(user)
+
+    assert result["provisioned"] is True
+    assert result["role"] == "viewer"
+    assert result["email_verified"] is True
+    assert result["blockers"] == []
+    assert result["next_actions"] == ["request_role_upgrade", "go_home"]

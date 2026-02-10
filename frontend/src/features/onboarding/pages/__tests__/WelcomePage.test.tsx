@@ -140,4 +140,60 @@ describe('WelcomePage', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/console', { replace: true });
     });
   });
+
+  it('shows verify-email guidance when provision returns onboarding_email_not_verified', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            provisioned: false,
+            tenant_slug: 'default',
+            role: null,
+            email_verified: true,
+            blockers: [],
+            next_actions: ['provision', 'go_home'],
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        headers: {
+          get: (name: string) => (name === 'content-type' ? 'application/json' : null),
+        },
+        json: () =>
+          Promise.resolve({
+            detail: {
+              code: 'onboarding_email_not_verified',
+              message: 'Email verification required',
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            provisioned: false,
+            tenant_slug: 'default',
+            role: null,
+            email_verified: false,
+            blockers: ['email_unverified'],
+            next_actions: ['resend_verification', 'go_home'],
+          }),
+      });
+
+    renderWelcome();
+
+    const getStarted = await screen.findByRole('button', { name: 'Get Started' });
+    fireEvent.click(getStarted);
+
+    expect(
+      await screen.findByText(
+        'Please verify your email first, then refresh access or resend verification.',
+      ),
+    ).toBeTruthy();
+
+    await waitFor(() => {
+      expect(apiFetch).toHaveBeenNthCalledWith(3, '/api/v1/onboarding/status', {}, 'token-123');
+    });
+  });
 });

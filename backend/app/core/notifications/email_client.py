@@ -100,7 +100,7 @@ class EmailClient:
             logger.exception(
                 "notification_email_send_failed",
                 subject=subject,
-                recipients=recipients,
+                recipients_count=len(recipients),
             )
             return False
 

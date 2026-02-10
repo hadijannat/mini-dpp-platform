@@ -162,14 +162,22 @@ class OnboardingService:
             code, message = self._to_provisioning_error(blockers)
             raise OnboardingProvisioningError(code=code, message=message)
 
-        await self.try_auto_provision(user)
-        refreshed = await self.get_onboarding_status(user)
-        if not cast(bool, refreshed["provisioned"]):
+        membership = await self.try_auto_provision(user)
+        if not membership:
             raise OnboardingProvisioningError(
                 code="onboarding_provisioning_failed",
                 message="Provisioning could not be completed. Please try again.",
             )
-        return refreshed
+
+        role = membership.role.value
+        return {
+            "provisioned": True,
+            "tenant_slug": status["tenant_slug"],
+            "role": role,
+            "email_verified": status["email_verified"],
+            "blockers": [],
+            "next_actions": self._compute_next_actions(provisioned=True, role=role, blockers=[]),
+        }
 
     async def _evaluate_onboarding(self, user: TokenPayload) -> OnboardingEvaluation:
         """Resolve target tenant and all deterministic onboarding blockers."""
