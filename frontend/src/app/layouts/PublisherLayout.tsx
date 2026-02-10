@@ -64,6 +64,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
   { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
   { name: 'Batch Import', href: '/console/batch-import', icon: PackagePlus },
+  { name: 'Activity', href: '/console/activity', icon: ScrollText },
 ];
 
 function getInitials(name: string | undefined): string {

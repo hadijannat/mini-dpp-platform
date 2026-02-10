@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.audit import emit_audit_event
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.security.identity_sync import sync_user_from_token
 from app.core.security.oidc import TokenPayload
 from app.db.models import (
     RoleRequestStatus,
@@ -23,8 +24,6 @@ from app.db.models import (
     TenantMember,
     TenantRole,
     TenantStatus,
-    User,
-    UserRole,
 )
 from app.modules.onboarding.schemas import OnboardingBlocker, OnboardingNextAction
 
@@ -327,20 +326,4 @@ class OnboardingService:
 
     async def _ensure_user_record(self, user: TokenPayload) -> None:
         """Create or update the User row from JWT claims."""
-        result = await self._db.execute(select(User).where(User.subject == user.sub))
-        existing_user = result.scalar_one_or_none()
-        if existing_user:
-            if user.email and existing_user.email != user.email:
-                existing_user.email = user.email
-            display = user.preferred_username or user.email
-            if display and existing_user.display_name != display:
-                existing_user.display_name = display
-        else:
-            new_user = User(
-                subject=user.sub,
-                email=user.email,
-                display_name=user.preferred_username or user.email,
-                role=UserRole.VIEWER,
-                attrs={},
-            )
-            self._db.add(new_user)
+        await sync_user_from_token(self._db, user)

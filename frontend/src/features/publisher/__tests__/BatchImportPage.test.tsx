@@ -18,6 +18,7 @@ vi.mock('react-oidc-context', () => ({
 
 vi.mock('@/lib/tenant', () => ({
   getTenantSlug: () => 'default',
+  useTenantSlug: () => ['default', vi.fn()],
 }));
 
 let mockApiResponse: { ok: boolean; json: () => Promise<unknown> } = {

@@ -27,6 +27,7 @@ const AuditPage = lazy(() => import('./features/audit/pages/AuditPage'));
 const EPCISPage = lazy(() => import('./features/epcis/pages/EPCISPage'));
 const SubmodelEditorPage = lazy(() => import('./features/editor/pages/SubmodelEditorPage'));
 const BatchImportPage = lazy(() => import('./features/publisher/pages/BatchImportPage'));
+const ActivityPage = lazy(() => import('./features/activity/pages/ActivityPage'));
 const AdminDashboardPage = lazy(() => import('./features/admin/pages/AdminDashboardPage'));
 const GlobalIdSettingsPage = lazy(() => import('./features/admin/pages/GlobalIdSettingsPage'));
 const TenantsPage = lazy(() => import('./features/admin/pages/TenantsPage'));
@@ -92,6 +93,7 @@ function App() {
           <Route path="compliance" element={<CompliancePage />} />
           <Route path="epcis" element={<EPCISPage />} />
           <Route path="batch-import" element={<BatchImportPage />} />
+          <Route path="activity" element={<ActivityPage />} />
           <Route
             path="admin"
             element={

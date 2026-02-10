@@ -2,13 +2,14 @@
 API Router for QR Code and Data Carrier generation endpoints.
 """
 
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
 from fastapi.responses import Response
 
 from app.core.security import require_access
+from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
@@ -22,16 +23,6 @@ from app.modules.qr.schemas import (
 from app.modules.qr.service import QRCodeService
 
 router = APIRouter()
-
-
-def _dpp_resource(dpp: Any) -> dict[str, Any]:
-    """Build ABAC resource context for a DPP."""
-    return {
-        "type": "dpp",
-        "id": str(dpp.id),
-        "owner_subject": dpp.owner_subject,
-        "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
-    }
 
 
 @router.get("/{dpp_id}")
@@ -59,7 +50,18 @@ async def generate_qr_code(
         )
 
     # Check access via ABAC
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
 
     # Only generate QR for published DPPs
     if dpp.status != DPPStatus.PUBLISHED:
@@ -134,7 +136,18 @@ async def generate_carrier(
         )
 
     # Check access via ABAC
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
 
     # Only generate carriers for published DPPs
     if dpp.status != DPPStatus.PUBLISHED:
@@ -225,7 +238,18 @@ async def get_gs1_digital_link(
         )
 
     # Check access via ABAC
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
 
     # Only generate GS1 links for published DPPs
     if dpp.status != DPPStatus.PUBLISHED:
@@ -278,7 +302,18 @@ async def get_iec61406_link(
             detail=f"DPP {dpp_id} not found",
         )
 
-    await require_access(tenant.user, "read", _dpp_resource(dpp), tenant=tenant)
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
 
     if dpp.status != DPPStatus.PUBLISHED:
         raise HTTPException(

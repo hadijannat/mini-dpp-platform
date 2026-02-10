@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.audit import emit_audit_event
 from app.core.security import require_access
+from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantPublisher
 from app.db.session import DbSession
 from app.modules.compliance.schemas import (
@@ -24,6 +25,17 @@ from app.modules.compliance.service import ComplianceService, _get_engine
 from app.modules.dpps.service import DPPService
 
 router = APIRouter()
+
+
+def _dpp_resource(dpp: Any) -> dict[str, str]:
+    """Backward-compatible ABAC context helper for unit tests and policy checks."""
+    status = dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status)
+    return {
+        "type": "dpp",
+        "id": str(dpp.id),
+        "owner_subject": dpp.owner_subject,
+        "status": status,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -47,21 +59,6 @@ class AllRulesResponse(BaseModel):
 
     categories: list[str]
     rulesets: dict[str, CategoryRuleset]
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _dpp_resource(dpp: Any) -> dict[str, Any]:
-    """Build ABAC resource context for a DPP."""
-    return {
-        "type": "dpp",
-        "id": str(dpp.id),
-        "owner_subject": dpp.owner_subject,
-        "status": dpp.status.value if hasattr(dpp.status, "value") else str(dpp.status),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +95,19 @@ async def check_compliance(
             detail=f"DPP {dpp_id} not found",
         )
 
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
     await require_access(
         tenant.user,
         "read",
-        _dpp_resource(dpp),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
 
@@ -203,11 +209,20 @@ async def get_compliance_report(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"DPP {dpp_id} not found",
         )
+    shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
 
     await require_access(
         tenant.user,
         "read",
-        _dpp_resource(dpp),
+        build_dpp_resource_context(
+            dpp,
+            shared_with_current_user=shared_with_current_user,
+        ),
         tenant=tenant,
     )
 

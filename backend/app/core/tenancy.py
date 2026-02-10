@@ -13,6 +13,7 @@ from fastapi import Depends, HTTPException, Path, status
 from sqlalchemy import select, text
 
 from app.core.config import get_settings
+from app.core.security.identity_sync import sync_user_from_token
 from app.core.security.oidc import CurrentUser, TokenPayload
 from app.db.models import Tenant, TenantMember, TenantRole, TenantStatus
 from app.db.session import DbSession
@@ -63,6 +64,8 @@ async def resolve_tenant_context(
     user: CurrentUser,
 ) -> TenantContext:
     """Resolve tenant context from path and membership."""
+    await sync_user_from_token(db, user)
+
     normalized_slug = tenant_slug.strip().lower()
     result = await db.execute(select(Tenant).where(Tenant.slug == normalized_slug))
     tenant = result.scalar_one_or_none()
