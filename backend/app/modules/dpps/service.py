@@ -36,6 +36,11 @@ from app.db.models import (
     UserRole,
     VisibilityScope,
 )
+from app.modules.aas.conformance import validate_aas_environment
+from app.modules.aas.sanitization import (
+    SanitizationStats,
+    sanitize_submodel_list_item_id_shorts,
+)
 from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.qr.service import QRCodeService
@@ -62,6 +67,24 @@ class DPPService:
         self._settings = get_settings()
         self._template_service = TemplateRegistryService(session)
         self._basyx_builder = BasyxDppBuilder(self._template_service)
+
+    @staticmethod
+    def _is_aasd120_list_idshort_error(exc: Exception) -> bool:
+        message = str(exc).lower()
+        return "aasd-120" in message or "id_short may not be added to a submodelelementlist" in message
+
+    def _assert_conformant_environment(self, aas_env: dict[str, Any], *, context: str) -> None:
+        validation = validate_aas_environment(aas_env)
+        if not validation.is_valid:
+            first_error = validation.errors[0] if validation.errors else "unknown validation error"
+            raise ValueError(f"AAS conformance validation failed ({context}): {first_error}")
+        if validation.warnings:
+            logger.warning(
+                "aas_conformance_warnings",
+                context=context,
+                warning_count=len(validation.warnings),
+                warnings=validation.warnings[:3],
+            )
 
     async def _ensure_user_exists(self, subject: str) -> User:
         """
@@ -836,6 +859,9 @@ class DPPService:
         if not template:
             raise ValueError(f"Template {template_key} not found")
 
+        applied_autofix = False
+        autofix_stats = SanitizationStats()
+
         try:
             aas_env = self._basyx_builder.update_submodel_environment(
                 aas_env_json=base_env,
@@ -846,13 +872,62 @@ class DPPService:
                 rebuild_from_template=rebuild_from_template,
             )
         except Exception as exc:
-            logger.error(
-                "basyx_update_failed",
+            if not self._is_aasd120_list_idshort_error(exc):
+                logger.error(
+                    "basyx_update_failed",
+                    dpp_id=str(dpp_id),
+                    template_key=template_key,
+                    error=str(exc),
+                )
+                raise ValueError(f"BaSyx update failed: {exc}") from exc
+
+            sanitized_env, autofix_stats = sanitize_submodel_list_item_id_shorts(base_env)
+            applied_autofix = True
+            logger.warning(
+                "aasd120_autofix_applied",
                 dpp_id=str(dpp_id),
                 template_key=template_key,
-                error=str(exc),
+                revision_no_base=current_revision.revision_no,
+                lists_scanned=autofix_stats.lists_scanned,
+                idshort_removed=autofix_stats.idshort_removed,
             )
-            raise ValueError(f"BaSyx update failed: {exc}") from exc
+
+            try:
+                aas_env = self._basyx_builder.update_submodel_environment(
+                    aas_env_json=sanitized_env,
+                    template_key=template_key,
+                    template=template,
+                    submodel_data=submodel_data,
+                    asset_ids=asset_ids,
+                    rebuild_from_template=rebuild_from_template,
+                )
+                logger.info(
+                    "aasd120_autofix_retry_success",
+                    dpp_id=str(dpp_id),
+                    template_key=template_key,
+                    revision_no_base=current_revision.revision_no,
+                    lists_scanned=autofix_stats.lists_scanned,
+                    idshort_removed=autofix_stats.idshort_removed,
+                )
+            except Exception as retry_exc:
+                logger.error(
+                    "aasd120_autofix_retry_failed",
+                    dpp_id=str(dpp_id),
+                    template_key=template_key,
+                    revision_no_base=current_revision.revision_no,
+                    lists_scanned=autofix_stats.lists_scanned,
+                    idshort_removed=autofix_stats.idshort_removed,
+                    error=str(retry_exc),
+                )
+                logger.error(
+                    "basyx_update_failed",
+                    dpp_id=str(dpp_id),
+                    template_key=template_key,
+                    error=str(retry_exc),
+                )
+                raise ValueError(f"BaSyx update failed: {retry_exc}") from retry_exc
+
+        self._assert_conformant_environment(aas_env, context="update_submodel")
 
         digest = self._calculate_digest(aas_env)
         new_revision_no = current_revision.revision_no + 1
@@ -875,6 +950,9 @@ class DPPService:
             dpp_id=str(dpp_id),
             template_key=template_key,
             revision_no=new_revision_no,
+            applied_autofix=applied_autofix,
+            lists_scanned=autofix_stats.lists_scanned,
+            idshort_removed=autofix_stats.idshort_removed,
         )
 
         await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
@@ -924,6 +1002,115 @@ class DPPService:
                 )
                 summary["skipped"] += 1
 
+        return summary
+
+    async def repair_invalid_list_item_id_shorts(
+        self,
+        *,
+        tenant_id: UUID,
+        updated_by_subject: str,
+        dry_run: bool = False,
+        dpp_ids: list[UUID] | None = None,
+        limit: int | None = None,
+    ) -> dict[str, Any]:
+        """Repair latest revisions that violate AASd-120 list-item idShort rules."""
+        query = select(DPP).where(DPP.tenant_id == tenant_id)
+        if dpp_ids:
+            query = query.where(DPP.id.in_(dpp_ids))
+        else:
+            query = query.where(DPP.status != DPPStatus.ARCHIVED)
+        query = query.order_by(DPP.updated_at.desc())
+        if limit is not None:
+            query = query.limit(limit)
+
+        result = await self._session.execute(query)
+        dpps = list(result.scalars().all())
+
+        summary: dict[str, Any] = {
+            "total": len(dpps),
+            "repaired": 0,
+            "skipped": 0,
+            "errors": [],
+            "dry_run": dry_run,
+            "stats": {
+                "lists_scanned": 0,
+                "items_scanned": 0,
+                "idshort_removed": 0,
+                "paths_changed": 0,
+            },
+        }
+
+        for dpp in dpps:
+            try:
+                current_revision = await self.get_latest_revision(dpp.id, tenant_id)
+                if current_revision is None:
+                    summary["skipped"] += 1
+                    continue
+
+                aas_env_json = current_revision.aas_env_json
+                try:
+                    self._basyx_builder._load_environment(aas_env_json)  # noqa: SLF001
+                    summary["skipped"] += 1
+                    continue
+                except Exception as parse_exc:
+                    if not self._is_aasd120_list_idshort_error(parse_exc):
+                        summary["errors"].append(
+                            {
+                                "dpp_id": dpp.id,
+                                "reason": f"parse_failed:{parse_exc}",
+                            }
+                        )
+                        summary["skipped"] += 1
+                        continue
+
+                sanitized_env, stats = sanitize_submodel_list_item_id_shorts(aas_env_json)
+                summary["stats"]["lists_scanned"] += stats.lists_scanned
+                summary["stats"]["items_scanned"] += stats.items_scanned
+                summary["stats"]["idshort_removed"] += stats.idshort_removed
+                summary["stats"]["paths_changed"] += len(stats.paths_changed)
+
+                if stats.idshort_removed == 0:
+                    summary["skipped"] += 1
+                    continue
+
+                self._assert_conformant_environment(sanitized_env, context="repair_invalid_lists")
+
+                if dry_run:
+                    summary["repaired"] += 1
+                    continue
+
+                digest = self._calculate_digest(sanitized_env)
+                new_revision_no = current_revision.revision_no + 1
+                revision = DPPRevision(
+                    tenant_id=tenant_id,
+                    dpp_id=dpp.id,
+                    revision_no=new_revision_no,
+                    state=RevisionState.DRAFT,
+                    aas_env_json=sanitized_env,
+                    digest_sha256=digest,
+                    created_by_subject=updated_by_subject,
+                    template_provenance=current_revision.template_provenance or {},
+                )
+                self._session.add(revision)
+                await self._session.flush()
+                await self._cleanup_old_draft_revisions(dpp.id, tenant_id)
+                summary["repaired"] += 1
+            except Exception as exc:  # pragma: no cover - defensive
+                summary["errors"].append({"dpp_id": dpp.id, "reason": str(exc)})
+                summary["skipped"] += 1
+
+        logger.info(
+            "dpp_repair_invalid_lists_run",
+            tenant_id=str(tenant_id),
+            total=summary["total"],
+            repaired=summary["repaired"],
+            skipped=summary["skipped"],
+            dry_run=dry_run,
+            lists_scanned=summary["stats"]["lists_scanned"],
+            items_scanned=summary["stats"]["items_scanned"],
+            idshort_removed=summary["stats"]["idshort_removed"],
+            paths_changed=summary["stats"]["paths_changed"],
+        )
         return summary
 
     async def publish_dpp(
@@ -1019,13 +1206,59 @@ class DPPService:
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
             )
 
-        aas_env, changed = self._basyx_builder.rebuild_environment_from_templates(
-            aas_env_json=current_revision.aas_env_json,
-            templates=templates,
-            asset_ids=dpp.asset_ids,
-        )
+        base_env = current_revision.aas_env_json
+        applied_autofix = False
+        autofix_stats = SanitizationStats()
+
+        try:
+            aas_env, changed = self._basyx_builder.rebuild_environment_from_templates(
+                aas_env_json=base_env,
+                templates=templates,
+                asset_ids=dpp.asset_ids,
+            )
+        except Exception as exc:
+            if not self._is_aasd120_list_idshort_error(exc):
+                raise
+
+            sanitized_env, autofix_stats = sanitize_submodel_list_item_id_shorts(base_env)
+            applied_autofix = True
+            logger.warning(
+                "aasd120_autofix_applied",
+                dpp_id=str(dpp.id),
+                template_key="*",
+                revision_no_base=current_revision.revision_no,
+                lists_scanned=autofix_stats.lists_scanned,
+                idshort_removed=autofix_stats.idshort_removed,
+            )
+            try:
+                aas_env, changed = self._basyx_builder.rebuild_environment_from_templates(
+                    aas_env_json=sanitized_env,
+                    templates=templates,
+                    asset_ids=dpp.asset_ids,
+                )
+                logger.info(
+                    "aasd120_autofix_retry_success",
+                    dpp_id=str(dpp.id),
+                    template_key="*",
+                    revision_no_base=current_revision.revision_no,
+                    lists_scanned=autofix_stats.lists_scanned,
+                    idshort_removed=autofix_stats.idshort_removed,
+                )
+            except Exception as retry_exc:
+                logger.error(
+                    "aasd120_autofix_retry_failed",
+                    dpp_id=str(dpp.id),
+                    template_key="*",
+                    revision_no_base=current_revision.revision_no,
+                    lists_scanned=autofix_stats.lists_scanned,
+                    idshort_removed=autofix_stats.idshort_removed,
+                    error=str(retry_exc),
+                )
+                raise
         if not changed:
             return False
+
+        self._assert_conformant_environment(aas_env, context="rebuild_from_templates")
 
         digest = self._calculate_digest(aas_env)
         new_revision_no = current_revision.revision_no + 1
@@ -1047,6 +1280,9 @@ class DPPService:
             "dpp_rebuilt_from_templates_basyx",
             dpp_id=str(dpp.id),
             revision_no=new_revision_no,
+            applied_autofix=applied_autofix,
+            lists_scanned=autofix_stats.lists_scanned,
+            idshort_removed=autofix_stats.idshort_removed,
         )
 
         await self._cleanup_old_draft_revisions(dpp.id, dpp.tenant_id)
