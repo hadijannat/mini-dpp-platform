@@ -196,7 +196,9 @@ async def _load_public_landing_summary(
     published_dpps = int(published_count_result.scalar_one() or 0)
 
     if tenant_id is not None:
-        families_stmt = select(func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext))).where(
+        families_stmt = select(
+            func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext))
+        ).where(
             DPP.tenant_id == tenant_id,
             DPP.status == DPPStatus.PUBLISHED,
             DPP.asset_ids["manufacturerPartId"].astext.is_not(None),
