@@ -40,7 +40,11 @@ function NodeItem({
 
   if (!hasChildren) {
     return (
-      <div className={cn('rounded-md border bg-card p-3', depth > 0 && 'ml-4')}>
+      <div
+        role="treeitem"
+        aria-level={depth + 1}
+        className={cn('rounded-md border bg-card p-3', depth > 0 && 'ml-4')}
+      >
         <div className="flex items-start justify-between gap-2">
           <div>
             <p className="text-sm font-medium">{node.label}</p>
@@ -61,8 +65,27 @@ function NodeItem({
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className={cn('rounded-md border bg-card', depth > 0 && 'ml-4')}>
-      <CollapsibleTrigger className="flex w-full items-center gap-2 p-3 text-left hover:bg-accent/40">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={cn('rounded-md border bg-card', depth > 0 && 'ml-4')}
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-expanded={open}
+    >
+      <CollapsibleTrigger
+        className="flex w-full items-center gap-2 p-3 text-left hover:bg-accent/40"
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowRight' && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+          if (event.key === 'ArrowLeft' && open) {
+            event.preventDefault();
+            setOpen(false);
+          }
+        }}
+      >
         <ChevronRight className={cn('h-4 w-4 text-muted-foreground transition-transform', open && 'rotate-90')} />
         <div className="min-w-0">
           <p className="text-sm font-medium">{node.label}</p>
@@ -102,7 +125,7 @@ function VirtualizedFlatTree({ root }: { root: SubmodelNode }) {
   });
 
   return (
-    <div ref={parentRef} className="max-h-[34rem] overflow-auto rounded-md border">
+    <div ref={parentRef} className="max-h-[34rem] overflow-auto rounded-md border" role="tree">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((item) => {
           const node = nodes[item.index];
@@ -110,6 +133,8 @@ function VirtualizedFlatTree({ root }: { root: SubmodelNode }) {
             <div
               key={item.key}
               className="absolute left-0 w-full border-b px-3 py-2"
+              role="treeitem"
+              aria-level={Math.max(1, node.path.split('.').length - 1)}
               style={{ transform: `translateY(${item.start}px)` }}
             >
               <div className="flex items-start justify-between gap-2">
@@ -142,7 +167,7 @@ export function SubmodelNodeTree({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="tree" aria-label={`${root.label} structure`}>
       {root.children.map((child) => (
         <NodeItem
           key={child.id}
@@ -154,4 +179,3 @@ export function SubmodelNodeTree({
     </div>
   );
 }
-

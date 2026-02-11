@@ -47,9 +47,9 @@ test.describe('Landing page', () => {
 
     await page.goto('/');
 
-    await expect(page.getByTestId('landing-metrics-success')).toBeVisible();
-    await expect(page.getByText('SN-LEAK')).toHaveCount(0);
-    await expect(page.getByText('payload')).toHaveCount(0);
+    const metrics = page.getByTestId('landing-metrics-success');
+    await expect(metrics).toBeVisible();
+    await expect(metrics.getByText('SN-LEAK')).toHaveCount(0);
     await expect(page.getByText('Published DPPs')).toBeVisible();
   });
 

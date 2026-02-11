@@ -7,6 +7,10 @@ interface ProtectedRouteProps {
   requiredRole?: 'viewer' | 'publisher' | 'tenant_admin' | 'admin';
 }
 
+function allowsViewerConsoleReadOnly(pathname: string): boolean {
+  return /^\/console\/dpps\/[^/]+$/.test(pathname);
+}
+
 export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
   const auth = useAuth();
   const location = useLocation();
@@ -22,6 +26,9 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
   // Check role if required (extracts from both realm and client roles)
   if (requiredRole && !hasRoleLevel(auth.user, requiredRole)) {
     if (requiredRole !== 'viewer' && hasRoleLevel(auth.user, 'viewer')) {
+      if (requiredRole === 'publisher' && allowsViewerConsoleReadOnly(location.pathname)) {
+        return <>{children}</>;
+      }
       const params = new URLSearchParams({
         reason: 'insufficient_role',
         next: `${location.pathname}${location.search}`,

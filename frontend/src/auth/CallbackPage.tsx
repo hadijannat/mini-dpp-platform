@@ -40,17 +40,18 @@ export default function CallbackPage() {
 
     async function doRedirect() {
       const status = await checkOnboarding();
+      const canAccessConsole = hasRoleLevel(auth.user, 'publisher');
 
       if (cancelled) return;
       setChecked(true);
 
-      // Non-provisioned or viewer users should land on welcome.
-      if (status && (!status.provisioned || status.role === 'viewer')) {
+      // Users without publisher+ claims should land on welcome when onboarding
+      // is missing/incomplete; publisher+ users can proceed and tenant context
+      // auto-provisioning handles membership in development.
+      if (status && !canAccessConsole && (!status.provisioned || status.role === 'viewer')) {
         navigate('/welcome', { replace: true });
         return;
       }
-
-      const canAccessConsole = hasRoleLevel(auth.user, 'publisher');
 
       // If onboarding status is unavailable, avoid routing viewers into a protected dead-end.
       if (!status && !canAccessConsole) {

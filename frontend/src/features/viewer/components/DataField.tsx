@@ -8,11 +8,11 @@ export function DataField({ label, value, unit }: DataFieldProps) {
   const formatted = formatValue(value);
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium">
         {formatted}
         {unit && <span className="ml-1 text-muted-foreground">{unit}</span>}
-      </dd>
+      </p>
     </div>
   );
 }

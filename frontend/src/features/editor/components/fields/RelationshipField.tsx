@@ -27,6 +27,7 @@ export function RelationshipField({ name, control, node }: FieldProps) {
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldPath={name}
           >
             <div className="space-y-3">
               <ReferenceObjectEditor
@@ -46,4 +47,3 @@ export function RelationshipField({ name, control, node }: FieldProps) {
     />
   );
 }
-

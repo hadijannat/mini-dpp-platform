@@ -76,6 +76,7 @@ export function PropertyField(props: FieldProps) {
             formUrl={formUrl}
             error={fieldState.error?.message}
             fieldId={fieldId}
+            fieldPath={name}
           >
             <input
               id={fieldId}

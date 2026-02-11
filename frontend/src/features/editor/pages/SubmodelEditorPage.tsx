@@ -9,6 +9,7 @@ import { buildSubmodelData } from '@/features/editor/utils/submodelData';
 import { buildDppActionState } from '@/features/submodels/policy/actionPolicy';
 import type { DppAccessSummary, SubmodelBinding } from '@/features/submodels/types';
 import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
+import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -17,6 +18,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Collapsible,
   CollapsibleContent,
@@ -26,9 +36,10 @@ import type {
   TemplateResponse,
   TemplateDefinition,
   TemplateContractResponse,
+  DefinitionNode,
 } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
-import { extractSemanticId } from '../utils/pathUtils';
+import { extractSemanticId, getNodeLabel, isEmptyValue, isNodeRequired } from '../utils/pathUtils';
 import { validateSchema, validateReadOnly } from '../utils/validation';
 import { useSubmodelForm } from '../hooks/useSubmodelForm';
 import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
@@ -56,6 +67,103 @@ function flattenFormErrors(
     flattened.push(...flattenFormErrors(nested, path));
   }
   return flattened;
+}
+
+type SectionProgress = {
+  id: string;
+  label: string;
+  totalRequired: number;
+  completedRequired: number;
+  percent: number;
+};
+
+function childNodes(node: DefinitionNode): DefinitionNode[] {
+  const children = Array.isArray(node.children) ? node.children : [];
+  const statements = Array.isArray(node.statements) ? node.statements : [];
+  const annotations = Array.isArray(node.annotations) ? node.annotations : [];
+  const items = node.items ? [node.items] : [];
+  return [...children, ...statements, ...annotations, ...items];
+}
+
+function evaluateRequiredProgress(node: DefinitionNode, value: unknown): {
+  totalRequired: number;
+  completedRequired: number;
+} {
+  const children = childNodes(node);
+  const nodeRequired = isNodeRequired(node);
+
+  if (children.length === 0) {
+    if (!nodeRequired) return { totalRequired: 0, completedRequired: 0 };
+    return {
+      totalRequired: 1,
+      completedRequired: isEmptyValue(value) ? 0 : 1,
+    };
+  }
+
+  let totalRequired = nodeRequired ? 1 : 0;
+  let completedRequired = nodeRequired && !isEmptyValue(value) ? 1 : 0;
+
+  if (node.modelType === 'SubmodelElementList' && node.items) {
+    const list = Array.isArray(value) ? value : [];
+    for (const item of list) {
+      const itemProgress = evaluateRequiredProgress(node.items, item);
+      totalRequired += itemProgress.totalRequired;
+      completedRequired += itemProgress.completedRequired;
+    }
+    return { totalRequired, completedRequired };
+  }
+
+  const objectValue =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+
+  for (const child of children) {
+    const childValue = child.idShort ? objectValue[child.idShort] : undefined;
+    const childProgress = evaluateRequiredProgress(child, childValue);
+    totalRequired += childProgress.totalRequired;
+    completedRequired += childProgress.completedRequired;
+  }
+
+  return { totalRequired, completedRequired };
+}
+
+function buildSectionProgress(
+  templateDefinition: TemplateDefinition | undefined,
+  formData: Record<string, unknown>,
+): SectionProgress[] {
+  const sections = templateDefinition?.submodel?.elements ?? [];
+  return sections.map((section, index) => {
+    const key = section.idShort ?? `Section${index + 1}`;
+    const value = formData[key];
+    const progress = evaluateRequiredProgress(section, value);
+    const percent =
+      progress.totalRequired === 0
+        ? 100
+        : Math.round((progress.completedRequired / progress.totalRequired) * 100);
+    return {
+      id: key,
+      label: getNodeLabel(section, key),
+      totalRequired: progress.totalRequired,
+      completedRequired: progress.completedRequired,
+      percent,
+    };
+  });
+}
+
+function focusFieldPath(path: string): boolean {
+  const target = document.querySelector<HTMLElement>(`[data-field-path="${path}"]`);
+  if (!target) return false;
+  const input = target.querySelector<HTMLElement>(
+    'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
+  );
+  if (input) {
+    input.focus();
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return false;
 }
 
 // ── API functions (unchanged) ───────────────────────────────────
@@ -127,6 +235,7 @@ export default function SubmodelEditorPage() {
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
+  const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
   const queryClient = useQueryClient();
   const requestedSubmodelId = searchParams.get('submodel_id');
 
@@ -230,6 +339,8 @@ export default function SubmodelEditorPage() {
   const [error, setError] = useState<string | null>(null);
   const [hasEdited, setHasEdited] = useState(false);
   const [pendingAction, setPendingAction] = useState<'save' | 'rebuild' | null>(null);
+  const [saveAttempted, setSaveAttempted] = useState(false);
+  const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
 
   // Sync RHF defaults when initial data loads
   useEffect(() => {
@@ -241,6 +352,8 @@ export default function SubmodelEditorPage() {
 
   useEffect(() => {
     setHasEdited(false);
+    setSaveAttempted(false);
+    setRebuildConfirmOpen(false);
   }, [dppId, templateKey]);
 
   // ── Mutation ──
@@ -257,6 +370,7 @@ export default function SubmodelEditorPage() {
       ),
     onSuccess: () => {
       setPendingAction(null);
+      setSaveAttempted(false);
       queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
       navigate(`/console/dpps/${dppId}`);
     },
@@ -289,6 +403,62 @@ export default function SubmodelEditorPage() {
     dpp?.status ?? '',
   );
   const fieldErrors = flattenFormErrors(form.formState.errors as Record<string, unknown>);
+  const liveFormValues = form.watch();
+  const sectionProgress = useMemo(
+    () => buildSectionProgress(templateDefinition, liveFormValues),
+    [liveFormValues, templateDefinition],
+  );
+  const totalRequiredAcrossSections = sectionProgress.reduce(
+    (sum, section) => sum + section.totalRequired,
+    0,
+  );
+  const completedRequiredAcrossSections = sectionProgress.reduce(
+    (sum, section) => sum + section.completedRequired,
+    0,
+  );
+  const overallRequiredPercent =
+    totalRequiredAcrossSections === 0
+      ? 100
+      : Math.round((completedRequiredAcrossSections / totalRequiredAcrossSections) * 100);
+  const canSave = useMemo(() => {
+    if (!actionState.canUpdate || updateMutation.isPending) return false;
+    if (hasAmbiguousTemplateBindings) return false;
+    if (activeView === 'json') {
+      try {
+        const parsed = JSON.parse(rawJson || '{}') as Record<string, unknown>;
+        const schemaErrors = validateSchema(uiSchema, parsed);
+        const readOnlyErrors = validateReadOnly(uiSchema, parsed, initialData);
+        const eitherOrErrors = validateEitherOrGroups(parsed);
+        return (
+          Object.keys(schemaErrors).length === 0 &&
+          Object.keys(readOnlyErrors).length === 0 &&
+          eitherOrErrors.length === 0
+        );
+      } catch {
+        return false;
+      }
+    }
+    const formData = form.getValues();
+    const schemaErrors = validateSchema(uiSchema, formData);
+    const readOnlyErrors = validateReadOnly(uiSchema, formData, initialData);
+    const eitherOrErrors = validateEitherOrGroups(formData);
+    return (
+      form.formState.isValid &&
+      Object.keys(schemaErrors).length === 0 &&
+      Object.keys(readOnlyErrors).length === 0 &&
+      eitherOrErrors.length === 0
+    );
+  }, [
+    actionState.canUpdate,
+    activeView,
+    form,
+    hasAmbiguousTemplateBindings,
+    initialData,
+    rawJson,
+    uiSchema,
+    updateMutation.isPending,
+    validateEitherOrGroups,
+  ]);
 
   // ── Handlers ──
 
@@ -312,6 +482,7 @@ export default function SubmodelEditorPage() {
   };
 
   const handleSave = () => {
+    setSaveAttempted(true);
     if (!actionState.canUpdate) {
       setError('You do not have update access for this DPP.');
       emitSubmodelUxMetric('save_failure_class', {
@@ -397,6 +568,7 @@ export default function SubmodelEditorPage() {
     setRawJson(JSON.stringify(initialData, null, 2));
     setHasEdited(false);
     setError(null);
+    setSaveAttempted(false);
   };
 
   const handleRebuild = () => {
@@ -419,6 +591,16 @@ export default function SubmodelEditorPage() {
       });
       return;
     }
+    if (!rollout.surfaces.editor) {
+      setPendingAction('rebuild');
+      updateMutation.mutate({ data: form.getValues(), rebuildFromTemplate: true });
+      return;
+    }
+    setRebuildConfirmOpen(true);
+  };
+
+  const handleConfirmRebuild = () => {
+    setRebuildConfirmOpen(false);
     setPendingAction('rebuild');
     updateMutation.mutate({ data: form.getValues(), rebuildFromTemplate: true });
   };
@@ -445,6 +627,7 @@ export default function SubmodelEditorPage() {
     templateDefinition?.submodel?.elements?.length,
   );
   const hasSchemaForm = uiSchema?.type === 'object';
+  const showErrorSummary = saveAttempted && (fieldErrors.length > 0 || Boolean(error));
 
   return (
     <div className="space-y-6">
@@ -487,6 +670,9 @@ export default function SubmodelEditorPage() {
           <p className="sr-only" aria-live="polite">
             {updateMutation.isPending ? 'Saving submodel changes' : ''}
           </p>
+          <p className="sr-only" aria-live="polite">
+            {pendingAction === 'rebuild' && updateMutation.isPending ? 'Rebuilding submodel from template' : ''}
+          </p>
           {!submodel && (
             <Alert>
               <AlertDescription className="text-xs">
@@ -509,6 +695,75 @@ export default function SubmodelEditorPage() {
             </Alert>
           )}
 
+          {rollout.surfaces.editor && sectionProgress.length > 0 && (
+            <section
+              aria-label="Section completion progress"
+              className="rounded-md border bg-muted/20 p-3"
+            >
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">Section Progress</p>
+                <Badge variant="outline">
+                  {completedRequiredAcrossSections}/{totalRequiredAcrossSections} required ({overallRequiredPercent}%)
+                </Badge>
+              </div>
+              <Progress
+                value={overallRequiredPercent}
+                className="h-2"
+                aria-label="Overall required section completion"
+              />
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {sectionProgress.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    className="rounded-md border bg-background px-3 py-2 text-left text-xs hover:bg-accent/40"
+                    onClick={() => {
+                      const focused = focusFieldPath(section.id);
+                      if (!focused) {
+                        const target = document.querySelector<HTMLElement>(`[data-field-path^="${section.id}."]`);
+                        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      }
+                    }}
+                  >
+                    <p className="font-medium">{section.label}</p>
+                    <p className="text-muted-foreground">
+                      {section.totalRequired === 0
+                        ? 'No required fields'
+                        : `${section.completedRequired}/${section.totalRequired} required (${section.percent}%)`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {showErrorSummary && (
+            <section
+              aria-label="Validation error summary"
+              className="rounded-md border border-destructive/60 bg-destructive/5 p-3"
+            >
+              <h3 className="text-sm font-semibold text-destructive">Validation summary</h3>
+              {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
+              {fieldErrors.length > 0 && (
+                <ul className="mt-2 space-y-1 text-xs">
+                  {fieldErrors.slice(0, 8).map((entry) => (
+                    <li key={entry.path}>
+                      <button
+                        type="button"
+                        className="text-left underline hover:no-underline"
+                        onClick={() => {
+                          void focusFieldPath(entry.path);
+                        }}
+                      >
+                        {entry.path}: {entry.message}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+
           <Tabs value={activeView} onValueChange={(v) => handleViewChange(v as 'form' | 'json')}>
             <TabsList>
               <TabsTrigger value="form" disabled={!uiSchema}>Form</TabsTrigger>
@@ -516,35 +771,38 @@ export default function SubmodelEditorPage() {
             </TabsList>
             <TabsContent value="form">
               <div className={cn(!actionState.canUpdate && 'opacity-90')}>
-                {hasDefinitionElements ? (
-                  <AASRendererList
-                    nodes={templateDefinition!.submodel!.elements!}
-                    basePath=""
-                    depth={0}
-                    rootSchema={uiSchema}
-                    control={form.control}
-                  />
-                ) : hasSchemaForm ? (
-                  <AASRendererList
-                    nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
-                      modelType: 'Property',
-                      idShort: key,
-                    }))}
-                    basePath=""
-                    depth={0}
-                    rootSchema={uiSchema}
-                    control={form.control}
-                  />
-                ) : (
-                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                    Form view is unavailable for this template. Switch to JSON.
-                  </div>
-                )}
+                <fieldset disabled={!actionState.canUpdate} className="space-y-4">
+                  {hasDefinitionElements ? (
+                    <AASRendererList
+                      nodes={templateDefinition!.submodel!.elements!}
+                      basePath=""
+                      depth={0}
+                      rootSchema={uiSchema}
+                      control={form.control}
+                    />
+                  ) : hasSchemaForm ? (
+                    <AASRendererList
+                      nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
+                        modelType: 'Property',
+                        idShort: key,
+                      }))}
+                      basePath=""
+                      depth={0}
+                      rootSchema={uiSchema}
+                      control={form.control}
+                    />
+                  ) : (
+                    <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                      Form view is unavailable for this template. Switch to JSON.
+                    </div>
+                  )}
+                </fieldset>
               </div>
             </TabsContent>
             <TabsContent value="json">
               <JsonEditor
                 value={rawJson}
+                readOnly={!actionState.canUpdate}
                 onChange={(val) => {
                   setRawJson(val);
                   setHasEdited(true);
@@ -552,26 +810,6 @@ export default function SubmodelEditorPage() {
               />
             </TabsContent>
           </Tabs>
-
-          {/* Error banners */}
-          {(fieldErrors.length > 0 || error) && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                <div className="space-y-1">
-                  {error && <p className="text-sm">{error}</p>}
-                  {fieldErrors.length > 0 && (
-                    <div className="text-xs">
-                      {fieldErrors.slice(0, 6).map((entry) => (
-                        <p key={entry.path}>
-                          {entry.path}: {entry.message}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
           {sessionExpired && (
             <ErrorBanner
               message="Session expired. Please sign in again."
@@ -592,7 +830,37 @@ export default function SubmodelEditorPage() {
             isSaving={updateMutation.isPending}
             canUpdate={actionState.canUpdate}
             canReset={hasEdited || form.formState.isDirty}
+            canSave={canSave}
           />
+
+          {rollout.surfaces.editor && (
+            <Dialog open={rebuildConfirmOpen} onOpenChange={setRebuildConfirmOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Rebuild submodel from template?</DialogTitle>
+                  <DialogDescription>
+                    Rebuilding re-applies template defaults and can overwrite unsaved local edits.
+                    This action creates a new DPP revision.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setRebuildConfirmOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleConfirmRebuild}
+                    disabled={updateMutation.isPending}
+                  >
+                    Confirm rebuild
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardContent>
       </Card>
 

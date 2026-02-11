@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History, Filter } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
@@ -14,6 +14,8 @@ import { buildDppActionState } from '@/features/submodels/policy/actionPolicy';
 import { buildSubmodelNodeTree, computeSubmodelHealth, flattenSubmodelNodes } from '@/features/submodels/utils/treeBuilder';
 import type { DppAccessSummary, SubmodelBinding, SubmodelNode } from '@/features/submodels/types';
 import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
+import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
+import { classifyElement, ESPR_CATEGORIES } from '@/features/viewer/utils/esprCategories';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -54,6 +56,27 @@ type DppDetail = {
   access?: DppAccessSummary;
 };
 
+type RiskLevel = 'high' | 'medium' | 'low';
+type SubmodelSortKey = 'name-asc' | 'completion-desc' | 'completion-asc' | 'risk-desc';
+type CompletionFilter = 'all' | 'complete' | 'incomplete';
+type RiskFilter = 'all' | RiskLevel;
+
+type SubmodelRenderModel = {
+  submodel: AASSubmodel;
+  submodelId: string;
+  templateKey: string | null;
+  binding: SubmodelBinding | undefined;
+  editHref: string | null;
+  rootNode: SubmodelNode;
+  health: ReturnType<typeof computeSubmodelHealth>;
+  completionPercent: number | null;
+  categoryId: string;
+  categoryLabel: string;
+  risk: RiskLevel;
+  riskBadgeLabel: string;
+  riskSortRank: number;
+};
+
 function isTemplateSelectable(template: TemplateResponse): boolean {
   return template.support_status !== 'unavailable' && template.refresh_enabled !== false;
 }
@@ -68,6 +91,35 @@ type AASSubmodel = Record<string, unknown> & {
 function maxTreeDepth(node: SubmodelNode, depth = 0): number {
   if (node.children.length === 0) return depth;
   return Math.max(...node.children.map((child) => maxTreeDepth(child, depth + 1)));
+}
+
+function extractSemanticId(submodel: AASSubmodel): string | undefined {
+  const keys = submodel.semanticId?.keys;
+  if (!Array.isArray(keys) || keys.length === 0) return undefined;
+  const value = keys[0]?.value;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function computeCompletionPercent(health: ReturnType<typeof computeSubmodelHealth>): number | null {
+  if (health.totalRequired === 0) return null;
+  return Math.round((health.completedRequired / health.totalRequired) * 100);
+}
+
+function deriveRiskModel(
+  health: ReturnType<typeof computeSubmodelHealth>,
+  supportStatus: string | null | undefined,
+): { level: RiskLevel; label: string; rank: number } {
+  const completionPercent = computeCompletionPercent(health);
+  const normalizedSupport = (supportStatus ?? '').toLowerCase();
+  const requiredIncomplete = completionPercent !== null && completionPercent < 100;
+
+  if (normalizedSupport === 'unavailable' || requiredIncomplete) {
+    return { level: 'high', label: 'High Risk', rank: 3 };
+  }
+  if (normalizedSupport === 'experimental' || health.validationSignals > 0) {
+    return { level: 'medium', label: 'Medium Risk', rank: 2 };
+  }
+  return { level: 'low', label: 'Low Risk', rank: 1 };
 }
 
 async function fetchDPP(dppId: string, token?: string) {
@@ -167,6 +219,10 @@ export default function DPPEditorPage() {
   );
   const [copied, setCopied] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('all');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [submodelSort, setSubmodelSort] = useState<SubmodelSortKey>('risk-desc');
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
@@ -265,6 +321,7 @@ export default function DPPEditorPage() {
       .map((binding) => [String(binding.submodel_id), binding]),
   );
   const actionState = buildDppActionState(dpp?.access, dpp?.status ?? '');
+  const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
   const manufacturerPartId =
     typeof dpp?.asset_ids?.manufacturerPartId === 'string'
       ? dpp.asset_ids.manufacturerPartId
@@ -277,6 +334,76 @@ export default function DPPEditorPage() {
   const missingTemplates = availableTemplates.filter(
     (template: TemplateDescriptor) => !existingTemplateKeys.has(template.template_key),
   );
+
+  const submodelCards = useMemo<SubmodelRenderModel[]>(
+    () =>
+      submodels.map((submodel, index) => {
+        const submodelId = String(submodel.id ?? `submodel-${index}`);
+        const binding = bindingBySubmodelId.get(submodelId);
+        const templateKey = binding?.template_key ?? null;
+        const editHref =
+          templateKey && binding?.submodel_id
+            ? `/console/dpps/${dpp?.id}/edit/${templateKey}?submodel_id=${encodeURIComponent(binding.submodel_id)}`
+            : templateKey
+              ? `/console/dpps/${dpp?.id}/edit/${templateKey}`
+              : null;
+        const rootNode = buildSubmodelNodeTree(submodel);
+        const health = computeSubmodelHealth(rootNode);
+        const completionPercent = computeCompletionPercent(health);
+        const category =
+          classifyElement(String(submodel.idShort ?? ''), extractSemanticId(submodel)) ??
+          null;
+        const riskModel = deriveRiskModel(health, binding?.support_status);
+
+        return {
+          submodel,
+          submodelId,
+          templateKey,
+          binding,
+          editHref,
+          rootNode,
+          health,
+          completionPercent,
+          categoryId: category?.id ?? 'uncategorized',
+          categoryLabel: category?.label ?? 'Uncategorized',
+          risk: riskModel.level,
+          riskBadgeLabel: riskModel.label,
+          riskSortRank: riskModel.rank,
+        };
+      }),
+    [bindingBySubmodelId, dpp?.id, submodels],
+  );
+
+  const filteredSubmodelCards = useMemo(() => {
+    const filtered = submodelCards.filter((entry) => {
+      if (categoryFilter !== 'all' && entry.categoryId !== categoryFilter) return false;
+      if (completionFilter === 'complete' && entry.completionPercent !== 100) return false;
+      if (
+        completionFilter === 'incomplete' &&
+        (entry.completionPercent === null || entry.completionPercent === 100)
+      ) {
+        return false;
+      }
+      if (riskFilter !== 'all' && entry.risk !== riskFilter) return false;
+      return true;
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (submodelSort === 'completion-desc') {
+        return (b.completionPercent ?? -1) - (a.completionPercent ?? -1);
+      }
+      if (submodelSort === 'completion-asc') {
+        return (a.completionPercent ?? 101) - (b.completionPercent ?? 101);
+      }
+      if (submodelSort === 'risk-desc') {
+        if (b.riskSortRank !== a.riskSortRank) return b.riskSortRank - a.riskSortRank;
+      }
+      return String(a.submodel.idShort ?? '').localeCompare(String(b.submodel.idShort ?? ''));
+    });
+    return sorted;
+  }, [categoryFilter, completionFilter, riskFilter, submodelCards, submodelSort]);
+  const visibleSubmodelCards = rollout.surfaces.publisher ? filteredSubmodelCards : submodelCards;
 
   useEffect(() => {
     if (!dppId || !dpp || submodels.length === 0) return;
@@ -444,6 +571,13 @@ export default function DPPEditorPage() {
           </Button>
         </CardHeader>
         <CardContent>
+          <p className="sr-only" aria-live="polite">
+            {refreshRebuildMutation.isPending
+              ? 'Refresh and rebuild in progress'
+              : refreshRebuildSummary
+                ? `Refresh and rebuild finished. ${refreshRebuildSummary.succeeded.length} succeeded, ${refreshRebuildSummary.failed.length} failed, ${refreshRebuildSummary.skipped.length} skipped.`
+                : ''}
+          </p>
           {refreshRebuildMutation.isError && (
             <p className="mb-4 text-sm text-destructive">
               {(refreshRebuildMutation.error as Error)?.message || 'Failed to refresh templates.'}
@@ -469,68 +603,145 @@ export default function DPPEditorPage() {
             </p>
           ) : (
             <div className="space-y-4">
-              {submodels.map((submodel, index) => {
-                const submodelId = String(submodel.id ?? `submodel-${index}`);
-                const binding = bindingBySubmodelId.get(submodelId);
-                const templateKey = binding?.template_key ?? null;
-                const editHref =
-                  templateKey && binding?.submodel_id
-                    ? `/console/dpps/${dpp.id}/edit/${templateKey}?submodel_id=${encodeURIComponent(binding.submodel_id)}`
-                    : templateKey
-                      ? `/console/dpps/${dpp.id}/edit/${templateKey}`
-                      : null;
-                const rootNode = buildSubmodelNodeTree(submodel);
-                const health = computeSubmodelHealth(rootNode);
+              {rollout.surfaces.publisher && (
+                <div className="rounded-md border p-3">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                    <Filter className="h-4 w-4" />
+                    Filter and Sort
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="text-xs text-muted-foreground">
+                      ESPR category
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={categoryFilter}
+                        onChange={(event) => setCategoryFilter(event.target.value)}
+                      >
+                        <option value="all">All categories</option>
+                        {ESPR_CATEGORIES.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.label}
+                          </option>
+                        ))}
+                        <option value="uncategorized">Uncategorized</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Completion
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={completionFilter}
+                        onChange={(event) => setCompletionFilter(event.target.value as CompletionFilter)}
+                      >
+                        <option value="all">All</option>
+                        <option value="complete">100% required complete</option>
+                        <option value="incomplete">Incomplete required fields</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Risk
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={riskFilter}
+                        onChange={(event) => setRiskFilter(event.target.value as RiskFilter)}
+                      >
+                        <option value="all">All risk levels</option>
+                        <option value="high">High risk</option>
+                        <option value="medium">Medium risk</option>
+                        <option value="low">Low risk</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Sort
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={submodelSort}
+                        onChange={(event) => setSubmodelSort(event.target.value as SubmodelSortKey)}
+                      >
+                        <option value="risk-desc">Risk (high to low)</option>
+                        <option value="completion-desc">Completion (high to low)</option>
+                        <option value="completion-asc">Completion (low to high)</option>
+                        <option value="name-asc">Name (A-Z)</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Showing {visibleSubmodelCards.length} of {submodelCards.length} submodels
+                  </p>
+                </div>
+              )}
+
+              {visibleSubmodelCards.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No submodels match the selected filters.
+                </p>
+              )}
+
+              {visibleSubmodelCards.map((entry) => {
                 const requiredCompletion =
-                  health.totalRequired === 0
+                  entry.health.totalRequired === 0
                     ? 'No required fields'
-                    : `${health.completedRequired}/${health.totalRequired} required`;
+                    : `${entry.health.completedRequired}/${entry.health.totalRequired} required`;
 
                 return (
-                  <Card key={submodelId} className="border bg-card/70">
+                  <Card key={entry.submodelId} className="border bg-card/70">
                     <CardHeader className="pb-2">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <CardTitle className="text-base">{String(submodel.idShort ?? 'Submodel')}</CardTitle>
-                            {templateKey && <Badge variant="secondary">{templateKey}</Badge>}
-                            {binding?.support_status && (
+                            <CardTitle className="text-base">{String(entry.submodel.idShort ?? 'Submodel')}</CardTitle>
+                            {entry.templateKey && <Badge variant="secondary">{entry.templateKey}</Badge>}
+                            <Badge variant="outline" className="text-[10px]">
+                              {entry.categoryLabel}
+                            </Badge>
+                            <Badge
+                              variant={entry.risk === 'high' ? 'destructive' : 'outline'}
+                              className="text-[10px]"
+                            >
+                              {entry.riskBadgeLabel}
+                            </Badge>
+                            {entry.binding?.support_status && (
                               <Badge
-                                variant={binding.support_status === 'supported' ? 'outline' : 'destructive'}
+                                variant={entry.binding.support_status === 'supported' ? 'outline' : 'destructive'}
                                 className="text-[10px]"
                               >
-                                {binding.support_status}
+                                {entry.binding.support_status}
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground break-all">{String(submodel.id ?? '-')}</p>
-                          {binding?.semantic_id && (
+                          <p className="text-xs text-muted-foreground break-all">{String(entry.submodel.id ?? '-')}</p>
+                          {entry.binding?.semantic_id && (
                             <p className="text-[11px] text-muted-foreground break-all">
-                              semantic: {binding.semantic_id}
+                              semantic: {entry.binding.semantic_id}
                             </p>
                           )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="outline">{requiredCompletion}</Badge>
-                          <Badge variant="outline">{health.leafCount} leaf fields</Badge>
-                          <Badge variant="outline">{health.validationSignals} rule signals</Badge>
-                          {binding?.binding_source && (
-                            <Badge variant="outline" className="uppercase text-[10px]">
-                              {binding.binding_source}
+                          {entry.completionPercent !== null && (
+                            <Badge variant={entry.completionPercent === 100 ? 'outline' : 'destructive'}>
+                              {entry.completionPercent}% required complete
                             </Badge>
                           )}
-                          {templateKey && (
+                          <Badge variant="outline">{entry.health.leafCount} leaf fields</Badge>
+                          <Badge variant="outline">{entry.health.validationSignals} rule signals</Badge>
+                          {entry.binding?.binding_source && (
+                            <Badge variant="outline" className="uppercase text-[10px]">
+                              {entry.binding.binding_source}
+                            </Badge>
+                          )}
+                          {entry.templateKey && (
                             <Button
                               variant="outline"
                               size="sm"
                               asChild={actionState.canUpdate}
                               disabled={!actionState.canUpdate}
+                              data-testid={`submodel-edit-${entry.templateKey}`}
                             >
                               {actionState.canUpdate ? (
                                 <Link
-                                  to={editHref!}
-                                  data-testid={`submodel-edit-${templateKey}`}
+                                  to={entry.editHref!}
                                 >
                                   <Edit3 className="h-4 w-4 mr-1" />
                                   Edit
@@ -547,7 +758,7 @@ export default function DPPEditorPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <SubmodelNodeTree root={rootNode} showSemanticMeta />
+                      <SubmodelNodeTree root={entry.rootNode} showSemanticMeta />
                     </CardContent>
                   </Card>
                 );
@@ -577,11 +788,11 @@ export default function DPPEditorPage() {
                           size="sm"
                           asChild={actionState.canUpdate && isTemplateSelectable(template)}
                           disabled={!actionState.canUpdate || !isTemplateSelectable(template)}
+                          data-testid={`submodel-add-${template.template_key}`}
                         >
                           {actionState.canUpdate && isTemplateSelectable(template) ? (
                             <Link
                               to={`/console/dpps/${dpp.id}/edit/${template.template_key}`}
-                              data-testid={`submodel-add-${template.template_key}`}
                             >
                               Add
                             </Link>
@@ -606,24 +817,30 @@ export default function DPPEditorPage() {
             <CardTitle className="text-lg">Integrity</CardTitle>
           </CardHeader>
           <CardContent>
-            <dt className="text-sm font-medium text-muted-foreground">SHA-256 Digest</dt>
-            <div className="mt-1 flex items-start gap-2">
-              <dd className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
-                {dpp.digest_sha256}
-              </dd>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 h-8 w-8"
-                onClick={() => { void handleCopyDigest(); }}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            <dl>
+              <div className="space-y-1">
+                <dt className="text-sm font-medium text-muted-foreground">SHA-256 Digest</dt>
+                <dd className="m-0 flex items-start gap-2">
+                  <span className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
+                    {dpp.digest_sha256}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-8 w-8"
+                    onClick={() => { void handleCopyDigest(); }}
+                    aria-label={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                    title={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </dd>
+              </div>
+            </dl>
           </CardContent>
         </Card>
       )}
@@ -676,12 +893,18 @@ export default function DPPEditorPage() {
             <>
               <EPCISTimeline events={epcisData?.eventList ?? []} />
               {dppId && (
-                <Link
-                  to={`/console/epcis?dpp_id=${dppId}`}
-                  className="mt-3 inline-block text-sm text-muted-foreground hover:underline"
-                >
-                  View all events
-                </Link>
+                actionState.canViewEvents ? (
+                  <Link
+                    to={`/console/epcis?dpp_id=${dppId}`}
+                    className="mt-3 inline-block text-sm text-muted-foreground hover:underline"
+                  >
+                    View all events
+                  </Link>
+                ) : (
+                  <span className="mt-3 inline-block text-sm text-muted-foreground/70">
+                    View all events
+                  </span>
+                )
               )}
             </>
           )}

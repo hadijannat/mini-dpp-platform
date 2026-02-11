@@ -16,6 +16,8 @@ export type FieldProps = {
   depth: number;
   /** Whether the field is read-only (from access_mode) */
   readOnly?: boolean;
+  /** Whether user interaction should be disabled (permission/policy gate) */
+  disabled?: boolean;
 };
 
 /** Props for the AASRenderer dispatcher */
@@ -25,6 +27,7 @@ export type AASRendererProps = {
   depth: number;
   schema?: UISchema;
   control: Control<Record<string, unknown>>;
+  disabled?: boolean;
 };
 
 /** Props for the FieldWrapper label/error shell */
@@ -37,6 +40,8 @@ export type FieldWrapperProps = {
   unit?: string;
   /** Optional ID to associate label with input via htmlFor */
   fieldId?: string;
+  /** Canonical field path for jump-link and diagnostics targeting */
+  fieldPath?: string;
   children: React.ReactNode;
 };
 

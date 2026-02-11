@@ -17,13 +17,14 @@ export function FieldWrapper({
   error,
   unit,
   fieldId,
+  fieldPath,
   children,
 }: FieldWrapperProps) {
   const generatedId = useId();
   const inputId = fieldId ?? generatedId;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-field-path={fieldPath}>
       <div className="flex items-center gap-1.5">
         <Label htmlFor={inputId}>
           {label}

@@ -26,6 +26,7 @@ export function RangeField({ name, control, node }: FieldProps) {
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldPath={name}
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
