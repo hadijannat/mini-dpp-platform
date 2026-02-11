@@ -30,12 +30,18 @@ class TestAASd120Autofix:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=4,
-                aas_env_json={"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []},
+                aas_env_json={
+                    "assetAdministrationShells": [],
+                    "submodels": [],
+                    "conceptDescriptions": [],
+                },
                 template_provenance={"carbon-footprint": {"idta_version": "1.0.1"}},
             )
         )
         service.get_dpp = AsyncMock(
-            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "X"}, status=DPPStatus.DRAFT)
+            return_value=SimpleNamespace(
+                asset_ids={"manufacturerPartId": "X"}, status=DPPStatus.DRAFT
+            )
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
@@ -52,7 +58,11 @@ class TestAASd120Autofix:
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
 
-        sanitized_env = {"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []}
+        sanitized_env = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [],
+        }
         with patch(
             "app.modules.dpps.service.sanitize_submodel_list_item_id_shorts",
             return_value=(
@@ -72,7 +82,9 @@ class TestAASd120Autofix:
         assert revision.revision_no == 5
         assert sanitize_mock.call_count == 1
         assert service._basyx_builder.update_submodel_environment.call_count == 2
-        second_call_kwargs = service._basyx_builder.update_submodel_environment.call_args_list[1].kwargs
+        second_call_kwargs = service._basyx_builder.update_submodel_environment.call_args_list[
+            1
+        ].kwargs
         assert second_call_kwargs["aas_env_json"] == sanitized_env
         added_revision = session.add.call_args_list[-1].args[0]
         assert added_revision.template_provenance == {"carbon-footprint": {"idta_version": "1.0.1"}}
@@ -85,12 +97,18 @@ class TestAASd120Autofix:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=1,
-                aas_env_json={"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []},
+                aas_env_json={
+                    "assetAdministrationShells": [],
+                    "submodels": [],
+                    "conceptDescriptions": [],
+                },
                 template_provenance={},
             )
         )
         service.get_dpp = AsyncMock(
-            return_value=SimpleNamespace(asset_ids={"manufacturerPartId": "X"}, status=DPPStatus.DRAFT)
+            return_value=SimpleNamespace(
+                asset_ids={"manufacturerPartId": "X"}, status=DPPStatus.DRAFT
+            )
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
@@ -103,7 +121,9 @@ class TestAASd120Autofix:
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
 
         with (
-            patch("app.modules.dpps.service.sanitize_submodel_list_item_id_shorts") as sanitize_mock,
+            patch(
+                "app.modules.dpps.service.sanitize_submodel_list_item_id_shorts"
+            ) as sanitize_mock,
             pytest.raises(ValueError, match="BaSyx update failed: connection reset"),
         ):
             await service.update_submodel(
@@ -173,7 +193,11 @@ class TestRepairInvalidLists:
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
 
-        sanitized_env = {"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []}
+        sanitized_env = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [],
+        }
         with patch(
             "app.modules.dpps.service.sanitize_submodel_list_item_id_shorts",
             return_value=(
@@ -213,7 +237,11 @@ class TestRepairInvalidLists:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=1,
-                aas_env_json={"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []},
+                aas_env_json={
+                    "assetAdministrationShells": [],
+                    "submodels": [],
+                    "conceptDescriptions": [],
+                },
                 template_provenance={},
             )
         )

@@ -71,7 +71,9 @@ class DPPService:
     @staticmethod
     def _is_aasd120_list_idshort_error(exc: Exception) -> bool:
         message = str(exc).lower()
-        return "aasd-120" in message or "id_short may not be added to a submodelelementlist" in message
+        return (
+            "aasd-120" in message or "id_short may not be added to a submodelelementlist" in message
+        )
 
     def _assert_conformant_environment(self, aas_env: dict[str, Any], *, context: str) -> None:
         validation = validate_aas_environment(aas_env)
@@ -83,7 +85,6 @@ class DPPService:
                 "aas_conformance_warnings",
                 context=context,
                 warning_count=len(validation.warnings),
-                warnings=validation.warnings[:3],
             )
 
     async def _ensure_user_exists(self, subject: str) -> User:

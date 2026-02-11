@@ -65,4 +65,3 @@ def sanitize_submodel_list_item_id_shorts(
     walk(sanitized, "")
     stats.paths_changed = sorted(changed_paths)
     return sanitized, stats
-

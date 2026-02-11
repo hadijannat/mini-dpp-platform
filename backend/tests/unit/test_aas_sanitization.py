@@ -87,14 +87,10 @@ def test_sanitize_handles_nested_lists() -> None:
 
     sanitized, stats = sanitize_submodel_list_item_id_shorts(env)
 
-    inner_item = (
-        sanitized["submodels"][0]["submodelElements"][0]["value"][0]["value"][0]
-    )
-    deep_item = (
-        sanitized["submodels"][0]["submodelElements"][0]["value"][0]["value"][0]["value"][0][
-            "value"
-        ][0]
-    )
+    inner_item = sanitized["submodels"][0]["submodelElements"][0]["value"][0]["value"][0]
+    deep_item = sanitized["submodels"][0]["submodelElements"][0]["value"][0]["value"][0]["value"][
+        0
+    ]["value"][0]
     assert "idShort" not in inner_item
     assert "idShort" not in deep_item
     assert stats.idshort_removed == 2

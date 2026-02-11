@@ -684,7 +684,6 @@ async def import_dpp(
         logger.warning(
             "import_dpp_validation_warnings",
             warning_count=len(validation.warnings),
-            warnings=validation.warnings[:3],
         )
     if not validation.is_valid:
         raise HTTPException(

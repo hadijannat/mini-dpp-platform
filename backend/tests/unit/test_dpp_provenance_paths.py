@@ -21,6 +21,37 @@ def _session_mock() -> AsyncMock:
     return session
 
 
+def _minimal_conformant_env() -> dict[str, object]:
+    return {
+        "assetAdministrationShells": [
+            {
+                "id": "urn:aas:test:1",
+                "idShort": "AAS1",
+                "modelType": "AssetAdministrationShell",
+                "assetInformation": {
+                    "assetKind": "Instance",
+                    "globalAssetId": "urn:asset:test:1",
+                },
+                "submodels": [
+                    {
+                        "type": "ModelReference",
+                        "keys": [{"type": "Submodel", "value": "urn:sm:test:1"}],
+                    }
+                ],
+            }
+        ],
+        "submodels": [
+            {
+                "id": "urn:sm:test:1",
+                "idShort": "SM1",
+                "modelType": "Submodel",
+                "submodelElements": [],
+            }
+        ],
+        "conceptDescriptions": [],
+    }
+
+
 class TestProvenancePropagation:
     @pytest.mark.asyncio()
     async def test_create_dpp_from_environment_sets_empty_template_provenance(self) -> None:
@@ -53,10 +84,11 @@ class TestProvenancePropagation:
         session = _session_mock()
         service = DPPService.__new__(DPPService)
         service._session = session
+        env = _minimal_conformant_env()
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=3,
-                aas_env_json={"submodels": []},
+                aas_env_json=env,
                 template_provenance=None,
             )
         )
@@ -71,7 +103,7 @@ class TestProvenancePropagation:
             get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
-            update_submodel_environment=MagicMock(return_value={"submodels": []})
+            update_submodel_environment=MagicMock(return_value=env)
         )
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
@@ -94,10 +126,11 @@ class TestProvenancePropagation:
         service = DPPService.__new__(DPPService)
         service._session = session
         existing = {"digital-nameplate": {"idta_version": "3.0.1"}}
+        env = _minimal_conformant_env()
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=7,
-                aas_env_json={"submodels": []},
+                aas_env_json=env,
                 template_provenance=existing,
             )
         )
@@ -112,7 +145,7 @@ class TestProvenancePropagation:
             get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
         )
         service._basyx_builder = SimpleNamespace(
-            update_submodel_environment=MagicMock(return_value={"submodels": []})
+            update_submodel_environment=MagicMock(return_value=env)
         )
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
@@ -134,16 +167,17 @@ class TestProvenancePropagation:
         session = _session_mock()
         service = DPPService.__new__(DPPService)
         service._session = session
+        env = _minimal_conformant_env()
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=2,
-                aas_env_json={"submodels": []},
+                aas_env_json=env,
                 template_provenance=None,
             )
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._basyx_builder = SimpleNamespace(
-            rebuild_environment_from_templates=MagicMock(return_value=({"submodels": []}, True))
+            rebuild_environment_from_templates=MagicMock(return_value=(env, True))
         )
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
