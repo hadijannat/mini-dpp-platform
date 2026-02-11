@@ -172,4 +172,32 @@ describe('SubmodelEditorPage progress and rebuild strategy', () => {
     },
     15000,
   );
+
+  it(
+    'sends bound submodel_id in update requests',
+    async () => {
+      renderEditor();
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /rebuild from template/i })).toBeTruthy();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /rebuild from template/i }));
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /confirm rebuild/i })).toBeTruthy();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /confirm rebuild/i }));
+
+      await waitFor(() => {
+        const updateCall = tenantApiFetchMock.mock.calls.find(
+          (call) => call[0] === '/dpps/dpp-1/submodel' && call[1]?.method === 'PUT',
+        );
+        expect(updateCall).toBeTruthy();
+        const body = String(updateCall?.[1]?.body ?? '{}');
+        const payload = JSON.parse(body) as Record<string, unknown>;
+        expect(payload.submodel_id).toBe('urn:submodel:nameplate');
+      });
+    },
+    15000,
+  );
 });

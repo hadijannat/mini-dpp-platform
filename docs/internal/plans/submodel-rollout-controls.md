@@ -61,3 +61,17 @@ Example value:
 1. Publisher page uses rollout to gate advanced filter/sort UI.
 2. Editor page uses rollout to gate section-progress panel and destructive rebuild dialog.
 3. Viewer page uses rollout to gate advanced raw submodel mode.
+
+## Backend Operational Guardrails
+1. `POST /dpps/{dpp_id}/submodels/refresh-rebuild` is single-flight per DPP.
+- PostgreSQL deploys use advisory transaction lock (`pg_try_advisory_xact_lock`).
+- Non-Postgres dev/test backends use in-process locking as fallback.
+- Concurrent calls return `409 Conflict`.
+
+2. `refresh-rebuild` remains mutation-protected.
+- Only DPP owner or tenant admin can invoke.
+- `dpp.access` update permission is still required server-side.
+
+3. `dpp_admin_bypass` is break-glass only.
+- Keep role assignment out of runtime service accounts and Keycloak default mappings.
+- Require audited, time-bound operational elevation for emergency use.

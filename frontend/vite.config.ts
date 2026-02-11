@@ -46,6 +46,11 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
+    // Accessibility and component interaction suites require a DOM runtime.
+    environmentMatchGlobs: [
+      ['src/features/submodels/__tests__/accessibility.audit.test.tsx', 'jsdom'],
+      ['src/features/editor/pages/__tests__/SubmodelEditorPage.progress.test.tsx', 'jsdom'],
+    ],
     passWithNoTests: true,
     exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
   },

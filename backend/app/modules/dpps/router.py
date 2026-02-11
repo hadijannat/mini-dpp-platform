@@ -5,11 +5,14 @@ API Router for DPP (Digital Product Passport) endpoints.
 import asyncio
 import hashlib
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, RootModel
+from sqlalchemy import text
 
 from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
@@ -32,6 +35,8 @@ from app.modules.webhooks.service import trigger_webhooks
 
 logger = get_logger(__name__)
 router = APIRouter()
+_refresh_rebuild_local_locks: dict[str, asyncio.Lock] = {}
+_refresh_rebuild_local_locks_guard = asyncio.Lock()
 
 
 def _can_view_drafts(dpp: Any, tenant: TenantContext, *, shared_with_current_user: bool) -> bool:
@@ -67,6 +72,49 @@ def _access_source(
     if shared_with_current_user and tenant.user.sub != owner_subject:
         return "share"
     return "owner"
+
+
+@asynccontextmanager
+async def _acquire_refresh_rebuild_guard(db: DbSession, dpp_id: UUID) -> AsyncIterator[None]:
+    """
+    Enforce one in-flight refresh+rebuild per DPP.
+
+    Uses PostgreSQL transaction advisory lock when available.
+    Falls back to in-process lock for non-Postgres test/dev backends.
+    """
+    bind = db.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        lock_result = await db.execute(
+            text("SELECT pg_try_advisory_xact_lock(hashtext(:lock_key))"),
+            {"lock_key": f"dpp:refresh-rebuild:{dpp_id}"},
+        )
+        acquired = bool(lock_result.scalar())
+        if not acquired:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A refresh and rebuild is already in progress for this DPP",
+            )
+        yield
+        return
+
+    lock_key = str(dpp_id)
+    async with _refresh_rebuild_local_locks_guard:
+        lock = _refresh_rebuild_local_locks.setdefault(lock_key, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A refresh and rebuild is already in progress for this DPP",
+        )
+    await lock.acquire()
+    try:
+        yield
+    finally:
+        lock.release()
+        if not lock.locked():
+            async with _refresh_rebuild_local_locks_guard:
+                existing = _refresh_rebuild_local_locks.get(lock_key)
+                if existing is lock and not existing.locked():
+                    _refresh_rebuild_local_locks.pop(lock_key, None)
 
 
 class AssetIdsInput(BaseModel):
@@ -1207,27 +1255,30 @@ async def refresh_rebuild_submodels(
     )
 
     try:
-        summary = await service.refresh_and_rebuild_dpp_submodels(
-            dpp_id=dpp_id,
-            tenant_id=tenant.tenant_id,
-            updated_by_subject=tenant.user.sub,
-        )
-        await db.commit()
-        await emit_audit_event(
-            db_session=db,
-            action="refresh_rebuild_submodels",
-            resource_type="dpp",
-            resource_id=dpp_id,
-            tenant_id=tenant.tenant_id,
-            user=tenant.user,
-            request=request,
-            metadata={
-                "attempted": summary["attempted"],
-                "succeeded": len(summary["succeeded"]),
-                "failed": len(summary["failed"]),
-                "skipped": len(summary["skipped"]),
-            },
-        )
+        async with _acquire_refresh_rebuild_guard(db, dpp_id):
+            summary = await service.refresh_and_rebuild_dpp_submodels(
+                dpp_id=dpp_id,
+                tenant_id=tenant.tenant_id,
+                updated_by_subject=tenant.user.sub,
+            )
+            await db.commit()
+            await emit_audit_event(
+                db_session=db,
+                action="refresh_rebuild_submodels",
+                resource_type="dpp",
+                resource_id=dpp_id,
+                tenant_id=tenant.tenant_id,
+                user=tenant.user,
+                request=request,
+                metadata={
+                    "attempted": summary["attempted"],
+                    "succeeded": len(summary["succeeded"]),
+                    "failed": len(summary["failed"]),
+                    "skipped": len(summary["skipped"]),
+                },
+            )
+    except HTTPException:
+        raise
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -904,6 +904,12 @@ class DPPService:
             templates=available_templates,
             template_provenance=current_revision.template_provenance or {},
         )
+        if submodel_id is not None:
+            existing_target = self._find_submodel_json_by_id(base_env, submodel_id)
+            if existing_target is None:
+                raise ValueError(
+                    f"submodel_id '{submodel_id}' not found in current DPP environment"
+                )
         matching_bindings = [
             binding for binding in bindings if binding.template_key == template_key
         ]
