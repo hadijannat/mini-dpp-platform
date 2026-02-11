@@ -10,6 +10,11 @@ import { CaptureDialog } from '@/features/epcis/components/CaptureDialog';
 import { RevisionHistory } from '../components/RevisionHistory';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
+import {
+  summarizeRefreshRebuildSettled,
+  type RefreshRebuildSummary,
+  type RefreshRebuildTask,
+} from '@/features/publisher/utils/refreshRebuildSummary';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -203,6 +208,9 @@ export default function DPPEditorPage() {
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [refreshRebuildSummary, setRefreshRebuildSummary] = useState<RefreshRebuildSummary | null>(
+    null,
+  );
   const [copied, setCopied] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
 
@@ -236,8 +244,14 @@ export default function DPPEditorPage() {
   const sessionExpired = Boolean(bannerMessage?.includes('Session expired'));
 
   const refreshRebuildMutation = useMutation({
-    mutationFn: async () => {
-      if (!dppId) return;
+    onMutate: () => {
+      setRefreshRebuildSummary(null);
+      setActionError(null);
+    },
+    mutationFn: async (): Promise<RefreshRebuildSummary> => {
+      if (!dppId) {
+        return { succeeded: [], failed: [], skipped: [] };
+      }
       const refreshed = await refreshTemplates(token);
       const refreshedTemplates = Array.isArray(refreshed?.templates)
         ? (refreshed.templates as TemplateDescriptor[])
@@ -247,23 +261,52 @@ export default function DPPEditorPage() {
 
       const submodels = dpp?.aas_environment?.submodels || [];
       const seen = new Set<string>();
-      const rebuildTasks: Promise<unknown>[] = [];
+      const rebuildTasks: Array<RefreshRebuildTask & { promise: Promise<unknown> }> = [];
+      const skippedSubmodels = new Set<string>();
 
       for (const submodel of submodels) {
         const templateKey = resolveTemplateKey(submodel, templatesForRebuild);
-        if (!templateKey || seen.has(templateKey)) continue;
+        if (!templateKey) {
+          skippedSubmodels.add(
+            String(submodel.idShort ?? submodel.id ?? `submodel-${skippedSubmodels.size + 1}`),
+          );
+          continue;
+        }
+        if (seen.has(templateKey)) continue;
         seen.add(templateKey);
         const data = buildSubmodelData(submodel);
-        rebuildTasks.push(rebuildSubmodel(dppId, templateKey, data, token));
+        rebuildTasks.push({
+          templateKey,
+          promise: rebuildSubmodel(dppId, templateKey, data, token),
+        });
       }
 
-      if (rebuildTasks.length > 0) {
-        await Promise.all(rebuildTasks);
+      if (rebuildTasks.length === 0) {
+        return {
+          succeeded: [],
+          failed: [],
+          skipped: Array.from(skippedSubmodels).sort((a, b) => a.localeCompare(b)),
+        };
       }
+
+      const settled = await Promise.allSettled(rebuildTasks.map((task) => task.promise));
+      return summarizeRefreshRebuildSettled(rebuildTasks, settled, skippedSubmodels);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
-      queryClient.invalidateQueries({ queryKey: ['templates'] });
+    onSuccess: (summary) => {
+      setRefreshRebuildSummary(summary);
+      if (summary.failed.length > 0) {
+        // eslint-disable-next-line no-console
+        console.warn('dpp_refresh_rebuild_partial_failure', {
+          failedTemplateKeys: summary.failed.map((entry) => entry.templateKey),
+          failedCount: summary.failed.length,
+          succeededCount: summary.succeeded.length,
+          skippedCount: summary.skipped.length,
+        });
+      }
+      if (summary.succeeded.length > 0) {
+        queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
+        queryClient.invalidateQueries({ queryKey: ['templates'] });
+      }
     },
   });
 
@@ -436,7 +479,7 @@ export default function DPPEditorPage() {
             variant="outline"
             size="sm"
             onClick={() => refreshRebuildMutation.mutate()}
-            disabled={refreshRebuildMutation.isPending}
+            disabled={refreshRebuildMutation.isPending || dpp.status === 'archived'}
             data-testid="dpp-refresh-rebuild"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshRebuildMutation.isPending ? 'animate-spin' : ''}`} />
@@ -447,6 +490,20 @@ export default function DPPEditorPage() {
           {refreshRebuildMutation.isError && (
             <p className="mb-4 text-sm text-destructive">
               {(refreshRebuildMutation.error as Error)?.message || 'Failed to refresh templates.'}
+            </p>
+          )}
+          {refreshRebuildSummary && refreshRebuildSummary.failed.length > 0 && (
+            <p className="mb-4 text-sm text-destructive">
+              {`Refresh & Rebuild partially failed for templates: ${refreshRebuildSummary.failed
+                .map((entry) => entry.templateKey)
+                .join(', ')}`}
+            </p>
+          )}
+          {refreshRebuildSummary && refreshRebuildSummary.skipped.length > 0 && (
+            <p className="mb-4 text-sm text-muted-foreground">
+              {`Skipped submodels (no matching template): ${refreshRebuildSummary.skipped.join(
+                ', ',
+              )}`}
             </p>
           )}
           {submodels.length === 0 ? (

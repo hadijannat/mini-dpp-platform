@@ -61,6 +61,11 @@ test('publisher navigation and action buttons work', async ({ page }) => {
   await expect(page.getByTestId('dpp-refresh-rebuild')).toBeVisible();
   await page.getByTestId('dpp-refresh-rebuild').click();
   await expect(page.getByTestId('dpp-refresh-rebuild')).not.toBeDisabled({ timeout: 60000 });
+  const partialFailure = page.getByText(/Refresh & Rebuild partially failed for templates:/i);
+  const partialFailureVisible = await partialFailure.isVisible({ timeout: 2000 }).catch(() => false);
+  if (partialFailureVisible) {
+    await expect(partialFailure).toContainText(/templates:/i);
+  }
 
   const submodelEdit = page.locator('[data-testid^="submodel-edit-"]').first();
   if (await submodelEdit.count()) {

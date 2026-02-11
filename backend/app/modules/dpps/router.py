@@ -20,6 +20,7 @@ from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantAdmin, TenantContext, TenantContextDep, TenantPublisher
 from app.db.models import DPPStatus
 from app.db.session import DbSession
+from app.modules.aas.conformance import validate_aas_environment
 from app.modules.digital_thread.handlers import record_lifecycle_event
 from app.modules.dpps.service import DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
@@ -191,6 +192,41 @@ class BulkRebuildResponse(BaseModel):
     updated: int
     skipped: int
     errors: list[BulkRebuildError]
+
+
+class RepairInvalidListsRequest(BaseModel):
+    """Request model for tenant-level AASd-120 list-item repairs."""
+
+    dry_run: bool = False
+    dpp_ids: list[UUID] | None = None
+    limit: int | None = Field(default=None, ge=1, le=5000)
+
+
+class RepairInvalidListsError(BaseModel):
+    """Per-DPP repair failure details."""
+
+    dpp_id: UUID
+    reason: str
+
+
+class RepairInvalidListsStats(BaseModel):
+    """Aggregate sanitizer stats for a repair run."""
+
+    lists_scanned: int
+    items_scanned: int
+    idshort_removed: int
+    paths_changed: int
+
+
+class RepairInvalidListsResponse(BaseModel):
+    """Summary response for AASd-120 repair endpoint."""
+
+    total: int
+    repaired: int
+    skipped: int
+    errors: list[RepairInvalidListsError]
+    dry_run: bool
+    stats: RepairInvalidListsStats
 
 
 class BatchImportItem(BaseModel):
@@ -643,6 +679,18 @@ async def import_dpp(
             detail="AAS environment payload must be a JSON object",
         )
 
+    validation = validate_aas_environment(aas_env)
+    if validation.warnings:
+        logger.warning(
+            "import_dpp_validation_warnings",
+            warning_count=len(validation.warnings),
+        )
+    if not validation.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"errors": validation.errors, "warnings": validation.warnings},
+        )
+
     if master_product_id:
         master_service = DPPMasterService(db)
         result = await master_service.get_version_for_product(
@@ -745,6 +793,55 @@ async def rebuild_all_dpps(
             BulkRebuildError(dpp_id=entry["dpp_id"], error=entry["error"])
             for entry in summary.get("errors", [])
         ],
+    )
+
+
+@router.post("/repair-invalid-lists", response_model=RepairInvalidListsResponse)
+async def repair_invalid_lists(
+    body: RepairInvalidListsRequest,
+    request: Request,
+    db: DbSession,
+    tenant: TenantAdmin,
+) -> RepairInvalidListsResponse:
+    """Repair latest revisions with invalid SubmodelElementList item idShorts."""
+    service = DPPService(db)
+    summary = await service.repair_invalid_list_item_id_shorts(
+        tenant_id=tenant.tenant_id,
+        updated_by_subject=tenant.user.sub,
+        dry_run=body.dry_run,
+        dpp_ids=body.dpp_ids,
+        limit=body.limit,
+    )
+    await db.commit()
+    await emit_audit_event(
+        db_session=db,
+        action="repair_invalid_lists",
+        resource_type="dpp",
+        resource_id=tenant.tenant_id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={
+            "dry_run": body.dry_run,
+            "target_count": len(body.dpp_ids or []),
+            "repaired": summary["repaired"],
+            "skipped": summary["skipped"],
+        },
+    )
+
+    return RepairInvalidListsResponse(
+        total=summary["total"],
+        repaired=summary["repaired"],
+        skipped=summary["skipped"],
+        errors=[
+            RepairInvalidListsError(
+                dpp_id=entry["dpp_id"],
+                reason=entry["reason"],
+            )
+            for entry in summary.get("errors", [])
+        ],
+        dry_run=summary["dry_run"],
+        stats=RepairInvalidListsStats(**summary["stats"]),
     )
 
 

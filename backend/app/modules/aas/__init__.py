@@ -15,6 +15,10 @@ from app.modules.aas.references import (
     reference_to_dict,
     reference_to_str,
 )
+from app.modules.aas.sanitization import (
+    SanitizationStats,
+    sanitize_submodel_list_item_id_shorts,
+)
 from app.modules.aas.serialization import aas_to_jsonld, aas_to_turtle, aas_to_xml
 
 __all__ = [
@@ -31,6 +35,8 @@ __all__ = [
     "reference_from_dict",
     "reference_to_dict",
     "reference_to_str",
+    "sanitize_submodel_list_item_id_shorts",
+    "SanitizationStats",
     "validate_aas_environment",
     "walk_submodel_deep",
 ]
