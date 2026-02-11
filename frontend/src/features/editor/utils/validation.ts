@@ -172,6 +172,7 @@ export function validateSchema(
       data && typeof data === 'object' && !Array.isArray(data)
         ? (data as Record<string, unknown>)
         : {};
+    Object.assign(errors, validateDynamicIdShortPolicy(schema, obj, path));
     const required = schema.required ?? [];
 
     for (const key of required) {
@@ -198,6 +199,88 @@ export function validateSchema(
   }
 
   return errors;
+}
+
+function validateDynamicIdShortPolicy(
+  schema: UISchema,
+  objectData: Record<string, unknown>,
+  path: Array<string | number>,
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const declaredKeys = new Set(Object.keys(schema.properties ?? {}));
+  const dynamicKeys = Object.keys(objectData).filter((key) => !declaredKeys.has(key));
+
+  const canEditIdShort = schema['x-edit-id-short'];
+  const allowedIdShort = schema['x-allowed-id-short'] ?? [];
+  const namingRule = schema['x-naming'];
+
+  if (
+    dynamicKeys.length === 0 ||
+    (canEditIdShort === undefined && allowedIdShort.length === 0 && !namingRule)
+  ) {
+    return errors;
+  }
+
+  if (canEditIdShort === false && dynamicKeys.length > 0) {
+    for (const key of dynamicKeys) {
+      errors[pathToKey([...path, key])] = 'Dynamic idShort keys are not editable for this field';
+    }
+    return errors;
+  }
+
+  if (allowedIdShort.length > 0) {
+    const patterns = allowedIdShort.map((value) => allowedIdShortPattern(value));
+    for (const key of dynamicKeys) {
+      if (!patterns.some((pattern) => pattern.test(key))) {
+        errors[pathToKey([...path, key])] = `idShort '${key}' is not allowed`;
+      }
+    }
+  }
+
+  const namingPattern = namingPatternFromRule(namingRule);
+  if (namingPattern) {
+    for (const key of dynamicKeys) {
+      if (!namingPattern.test(key)) {
+        errors[pathToKey([...path, key])] = `idShort '${key}' violates naming rule '${namingRule}'`;
+      }
+    }
+  }
+
+  return errors;
+}
+
+function allowedIdShortPattern(template: string): RegExp {
+  const escaped = template.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+  const withNumericPlaceholders = escaped.replace(/\\\{(0+)\\\}/g, (_match, zeros: string) => {
+    return `\\d{${zeros.length}}`;
+  });
+  return new RegExp(`^${withNumericPlaceholders}$`);
+}
+
+function namingPatternFromRule(rule: string | undefined): RegExp | null {
+  if (!rule) return null;
+  const normalized = rule.trim();
+  if (!normalized || normalized.toLowerCase() === 'dynamic') return null;
+
+  if (normalized.toLowerCase() === 'idshort') {
+    // AAS idShort compatible (simplified): starts with a letter, then alnum/underscore.
+    return /^[A-Za-z][A-Za-z0-9_]*$/;
+  }
+
+  if (normalized.startsWith('regex:')) {
+    const raw = normalized.slice('regex:'.length).trim();
+    try {
+      return new RegExp(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return new RegExp(normalized);
+  } catch {
+    return null;
+  }
 }
 
 function getSchemaRange(schema: UISchema): { min?: number; max?: number } | undefined {

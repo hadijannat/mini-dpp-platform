@@ -1,24 +1,28 @@
 """Setup inspection environment with reproducible template ingestion.
 
 This script:
-1. Fetches all 7 IDTA templates from GitHub
-2. Generates definition AST and JSON Schema for each
-3. Saves artifacts to evidence directory
-4. Produces ingestion summary report
+1. Refreshes supported IDTA templates from upstream
+2. Generates canonical definition AST + JSON schema contracts
+3. Saves artifacts to an evidence run directory
+4. Produces a machine-readable ingestion summary
 
 Usage:
     uv run python tests/tools/inspection_setup.py
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
-from datetime import datetime
+from collections.abc import Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from app.modules.templates.service import get_template_service
+from app.db.session import close_db, get_background_session, init_db
+from app.modules.templates.catalog import get_template_descriptor
+from app.modules.templates.service import TemplateRegistryService
 
-# Template keys to fetch
 TEMPLATES = [
     "digital-nameplate",
     "carbon-footprint",
@@ -31,122 +35,134 @@ TEMPLATES = [
 
 
 def get_evidence_dir() -> Path:
-    """Get or create evidence directory for this inspection run."""
+    """Create an evidence directory for this inspection run."""
     base_dir = Path("/evidence") if Path("/evidence").exists() else Path("evidence")
-    run_dir = base_dir / f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_dir = base_dir / f"run_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
 
-async def ingest_template(template_key: str, service: Any, evidence_dir: Path) -> dict[str, Any]:
-    """Ingest a single template and save artifacts.
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    Args:
-        template_key: Template identifier (e.g., 'digital-nameplate')
-        service: TemplateService instance
-        evidence_dir: Directory to save artifacts
 
-    Returns:
-        Dict with status, version, and any error info
-    """
-    try:
-        print(f"📥 Fetching {template_key}...")
-        contract = await service.get_contract(template_key)
-
-        template_dir = evidence_dir / "templates" / template_key
-        template_dir.mkdir(parents=True, exist_ok=True)
-
-        # Save definition AST
-        definition_path = template_dir / "definition.json"
-        definition_path.write_text(json.dumps(contract["definition"], indent=2))
-
-        # Save JSON Schema
-        schema_path = template_dir / "schema.json"
-        schema_path.write_text(json.dumps(contract["schema"], indent=2))
-
-        # Save source metadata
-        source_path = template_dir / "source_metadata.json"
-        source_path.write_text(json.dumps(contract["source"], indent=2))
-
-        print(f"✅ {template_key}: {contract['source']['version']}")
-        return {
-            "status": "success",
-            "version": contract["source"]["version"],
-            "source_file": contract["source"]["source_file"],
-            "source_sha": contract["source"]["source_sha"],
-            "definition_elements": len(contract["definition"].get("submodels", [])),
-        }
-
-    except Exception as e:
-        print(f"❌ {template_key}: {str(e)}")
+async def ingest_template(
+    template_key: str,
+    service: TemplateRegistryService,
+    *,
+    commit: Callable[[], Any],
+    evidence_dir: Path,
+) -> dict[str, Any]:
+    """Refresh one template and persist its generated contract artifacts."""
+    descriptor = get_template_descriptor(template_key)
+    if descriptor is None:
         return {
             "status": "failed",
-            "error": str(e),
-            "error_type": type(e).__name__,
+            "error": f"Unknown template key: {template_key}",
+            "error_type": "ValueError",
+        }
+
+    if not descriptor.refresh_enabled:
+        return {
+            "status": "skipped",
+            "support_status": descriptor.support_status,
+            "reason": "Template refresh disabled in catalog",
+        }
+
+    try:
+        print(f"Fetching {template_key} ...")
+        template = await service.refresh_template(template_key)
+        await commit()
+
+        contract = service.generate_template_contract(template)
+
+        template_dir = evidence_dir / "templates" / template_key
+        _write_json(template_dir / "definition.json", contract["definition"])
+        _write_json(template_dir / "schema.json", contract["schema"])
+        _write_json(template_dir / "source_metadata.json", contract["source_metadata"])
+
+        submodel = contract["definition"].get("submodel", {})
+        element_count = len(submodel.get("elements", []))
+
+        print(
+            f"OK {template_key}: "
+            f"resolved={contract['source_metadata']['resolved_version']} "
+            f"elements={element_count}"
+        )
+        return {
+            "status": "success",
+            "version": template.idta_version,
+            "resolved_version": template.resolved_version,
+            "source_file_path": template.source_file_path,
+            "source_file_sha": template.source_file_sha,
+            "source_kind": template.source_kind,
+            "selection_strategy": template.selection_strategy,
+            "definition_elements": element_count,
+        }
+    except Exception as exc:
+        print(f"FAILED {template_key}: {exc}")
+        return {
+            "status": "failed",
+            "error": str(exc),
+            "error_type": type(exc).__name__,
         }
 
 
 async def setup_inspection_environment() -> Path:
-    """Setup inspection environment and ingest all templates.
-
-    Returns:
-        Path to evidence directory
-    """
-    print("🔧 IDTA Pipeline Inspection - Environment Setup")
+    """Run template ingestion and write a summary report."""
+    print("IDTA Pipeline Inspection - Environment Setup")
     print("=" * 60)
-
-    # Get evidence directory
     evidence_dir = get_evidence_dir()
-    print(f"\n📁 Evidence directory: {evidence_dir}")
+    print(f"Evidence directory: {evidence_dir}")
 
-    # Get template service
-    service = get_template_service()
+    await init_db()
+    try:
+        async with get_background_session() as session:
+            service = TemplateRegistryService(session)
+            results: dict[str, dict[str, Any]] = {}
 
-    # Ingest all templates
-    results = {}
-    for template_key in TEMPLATES:
-        result = await ingest_template(template_key, service, evidence_dir)
-        results[template_key] = result
+            for template_key in TEMPLATES:
+                results[template_key] = await ingest_template(
+                    template_key,
+                    service,
+                    commit=session.commit,
+                    evidence_dir=evidence_dir,
+                )
 
-    # Generate summary
-    success_count = sum(1 for r in results.values() if r["status"] == "success")
-    failed_count = len(results) - success_count
+            success_count = sum(1 for value in results.values() if value["status"] == "success")
+            failed_count = sum(1 for value in results.values() if value["status"] == "failed")
+            skipped_count = sum(1 for value in results.values() if value["status"] == "skipped")
 
-    summary = {
-        "run_timestamp": datetime.now().isoformat(),
-        "evidence_dir": str(evidence_dir),
-        "templates_attempted": len(TEMPLATES),
-        "templates_succeeded": success_count,
-        "templates_failed": failed_count,
-        "results": results,
-    }
+            summary = {
+                "run_timestamp": datetime.now(UTC).isoformat(),
+                "evidence_dir": str(evidence_dir),
+                "templates_attempted": len(TEMPLATES),
+                "templates_succeeded": success_count,
+                "templates_failed": failed_count,
+                "templates_skipped": skipped_count,
+                "results": results,
+            }
 
-    # Save summary
-    summary_path = evidence_dir / "ingestion_summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2))
+            summary_path = evidence_dir / "ingestion_summary.json"
+            _write_json(summary_path, summary)
 
-    # Print summary
-    print("\n" + "=" * 60)
-    print("📊 INGESTION SUMMARY")
-    print("=" * 60)
-    print(f"✅ Succeeded: {success_count}/{len(TEMPLATES)}")
-    print(f"❌ Failed: {failed_count}/{len(TEMPLATES)}")
-
-    if failed_count > 0:
-        print("\nFailed templates:")
-        for key, result in results.items():
-            if result["status"] == "failed":
-                print(f"  • {key}: {result['error']}")
-
-    print(f"\n📄 Full report: {summary_path}")
+            print("=" * 60)
+            print("INGESTION SUMMARY")
+            print("=" * 60)
+            print(f"Succeeded: {success_count}/{len(TEMPLATES)}")
+            print(f"Failed: {failed_count}/{len(TEMPLATES)}")
+            print(f"Skipped: {skipped_count}/{len(TEMPLATES)}")
+            print(f"Report: {summary_path}")
+    finally:
+        await close_db()
 
     return evidence_dir
 
 
-async def main():
-    """Main entry point."""
+async def main() -> None:
     evidence_dir = await setup_inspection_environment()
-    print(f"\n✨ Inspection environment ready: {evidence_dir}\n")
+    print(f"Inspection environment ready: {evidence_dir}")
 
 
 if __name__ == "__main__":

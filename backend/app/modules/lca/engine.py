@@ -17,14 +17,16 @@ from app.modules.lca.schemas import (
 
 logger = get_logger(__name__)
 
-# Scope boundary multipliers (placeholder — user will refine)
-_SCOPE_MULTIPLIERS: dict[str, float] = {
+_DEFAULT_SCOPE_MULTIPLIERS: dict[str, float] = {
     "cradle-to-gate": 1.0,
     "gate-to-gate": 0.3,
     "cradle-to-grave": 1.2,
 }
 
 _DEFAULT_METHODOLOGY = "activity-based-gwp"
+_DEFAULT_DISCLOSURE = (
+    "Calculated estimate for interoperability and comparison; not a certification substitute."
+)
 
 
 class PCFEngine:
@@ -36,8 +38,18 @@ class PCFEngine:
         result = engine.calculate(inventory, scope="cradle-to-gate")
     """
 
-    def __init__(self, factor_db: FactorDatabase) -> None:
+    def __init__(
+        self,
+        factor_db: FactorDatabase,
+        *,
+        scope_multipliers: dict[str, float] | None = None,
+        methodology: str = _DEFAULT_METHODOLOGY,
+        methodology_disclosure: str = _DEFAULT_DISCLOSURE,
+    ) -> None:
         self._factor_db = factor_db
+        self._scope_multipliers = scope_multipliers or dict(_DEFAULT_SCOPE_MULTIPLIERS)
+        self._methodology = methodology
+        self._methodology_disclosure = methodology_disclosure
 
     @property
     def factor_database_version(self) -> str:
@@ -92,7 +104,7 @@ class PCFEngine:
             )
 
         # Apply scope boundary
-        breakdown = self._apply_scope_boundary(scope, breakdown)
+        breakdown = self._apply_scope_boundary(scope, breakdown, self._scope_multipliers)
 
         total_gwp = sum(b.gwp_kg_co2e for b in breakdown)
 
@@ -100,25 +112,26 @@ class PCFEngine:
             total_gwp_kg_co2e=round(total_gwp, 6),
             breakdown=breakdown,
             scope=scope,
-            methodology=_DEFAULT_METHODOLOGY,
+            methodology=self._methodology,
+            methodology_disclosure=self._methodology_disclosure,
         )
 
     @staticmethod
     def _apply_scope_boundary(
         scope: str,
         breakdown: list[MaterialBreakdown],
+        scope_multipliers: dict[str, float],
     ) -> list[MaterialBreakdown]:
         """Apply scope-boundary multiplier to each breakdown entry.
 
         This is a placeholder implementation — the user will refine
         the multipliers for more accurate life-cycle modelling.
         """
-        if scope not in _SCOPE_MULTIPLIERS:
+        if scope not in scope_multipliers:
             raise ValueError(
-                f"Unknown LCA scope '{scope}'. "
-                f"Valid scopes: {', '.join(sorted(_SCOPE_MULTIPLIERS))}"
+                f"Unknown LCA scope '{scope}'. Valid scopes: {', '.join(sorted(scope_multipliers))}"
             )
-        multiplier = _SCOPE_MULTIPLIERS[scope]
+        multiplier = scope_multipliers[scope]
         if multiplier == 1.0:
             return breakdown
 

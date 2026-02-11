@@ -196,6 +196,35 @@ describe('AASRenderer', () => {
 
     expect(screen.getByText('Temperature')).toBeTruthy();
   });
+
+  it('renders list reorder controls when orderRelevant is true', () => {
+    const node: DefinitionNode = {
+      modelType: 'SubmodelElementList',
+      idShort: 'ProductCarbonFootprint',
+      orderRelevant: true,
+      items: {
+        modelType: 'Property',
+        idShort: 'PcfItem',
+        valueType: 'xs:string',
+      },
+    };
+
+    render(
+      <FormWrapper defaultValues={{ ProductCarbonFootprint: ['a', 'b'] }}>
+        {(control) => (
+          <AASRenderer
+            node={node}
+            basePath="ProductCarbonFootprint"
+            depth={0}
+            control={control}
+          />
+        )}
+      </FormWrapper>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Move item 1 up' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Move item 1 down' })).toBeTruthy();
+  });
 });
 
 describe('AASRendererList', () => {

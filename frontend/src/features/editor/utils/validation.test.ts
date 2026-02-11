@@ -108,6 +108,40 @@ describe('validateSchema', () => {
   it('returns empty for undefined schema', () => {
     expect(validateSchema(undefined, 'anything')).toEqual({});
   });
+
+  it('enforces x-edit-id-short=false for dynamic keys', () => {
+    const schema: UISchema = {
+      type: 'object',
+      properties: { fixed: { type: 'string' } },
+      'x-edit-id-short': false,
+    };
+    const errors = validateSchema(schema, { fixed: 'ok', dynamicKey: 'x' });
+    expect(errors['dynamicKey']).toContain('not editable');
+  });
+
+  it('enforces x-allowed-id-short patterns for dynamic keys', () => {
+    const schema: UISchema = {
+      type: 'object',
+      properties: {},
+      'x-edit-id-short': true,
+      'x-allowed-id-short': ['PCF{00}', 'PCF{01}'],
+    };
+    const errors = validateSchema(schema, { PCF00: 1, WrongKey: 2 });
+    expect(errors['WrongKey']).toContain('not allowed');
+    expect(errors['PCF00']).toBeUndefined();
+  });
+
+  it('enforces x-naming=idShort for dynamic keys', () => {
+    const schema: UISchema = {
+      type: 'object',
+      properties: {},
+      'x-edit-id-short': true,
+      'x-naming': 'idShort',
+    };
+    const errors = validateSchema(schema, { valid_Id: 1, 'not-valid': 2 });
+    expect(errors['not-valid']).toContain('violates naming rule');
+    expect(errors['valid_Id']).toBeUndefined();
+  });
 });
 
 describe('validateReadOnly', () => {
