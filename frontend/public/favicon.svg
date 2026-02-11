@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Mini DPP Platform favicon</title>
+  <desc id="desc">Stylized D with connected nodes representing product passport traceability</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#113244" />
+      <stop offset="100%" stop-color="#16546b" />
+    </linearGradient>
+  </defs>
+  <rect x="42" y="42" width="428" height="428" rx="108" fill="#113244" />
+  <rect x="63" y="63" width="386" height="386" rx="92" fill="url(#bg)" />
+
+  <rect x="140" y="128" width="56" height="256" rx="28" fill="#faf5ec" />
+  <path d="M144 128a138 138 0 0 1 0 256" fill="none" stroke="#faf5ec" stroke-width="52" stroke-linecap="round" />
+  <rect x="206" y="170" width="118" height="172" rx="48" fill="#16546b" />
+
+  <circle cx="352" cy="156" r="24" fill="#e89a3a" />
+  <circle cx="364" cy="256" r="20" fill="#faf5ec" />
+  <circle cx="352" cy="356" r="24" fill="#3daec4" />
+</svg>
