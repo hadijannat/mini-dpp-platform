@@ -39,6 +39,7 @@ export function ListField({
   const formUrl = node.smt?.form_url ?? undefined;
   const itemsSchema = schema?.items;
   const itemDefinition = node.items ?? undefined;
+  const orderRelevant = node.orderRelevant ?? false;
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -90,6 +91,14 @@ export function ListField({
                   const next = list.filter((_, idx) => idx !== index);
                   field.onChange(next);
                 }}
+                onMove={(from, to) => {
+                  if (to < 0 || to >= list.length || from === to) return;
+                  const next = [...list];
+                  const [moved] = next.splice(from, 1);
+                  next.splice(to, 0, moved);
+                  field.onChange(next);
+                }}
+                orderRelevant={orderRelevant}
               />
             ) : (
               <div className="space-y-3">
@@ -107,6 +116,15 @@ export function ListField({
                       const next = list.filter((_, idx) => idx !== index);
                       field.onChange(next);
                     }}
+                    onMove={(to) => {
+                      if (to < 0 || to >= list.length || to === index) return;
+                      const next = [...list];
+                      const [moved] = next.splice(index, 1);
+                      next.splice(to, 0, moved);
+                      field.onChange(next);
+                    }}
+                    listLength={list.length}
+                    orderRelevant={orderRelevant}
                   />
                 ))}
               </div>
@@ -127,6 +145,9 @@ function ListItem({
   itemsSchema,
   renderNode,
   onRemove,
+  onMove,
+  orderRelevant,
+  listLength,
 }: {
   name: string;
   index: number;
@@ -136,11 +157,36 @@ function ListItem({
   itemsSchema?: UISchema;
   renderNode: ListFieldProps['renderNode'];
   onRemove: () => void;
+  onMove: (toIndex: number) => void;
+  orderRelevant: boolean;
+  listLength: number;
 }) {
   const itemPath = `${name}.${index}`;
   return (
     <div className="border rounded-md p-3">
       <div className="flex justify-end">
+        {orderRelevant && (
+          <div className="mr-2 flex gap-1">
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40"
+              aria-label={`Move item ${index + 1} up`}
+              onClick={() => onMove(index - 1)}
+              disabled={index === 0}
+            >
+              Up
+            </button>
+            <button
+              type="button"
+              className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40"
+              aria-label={`Move item ${index + 1} down`}
+              onClick={() => onMove(index + 1)}
+              disabled={index >= listLength - 1}
+            >
+              Down
+            </button>
+          </div>
+        )}
         <button
           type="button"
           className="text-xs text-red-500 hover:text-red-600"
@@ -181,6 +227,8 @@ function VirtualizedList({
   scrollRef,
   renderNode,
   onRemove,
+  onMove,
+  orderRelevant,
 }: {
   list: unknown[];
   name: string;
@@ -191,6 +239,8 @@ function VirtualizedList({
   scrollRef: React.RefObject<HTMLDivElement | null>;
   renderNode: ListFieldProps['renderNode'];
   onRemove: (index: number) => void;
+  onMove: (fromIndex: number, toIndex: number) => void;
+  orderRelevant: boolean;
 }) {
   const virtualizer = useVirtualizer({
     count: list.length,
@@ -223,6 +273,9 @@ function VirtualizedList({
               itemsSchema={itemsSchema}
               renderNode={renderNode}
               onRemove={() => onRemove(virtualItem.index)}
+              onMove={(to) => onMove(virtualItem.index, to)}
+              listLength={list.length}
+              orderRelevant={orderRelevant}
             />
           </div>
         ))}

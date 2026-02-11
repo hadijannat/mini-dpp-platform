@@ -117,3 +117,124 @@ export async function tenantApiFetch(
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   return apiFetch(`/api/v1/tenants/${slug}${normalizedPath}`, options, token);
 }
+
+export type LcaScope = 'cradle-to-gate' | 'gate-to-gate' | 'cradle-to-grave';
+
+export type MaterialBreakdown = {
+  material_name: string;
+  mass_kg: number;
+  factor_used: number;
+  gwp_kg_co2e: number;
+  source: string;
+};
+
+export type MaterialInventory = {
+  items: Array<{
+    material_name: string;
+    category: string;
+    mass_kg: number;
+    quantity: number;
+    pre_declared_pcf?: number | null;
+  }>;
+  total_mass_kg: number;
+  source_submodels: string[];
+  external_pcf_apis?: Array<{
+    endpoint: string;
+    query?: string | null;
+    source_submodel?: string | null;
+    source_path?: string | null;
+  }>;
+};
+
+export type LcaReport = {
+  id: string;
+  dpp_id: string;
+  revision_no: number;
+  methodology: string;
+  scope: string;
+  total_gwp_kg_co2e: number;
+  impact_categories: Record<string, number>;
+  material_inventory: MaterialInventory;
+  factor_database_version: string;
+  created_at: string;
+  breakdown: MaterialBreakdown[];
+  methodology_disclosure?: string;
+};
+
+export type LcaComparisonReport = {
+  dpp_id: string;
+  revision_a: number;
+  revision_b: number;
+  report_a: LcaReport;
+  report_b: LcaReport;
+  delta_gwp_kg_co2e: number;
+  delta_percentage?: number | null;
+};
+
+async function parseTenantJson<T>(
+  path: string,
+  options: RequestInit,
+  token?: string,
+  tenantSlug?: string,
+): Promise<T> {
+  const response = await tenantApiFetch(path, options, token, tenantSlug);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Request failed'));
+  }
+  return (await response.json()) as T;
+}
+
+export async function calculatePcf(
+  dppId: string,
+  options: {
+    scope?: LcaScope;
+    token?: string;
+    tenantSlug?: string;
+  } = {},
+): Promise<LcaReport> {
+  const query = options.scope ? `?scope=${encodeURIComponent(options.scope)}` : '';
+  return parseTenantJson<LcaReport>(
+    `/lca/calculate/${dppId}${query}`,
+    { method: 'POST' },
+    options.token,
+    options.tenantSlug,
+  );
+}
+
+export async function getLatestPcfReport(
+  dppId: string,
+  options: {
+    token?: string;
+    tenantSlug?: string;
+  } = {},
+): Promise<LcaReport> {
+  return parseTenantJson<LcaReport>(
+    `/lca/report/${dppId}`,
+    { method: 'GET' },
+    options.token,
+    options.tenantSlug,
+  );
+}
+
+export async function comparePcfRevisions(
+  payload: {
+    dpp_id: string;
+    revision_a: number;
+    revision_b: number;
+  },
+  options: {
+    token?: string;
+    tenantSlug?: string;
+  } = {},
+): Promise<LcaComparisonReport> {
+  return parseTenantJson<LcaComparisonReport>(
+    '/lca/compare',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    options.token,
+    options.tenantSlug,
+  );
+}

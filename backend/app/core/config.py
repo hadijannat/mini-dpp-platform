@@ -334,8 +334,44 @@ class Settings(BaseSettings):
     lca_default_scope: str = Field(
         default="cradle-to-gate", description="Default LCA scope boundary"
     )
+    lca_scope_multipliers: dict[str, float] = Field(
+        default={
+            "cradle-to-gate": 1.0,
+            "gate-to-gate": 0.3,
+            "cradle-to-grave": 1.2,
+        },
+        description=(
+            "Scope multipliers applied by the PCF engine. "
+            "Keys must match supported LCAScope values."
+        ),
+    )
+    lca_methodology: str = Field(
+        default="activity-based-gwp",
+        description="Configured methodology identifier persisted in LCA reports",
+    )
+    lca_methodology_disclosure: str = Field(
+        default=(
+            "Calculated estimate for interoperability and comparison; "
+            "not a certification substitute."
+        ),
+        description="Disclosure text attached to LCA reports for claim governance",
+    )
     lca_factor_database_path: str = Field(
         default="", description="Custom emission factors YAML path (empty = built-in)"
+    )
+    lca_external_pcf_enabled: bool = Field(
+        default=False,
+        description="Allow controlled retrieval of PCF values from ExternalPcfApi references",
+    )
+    lca_external_pcf_allowlist: list[str] = Field(
+        default=[],
+        description="Allowlisted hostnames for ExternalPcfApi calls",
+    )
+    lca_external_pcf_timeout_seconds: int = Field(
+        default=8,
+        ge=1,
+        le=60,
+        description="HTTP timeout for ExternalPcfApi calls",
     )
 
     # ==========================================================================

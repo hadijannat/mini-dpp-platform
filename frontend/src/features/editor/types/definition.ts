@@ -23,6 +23,7 @@ export type DefinitionNode = {
   path?: string;
   idShort?: string;
   modelType: string;
+  orderRelevant?: boolean;
   semanticId?: string | null;
   valueType?: string;
   contentType?: string;

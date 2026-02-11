@@ -1,0 +1,222 @@
+{
+  "inspection_id": "CF-2026-02-11",
+  "generated_at": "2026-02-11T08:12:30Z",
+  "baseline": {
+    "repo": "mini-dpp-platform",
+    "branch": "main",
+    "upstream_templates_ref": "admin-shell-io/submodel-templates@main",
+    "carbon_footprint_version": "1.0.1"
+  },
+  "findings": [
+    {
+      "id": "CF-001",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX1",
+      "title": "Restore stale inspection bootstrap script",
+      "description": "inspection_setup.py referenced non-existing template service APIs and failed to run.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/tools/inspection_setup.py"
+      ],
+      "dependencies": [],
+      "repro_command": "uv run python tests/tools/inspection_setup.py",
+      "acceptance_test": "Script emits ingestion summary and per-template artifacts without API lookup errors.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-002",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX8",
+      "title": "Restore missing inspection test modules",
+      "description": "Inspection package referenced test modules that were missing from backend/tests/inspection.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/inspection/test_aasx_roundtrip.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/inspection/test_qualifier_enforcement.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/inspection/test_security_isolation.py"
+      ],
+      "dependencies": [],
+      "repro_command": "uv run pytest tests/inspection/test_aasx_roundtrip.py tests/inspection/test_qualifier_enforcement.py tests/inspection/test_security_isolation.py -q",
+      "acceptance_test": "Referenced inspection tests exist and pass.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-003",
+      "severity": "P2",
+      "status": "Done",
+      "owner_role": "EX4",
+      "title": "Align frontend UISchema extension contract",
+      "description": "Frontend UISchema typing missed backend-emitted qualifier extension keys.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/types/uiSchema.ts"
+      ],
+      "dependencies": [],
+      "repro_command": "npm test -- --run src/features/editor/utils/validation.test.ts",
+      "acceptance_test": "UISchema includes required x-* keys and related tests pass.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-004",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX4",
+      "title": "Enforce dynamic idShort qualifier rules",
+      "description": "Save-time validation ignored x-allowed-id-short, x-edit-id-short, and x-naming rules.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/utils/validation.ts",
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/utils/validation.test.ts"
+      ],
+      "dependencies": [
+        "CF-003"
+      ],
+      "repro_command": "npm test -- --run src/features/editor/utils/validation.test.ts",
+      "acceptance_test": "Invalid dynamic keys are rejected deterministically before save.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-005",
+      "severity": "P2",
+      "status": "Done",
+      "owner_role": "EX4",
+      "title": "Add orderRelevant list reorder behavior",
+      "description": "List editor did not expose reorder controls for orderRelevant list definitions.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/components/fields/ListField.tsx",
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/types/definition.ts",
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/components/AASRenderer.test.tsx"
+      ],
+      "dependencies": [],
+      "repro_command": "npm test -- --run src/features/editor/components/AASRenderer.test.tsx",
+      "acceptance_test": "orderRelevant lists render move controls and preserve reordered output.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-006",
+      "severity": "P2",
+      "status": "Done",
+      "owner_role": "EX8",
+      "title": "Add typed frontend LCA API wrappers",
+      "description": "Frontend API module lacked typed wrappers for existing LCA backend endpoints.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/lib/api.ts",
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/lib/api.test.ts"
+      ],
+      "dependencies": [],
+      "repro_command": "npm test -- --run src/lib/api.test.ts",
+      "acceptance_test": "calculate/report/compare wrappers are present and tested.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-007",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX5",
+      "title": "Govern PCF multipliers and methodology",
+      "description": "PCF engine used hardcoded placeholder multipliers and lacked governed disclosure metadata.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/core/config.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/engine.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/schemas.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/service.py"
+      ],
+      "dependencies": [],
+      "repro_command": "uv run pytest tests/unit/test_lca_service_external_pcf.py -q",
+      "acceptance_test": "Reports include configured methodology and disclosure metadata.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-008",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX5",
+      "title": "Replace heuristic-only PCF extraction",
+      "description": "LCA extraction did not prioritize Carbon Footprint template paths and list structures.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/extractor.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/unit/test_lca_extractor.py"
+      ],
+      "dependencies": [],
+      "repro_command": "uv run pytest tests/unit/test_lca_extractor.py -q",
+      "acceptance_test": "Extractor maps Carbon Footprint list data and material factors correctly.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-009",
+      "severity": "P1",
+      "status": "Done",
+      "owner_role": "EX5",
+      "title": "Add controlled ExternalPcfApi integration",
+      "description": "No controlled invocation/provenance flow existed for ExternalPcfApi references.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/core/config.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/service.py",
+        "/Users/aeroshariati/mini-dpp-platform/backend/tests/unit/test_lca_service_external_pcf.py"
+      ],
+      "dependencies": [
+        "CF-008"
+      ],
+      "repro_command": "uv run pytest tests/unit/test_lca_service_external_pcf.py -q",
+      "acceptance_test": "External calls are feature-gated and allowlist/timeout enforced with fetch provenance logs.",
+      "target_sprint": "CF-S1"
+    },
+    {
+      "id": "CF-010",
+      "severity": "P1",
+      "status": "Open",
+      "owner_role": "EX8",
+      "title": "Add Carbon Footprint CI gate workflow job",
+      "description": "Dedicated release-blocking CI gate for Carbon Footprint path is not yet added.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/.github/workflows/"
+      ],
+      "dependencies": [
+        "CF-001",
+        "CF-002",
+        "CF-003",
+        "CF-004",
+        "CF-005",
+        "CF-006",
+        "CF-007",
+        "CF-008",
+        "CF-009"
+      ],
+      "repro_command": "gh workflow list",
+      "acceptance_test": "Workflow includes Carbon Footprint gate command matrix and fails on regressions.",
+      "target_sprint": "CF-S2"
+    },
+    {
+      "id": "CF-011",
+      "severity": "P2",
+      "status": "Open",
+      "owner_role": "EX4",
+      "title": "Add dynamic idShort authoring UX",
+      "description": "Validation is enforced but dedicated dynamic key authoring UX remains limited.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/frontend/src/features/editor/components/"
+      ],
+      "dependencies": [
+        "CF-004"
+      ],
+      "repro_command": "npm run dev",
+      "acceptance_test": "UI provides guided dynamic idShort creation aligned with naming constraints.",
+      "target_sprint": "CF-S2"
+    },
+    {
+      "id": "CF-012",
+      "severity": "P2",
+      "status": "Open",
+      "owner_role": "EX5",
+      "title": "Harden ExternalPcfApi partner adapters",
+      "description": "Generic external payload parsing needs partner-specific adapters and strict schema validation.",
+      "files": [
+        "/Users/aeroshariati/mini-dpp-platform/backend/app/modules/lca/service.py"
+      ],
+      "dependencies": [
+        "CF-009"
+      ],
+      "repro_command": "uv run pytest tests/unit/test_lca_service_external_pcf.py -q",
+      "acceptance_test": "Adapters validate expected payload contracts and reject malformed provider responses.",
+      "target_sprint": "CF-S2"
+    }
+  ]
+}

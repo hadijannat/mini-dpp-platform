@@ -7,9 +7,11 @@ calculation results, and comparing revisions.
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
 from typing import Any
 from uuid import UUID
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,7 +41,12 @@ def _get_engine() -> PCFEngine:
         settings = get_settings()
         db_path = settings.lca_factor_database_path or None
         factor_db = FactorDatabase(yaml_path=db_path)
-        _engine = PCFEngine(factor_db)
+        _engine = PCFEngine(
+            factor_db,
+            scope_multipliers=settings.lca_scope_multipliers,
+            methodology=settings.lca_methodology,
+            methodology_disclosure=settings.lca_methodology_disclosure,
+        )
     return _engine
 
 
@@ -90,6 +97,7 @@ class LCAService:
         aas_env, revision_no = await self._get_aas_env(dpp_id, tenant_id)
 
         inventory = extract_material_inventory(aas_env)
+        inventory, external_fetch_log = await self._apply_external_pcf_overrides(inventory)
         result = self._engine.calculate(inventory, scope=resolved_scope)
 
         # Persist calculation
@@ -105,6 +113,8 @@ class LCAService:
             factor_database_version=self._engine.factor_database_version,
             report_json={
                 "breakdown": [b.model_dump() for b in result.breakdown],
+                "methodology_disclosure": result.methodology_disclosure,
+                "external_pcf_fetch_log": external_fetch_log,
             },
             created_by_subject=created_by,
         )
@@ -120,7 +130,12 @@ class LCAService:
             materials=len(inventory.items),
         )
 
-        return self._to_report(calc, result.breakdown, inventory)
+        return self._to_report(
+            calc,
+            result.breakdown,
+            inventory,
+            methodology_disclosure=result.methodology_disclosure,
+        )
 
     async def get_latest_report(
         self,
@@ -234,6 +249,8 @@ class LCAService:
         calc: LCACalculation,
         breakdown: list[MaterialBreakdown],
         inventory: MaterialInventory,
+        *,
+        methodology_disclosure: str | None = None,
     ) -> LCAReport:
         """Build an LCAReport from a freshly persisted calculation."""
         return LCAReport(
@@ -248,6 +265,7 @@ class LCAService:
             factor_database_version=calc.factor_database_version,
             created_at=calc.created_at,
             breakdown=breakdown,
+            methodology_disclosure=methodology_disclosure,
         )
 
     @staticmethod
@@ -272,4 +290,119 @@ class LCAService:
             factor_database_version=calc.factor_database_version,
             created_at=calc.created_at,
             breakdown=breakdown,
+            methodology_disclosure=calc.report_json.get("methodology_disclosure"),
         )
+
+    async def _apply_external_pcf_overrides(
+        self,
+        inventory: MaterialInventory,
+    ) -> tuple[MaterialInventory, list[dict[str, Any]]]:
+        """Optionally fetch pre-declared PCF values from allowlisted external APIs."""
+        settings = get_settings()
+        if not settings.lca_external_pcf_enabled:
+            return inventory, []
+        if not inventory.external_pcf_apis:
+            return inventory, []
+
+        overrides: dict[str, float] = {}
+        fetch_log: list[dict[str, Any]] = []
+        allowed_hosts = {host.lower() for host in settings.lca_external_pcf_allowlist}
+
+        async with httpx.AsyncClient(timeout=settings.lca_external_pcf_timeout_seconds) as client:
+            for ref in inventory.external_pcf_apis:
+                endpoint = ref.endpoint.strip()
+                parsed = urlparse(endpoint)
+                host = parsed.hostname.lower() if parsed.hostname else ""
+                if parsed.scheme not in {"https", "http"}:
+                    fetch_log.append(
+                        {
+                            "endpoint": endpoint,
+                            "status": "blocked",
+                            "reason": "unsupported_scheme",
+                        }
+                    )
+                    continue
+                if allowed_hosts and host not in allowed_hosts:
+                    fetch_log.append(
+                        {
+                            "endpoint": endpoint,
+                            "status": "blocked",
+                            "reason": "host_not_allowlisted",
+                            "host": host,
+                        }
+                    )
+                    continue
+
+                url = endpoint
+                if ref.query:
+                    separator = "&" if "?" in endpoint else "?"
+                    url = f"{endpoint}{separator}{ref.query.lstrip('?')}"
+
+                try:
+                    response = await client.get(url, headers={"Accept": "application/json"})
+                    response.raise_for_status()
+                    payload = response.json()
+                    parsed_items = self._parse_external_pcf_payload(payload)
+                    for material_name, pcf_value in parsed_items:
+                        overrides[material_name.lower()] = pcf_value
+                    fetch_log.append(
+                        {
+                            "endpoint": endpoint,
+                            "status": "ok",
+                            "resolved_values": len(parsed_items),
+                        }
+                    )
+                except Exception as exc:  # pragma: no cover - defensive
+                    fetch_log.append(
+                        {
+                            "endpoint": endpoint,
+                            "status": "failed",
+                            "error": str(exc),
+                        }
+                    )
+
+        if not overrides:
+            return inventory, fetch_log
+
+        updated = inventory.model_copy(deep=True)
+        for item in updated.items:
+            if item.pre_declared_pcf is not None:
+                continue
+            key = item.material_name.lower()
+            if key in overrides:
+                item.pre_declared_pcf = overrides[key]
+
+        return updated, fetch_log
+
+    def _parse_external_pcf_payload(self, payload: Any) -> list[tuple[str, float]]:
+        """Parse common response shapes from external PCF APIs."""
+        resolved: list[tuple[str, float]] = []
+
+        if isinstance(payload, dict):
+            if "material_name" in payload and "pcf_kg_co2e" in payload:
+                material_name = str(payload["material_name"]).strip()
+                try:
+                    value = float(payload["pcf_kg_co2e"])
+                except (TypeError, ValueError):
+                    return resolved
+                if material_name and value >= 0:
+                    resolved.append((material_name, value))
+                return resolved
+
+            for key in ("items", "results", "materials"):
+                nested = payload.get(key)
+                if isinstance(nested, list):
+                    for entry in nested:
+                        if not isinstance(entry, dict):
+                            continue
+                        name = str(entry.get("material_name", "")).strip()
+                        value = entry.get("pcf_kg_co2e", entry.get("pcf"))
+                        try:
+                            pcf = float(value)
+                        except (TypeError, ValueError):
+                            continue
+                        if name and pcf >= 0:
+                            resolved.append((name, pcf))
+                    return resolved
+
+        return resolved

@@ -32,12 +32,22 @@ class MaterialItem(BaseModel):
     pre_declared_pcf: float | None = None
 
 
+class ExternalPCFApiRef(BaseModel):
+    """External PCF API reference discovered in Carbon Footprint submodels."""
+
+    endpoint: str
+    query: str | None = None
+    source_submodel: str | None = None
+    source_path: str | None = None
+
+
 class MaterialInventory(BaseModel):
     """Extracted material inventory from AAS submodels."""
 
     items: list[MaterialItem] = Field(default_factory=list)
     total_mass_kg: float = 0.0
     source_submodels: list[str] = Field(default_factory=list)
+    external_pcf_apis: list[ExternalPCFApiRef] = Field(default_factory=list)
 
 
 class MaterialBreakdown(BaseModel):
@@ -57,6 +67,7 @@ class PCFResult(BaseModel):
     breakdown: list[MaterialBreakdown] = Field(default_factory=list)
     scope: str
     methodology: str
+    methodology_disclosure: str | None = None
 
 
 class LCARequest(BaseModel):
@@ -84,6 +95,7 @@ class LCAReport(BaseModel):
     factor_database_version: str
     created_at: datetime
     breakdown: list[MaterialBreakdown] = Field(default_factory=list)
+    methodology_disclosure: str | None = None
 
 
 class ComparisonRequest(BaseModel):

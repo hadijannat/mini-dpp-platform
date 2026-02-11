@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.core.logging import get_logger
-from app.modules.lca.schemas import MaterialInventory, MaterialItem
+from app.modules.lca.schemas import ExternalPCFApiRef, MaterialInventory, MaterialItem
 
 logger = get_logger(__name__)
 
@@ -28,6 +28,13 @@ _CARBON_FOOTPRINT_SEMANTIC_IDS = (
     "CarbonFootprint",
     "ProductCarbonFootprint",
 )
+
+_CF_LIST_ID_SHORTS = (
+    "productcarbonfootprint",
+    "productorsectorspecificcarbonfootprints",
+)
+
+_EXTERNAL_PCF_API_IDSHORT = "externalpcfapi"
 
 # idShort fragments that indicate mass/weight properties
 _MASS_ID_SHORTS = ("mass", "weight", "netweight", "grossweight")
@@ -54,13 +61,16 @@ def extract_material_inventory(aas_env: dict[str, Any]) -> MaterialInventory:
     items: list[MaterialItem] = []
     source_submodels: list[str] = []
     pcf_values: dict[str, float] = {}
+    external_pcf_apis: list[ExternalPCFApiRef] = []
 
     # First pass: collect pre-declared PCF values from carbon footprint submodels
     for sm in submodels:
         if not isinstance(sm, dict):
             continue
         if _matches_semantic_id(sm, _CARBON_FOOTPRINT_SEMANTIC_IDS):
-            pcf_values.update(_extract_pcf_values(sm))
+            extracted_values, extracted_api_refs = _extract_pcf_values(sm)
+            pcf_values.update(extracted_values)
+            external_pcf_apis.extend(extracted_api_refs)
 
     # Second pass: extract material items from BOM submodels
     for sm in submodels:
@@ -80,6 +90,7 @@ def extract_material_inventory(aas_env: dict[str, Any]) -> MaterialInventory:
         items=items,
         total_mass_kg=round(total_mass, 6),
         source_submodels=source_submodels,
+        external_pcf_apis=external_pcf_apis,
     )
 
 
@@ -186,24 +197,160 @@ def _parse_component_element(
     )
 
 
-def _extract_pcf_values(submodel: dict[str, Any]) -> dict[str, float]:
-    """Extract pre-declared PCF values from a carbon footprint submodel."""
+def _extract_pcf_values(
+    submodel: dict[str, Any],
+) -> tuple[dict[str, float], list[ExternalPCFApiRef]]:
+    """Extract pre-declared PCF values and ExternalPcfApi references.
+
+    This function prefers template-path-aware extraction for known Carbon Footprint
+    list structures and falls back to generic idShort/value matching.
+    """
     result: dict[str, float] = {}
+    api_refs: list[ExternalPCFApiRef] = []
     elements = submodel.get("submodelElements", [])
     if not isinstance(elements, list):
-        return result
+        return result, api_refs
+
+    submodel_id = str(submodel.get("idShort", "CarbonFootprint"))
 
     for elem in elements:
         if not isinstance(elem, dict):
             continue
-        id_short = str(elem.get("idShort", "")).lower()
-        if "pcf" in id_short or "carbonfootprint" in id_short:
+        id_short = str(elem.get("idShort", "")).strip()
+        id_short_l = id_short.lower()
+
+        # Template-path-aware handling for ProductCarbonFootprint lists
+        if id_short_l in _CF_LIST_ID_SHORTS and elem.get("modelType") == "SubmodelElementList":
+            values = elem.get("value", [])
+            if isinstance(values, list):
+                for index, item in enumerate(values):
+                    if not isinstance(item, dict):
+                        continue
+                    _extract_pcf_from_collection(
+                        item,
+                        result,
+                        api_refs,
+                        path=f"{submodel_id}/{id_short}[{index}]",
+                        source_submodel=submodel_id,
+                    )
+            continue
+
+        # Fallback direct value extraction
+        if "pcf" in id_short_l or "carbonfootprint" in id_short_l:
             value = _safe_float(elem.get("value"))
             if value > 0:
-                # Use the idShort (normalised) as key
-                result[id_short] = value
+                result[id_short_l] = value
 
-    return result
+        # Generic traversal for nested ExternalPcfApi references
+        _extract_pcf_from_collection(
+            elem,
+            result,
+            api_refs,
+            path=f"{submodel_id}/{id_short or 'element'}",
+            source_submodel=submodel_id,
+        )
+
+    return result, api_refs
+
+
+def _extract_pcf_from_collection(
+    element: dict[str, Any],
+    pcf_values: dict[str, float],
+    api_refs: list[ExternalPCFApiRef],
+    *,
+    path: str,
+    source_submodel: str,
+) -> None:
+    """Walk collection/list nodes and harvest PCF + ExternalPcfApi metadata."""
+    model_type = element.get("modelType")
+    id_short = str(element.get("idShort", "")).strip()
+    id_short_l = id_short.lower()
+
+    if id_short_l == _EXTERNAL_PCF_API_IDSHORT:
+        endpoint, query = _extract_external_pcf_api_fields(element.get("value", []))
+        if endpoint:
+            api_refs.append(
+                ExternalPCFApiRef(
+                    endpoint=endpoint,
+                    query=query,
+                    source_submodel=source_submodel,
+                    source_path=path,
+                )
+            )
+
+    # Property-like direct values
+    if model_type == "Property" and ("pcf" in id_short_l or "carbonfootprint" in id_short_l):
+        value = _safe_float(element.get("value"))
+        if value > 0:
+            pcf_values[id_short_l] = value
+
+    # Recurse into collection/list values
+    values = element.get("value")
+    if isinstance(values, list):
+        if model_type == "SubmodelElementCollection":
+            material_name = _extract_material_name(values)
+            pcf_value = _extract_pcf_numeric(values)
+            if material_name and pcf_value is not None:
+                pcf_values[material_name.lower()] = pcf_value
+            for child in values:
+                if isinstance(child, dict):
+                    child_id = str(child.get("idShort", "")).strip() or "element"
+                    _extract_pcf_from_collection(
+                        child,
+                        pcf_values,
+                        api_refs,
+                        path=f"{path}/{child_id}",
+                        source_submodel=source_submodel,
+                    )
+        elif model_type == "SubmodelElementList":
+            for index, child in enumerate(values):
+                if isinstance(child, dict):
+                    _extract_pcf_from_collection(
+                        child,
+                        pcf_values,
+                        api_refs,
+                        path=f"{path}[{index}]",
+                        source_submodel=source_submodel,
+                    )
+
+
+def _extract_external_pcf_api_fields(values: Any) -> tuple[str | None, str | None]:
+    if not isinstance(values, list):
+        return None, None
+    endpoint: str | None = None
+    query: str | None = None
+    for entry in values:
+        if not isinstance(entry, dict):
+            continue
+        id_short = str(entry.get("idShort", "")).strip().lower()
+        if id_short == "pcfapiendpoint":
+            candidate = str(entry.get("value", "")).strip()
+            endpoint = candidate or None
+        elif id_short == "pcfapiquery":
+            candidate = str(entry.get("value", "")).strip()
+            query = candidate or None
+    return endpoint, query
+
+
+def _extract_material_name(values: list[dict[str, Any]]) -> str | None:
+    candidates = ("materialname", "material", "componentname", "productname", "partname")
+    for entry in values:
+        id_short = str(entry.get("idShort", "")).strip().lower()
+        if any(candidate in id_short for candidate in candidates):
+            value = str(entry.get("value", "")).strip()
+            if value:
+                return value
+    return None
+
+
+def _extract_pcf_numeric(values: list[dict[str, Any]]) -> float | None:
+    for entry in values:
+        id_short = str(entry.get("idShort", "")).strip().lower()
+        if "pcf" in id_short or "carbonfootprint" in id_short:
+            value = _safe_float(entry.get("value"))
+            if value > 0:
+                return value
+    return None
 
 
 def _safe_float(value: Any) -> float:

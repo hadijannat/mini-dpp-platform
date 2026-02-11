@@ -1,15 +1,19 @@
 export type UISchema = {
   type?: string;
   title?: string;
+  'x-form-title'?: string;
   description?: string;
+  'x-form-info'?: string;
   properties?: Record<string, UISchema>;
   items?: UISchema;
   required?: string[];
   minItems?: number;
+  maxItems?: number;
   minimum?: number;
   maximum?: number;
   pattern?: string;
   enum?: string[];
+  examples?: unknown[];
   format?: string;
   default?: unknown;
   readOnly?: boolean;
@@ -24,7 +28,13 @@ export type UISchema = {
   'x-annotated-relationship'?: boolean;
   'x-readonly'?: boolean;
   'x-blob'?: boolean;
+  'x-either-or'?: string;
+  'x-form-choices'?: string[];
   'x-form-url'?: string;
   'x-required-languages'?: string[];
   'x-allowed-range'?: string;
+  'x-allowed-value'?: string;
+  'x-allowed-id-short'?: string[];
+  'x-edit-id-short'?: boolean;
+  'x-naming'?: string;
 };

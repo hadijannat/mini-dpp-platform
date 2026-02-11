@@ -1,6 +1,13 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 
-import { apiFetch, getApiErrorMessage, withAuthHeaders } from './api';
+import {
+  apiFetch,
+  calculatePcf,
+  comparePcfRevisions,
+  getApiErrorMessage,
+  getLatestPcfReport,
+  withAuthHeaders,
+} from './api';
 
 describe('withAuthHeaders', () => {
   it('returns original headers when token is missing', () => {
@@ -37,6 +44,76 @@ describe('apiFetch', () => {
         Authorization: 'Bearer token-abc',
       },
     });
+  });
+});
+
+describe('LCA API wrappers', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('calculatePcf calls tenant endpoint with optional scope', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'lca-1' }),
+    } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await calculatePcf('dpp-123', { scope: 'cradle-to-gate' });
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+    const expectedUrl = baseUrl
+      ? `${baseUrl}/api/v1/tenants/default/lca/calculate/dpp-123?scope=cradle-to-gate`
+      : '/api/v1/tenants/default/lca/calculate/dpp-123?scope=cradle-to-gate';
+    expect(fetchMock).toHaveBeenCalledWith(
+      expectedUrl,
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('getLatestPcfReport calls tenant report endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'lca-2' }),
+    } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getLatestPcfReport('dpp-456');
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+    const expectedUrl = baseUrl
+      ? `${baseUrl}/api/v1/tenants/default/lca/report/dpp-456`
+      : '/api/v1/tenants/default/lca/report/dpp-456';
+    expect(fetchMock).toHaveBeenCalledWith(
+      expectedUrl,
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('comparePcfRevisions sends JSON body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ dpp_id: 'dpp-789' }),
+    } as Response);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await comparePcfRevisions({
+      dpp_id: 'dpp-789',
+      revision_a: 1,
+      revision_b: 2,
+    });
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, '') ?? '';
+    const expectedUrl = baseUrl
+      ? `${baseUrl}/api/v1/tenants/default/lca/compare`
+      : '/api/v1/tenants/default/lca/compare';
+    expect(fetchMock).toHaveBeenCalledWith(
+      expectedUrl,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ dpp_id: 'dpp-789', revision_a: 1, revision_b: 2 }),
+      }),
+    );
   });
 });
 
