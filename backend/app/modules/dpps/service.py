@@ -904,12 +904,18 @@ class DPPService:
             templates=available_templates,
             template_provenance=current_revision.template_provenance or {},
         )
-        matching_bindings = [binding for binding in bindings if binding.template_key == template_key]
+        matching_bindings = [
+            binding for binding in bindings if binding.template_key == template_key
+        ]
 
         target_submodel_id = submodel_id
         if target_submodel_id is not None:
             explicit_match = next(
-                (binding for binding in matching_bindings if binding.submodel_id == target_submodel_id),
+                (
+                    binding
+                    for binding in matching_bindings
+                    if binding.submodel_id == target_submodel_id
+                ),
                 None,
             )
             if explicit_match is None:

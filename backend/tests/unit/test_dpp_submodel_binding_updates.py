@@ -81,4 +81,3 @@ async def test_update_submodel_requires_submodel_id_when_template_binding_is_amb
         )
 
     service._basyx_builder.update_submodel_environment.assert_not_called()
-

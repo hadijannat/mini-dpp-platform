@@ -19,7 +19,10 @@ def test_resolve_submodel_bindings_semantic_exact() -> None:
                 "idShort": "CarbonFootprint",
                 "semanticId": {
                     "keys": [
-                        {"type": "GlobalReference", "value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"}
+                        {
+                            "type": "GlobalReference",
+                            "value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+                        }
                     ]
                 },
             }
@@ -91,4 +94,3 @@ def test_resolve_submodel_bindings_id_short_fallback() -> None:
     assert len(bindings) == 1
     assert bindings[0].template_key == "technical-data"
     assert bindings[0].binding_source == "id_short"
-
