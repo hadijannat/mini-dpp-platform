@@ -1,0 +1,20 @@
+{
+  "name": "Mini DPP Platform",
+  "short_name": "Mini DPP",
+  "description": "Digital Product Passport platform for secure, standards-aligned public product data exposure.",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#113244",
+  "background_color": "#faf8ef",
+  "display": "standalone"
+}
