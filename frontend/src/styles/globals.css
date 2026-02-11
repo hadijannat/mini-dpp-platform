@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,26 +16,34 @@
   }
 
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 48 38% 97%;
+    --foreground: 204 35% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 204 35% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --popover-foreground: 204 35% 12%;
+    --primary: 193 70% 32%;
+    --primary-foreground: 45 50% 98%;
+    --secondary: 35 42% 93%;
+    --secondary-foreground: 204 28% 17%;
+    --muted: 38 32% 92%;
+    --muted-foreground: 205 17% 40%;
+    --accent: 45 82% 84%;
+    --accent-foreground: 204 28% 17%;
+    --destructive: 0 82% 58%;
+    --destructive-foreground: 40 50% 98%;
+    --border: 31 30% 84%;
+    --input: 31 30% 84%;
+    --ring: 193 70% 32%;
+    --radius: 0.65rem;
+
+    --landing-ink: 204 43% 16%;
+    --landing-muted: 205 20% 36%;
+    --landing-surface-0: 48 45% 98%;
+    --landing-surface-1: 42 34% 95%;
+    --landing-surface-2: 40 24% 91%;
+    --landing-accent-cyan: 192 76% 33%;
+    --landing-accent-amber: 31 84% 62%;
 
     --sidebar-background: 220 14% 10%;
     --sidebar-foreground: 210 40% 98%;
@@ -50,6 +60,78 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Manrope', sans-serif;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    text-rendering: geometricPrecision;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@layer components {
+  .landing-shell {
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
+  }
+
+  .landing-shell::before {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+      radial-gradient(800px 360px at 18% 10%, hsl(var(--landing-accent-cyan) / 0.09), transparent 70%),
+      radial-gradient(720px 340px at 88% 18%, hsl(var(--landing-accent-amber) / 0.1), transparent 72%),
+      linear-gradient(180deg, hsl(var(--landing-surface-0)) 0%, hsl(var(--landing-surface-1)) 100%);
+  }
+
+  .landing-shell::after {
+    content: '';
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.35;
+    background-image:
+      linear-gradient(
+        to right,
+        hsl(var(--landing-ink) / 0.03) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        hsl(var(--landing-ink) / 0.02) 1px,
+        transparent 1px
+      );
+    background-size: 46px 46px;
+    mask-image: radial-gradient(circle at 50% 30%, black 48%, transparent 95%);
+  }
+
+  .landing-kicker {
+    letter-spacing: 0.16em;
+  }
+
+  .landing-panel {
+    position: relative;
+    backdrop-filter: blur(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-shell::after {
+    display: none;
   }
 }

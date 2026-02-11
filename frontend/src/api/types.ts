@@ -29,3 +29,12 @@ export type TemplateListResponse = OpenApiTemplateListResponse & {
   failed_count?: number | null;
   skipped_count?: number | null;
 };
+
+export interface LandingSummary {
+  tenant_slug: string;
+  published_dpps: number;
+  active_product_families: number;
+  dpps_with_traceability: number;
+  latest_publish_at: string | null;
+  generated_at: string;
+}

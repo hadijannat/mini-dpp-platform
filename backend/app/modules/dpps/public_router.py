@@ -9,14 +9,15 @@ from __future__ import annotations
 
 import base64
 import copy
+from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.db.models import DPP, DPPRevision, DPPStatus, Tenant, TenantStatus
+from app.db.models import DPP, DPPRevision, DPPStatus, EPCISEvent, Tenant, TenantStatus
 from app.db.session import DbSession
 from app.modules.dpps.idta_schemas import (
     PagedResult,
@@ -26,14 +27,82 @@ from app.modules.dpps.idta_schemas import (
 from app.modules.dpps.repository import AASRepositoryService
 from app.modules.dpps.submodel_filter import filter_aas_env_by_espr_tier
 
+_SENSITIVE_PUBLIC_KEYS = frozenset(
+    {
+        "dppid",
+        "aasid",
+        "serialnumber",
+        "batchid",
+        "globalassetid",
+        "payload",
+        "readpoint",
+        "bizlocation",
+        "ownersubject",
+        "usersubject",
+        "createdbysubject",
+        "email",
+    }
+)
+
+_SENSITIVE_ASSET_ID_KEYS = frozenset({"serialnumber", "batchid", "globalassetid", "dppid", "aasid"})
+
+
+def _normalize_public_key(key: str) -> str:
+    return "".join(ch for ch in key.lower() if ch.isalnum())
+
+
+def _is_sensitive_public_key(key: str) -> bool:
+    return _normalize_public_key(key) in _SENSITIVE_PUBLIC_KEYS
+
+
+def _is_sensitive_asset_id_key(key: str) -> bool:
+    return _normalize_public_key(key) in _SENSITIVE_ASSET_ID_KEYS
+
 
 def _filter_public_aas_environment(aas_env: dict[str, Any]) -> dict[str, Any]:
-    """Remove non-public elements from AAS environment for unauthenticated access."""
+    """Remove non-public and sensitive fields from AAS env for unauthenticated access.
+
+    Filtering is recursive:
+    - Drops any AAS element marked with ``Confidentiality`` qualifier != ``public``
+    - Removes known sensitive keys from nested dict structures
+    """
     filtered = copy.deepcopy(aas_env)
-    for submodel in filtered.get("submodels", []):
-        elements = submodel.get("submodelElements", [])
-        submodel["submodelElements"] = [el for el in elements if _element_is_public(el)]
-    return filtered
+    projected = _filter_public_node(filtered)
+    if isinstance(projected, dict):
+        return projected
+    return {"submodels": []}
+
+
+def _is_aas_element(node: dict[str, Any]) -> bool:
+    return "modelType" in node or "idShort" in node or "qualifiers" in node
+
+
+def _filter_public_node(node: Any) -> Any:
+    """Recursively filter nested AAS structures for unauthenticated responses."""
+    if isinstance(node, list):
+        result: list[Any] = []
+        for item in node:
+            filtered_item = _filter_public_node(item)
+            if filtered_item is None:
+                continue
+            result.append(filtered_item)
+        return result
+
+    if isinstance(node, dict):
+        if _is_aas_element(node) and not _element_is_public(node):
+            return None
+
+        filtered_dict: dict[str, Any] = {}
+        for key, value in node.items():
+            if _is_sensitive_public_key(key):
+                continue
+            filtered_value = _filter_public_node(value)
+            if filtered_value is None and isinstance(value, dict) and _is_aas_element(value):
+                continue
+            filtered_dict[key] = filtered_value
+        return filtered_dict
+
+    return node
 
 
 def _element_is_public(element: dict[str, Any]) -> bool:
@@ -43,6 +112,11 @@ def _element_is_public(element: dict[str, Any]) -> bool:
         if q.get("type") == "Confidentiality":
             return str(q.get("value", "public")).lower() == "public"
     return True
+
+
+def _filter_public_asset_ids(asset_ids: dict[str, Any]) -> dict[str, Any]:
+    """Strip sensitive product-level identifiers from public asset ID maps."""
+    return {key: value for key, value in asset_ids.items() if not _is_sensitive_asset_id_key(key)}
 
 
 router = APIRouter()
@@ -61,6 +135,20 @@ class PublicDPPResponse(BaseModel):
     digest_sha256: str | None
 
 
+class PublicLandingSummaryResponse(BaseModel):
+    """Public aggregate metrics for the landing page.
+
+    The response is intentionally aggregate-only and excludes record-level fields.
+    """
+
+    tenant_slug: str
+    published_dpps: int
+    active_product_families: int
+    dpps_with_traceability: int
+    latest_publish_at: str | None
+    generated_at: str
+
+
 async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
     """Look up an active tenant by slug (no auth required)."""
     result = await db.execute(
@@ -76,6 +164,77 @@ async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
             detail="Not found",
         )
     return tenant
+
+
+async def _load_public_landing_summary(
+    db: DbSession,
+    tenant_id: UUID,
+    tenant_slug: str,
+) -> PublicLandingSummaryResponse:
+    """Compute public aggregate metrics for landing page consumption."""
+    published_count_result = await db.execute(
+        select(func.count(DPP.id)).where(
+            DPP.tenant_id == tenant_id,
+            DPP.status == DPPStatus.PUBLISHED,
+        )
+    )
+    published_dpps = int(published_count_result.scalar_one() or 0)
+
+    families_result = await db.execute(
+        select(func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext))).where(
+            DPP.tenant_id == tenant_id,
+            DPP.status == DPPStatus.PUBLISHED,
+            DPP.asset_ids["manufacturerPartId"].astext.is_not(None),
+            DPP.asset_ids["manufacturerPartId"].astext != "",
+        )
+    )
+    active_product_families = int(families_result.scalar_one() or 0)
+
+    traceability_result = await db.execute(
+        select(func.count(func.distinct(EPCISEvent.dpp_id)))
+        .select_from(EPCISEvent)
+        .join(
+            DPP,
+            (DPP.id == EPCISEvent.dpp_id) & (DPP.tenant_id == EPCISEvent.tenant_id),
+        )
+        .where(
+            EPCISEvent.tenant_id == tenant_id,
+            DPP.status == DPPStatus.PUBLISHED,
+        )
+    )
+    dpps_with_traceability = int(traceability_result.scalar_one() or 0)
+
+    latest_publish_result = await db.execute(
+        select(func.max(DPP.updated_at)).where(
+            DPP.tenant_id == tenant_id,
+            DPP.status == DPPStatus.PUBLISHED,
+        )
+    )
+    latest_publish_dt = latest_publish_result.scalar_one()
+
+    return PublicLandingSummaryResponse(
+        tenant_slug=tenant_slug,
+        published_dpps=published_dpps,
+        active_product_families=active_product_families,
+        dpps_with_traceability=dpps_with_traceability,
+        latest_publish_at=latest_publish_dt.isoformat() if latest_publish_dt else None,
+        generated_at=datetime.now(UTC).isoformat(),
+    )
+
+
+@router.get(
+    "/{tenant_slug}/landing/summary",
+    response_model=PublicLandingSummaryResponse,
+)
+async def get_public_landing_summary(
+    tenant_slug: str,
+    db: DbSession,
+    response: Response,
+) -> PublicLandingSummaryResponse:
+    """Public aggregate-only metrics for landing page trust strip."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=900"
+    return await _load_public_landing_summary(db, tenant.id, tenant.slug)
 
 
 @router.get(
@@ -113,7 +272,7 @@ async def get_published_dpp(
     return PublicDPPResponse(
         id=dpp.id,
         status=dpp.status.value,
-        asset_ids=dpp.asset_ids,
+        asset_ids=_filter_public_asset_ids(dpp.asset_ids),
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
         current_revision_no=revision.revision_no if revision else None,
@@ -167,7 +326,7 @@ async def get_published_dpp_by_slug(
     return PublicDPPResponse(
         id=dpp.id,
         status=dpp.status.value,
-        asset_ids=dpp.asset_ids,
+        asset_ids=_filter_public_asset_ids(dpp.asset_ids),
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
         current_revision_no=revision.revision_no if revision else None,
@@ -249,7 +408,7 @@ async def list_shells(
             PublicDPPResponse(
                 id=dpp.id,
                 status=dpp.status.value,
-                asset_ids=dpp.asset_ids,
+                asset_ids=_filter_public_asset_ids(dpp.asset_ids),
                 created_at=dpp.created_at.isoformat(),
                 updated_at=dpp.updated_at.isoformat(),
                 current_revision_no=(revision.revision_no if revision else None),
@@ -295,7 +454,7 @@ async def get_shell_by_aas_id(
     return PublicDPPResponse(
         id=dpp.id,
         status=dpp.status.value,
-        asset_ids=dpp.asset_ids,
+        asset_ids=_filter_public_asset_ids(dpp.asset_ids),
         created_at=dpp.created_at.isoformat(),
         updated_at=dpp.updated_at.isoformat(),
         current_revision_no=revision.revision_no if revision else None,
