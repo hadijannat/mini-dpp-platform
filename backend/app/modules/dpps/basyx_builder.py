@@ -90,13 +90,18 @@ class BasyxDppBuilder:
         submodel_data: dict[str, Any],
         asset_ids: dict[str, Any],
         rebuild_from_template: bool,
+        submodel_id: str | None = None,
     ) -> dict[str, Any]:
         descriptor = get_template_descriptor(template_key)
         if descriptor is None:
             raise ValueError(f"Unknown template key: {template_key}")
 
         store, aas = self._load_environment(aas_env_json)
-        existing_submodel = self._find_submodel(store, descriptor.semantic_id)
+        existing_submodel = (
+            self._find_submodel_by_id(store, submodel_id)
+            if submodel_id
+            else self._find_submodel(store, descriptor.semantic_id)
+        )
 
         parsed = self._parse_template(template, descriptor.semantic_id)
         template_submodel = parsed.submodel
@@ -255,6 +260,18 @@ class BasyxDppBuilder:
                 continue
             candidate = self._normalize_semantic_id(reference_to_str(obj.semantic_id))
             if candidate and candidate == target:
+                return obj
+        return None
+
+    def _find_submodel_by_id(
+        self,
+        store: model.DictObjectStore[model.Identifiable],
+        submodel_id: str,
+    ) -> model.Submodel | None:
+        for obj in store:
+            if not isinstance(obj, model.Submodel):
+                continue
+            if str(obj.id) == submodel_id:
                 return obj
         return None
 

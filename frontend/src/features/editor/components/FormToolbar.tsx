@@ -6,6 +6,8 @@ type FormToolbarProps = {
   onReset: () => void;
   onRebuild: () => void;
   isSaving: boolean;
+  canUpdate?: boolean;
+  canReset?: boolean;
 };
 
 export function FormToolbar({
@@ -13,18 +15,20 @@ export function FormToolbar({
   onReset,
   onRebuild,
   isSaving,
+  canUpdate = true,
+  canReset = true,
 }: FormToolbarProps) {
   return (
     <div className="flex justify-end gap-3">
-      <Button variant="outline" onClick={onReset}>
+      <Button variant="outline" onClick={onReset} disabled={!canUpdate || !canReset || isSaving}>
         Reset
       </Button>
-      {!isSaving && (
-        <Button variant="ghost" onClick={onRebuild}>
+      {!isSaving && canUpdate && (
+        <Button variant="ghost" onClick={onRebuild} disabled={!canUpdate}>
           Rebuild from template
         </Button>
       )}
-      <Button onClick={onSave} disabled={isSaving}>
+      <Button onClick={onSave} disabled={isSaving || !canUpdate}>
         {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
         {isSaving ? 'Saving...' : 'Save Changes'}
       </Button>

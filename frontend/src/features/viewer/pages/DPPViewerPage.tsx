@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -17,6 +18,7 @@ import { RawSubmodelTree } from '../components/RawSubmodelTree';
 import { IntegrityCard } from '../components/IntegrityCard';
 import { classifySubmodelElements } from '../utils/esprCategories';
 import type { PublicDPPResponse } from '@/api/types';
+import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
 
 async function fetchDPP(
   dppId: string,
@@ -94,6 +96,17 @@ export default function DPPViewerPage() {
   const productName =
     (dpp.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
   const epcisEvents = epcisData?.eventList ?? [];
+
+  useEffect(() => {
+    if (!dpp?.id || submodels.length === 0) return;
+    const uncategorized = classified.uncategorized ?? [];
+    const withSemanticId = uncategorized.filter((node) => Boolean(node.semanticId)).length;
+    emitSubmodelUxMetric('unresolved_semantic_classification', {
+      dpp_id: dpp.id,
+      uncategorized_count: uncategorized.length,
+      uncategorized_with_semantic_id: withSemanticId,
+    });
+  }, [classified, dpp?.id, submodels.length]);
 
   return (
     <div className="space-y-6">

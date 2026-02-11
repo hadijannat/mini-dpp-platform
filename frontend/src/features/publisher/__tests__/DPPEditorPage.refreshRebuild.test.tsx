@@ -82,22 +82,6 @@ describe('DPPEditorPage refresh & rebuild', () => {
           }),
         );
       }
-      if (path === '/api/v1/templates/refresh') {
-        return Promise.resolve(
-          okJson({
-            templates: [
-              {
-                template_key: 'carbon-footprint',
-                semantic_id: 'urn:semantic:carbon-footprint',
-              },
-              {
-                template_key: 'digital-nameplate',
-                semantic_id: 'urn:semantic:digital-nameplate',
-              },
-            ],
-          }),
-        );
-      }
       return Promise.resolve(failedJson());
     });
 
@@ -130,27 +114,51 @@ describe('DPPEditorPage refresh & rebuild', () => {
             aas_environment: {
               submodels: [
                 {
+                  id: 'urn:dpp:sm:cf',
                   idShort: 'CarbonFootprint',
                   semanticId: { keys: [{ value: 'urn:semantic:carbon-footprint' }] },
                   submodelElements: [],
                 },
                 {
+                  id: 'urn:dpp:sm:np',
                   idShort: 'Nameplate',
                   semanticId: { keys: [{ value: 'urn:semantic:digital-nameplate' }] },
                   submodelElements: [],
                 },
               ],
             },
+            submodel_bindings: [
+              {
+                submodel_id: 'urn:dpp:sm:cf',
+                id_short: 'CarbonFootprint',
+                semantic_id: 'urn:semantic:carbon-footprint',
+                template_key: 'carbon-footprint',
+                binding_source: 'semantic_exact',
+              },
+              {
+                submodel_id: 'urn:dpp:sm:np',
+                id_short: 'Nameplate',
+                semantic_id: 'urn:semantic:digital-nameplate',
+                template_key: 'digital-nameplate',
+                binding_source: 'semantic_exact',
+              },
+            ],
           }),
         );
       }
 
-      if (path === '/dpps/019c42a4-128f-7bd9-a95c-a842746f2f9a/submodel' && options?.method === 'PUT') {
-        const payload = JSON.parse(options.body ?? '{}') as { template_key?: string };
-        if (payload.template_key === 'carbon-footprint') {
-          return Promise.resolve(failedJson());
-        }
-        return Promise.resolve(okJson({ ok: true }));
+      if (
+        path === '/dpps/019c42a4-128f-7bd9-a95c-a842746f2f9a/submodels/refresh-rebuild' &&
+        options?.method === 'POST'
+      ) {
+        return Promise.resolve(
+          okJson({
+            attempted: 2,
+            succeeded: [{ template_key: 'digital-nameplate', submodel_id: 'urn:dpp:sm:np', submodel: 'Nameplate' }],
+            failed: [{ template_key: 'carbon-footprint', submodel_id: 'urn:dpp:sm:cf', submodel: 'CarbonFootprint', error: 'Template error' }],
+            skipped: [],
+          }),
+        );
       }
 
       return Promise.resolve(failedJson());

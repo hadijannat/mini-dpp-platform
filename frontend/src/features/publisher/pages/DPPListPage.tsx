@@ -57,7 +57,7 @@ import { ActorBadge } from '@/components/actor-badge';
 import { ErrorBanner } from '@/components/error-banner';
 import { EmptyState } from '@/components/empty-state';
 import { LoadingSpinner } from '@/components/loading-spinner';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast';
 import type { DPPResponse, TemplateResponse } from '@/api/types';
 import { hasRole } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -85,25 +85,7 @@ interface TemplatePackage {
   variables: TemplateVariable[];
 }
 
-interface ActorSummary {
-  subject: string;
-  display_name?: string | null;
-  email_masked?: string | null;
-}
-
-interface AccessSummary {
-  can_read: boolean;
-  can_update: boolean;
-  can_publish: boolean;
-  can_archive: boolean;
-  source: 'owner' | 'share' | 'tenant_admin';
-}
-
-interface DPPListItem extends DPPResponse {
-  visibility_scope?: 'owner_team' | 'tenant';
-  owner?: ActorSummary;
-  access?: AccessSummary;
-}
+type DPPListItem = DPPResponse;
 
 type DppScopeFilter = 'mine' | 'shared' | 'all';
 

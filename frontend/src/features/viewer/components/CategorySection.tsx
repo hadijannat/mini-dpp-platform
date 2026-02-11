@@ -1,10 +1,11 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { DataField } from './DataField';
-import type { ESPRCategory } from '../utils/esprCategories';
+import { Badge } from '@/components/ui/badge';
+import type { ClassifiedNode, ESPRCategory } from '../utils/esprCategories';
 
 interface CategorySectionProps {
   category: ESPRCategory;
-  elements: Array<{ submodelIdShort: string; element: Record<string, unknown> }>;
+  elements: ClassifiedNode[];
 }
 
 export function CategorySection({ category, elements }: CategorySectionProps) {
@@ -20,16 +21,26 @@ export function CategorySection({ category, elements }: CategorySectionProps) {
         <span className="text-xs text-muted-foreground">({elements.length} fields)</span>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {elements.map(({ submodelIdShort, element }, idx) => (
-          <Card key={`${submodelIdShort}-${element.idShort as string}-${idx}`} className="shadow-sm">
+        {elements.map((element, idx) => (
+          <Card key={`${element.submodelIdShort}-${element.path}-${idx}`} className="shadow-sm">
             <CardContent className="p-4">
               <DataField
-                label={element.idShort as string}
+                label={element.label}
                 value={element.value}
               />
-              <p className="mt-1 text-[11px] text-muted-foreground">
-                from {submodelIdShort}
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span>from {element.submodelIdShort}</span>
+                <span aria-hidden>•</span>
+                <span className="break-all">{element.path}</span>
+                {element.semanticId && (
+                  <>
+                    <span aria-hidden>•</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      semantic
+                    </Badge>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

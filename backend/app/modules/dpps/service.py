@@ -43,6 +43,10 @@ from app.modules.aas.sanitization import (
 )
 from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
+from app.modules.dpps.submodel_binding import (
+    ResolvedSubmodelBinding,
+    resolve_submodel_bindings,
+)
 from app.modules.qr.service import QRCodeService
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.service import TemplateRegistryService
@@ -52,6 +56,19 @@ logger = get_logger(__name__)
 
 class SigningError(Exception):
     """Raised when JWS signing is configured but fails."""
+
+
+class AmbiguousSubmodelBindingError(ValueError):
+    """Raised when a template key matches multiple submodels without an explicit target."""
+
+    def __init__(self, template_key: str, submodel_ids: list[str]) -> None:
+        self.template_key = template_key
+        self.submodel_ids = submodel_ids
+        quoted = ", ".join(submodel_ids)
+        super().__init__(
+            f"Ambiguous template binding for '{template_key}'. "
+            f"Provide submodel_id. Candidates: {quoted}"
+        )
 
 
 class DPPService:
@@ -801,6 +818,21 @@ class DPPService:
 
         return definition, revision
 
+    async def get_submodel_bindings(
+        self,
+        *,
+        revision: DPPRevision | None,
+    ) -> list[ResolvedSubmodelBinding]:
+        """Resolve deterministic submodel bindings for a given revision."""
+        if revision is None:
+            return []
+        templates = await self._template_service.get_all_templates()
+        return resolve_submodel_bindings(
+            aas_env_json=revision.aas_env_json,
+            templates=templates,
+            template_provenance=revision.template_provenance or {},
+        )
+
     async def update_submodel(
         self,
         dpp_id: UUID,
@@ -809,6 +841,7 @@ class DPPService:
         submodel_data: dict[str, Any],
         updated_by_subject: str,
         rebuild_from_template: bool = False,
+        submodel_id: str | None = None,
     ) -> DPPRevision:
         """
         Update a specific submodel within a DPP.
@@ -821,6 +854,7 @@ class DPPService:
             template_key: Key of the submodel template being updated
             submodel_data: New submodel element values
             updated_by_subject: OIDC subject of the updating user
+            submodel_id: Optional explicit target submodel ID
 
         Returns:
             The newly created revision
@@ -860,6 +894,37 @@ class DPPService:
         if not template:
             raise ValueError(f"Template {template_key} not found")
 
+        get_all_templates = getattr(self._template_service, "get_all_templates", None)
+        if callable(get_all_templates):
+            available_templates = await get_all_templates()
+        else:
+            available_templates = [template]
+        bindings = resolve_submodel_bindings(
+            aas_env_json=base_env,
+            templates=available_templates,
+            template_provenance=current_revision.template_provenance or {},
+        )
+        matching_bindings = [binding for binding in bindings if binding.template_key == template_key]
+
+        target_submodel_id = submodel_id
+        if target_submodel_id is not None:
+            explicit_match = next(
+                (binding for binding in matching_bindings if binding.submodel_id == target_submodel_id),
+                None,
+            )
+            if explicit_match is None:
+                raise ValueError(
+                    f"Submodel '{target_submodel_id}' is not bound to template '{template_key}'"
+                )
+        elif len(matching_bindings) > 1:
+            candidates = [
+                binding.submodel_id or binding.id_short or "unknown-submodel"
+                for binding in matching_bindings
+            ]
+            raise AmbiguousSubmodelBindingError(template_key=template_key, submodel_ids=candidates)
+        elif len(matching_bindings) == 1:
+            target_submodel_id = matching_bindings[0].submodel_id
+
         applied_autofix = False
         autofix_stats = SanitizationStats()
 
@@ -871,6 +936,7 @@ class DPPService:
                 submodel_data=submodel_data,
                 asset_ids=asset_ids,
                 rebuild_from_template=rebuild_from_template,
+                submodel_id=target_submodel_id,
             )
         except Exception as exc:
             if not self._is_aasd120_list_idshort_error(exc):
@@ -901,6 +967,7 @@ class DPPService:
                     submodel_data=submodel_data,
                     asset_ids=asset_ids,
                     rebuild_from_template=rebuild_from_template,
+                    submodel_id=target_submodel_id,
                 )
                 logger.info(
                     "aasd120_autofix_retry_success",
@@ -958,6 +1025,113 @@ class DPPService:
 
         await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
         return revision
+
+    async def refresh_and_rebuild_dpp_submodels(
+        self,
+        *,
+        dpp_id: UUID,
+        tenant_id: UUID,
+        updated_by_subject: str,
+    ) -> dict[str, Any]:
+        """Refresh templates and rebuild all bound submodels for a single DPP."""
+        current_revision = await self.get_latest_revision(dpp_id, tenant_id)
+        if current_revision is None:
+            raise ValueError(f"DPP {dpp_id} not found")
+
+        dpp = await self.get_dpp(dpp_id, tenant_id)
+        if dpp is None:
+            raise ValueError(f"DPP {dpp_id} not found")
+        if dpp.status == DPPStatus.ARCHIVED:
+            raise ValueError("Cannot rebuild an archived DPP")
+
+        refreshed_templates, _ = await self._template_service.refresh_all_templates()
+        bindings = resolve_submodel_bindings(
+            aas_env_json=current_revision.aas_env_json,
+            templates=refreshed_templates,
+            template_provenance=current_revision.template_provenance or {},
+        )
+
+        summary: dict[str, Any] = {
+            "attempted": 0,
+            "succeeded": [],
+            "failed": [],
+            "skipped": [],
+        }
+
+        seen_submodels: set[str] = set()
+        for binding in bindings:
+            if current_revision is None:
+                raise ValueError("Failed to reload revision during refresh-rebuild")
+
+            submodel_label = binding.id_short or binding.submodel_id or "submodel"
+            if not binding.submodel_id:
+                summary["skipped"].append(
+                    {
+                        "submodel": submodel_label,
+                        "reason": "missing_submodel_id",
+                    }
+                )
+                continue
+
+            if binding.submodel_id in seen_submodels:
+                continue
+            seen_submodels.add(binding.submodel_id)
+
+            if not binding.template_key:
+                summary["skipped"].append(
+                    {
+                        "submodel": submodel_label,
+                        "reason": "no_matching_template",
+                    }
+                )
+                continue
+
+            submodel = self._find_submodel_json_by_id(
+                current_revision.aas_env_json,
+                binding.submodel_id,
+            )
+            if submodel is None:
+                summary["skipped"].append(
+                    {
+                        "submodel": submodel_label,
+                        "reason": "submodel_not_found",
+                    }
+                )
+                continue
+
+            summary["attempted"] += 1
+            submodel_data = self._extract_submodel_data(submodel)
+            try:
+                await self.update_submodel(
+                    dpp_id=dpp_id,
+                    tenant_id=tenant_id,
+                    template_key=binding.template_key,
+                    submodel_data=submodel_data,
+                    updated_by_subject=updated_by_subject,
+                    rebuild_from_template=True,
+                    submodel_id=binding.submodel_id,
+                )
+                summary["succeeded"].append(
+                    {
+                        "template_key": binding.template_key,
+                        "submodel_id": binding.submodel_id,
+                        "submodel": submodel_label,
+                    }
+                )
+                current_revision = await self.get_latest_revision(dpp_id, tenant_id)
+                if current_revision is None:
+                    raise ValueError("Failed to reload revision after rebuild")
+            except Exception as exc:
+                summary["failed"].append(
+                    {
+                        "template_key": binding.template_key,
+                        "submodel_id": binding.submodel_id,
+                        "submodel": submodel_label,
+                        "error": str(exc),
+                    }
+                )
+
+        return summary
 
     async def rebuild_all_from_templates(
         self,
@@ -1580,6 +1754,21 @@ class DPPService:
         submodel["submodelElements"] = hydrated_elements
 
         return submodel
+
+    def _find_submodel_json_by_id(
+        self,
+        aas_env_json: dict[str, Any],
+        submodel_id: str,
+    ) -> dict[str, Any] | None:
+        submodels = aas_env_json.get("submodels")
+        if not isinstance(submodels, list):
+            return None
+        for submodel in submodels:
+            if not isinstance(submodel, dict):
+                continue
+            if str(submodel.get("id")) == submodel_id:
+                return submodel
+        return None
 
     def _extract_submodel_data(self, submodel: dict[str, Any]) -> dict[str, Any]:
         elements = submodel.get("submodelElements", [])

@@ -1,5 +1,6 @@
 import { Fingerprint, FlaskConical, Leaf, ShieldCheck, Wrench, Route, type LucideIcon } from 'lucide-react';
 import semanticRegistry from '@shared/idta_semantic_registry.json';
+import { buildSubmodelNodeTree, flattenSubmodelNodes } from '@/features/submodels/utils/treeBuilder';
 
 type RegistryTemplateEntry = {
   semantic_id: string;
@@ -48,6 +49,15 @@ export type ESPRCategory = {
   description: string;
   /** idShort patterns that map to this category (case-insensitive partial match) */
   patterns: string[];
+};
+
+export type ClassifiedNode = {
+  submodelIdShort: string;
+  path: string;
+  label: string;
+  value: unknown;
+  modelType: string;
+  semanticId?: string;
 };
 
 export const ESPR_CATEGORIES: ESPRCategory[] = [
@@ -146,8 +156,8 @@ export function classifyElement(
  */
 export function classifySubmodelElements(
   submodels: Array<Record<string, unknown>>,
-): Record<string, Array<{ submodelIdShort: string; element: Record<string, unknown> }>> {
-  const result: Record<string, Array<{ submodelIdShort: string; element: Record<string, unknown> }>> = {};
+): Record<string, ClassifiedNode[]> {
+  const result: Record<string, ClassifiedNode[]> = {};
 
   // Initialize all categories
   for (const cat of ESPR_CATEGORIES) {
@@ -156,7 +166,8 @@ export function classifySubmodelElements(
   result['uncategorized'] = [];
 
   for (const submodel of submodels) {
-    const elements = (submodel.submodelElements || []) as Array<Record<string, unknown>>;
+    const rootNode = buildSubmodelNodeTree(submodel);
+    const nodes = flattenSubmodelNodes(rootNode).filter((node) => node.children.length === 0);
     const submodelSemanticId = _extractSemanticId(submodel);
 
     // First, try to classify the entire submodel
@@ -165,18 +176,25 @@ export function classifySubmodelElements(
       submodelSemanticId,
     );
 
-    for (const element of elements) {
-      const elementSemanticId = _extractSemanticId(element);
+    for (const node of nodes) {
       const elementCategory = classifyElement(
-        (element.idShort as string) || '',
-        elementSemanticId,
+        node.label,
+        node.meta.semanticId,
       );
       const category = elementCategory || submodelCategory;
+      const classifiedNode: ClassifiedNode = {
+        submodelIdShort: String(submodel.idShort ?? rootNode.label),
+        path: node.path,
+        label: node.label,
+        value: node.value,
+        modelType: node.modelType,
+        semanticId: node.meta.semanticId,
+      };
 
       if (category) {
-        result[category.id].push({ submodelIdShort: submodel.idShort as string, element });
+        result[category.id].push(classifiedNode);
       } else {
-        result['uncategorized'].push({ submodelIdShort: submodel.idShort as string, element });
+        result['uncategorized'].push(classifiedNode);
       }
     }
   }

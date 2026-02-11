@@ -1,10 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CategorySection } from './CategorySection';
-import { ESPR_CATEGORIES } from '../utils/esprCategories';
+import { ESPR_CATEGORIES, type ClassifiedNode } from '../utils/esprCategories';
 import { Badge } from '@/components/ui/badge';
 
 interface ESPRTabsProps {
-  classified: Record<string, Array<{ submodelIdShort: string; element: Record<string, unknown> }>>;
+  classified: Record<string, ClassifiedNode[]>;
 }
 
 export function ESPRTabs({ classified }: ESPRTabsProps) {

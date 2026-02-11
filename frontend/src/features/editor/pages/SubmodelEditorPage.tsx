@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import { ChevronRight } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
+import { buildDppActionState } from '@/features/submodels/policy/actionPolicy';
+import type { DppAccessSummary, SubmodelBinding } from '@/features/submodels/types';
+import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -32,6 +35,28 @@ import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
 import { AASRendererList } from '../components/AASRenderer';
 import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
+import { cn } from '@/lib/utils';
+
+function flattenFormErrors(
+  errors: Record<string, unknown>,
+  basePath = '',
+): Array<{ path: string; message: string }> {
+  const flattened: Array<{ path: string; message: string }> = [];
+  for (const [key, value] of Object.entries(errors)) {
+    const path = basePath ? `${basePath}.${key}` : key;
+    if (!value || typeof value !== 'object') continue;
+    const asRecord = value as Record<string, unknown>;
+    const message = asRecord.message;
+    if (typeof message === 'string' && message) {
+      flattened.push({ path, message });
+    }
+    const nested = Object.fromEntries(
+      Object.entries(asRecord).filter(([nestedKey]) => nestedKey !== 'message' && nestedKey !== 'type'),
+    );
+    flattened.push(...flattenFormErrors(nested, path));
+  }
+  return flattened;
+}
 
 // ── API functions (unchanged) ───────────────────────────────────
 
@@ -40,7 +65,13 @@ async function fetchDpp(dppId: string, token?: string) {
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
-  return response.json();
+  return response.json() as Promise<{
+    id: string;
+    status: string;
+    access?: DppAccessSummary;
+    aas_environment?: { submodels?: Array<Record<string, unknown>> };
+    submodel_bindings?: SubmodelBinding[];
+  }>;
 }
 
 async function fetchTemplate(templateKey: string, token?: string) {
@@ -63,6 +94,7 @@ async function updateSubmodel(
   dppId: string,
   templateKey: string,
   data: Record<string, unknown>,
+  submodelId: string | undefined,
   token?: string,
   rebuildFromTemplate = false,
 ) {
@@ -75,6 +107,7 @@ async function updateSubmodel(
         template_key: templateKey,
         data,
         rebuild_from_template: rebuildFromTemplate,
+        ...(submodelId ? { submodel_id: submodelId } : {}),
       }),
     },
     token,
@@ -89,11 +122,13 @@ async function updateSubmodel(
 
 export default function SubmodelEditorPage() {
   const { dppId, templateKey } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const auth = useAuth();
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const queryClient = useQueryClient();
+  const requestedSubmodelId = searchParams.get('submodel_id');
 
   // ── Data fetching ──
 
@@ -121,13 +156,24 @@ export default function SubmodelEditorPage() {
   const submodel = useMemo(() => {
     if (!dpp) return null;
     const submodels = dpp.aas_environment?.submodels || [];
-    const semanticId = contract?.semantic_id ?? template?.semantic_id;
+    const bindings = Array.isArray(dpp.submodel_bindings) ? dpp.submodel_bindings : [];
+    const templateBindings = bindings.filter((binding) => binding.template_key === templateKey);
+    const selectedBinding = requestedSubmodelId
+      ? templateBindings.find((binding) => binding.submodel_id === requestedSubmodelId)
+      : templateBindings[0];
+
+    const resolvedSubmodelId = requestedSubmodelId ?? selectedBinding?.submodel_id ?? null;
+    if (resolvedSubmodelId) {
+      const byId = submodels.find((sm: Record<string, unknown>) => sm?.id === resolvedSubmodelId);
+      if (byId) return byId;
+    }
+
+    const semanticId = selectedBinding?.semantic_id ?? contract?.semantic_id ?? template?.semantic_id;
     if (semanticId) {
-      const bySemantic = submodels.find(
-        (sm: Record<string, unknown>) => extractSemanticId(sm) === semanticId,
-      );
+      const bySemantic = submodels.find((sm: Record<string, unknown>) => extractSemanticId(sm) === semanticId);
       if (bySemantic) return bySemantic;
     }
+
     const definitionIdShort = contract?.definition?.submodel?.idShort;
     if (definitionIdShort) {
       const byIdShort = submodels.find(
@@ -138,10 +184,31 @@ export default function SubmodelEditorPage() {
     return null;
   }, [
     dpp,
+    requestedSubmodelId,
+    templateKey,
     template?.semantic_id,
     contract?.semantic_id,
     contract?.definition?.submodel?.idShort,
   ]);
+
+  const templateBindings = useMemo(() => {
+    if (!dpp || !templateKey) return [];
+    const bindings = Array.isArray(dpp.submodel_bindings) ? dpp.submodel_bindings : [];
+    return bindings.filter((binding) => binding.template_key === templateKey);
+  }, [dpp, templateKey]);
+
+  const selectedBinding = useMemo(() => {
+    if (templateBindings.length === 0) return null;
+    if (requestedSubmodelId) {
+      return (
+        templateBindings.find((binding) => binding.submodel_id === requestedSubmodelId) ?? null
+      );
+    }
+    return templateBindings[0];
+  }, [requestedSubmodelId, templateBindings]);
+
+  const selectedSubmodelId = requestedSubmodelId ?? selectedBinding?.submodel_id ?? undefined;
+  const hasAmbiguousTemplateBindings = templateBindings.length > 1 && !requestedSubmodelId;
 
   const initialData = useMemo(() => {
     if (!submodel) return {};
@@ -162,6 +229,7 @@ export default function SubmodelEditorPage() {
   const [activeView, setActiveView] = useState<'form' | 'json'>('form');
   const [error, setError] = useState<string | null>(null);
   const [hasEdited, setHasEdited] = useState(false);
+  const [pendingAction, setPendingAction] = useState<'save' | 'rebuild' | null>(null);
 
   // Sync RHF defaults when initial data loads
   useEffect(() => {
@@ -179,15 +247,48 @@ export default function SubmodelEditorPage() {
 
   const updateMutation = useMutation({
     mutationFn: (payload: { data: Record<string, unknown>; rebuildFromTemplate?: boolean }) =>
-      updateSubmodel(dppId!, templateKey!, payload.data, token, payload.rebuildFromTemplate ?? false),
+      updateSubmodel(
+        dppId!,
+        templateKey!,
+        payload.data,
+        selectedSubmodelId,
+        token,
+        payload.rebuildFromTemplate ?? false,
+      ),
     onSuccess: () => {
+      setPendingAction(null);
       queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
       navigate(`/console/dpps/${dppId}`);
+    },
+    onError: (mutationError) => {
+      const message = mutationError instanceof Error ? mutationError.message : 'unknown-error';
+      emitSubmodelUxMetric(
+        pendingAction === 'rebuild' ? 'rebuild_failure_class' : 'save_failure_class',
+        {
+          dpp_id: dppId,
+          template_key: templateKey,
+          reason:
+            message.includes('409') || message.toLowerCase().includes('ambiguous')
+              ? 'ambiguous-binding'
+              : message.includes('403')
+                ? 'forbidden'
+                : message.includes('400')
+                  ? 'bad-request'
+                  : 'backend-error',
+          message,
+        },
+      );
+      setPendingAction(null);
     },
   });
 
   const updateError = updateMutation.isError ? (updateMutation.error as Error) : null;
   const sessionExpired = Boolean(updateError?.message?.includes('Session expired'));
+  const actionState = buildDppActionState(
+    dpp?.access as DppAccessSummary | undefined,
+    dpp?.status ?? '',
+  );
+  const fieldErrors = flattenFormErrors(form.formState.errors as Record<string, unknown>);
 
   // ── Handlers ──
 
@@ -211,6 +312,27 @@ export default function SubmodelEditorPage() {
   };
 
   const handleSave = () => {
+    if (!actionState.canUpdate) {
+      setError('You do not have update access for this DPP.');
+      emitSubmodelUxMetric('save_failure_class', {
+        dpp_id: dppId,
+        template_key: templateKey,
+        reason: 'ui-no-update-access',
+      });
+      return;
+    }
+    if (hasAmbiguousTemplateBindings) {
+      setError(
+        'Multiple submodels are bound to this template. Open this editor from the DPP page so a specific submodel can be selected.',
+      );
+      emitSubmodelUxMetric('save_failure_class', {
+        dpp_id: dppId,
+        template_key: templateKey,
+        reason: 'ui-ambiguous-binding',
+      });
+      return;
+    }
+
     if (activeView === 'json') {
       try {
         const parsed = JSON.parse(rawJson) as Record<string, unknown>;
@@ -224,12 +346,23 @@ export default function SubmodelEditorPage() {
               ? eitherOrErrors.join(' ')
               : 'Please resolve the highlighted validation errors.',
           );
+          emitSubmodelUxMetric('save_failure_class', {
+            dpp_id: dppId,
+            template_key: templateKey,
+            reason: eitherOrErrors.length > 0 ? 'ui-either-or-validation' : 'ui-schema-validation',
+          });
           return;
         }
         setError(null);
+        setPendingAction('save');
         updateMutation.mutate({ data: parsed });
       } catch {
         setError('Invalid JSON. Please fix formatting before saving.');
+        emitSubmodelUxMetric('save_failure_class', {
+          dpp_id: dppId,
+          template_key: templateKey,
+          reason: 'ui-invalid-json',
+        });
       }
       return;
     }
@@ -246,13 +379,20 @@ export default function SubmodelEditorPage() {
           ? eitherOrErrors.join(' ')
           : 'Please resolve the highlighted validation errors.',
       );
+      emitSubmodelUxMetric('save_failure_class', {
+        dpp_id: dppId,
+        template_key: templateKey,
+        reason: eitherOrErrors.length > 0 ? 'ui-either-or-validation' : 'ui-schema-validation',
+      });
       return;
     }
     setError(null);
+    setPendingAction('save');
     updateMutation.mutate({ data: formData });
   };
 
   const handleReset = () => {
+    if (!actionState.canUpdate) return;
     form.reset(initialData);
     setRawJson(JSON.stringify(initialData, null, 2));
     setHasEdited(false);
@@ -260,6 +400,26 @@ export default function SubmodelEditorPage() {
   };
 
   const handleRebuild = () => {
+    if (!actionState.canUpdate) {
+      emitSubmodelUxMetric('rebuild_failure_class', {
+        dpp_id: dppId,
+        template_key: templateKey,
+        reason: 'ui-no-update-access',
+      });
+      return;
+    }
+    if (hasAmbiguousTemplateBindings) {
+      setError(
+        'Multiple submodels are bound to this template. Open this editor from the DPP page so a specific submodel can be selected.',
+      );
+      emitSubmodelUxMetric('rebuild_failure_class', {
+        dpp_id: dppId,
+        template_key: templateKey,
+        reason: 'ui-ambiguous-binding',
+      });
+      return;
+    }
+    setPendingAction('rebuild');
     updateMutation.mutate({ data: form.getValues(), rebuildFromTemplate: true });
   };
 
@@ -324,10 +484,27 @@ export default function SubmodelEditorPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="sr-only" aria-live="polite">
+            {updateMutation.isPending ? 'Saving submodel changes' : ''}
+          </p>
           {!submodel && (
             <Alert>
               <AlertDescription className="text-xs">
                 This template is not initialized yet. Saving will add it to the DPP.
+              </AlertDescription>
+            </Alert>
+          )}
+          {!actionState.canUpdate && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                Read-only access. You can inspect this submodel but cannot save or rebuild.
+              </AlertDescription>
+            </Alert>
+          )}
+          {hasAmbiguousTemplateBindings && (
+            <Alert variant="destructive">
+              <AlertDescription className="text-xs">
+                Multiple submodels match this template key. Use the DPP Submodels section to open the exact target.
               </AlertDescription>
             </Alert>
           )}
@@ -338,30 +515,32 @@ export default function SubmodelEditorPage() {
               <TabsTrigger value="json">JSON</TabsTrigger>
             </TabsList>
             <TabsContent value="form">
-              {hasDefinitionElements ? (
-                <AASRendererList
-                  nodes={templateDefinition!.submodel!.elements!}
-                  basePath=""
-                  depth={0}
-                  rootSchema={uiSchema}
-                  control={form.control}
-                />
-              ) : hasSchemaForm ? (
-                <AASRendererList
-                  nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
-                    modelType: 'Property',
-                    idShort: key,
-                  }))}
-                  basePath=""
-                  depth={0}
-                  rootSchema={uiSchema}
-                  control={form.control}
-                />
-              ) : (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                  Form view is unavailable for this template. Switch to JSON.
-                </div>
-              )}
+              <div className={cn(!actionState.canUpdate && 'opacity-90')}>
+                {hasDefinitionElements ? (
+                  <AASRendererList
+                    nodes={templateDefinition!.submodel!.elements!}
+                    basePath=""
+                    depth={0}
+                    rootSchema={uiSchema}
+                    control={form.control}
+                  />
+                ) : hasSchemaForm ? (
+                  <AASRendererList
+                    nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
+                      modelType: 'Property',
+                      idShort: key,
+                    }))}
+                    basePath=""
+                    depth={0}
+                    rootSchema={uiSchema}
+                    control={form.control}
+                  />
+                ) : (
+                  <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    Form view is unavailable for this template. Switch to JSON.
+                  </div>
+                )}
+              </div>
             </TabsContent>
             <TabsContent value="json">
               <JsonEditor
@@ -375,8 +554,23 @@ export default function SubmodelEditorPage() {
           </Tabs>
 
           {/* Error banners */}
-          {error && (
-            <ErrorBanner message={error} />
+          {(fieldErrors.length > 0 || error) && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <div className="space-y-1">
+                  {error && <p className="text-sm">{error}</p>}
+                  {fieldErrors.length > 0 && (
+                    <div className="text-xs">
+                      {fieldErrors.slice(0, 6).map((entry) => (
+                        <p key={entry.path}>
+                          {entry.path}: {entry.message}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
           )}
           {sessionExpired && (
             <ErrorBanner
@@ -396,6 +590,8 @@ export default function SubmodelEditorPage() {
             onReset={handleReset}
             onRebuild={handleRebuild}
             isSaving={updateMutation.isPending}
+            canUpdate={actionState.canUpdate}
+            canReset={hasEdited || form.formState.isDirty}
           />
         </CardContent>
       </Card>
