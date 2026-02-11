@@ -25,14 +25,18 @@ def upgrade() -> None:
             sa.ForeignKey("tenants.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("filename", sa.String(length=512), nullable=False),
         sa.Column("object_key", sa.String(length=1024), nullable=False),
         sa.Column("content_type", sa.String(length=255), nullable=False),
         sa.Column("size_bytes", sa.Integer(), nullable=False),
         sa.Column("sha256", sa.String(length=64), nullable=False),
         sa.Column("created_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("tenant_id", "object_key", name="uq_dpp_attachment_object_key"),
     )

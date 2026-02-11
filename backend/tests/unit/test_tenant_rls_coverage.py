@@ -47,7 +47,12 @@ _RLS_0025 = {
     "batch_import_job_items",
 }
 
-TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024 | _RLS_0025
+# Tables with RLS from migration 0027
+_RLS_0027 = {
+    "dpp_attachments",
+}
+
+TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024 | _RLS_0025 | _RLS_0027
 
 
 def _tenant_scoped_tables() -> set[str]:

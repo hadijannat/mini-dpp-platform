@@ -329,7 +329,7 @@ class BasyxDppBuilder:
                         payload,
                         expected_semantic_id=expected_semantic,
                     )
-            return parsed_sources[source_template_key].submodel
+            return cast(model.Submodel, parsed_sources[source_template_key].submodel)
 
         self._dropin_resolver.resolve(
             template_key=template_key,
@@ -496,11 +496,12 @@ class BasyxDppBuilder:
         elif isinstance(element, (model.File, model.Blob)):
             if isinstance(element_value, dict):
                 if "contentType" in element_value:
-                    element.content_type = validate_mime_type(
+                    content_type = validate_mime_type(
                         cast(str | None, element_value.get("contentType")),
                         pattern=self._settings.mime_validation_regex,
                         allow_empty=True,
                     )
+                    element.content_type = content_type or ""
                 raw_value = element_value.get("value")
                 if raw_value in ("", None):
                     element.value = None
@@ -596,7 +597,9 @@ class BasyxDppBuilder:
                 return False
             return not self._list_has_structural_template(
                 current_element
-            ) and self._list_has_structural_template(template_element)
+            ) and self._list_has_structural_template(
+                cast(model.SubmodelElementList[Any], template_element)
+            )
 
         if isinstance(current_element, model.Entity):
             current_statements = iterable_attr(current_element, "statement", "statements")
@@ -605,7 +608,7 @@ class BasyxDppBuilder:
 
         return False
 
-    def _list_has_structural_template(self, element: model.SubmodelElementList) -> bool:
+    def _list_has_structural_template(self, element: model.SubmodelElementList[Any]) -> bool:
         items = iterable_attr(element, "value", "submodel_element", "submodel_elements")
         if not items:
             return False

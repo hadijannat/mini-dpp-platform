@@ -381,7 +381,7 @@ class TemplateRegistryService:
                         source_template,
                         expected_semantic_id,
                     )
-                return parsed_by_template[source_template_key].submodel
+                return cast(model.Submodel, parsed_by_template[source_template_key].submodel)
 
             resolution_by_element_id = TemplateDropInResolver().resolve(
                 template_key=template.template_key,

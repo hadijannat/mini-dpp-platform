@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 from basyx.aas import model
 
@@ -261,7 +261,7 @@ class TemplateDropInResolver:
             return False
 
         if isinstance(target_element, model.SubmodelElementCollection):
-            target_element.value = source_children
+            cast(Any, target_element).value = source_children
             return True
 
         if isinstance(target_element, model.SubmodelElementList):
@@ -269,8 +269,8 @@ class TemplateDropInResolver:
                 id_short=None,
                 value=[detach_from_namespace(child) for child in source_children],
             )
-            target_element.type_value_list_element = model.SubmodelElementCollection
-            target_element.value = [collection_item]
+            cast(Any, target_element).type_value_list_element = model.SubmodelElementCollection
+            cast(Any, target_element).value = [collection_item]
             return True
 
         return False
