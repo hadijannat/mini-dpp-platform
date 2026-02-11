@@ -24,6 +24,7 @@ export function EnumField({ name, control, node, schema }: FieldProps) {
           formUrl={formUrl}
           error={fieldState.error?.message}
           fieldId={fieldId}
+          fieldPath={name}
         >
           <select
             id={fieldId}

@@ -4,35 +4,7 @@ import type { UISchema } from '../../types/uiSchema';
 import { FieldWrapper } from '../FieldWrapper';
 import { CollapsibleSection } from '../CollapsibleSection';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
-import { Badge } from '@/components/ui/badge';
-
-type AASKey = { type?: string; value?: string };
-type AASReference = { type?: string; keys?: AASKey[] } | null;
-
-function ReferenceDisplay({ reference }: { reference: AASReference }) {
-  if (!reference) {
-    return <span className="text-xs text-muted-foreground italic">Not set</span>;
-  }
-  return (
-    <div className="space-y-1">
-      {reference.type && (
-        <Badge variant="outline" className="text-xs">{reference.type}</Badge>
-      )}
-      {reference.keys && reference.keys.length > 0 ? (
-        <ul className="space-y-1">
-          {reference.keys.map((key, i) => (
-            <li key={i} className="flex gap-2 text-xs">
-              <span className="text-muted-foreground font-medium">{key.type}:</span>
-              <span className="font-mono break-all">{key.value}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <span className="text-xs text-muted-foreground italic">No keys</span>
-      )}
-    </div>
-  );
-}
+import { ReferenceObjectEditor, type AASReference } from './ReferenceObjectEditor';
 
 type AnnotatedRelationshipFieldProps = {
   name: string;
@@ -73,33 +45,11 @@ export function AnnotatedRelationshipField({
         const current =
           field.value && typeof field.value === 'object' && !Array.isArray(field.value)
             ? (field.value as Record<string, unknown>)
-            : { first: null, second: null, annotations: {} };
-
-        const renderRef = (refKey: 'first' | 'second', refLabel: string) => {
-          const ref = current[refKey] as Record<string, unknown> | null;
-          return (
-            <div className="border rounded-md p-3">
-              <p className="text-xs font-medium text-muted-foreground mb-2">{refLabel}</p>
-              {ref ? (
-                <ReferenceDisplay reference={ref as AASReference} />
-              ) : (
-                <input
-                  type="text"
-                  className="w-full border rounded-md px-3 py-2 text-sm"
-                  placeholder={`${refLabel} reference (JSON)`}
-                  onChange={(e) => {
-                    try {
-                      const parsed = JSON.parse(e.target.value);
-                      field.onChange({ ...current, [refKey]: parsed });
-                    } catch {
-                      // Wait for valid JSON
-                    }
-                  }}
-                />
-              )}
-            </div>
-          );
-        };
+            : {
+                first: { type: 'ModelReference', keys: [] },
+                second: { type: 'ModelReference', keys: [] },
+                annotations: {},
+              };
 
         return (
           <FieldWrapper
@@ -108,10 +58,19 @@ export function AnnotatedRelationshipField({
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldPath={name}
           >
             <div className="space-y-3">
-              {renderRef('first', 'First Reference')}
-              {renderRef('second', 'Second Reference')}
+              <ReferenceObjectEditor
+                label="First Reference"
+                value={(current.first as AASReference) ?? null}
+                onChange={(value) => field.onChange({ ...current, first: value })}
+              />
+              <ReferenceObjectEditor
+                label="Second Reference"
+                value={(current.second as AASReference) ?? null}
+                onChange={(value) => field.onChange({ ...current, second: value })}
+              />
               {annotations.length > 0 ? (
                 <CollapsibleSection
                   title="Annotations"

@@ -30,7 +30,14 @@ export function IntegrityCard({ digest }: IntegrityCardProps) {
             <p className="text-xs text-muted-foreground mb-1">SHA-256 Digest</p>
             <p className="text-xs font-mono break-all bg-muted p-2 rounded">{digest}</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleCopy} className="shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="shrink-0"
+            aria-label={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+            title={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+          >
             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
           </Button>
         </div>

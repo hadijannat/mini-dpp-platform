@@ -40,6 +40,9 @@ export function ListField({
   const itemsSchema = schema?.items;
   const itemDefinition = node.items ?? undefined;
   const orderRelevant = node.orderRelevant ?? false;
+  const allowedIdShort = schema?.['x-allowed-id-short'] ?? [];
+  const editIdShort = schema?.['x-edit-id-short'] ?? false;
+  const namingRule = schema?.['x-naming'];
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -57,6 +60,7 @@ export function ListField({
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldPath={name}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-400">
@@ -64,16 +68,35 @@ export function ListField({
               </span>
               <button
                 type="button"
-                className="text-sm text-primary hover:text-primary/80"
+                className="text-sm text-primary hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
                 aria-label={`Add item to ${label}`}
+                disabled={allowedIdShort.length > 0 && list.length >= allowedIdShort.length}
                 onClick={() => {
-                  const next = [...list, defaultValueForSchema(itemsSchema)];
+                  const nextItem = defaultValueForSchema(itemsSchema);
+                  const suggestedIdShort = allowedIdShort[list.length];
+                  const withIdShort =
+                    !editIdShort &&
+                    suggestedIdShort &&
+                    nextItem &&
+                    typeof nextItem === 'object' &&
+                    !Array.isArray(nextItem)
+                      ? { ...(nextItem as Record<string, unknown>), idShort: suggestedIdShort }
+                      : nextItem;
+                  const next = [...list, withIdShort];
                   field.onChange(next);
                 }}
               >
                 Add item
               </button>
             </div>
+            {(allowedIdShort.length > 0 || namingRule) && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                {allowedIdShort.length > 0 && (
+                  <>Allowed idShorts: {allowedIdShort.join(', ')}. </>
+                )}
+                {namingRule && <>Naming rule: {namingRule}.</>}
+              </p>
+            )}
             {list.length === 0 && (
               <p className="text-xs text-gray-400">No items yet.</p>
             )}

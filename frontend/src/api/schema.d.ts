@@ -9,6 +9,20 @@ export interface paths {
     /** Health Check */
     get: operations["health_check_health_get"];
   };
+  "/api/v1/public/landing/summary": {
+    /**
+     * Get Public Scoped Landing Summary
+     * @description Public aggregate-only metrics for landing page trust strip with scope support.
+     */
+    get: operations["get_public_scoped_landing_summary_api_v1_public_landing_summary_get"];
+  };
+  "/api/v1/public/{tenant_slug}/landing/summary": {
+    /**
+     * Get Public Landing Summary
+     * @description Public aggregate-only metrics for landing page trust strip.
+     */
+    get: operations["get_public_landing_summary_api_v1_public__tenant_slug__landing_summary_get"];
+  };
   "/api/v1/public/{tenant_slug}/dpps/{dpp_id}": {
     /**
      * Get Published Dpp
@@ -27,6 +41,157 @@ export interface paths {
      * as used in QR code short links.
      */
     get: operations["get_published_dpp_by_slug_api_v1_public__tenant_slug__dpps_slug__slug__get"];
+  };
+  "/api/v1/public/{tenant_slug}/service-description": {
+    /**
+     * Get Service Description
+     * @description IDTA-01002 $metadata -- service description for this tenant.
+     */
+    get: operations["get_service_description_api_v1_public__tenant_slug__service_description_get"];
+  };
+  "/api/v1/public/{tenant_slug}/shells": {
+    /**
+     * List Shells
+     * @description List all published shells with cursor-based pagination.
+     */
+    get: operations["list_shells_api_v1_public__tenant_slug__shells_get"];
+  };
+  "/api/v1/public/{tenant_slug}/shells/{aas_id_b64}": {
+    /**
+     * Get Shell By Aas Id
+     * @description IDTA-01002 AAS Repository -- Get a shell (DPP) by base64url-encoded AAS ID.
+     */
+    get: operations["get_shell_by_aas_id_api_v1_public__tenant_slug__shells__aas_id_b64__get"];
+  };
+  "/api/v1/public/{tenant_slug}/shells/{aas_id_b64}/submodels": {
+    /**
+     * List Submodel Refs
+     * @description List submodel references (id + semanticId) for a shell.
+     */
+    get: operations["list_submodel_refs_api_v1_public__tenant_slug__shells__aas_id_b64__submodels_get"];
+  };
+  "/api/v1/public/{tenant_slug}/shells/{aas_id_b64}/submodels/{submodel_id_b64}": {
+    /**
+     * Get Submodel By Id
+     * @description Get a specific submodel from a published DPP.
+     *
+     * Use ``?content=value`` to return only submodelElements (same as
+     * the ``/$value`` path suffix).
+     */
+    get: operations["get_submodel_by_id_api_v1_public__tenant_slug__shells__aas_id_b64__submodels__submodel_id_b64__get"];
+  };
+  "/api/v1/public/{tenant_slug}/shells/{aas_id_b64}/submodels/{submodel_id_b64}/$value": {
+    /**
+     * Get Submodel Value
+     * @description Get submodel $value (submodelElements only) -- Catena-X standard endpoint.
+     */
+    get: operations["get_submodel_value_api_v1_public__tenant_slug__shells__aas_id_b64__submodels__submodel_id_b64___value_get"];
+  };
+  "/api/v1/public/{tenant_slug}/epcis/events/{dpp_id}": {
+    /**
+     * Get Public Epcis Events
+     * @description Get EPCIS events for a published DPP (no authentication required).
+     *
+     * Only returns events for DPPs with status=PUBLISHED.
+     * Limited to the most recent 100 events ordered by event time.
+     */
+    get: operations["get_public_epcis_events_api_v1_public__tenant_slug__epcis_events__dpp_id__get"];
+  };
+  "/api/v1/public/{tenant_slug}/discovery": {
+    /**
+     * Public Discovery Lookup
+     * @description Public discovery: look up AAS IDs by asset ID key/value (no auth).
+     */
+    get: operations["public_discovery_lookup_api_v1_public__tenant_slug__discovery_get"];
+  };
+  "/api/v1/public/{tenant_slug}/shell-descriptors": {
+    /**
+     * Public List Shell Descriptors
+     * @description List shell descriptors with cursor-based pagination (no auth).
+     */
+    get: operations["public_list_shell_descriptors_api_v1_public__tenant_slug__shell_descriptors_get"];
+  };
+  "/api/v1/public/{tenant_slug}/shell-descriptors/{aas_id_b64}": {
+    /**
+     * Public Get Shell Descriptor
+     * @description Public shell descriptor lookup by base64-encoded AAS ID (no auth).
+     */
+    get: operations["public_get_shell_descriptor_api_v1_public__tenant_slug__shell_descriptors__aas_id_b64__get"];
+  };
+  "/api/v1/resolve/01/{gtin}": {
+    /**
+     * Resolve Gtin
+     * @description Resolve by GTIN only.
+     */
+    get: operations["resolve_gtin_api_v1_resolve_01__gtin__get"];
+  };
+  "/api/v1/resolve/01/{gtin}/21/{serial}": {
+    /**
+     * Resolve Gtin Serial
+     * @description Resolve by GTIN + serial number.
+     */
+    get: operations["resolve_gtin_serial_api_v1_resolve_01__gtin__21__serial__get"];
+  };
+  "/api/v1/resolve/01/{gtin}/10/{lot}": {
+    /**
+     * Resolve Gtin Lot
+     * @description Resolve by GTIN + lot number.
+     */
+    get: operations["resolve_gtin_lot_api_v1_resolve_01__gtin__10__lot__get"];
+  };
+  "/api/v1/resolve/01/{gtin}/21/{serial}/10/{lot}": {
+    /**
+     * Resolve Gtin Serial Lot
+     * @description Resolve by GTIN + serial + lot.
+     */
+    get: operations["resolve_gtin_serial_lot_api_v1_resolve_01__gtin__21__serial__10__lot__get"];
+  };
+  "/api/v1/resolve/.well-known/gs1resolver": {
+    /**
+     * Resolver Description
+     * @description GS1 resolver description document.
+     */
+    get: operations["resolver_description_api_v1_resolve__well_known_gs1resolver_get"];
+  };
+  "/api/v1/public/{tenant_slug}/.well-known/did.json": {
+    /**
+     * Get Did Document
+     * @description Return the DID Document for a tenant (public, no auth).
+     *
+     * Only active tenants get DID documents; unknown slugs return 404.
+     */
+    get: operations["get_did_document_api_v1_public__tenant_slug___well_known_did_json_get"];
+  };
+  "/api/v1/public/credentials/verify": {
+    /**
+     * Public Verify Credential
+     * @description Publicly verify a Verifiable Credential (no auth required).
+     */
+    post: operations["public_verify_credential_api_v1_public_credentials_verify_post"];
+  };
+  "/api/v1/onboarding/status": {
+    /**
+     * Get Onboarding Status
+     * @description Check whether the current user has been provisioned into a tenant.
+     */
+    get: operations["get_onboarding_status_api_v1_onboarding_status_get"];
+  };
+  "/api/v1/onboarding/provision": {
+    /**
+     * Provision User
+     * @description Trigger first-login provisioning (idempotent).
+     *
+     * Creates a VIEWER membership in the default tenant if the user
+     * hasn't been provisioned yet.
+     */
+    post: operations["provision_user_api_v1_onboarding_provision_post"];
+  };
+  "/api/v1/onboarding/resend-verification": {
+    /**
+     * Resend Verification Email
+     * @description Trigger a Keycloak verification email for the current user.
+     */
+    post: operations["resend_verification_email_api_v1_onboarding_resend_verification_post"];
   };
   "/api/v1/tenants/mine": {
     /**
@@ -77,6 +242,18 @@ export interface paths {
      * @description Remove a member from a tenant (tenant admin).
      */
     delete: operations["remove_member_api_v1_tenants__tenant_slug__members__user_subject__delete"];
+    /**
+     * Update Member Role
+     * @description Change a member's role (tenant admin).
+     */
+    patch: operations["update_member_role_api_v1_tenants__tenant_slug__members__user_subject__patch"];
+  };
+  "/api/v1/tenants/metrics/platform": {
+    /**
+     * Get Platform Metrics
+     * @description Get per-tenant usage metrics (platform admin).
+     */
+    get: operations["get_platform_metrics_api_v1_tenants_metrics_platform_get"];
   };
   "/api/v1/templates/{template_key}/definition": {
     /**
@@ -143,11 +320,6 @@ export interface paths {
     /**
      * List Dpps
      * @description List DPPs accessible to the current user.
-     *
-     * Access is controlled via ABAC policies. Typically:
-     * - Tenant admins see all DPPs in tenant
-     * - Publishers see their own DPPs
-     * - Viewers see all published DPPs
      */
     get: operations["list_dpps_api_v1_tenants__tenant_slug__dpps_get"];
     /**
@@ -157,6 +329,30 @@ export interface paths {
      * Requires publisher role. Creates a draft DPP with selected templates.
      */
     post: operations["create_dpp_api_v1_tenants__tenant_slug__dpps_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/batch-import": {
+    /**
+     * Batch Import Dpps
+     * @description Batch create multiple DPPs.
+     *
+     * Each item is created in its own savepoint — one failure does not rollback others.
+     * Max 100 items per request.
+     */
+    post: operations["batch_import_dpps_api_v1_tenants__tenant_slug__dpps_batch_import_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/batch-import/jobs": {
+    /**
+     * List Batch Import Jobs
+     * @description List persisted batch import jobs for this tenant.
+     */
+    get: operations["list_batch_import_jobs_api_v1_tenants__tenant_slug__dpps_batch_import_jobs_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/batch-import/jobs/{job_id}": {
+    /**
+     * Get Batch Import Job
+     * @description Get one persisted batch import job and its item outcomes.
+     */
+    get: operations["get_batch_import_job_api_v1_tenants__tenant_slug__dpps_batch_import_jobs__job_id__get"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps/import": {
     /**
@@ -176,6 +372,13 @@ export interface paths {
      * Requires tenant admin role.
      */
     post: operations["rebuild_all_dpps_api_v1_tenants__tenant_slug__dpps_rebuild_all_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/repair-invalid-lists": {
+    /**
+     * Repair Invalid Lists
+     * @description Repair latest revisions with invalid SubmodelElementList item idShorts.
+     */
+    post: operations["repair_invalid_lists_api_v1_tenants__tenant_slug__dpps_repair_invalid_lists_post"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps/by-slug/{slug}": {
     /**
@@ -204,6 +407,13 @@ export interface paths {
      * Creates a new revision with the updated data.
      */
     put: operations["update_submodel_api_v1_tenants__tenant_slug__dpps__dpp_id__submodel_put"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/submodels/refresh-rebuild": {
+    /**
+     * Refresh Rebuild Submodels
+     * @description Refresh templates and rebuild all bound submodels for one DPP.
+     */
+    post: operations["refresh_rebuild_submodels_api_v1_tenants__tenant_slug__dpps__dpp_id__submodels_refresh_rebuild_post"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/submodels/{template_key}/definition": {
     /**
@@ -234,6 +444,13 @@ export interface paths {
      * Requires publisher role and ownership.
      */
     get: operations["list_revisions_api_v1_tenants__tenant_slug__dpps__dpp_id__revisions_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/diff": {
+    /**
+     * Diff Revisions
+     * @description Compare two revisions of a DPP.
+     */
+    get: operations["diff_revisions_api_v1_tenants__tenant_slug__dpps__dpp_id__diff_get"];
   };
   "/api/v1/tenants/{tenant_slug}/masters": {
     /** List Masters */
@@ -377,6 +594,39 @@ export interface paths {
      */
     get: operations["check_connector_edc_health_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_health_get"];
   };
+  "/api/v1/tenants/{tenant_slug}/shares/{resource_type}/{resource_id}": {
+    /**
+     * List Resource Shares
+     * @description List active shares for a resource.
+     */
+    get: operations["list_resource_shares_api_v1_tenants__tenant_slug__shares__resource_type___resource_id__get"];
+    /**
+     * Grant Resource Share
+     * @description Grant or update explicit share access for a resource.
+     */
+    post: operations["grant_resource_share_api_v1_tenants__tenant_slug__shares__resource_type___resource_id__post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/shares/{resource_type}/{resource_id}/{user_subject}": {
+    /**
+     * Revoke Resource Share
+     * @description Revoke share access for a specific subject.
+     */
+    delete: operations["revoke_resource_share_api_v1_tenants__tenant_slug__shares__resource_type___resource_id___user_subject__delete"];
+  };
+  "/api/v1/tenants/{tenant_slug}/activity/events": {
+    /**
+     * List Activity Events
+     * @description List activity events scoped to tenant and caller privileges.
+     */
+    get: operations["list_activity_events_api_v1_tenants__tenant_slug__activity_events_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/activity/resources/{resource_type}/{resource_id}": {
+    /**
+     * Get Resource Activity
+     * @description Get timeline events for a specific resource.
+     */
+    get: operations["get_resource_activity_api_v1_tenants__tenant_slug__activity_resources__resource_type___resource_id__get"];
+  };
   "/api/v1/tenants/{tenant_slug}/export/{dpp_id}": {
     /**
      * Export Dpp
@@ -388,6 +638,13 @@ export interface paths {
      * - pdf: PDF summary
      */
     get: operations["export_dpp_api_v1_tenants__tenant_slug__export__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/export/batch": {
+    /**
+     * Batch Export
+     * @description Export multiple DPPs as a ZIP archive.
+     */
+    post: operations["batch_export_api_v1_tenants__tenant_slug__export_batch_post"];
   };
   "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}": {
     /**
@@ -417,6 +674,16 @@ export interface paths {
      * in a QR code for EU DPP/ESPR compliance.
      */
     get: operations["get_gs1_digital_link_api_v1_tenants__tenant_slug__qr__dpp_id__gs1_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}/iec61406": {
+    /**
+     * Get Iec61406 Link
+     * @description Get the IEC 61406 identification link for a DPP.
+     *
+     * Returns a URL-based identification link per IEC 61406 that encodes
+     * the manufacturer part ID and serial number as query parameters.
+     */
+    get: operations["get_iec61406_link_api_v1_tenants__tenant_slug__qr__dpp_id__iec61406_get"];
   };
   "/api/v1/admin/settings/global-asset-id-base-uri": {
     /**
@@ -551,6 +818,226 @@ export interface paths {
      */
     post: operations["compare_revisions_api_v1_tenants__tenant_slug__lca_compare_post"];
   };
+  "/api/v1/tenants/{tenant_slug}/epcis/capture": {
+    /**
+     * Capture Events
+     * @description Capture an EPCIS 2.0 document — persist all events for a DPP.
+     *
+     * Returns HTTP 202 (Accepted) per the EPCIS capture interface spec.
+     */
+    post: operations["capture_events_api_v1_tenants__tenant_slug__epcis_capture_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/epcis/events": {
+    /**
+     * Query Events
+     * @description Query EPCIS events using SimpleEventQuery-style filters.
+     */
+    get: operations["query_events_api_v1_tenants__tenant_slug__epcis_events_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/epcis/events/{event_id}": {
+    /**
+     * Get Event
+     * @description Get a single EPCIS event by its event_id URI.
+     */
+    get: operations["get_event_api_v1_tenants__tenant_slug__epcis_events__event_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/epcis/queries": {
+    /**
+     * List Named Queries
+     * @description List all named queries for the current tenant.
+     */
+    get: operations["list_named_queries_api_v1_tenants__tenant_slug__epcis_queries_get"];
+    /**
+     * Create Named Query
+     * @description Create a saved EPCIS named query.
+     */
+    post: operations["create_named_query_api_v1_tenants__tenant_slug__epcis_queries_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/epcis/queries/{name}/events": {
+    /**
+     * Execute Named Query
+     * @description Execute a named query and return matching events.
+     */
+    get: operations["execute_named_query_api_v1_tenants__tenant_slug__epcis_queries__name__events_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/epcis/queries/{name}": {
+    /**
+     * Delete Named Query
+     * @description Delete a named query by name.
+     */
+    delete: operations["delete_named_query_api_v1_tenants__tenant_slug__epcis_queries__name__delete"];
+  };
+  "/api/v1/tenants/{tenant_slug}/webhooks": {
+    /**
+     * List Webhooks
+     * @description List all webhook subscriptions for the tenant.
+     */
+    get: operations["list_webhooks_api_v1_tenants__tenant_slug__webhooks_get"];
+    /**
+     * Create Webhook
+     * @description Create a new webhook subscription.
+     */
+    post: operations["create_webhook_api_v1_tenants__tenant_slug__webhooks_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/webhooks/{webhook_id}": {
+    /**
+     * Delete Webhook
+     * @description Delete a webhook subscription.
+     */
+    delete: operations["delete_webhook_api_v1_tenants__tenant_slug__webhooks__webhook_id__delete"];
+  };
+  "/api/v1/tenants/{tenant_slug}/webhooks/{webhook_id}/deliveries": {
+    /**
+     * List Deliveries
+     * @description List recent delivery attempts for a webhook subscription.
+     */
+    get: operations["list_deliveries_api_v1_tenants__tenant_slug__webhooks__webhook_id__deliveries_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/webhooks/{webhook_id}/test": {
+    /**
+     * Test Webhook
+     * @description Send a test payload to verify webhook connectivity.
+     */
+    post: operations["test_webhook_api_v1_tenants__tenant_slug__webhooks__webhook_id__test_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/resolver": {
+    /**
+     * List Resolver Links
+     * @description List resolver links for the tenant.
+     */
+    get: operations["list_resolver_links_api_v1_tenants__tenant_slug__resolver_get"];
+    /**
+     * Create Resolver Link
+     * @description Create a new resolver link.
+     */
+    post: operations["create_resolver_link_api_v1_tenants__tenant_slug__resolver_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/resolver/{link_id}": {
+    /**
+     * Get Resolver Link
+     * @description Get a specific resolver link.
+     */
+    get: operations["get_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__get"];
+    /**
+     * Delete Resolver Link
+     * @description Delete a resolver link.
+     */
+    delete: operations["delete_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__delete"];
+    /**
+     * Update Resolver Link
+     * @description Update a resolver link.
+     */
+    patch: operations["update_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/registry/shell-descriptors": {
+    /**
+     * List Shell Descriptors
+     * @description List all shell descriptors for the current tenant.
+     */
+    get: operations["list_shell_descriptors_api_v1_tenants__tenant_slug__registry_shell_descriptors_get"];
+    /**
+     * Create Shell Descriptor
+     * @description Create a new shell descriptor.
+     */
+    post: operations["create_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/registry/shell-descriptors/{aas_id_b64}": {
+    /**
+     * Get Shell Descriptor
+     * @description Get a shell descriptor by base64-encoded AAS ID.
+     */
+    get: operations["get_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__get"];
+    /**
+     * Update Shell Descriptor
+     * @description Update a shell descriptor by base64-encoded AAS ID.
+     */
+    put: operations["update_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__put"];
+    /**
+     * Delete Shell Descriptor
+     * @description Delete a shell descriptor by base64-encoded AAS ID.
+     */
+    delete: operations["delete_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__delete"];
+  };
+  "/api/v1/tenants/{tenant_slug}/registry/shell-descriptors/{aas_id_b64}/submodel-descriptors": {
+    /**
+     * List Submodel Descriptors
+     * @description List submodel descriptors for a shell descriptor.
+     */
+    get: operations["list_submodel_descriptors_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__submodel_descriptors_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/registry/search": {
+    /**
+     * Search Shell Descriptors
+     * @description Search shell descriptors by asset ID key/value.
+     */
+    post: operations["search_shell_descriptors_api_v1_tenants__tenant_slug__registry_search_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/registry/discovery": {
+    /**
+     * Lookup Discovery
+     * @description Look up AAS IDs by asset ID key/value pair.
+     */
+    get: operations["lookup_discovery_api_v1_tenants__tenant_slug__registry_discovery_get"];
+    /**
+     * Create Discovery Mapping
+     * @description Create a discovery mapping (asset ID -> AAS ID).
+     */
+    post: operations["create_discovery_mapping_api_v1_tenants__tenant_slug__registry_discovery_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/credentials/issue/{dpp_id}": {
+    /**
+     * Issue Credential
+     * @description Issue a Verifiable Credential for a published DPP.
+     */
+    post: operations["issue_credential_api_v1_tenants__tenant_slug__credentials_issue__dpp_id__post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/credentials/verify": {
+    /**
+     * Verify Credential
+     * @description Verify a Verifiable Credential.
+     */
+    post: operations["verify_credential_api_v1_tenants__tenant_slug__credentials_verify_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/credentials/{dpp_id}": {
+    /**
+     * Get Credential
+     * @description Get the issued credential for a DPP.
+     */
+    get: operations["get_credential_api_v1_tenants__tenant_slug__credentials__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/credentials": {
+    /**
+     * List Credentials
+     * @description List issued credentials for the tenant.
+     */
+    get: operations["list_credentials_api_v1_tenants__tenant_slug__credentials_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/role-requests": {
+    /**
+     * List All Requests
+     * @description List all role requests (admin only). Optional ?status_filter=pending.
+     */
+    get: operations["list_all_requests_api_v1_tenants__tenant_slug__role_requests_get"];
+    /**
+     * Create Role Request
+     * @description Submit a role upgrade request (any tenant member).
+     */
+    post: operations["create_role_request_api_v1_tenants__tenant_slug__role_requests_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/role-requests/mine": {
+    /**
+     * List My Requests
+     * @description List the current user's role requests.
+     */
+    get: operations["list_my_requests_api_v1_tenants__tenant_slug__role_requests_mine_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/role-requests/{request_id}": {
+    /**
+     * Review Role Request
+     * @description Approve or deny a role request (admin only).
+     */
+    patch: operations["review_role_request_api_v1_tenants__tenant_slug__role_requests__request_id__patch"];
+  };
   "/metrics": {
     /**
      * Metrics
@@ -564,6 +1051,122 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    /**
+     * AccessSummary
+     * @description Current user's effective access to a connector resource.
+     */
+    AccessSummary: {
+      /** Can Read */
+      can_read: boolean;
+      /** Can Update */
+      can_update: boolean;
+      /** Can Publish */
+      can_publish: boolean;
+      /** Can Archive */
+      can_archive: boolean;
+      /** Source */
+      source: string;
+    };
+    /**
+     * ActivityEventListResponse
+     * @description Paginated activity event list.
+     */
+    ActivityEventListResponse: {
+      /** Events */
+      events: components["schemas"]["ActivityEventResponse"][];
+      /** Count */
+      count: number;
+      /** Total Count */
+      total_count: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+    };
+    /**
+     * ActivityEventResponse
+     * @description Single activity event row.
+     */
+    ActivityEventResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Subject */
+      subject?: string | null;
+      actor?: components["schemas"]["ActorSummary"] | null;
+      /** Action */
+      action: string;
+      /** Resource Type */
+      resource_type: string;
+      /** Resource Id */
+      resource_id?: string | null;
+      /** Decision */
+      decision?: string | null;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      } | null;
+      /** Created At */
+      created_at: string;
+    };
+    /**
+     * ActorSummary
+     * @description Actor metadata for activity responses.
+     */
+    ActorSummary: {
+      /** Subject */
+      subject: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Email Masked */
+      email_masked?: string | null;
+    };
+    /**
+     * AggregationEventCreate
+     * @description EPCIS AggregationEvent — packing children into a parent container.
+     */
+    AggregationEventCreate: {
+      /**
+       * Eventtime
+       * Format: date-time
+       */
+      eventTime: string;
+      /** Eventtimezoneoffset */
+      eventTimeZoneOffset: string;
+      /** Recordtime */
+      recordTime?: string | null;
+      /** Eventid */
+      eventID?: string | null;
+      errorDeclaration?: components["schemas"]["ErrorDeclaration"] | null;
+      /** Readpoint */
+      readPoint?: string | null;
+      /** Bizlocation */
+      bizLocation?: string | null;
+      /** Bizstep */
+      bizStep?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Sensorelementlist */
+      sensorElementList?: components["schemas"]["SensorElement"][];
+      /**
+       * Type
+       * @constant
+       */
+      type: "AggregationEvent";
+      /** Parentid */
+      parentID?: string | null;
+      /** Childepcs */
+      childEPCs?: string[];
+      /** Childquantitylist */
+      childQuantityList?: components["schemas"]["QuantityElement"][];
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "ADD" | "OBSERVE" | "DELETE";
+    };
     /**
      * AllRulesResponse
      * @description Response listing all rule categories.
@@ -603,6 +1206,30 @@ export interface components {
       tenant_id: string;
     };
     /**
+     * AssetDiscoveryCreate
+     * @description Input for creating a manual discovery mapping.
+     */
+    AssetDiscoveryCreate: {
+      /** Asset Id Key */
+      asset_id_key: string;
+      /** Asset Id Value */
+      asset_id_value: string;
+      /** Aas Id */
+      aas_id: string;
+    };
+    /**
+     * AssetDiscoveryResponse
+     * @description Discovery mapping response.
+     */
+    AssetDiscoveryResponse: {
+      /** Asset Id Key */
+      asset_id_key: string;
+      /** Asset Id Value */
+      asset_id_value: string;
+      /** Aas Id */
+      aas_id: string;
+    };
+    /**
      * AssetIdsInput
      * @description Input model for asset identifiers.
      */
@@ -615,6 +1242,50 @@ export interface components {
       batchId?: string | null;
       /** Globalassetid */
       globalAssetId?: string | null;
+    };
+    /**
+     * AssociationEventCreate
+     * @description EPCIS AssociationEvent — associating children with a parent (non-physical).
+     */
+    AssociationEventCreate: {
+      /**
+       * Eventtime
+       * Format: date-time
+       */
+      eventTime: string;
+      /** Eventtimezoneoffset */
+      eventTimeZoneOffset: string;
+      /** Recordtime */
+      recordTime?: string | null;
+      /** Eventid */
+      eventID?: string | null;
+      errorDeclaration?: components["schemas"]["ErrorDeclaration"] | null;
+      /** Readpoint */
+      readPoint?: string | null;
+      /** Bizlocation */
+      bizLocation?: string | null;
+      /** Bizstep */
+      bizStep?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Sensorelementlist */
+      sensorElementList?: components["schemas"]["SensorElement"][];
+      /**
+       * Type
+       * @constant
+       */
+      type: "AssociationEvent";
+      /** Parentid */
+      parentID?: string | null;
+      /** Childepcs */
+      childEPCs?: string[];
+      /** Childquantitylist */
+      childQuantityList?: components["schemas"]["QuantityElement"][];
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "ADD" | "OBSERVE" | "DELETE";
     };
     /**
      * AuditEventListResponse
@@ -672,6 +1343,164 @@ export interface components {
       /** Chain Sequence */
       chain_sequence?: number | null;
     };
+    /** BatchExportRequest */
+    BatchExportRequest: {
+      /** Dpp Ids */
+      dpp_ids: string[];
+      /**
+       * Format
+       * @default json
+       * @enum {string}
+       */
+      format?: "json" | "aasx";
+    };
+    /**
+     * BatchImportItem
+     * @description Single item in a batch import request.
+     */
+    BatchImportItem: {
+      asset_ids: components["schemas"]["AssetIdsInput"];
+      /**
+       * Selected Templates
+       * @default [
+       *   "digital-nameplate"
+       * ]
+       */
+      selected_templates?: string[];
+      /** Initial Data */
+      initial_data?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * BatchImportJobDetailResponse
+     * @description Batch import job with per-item outcomes.
+     */
+    BatchImportJobDetailResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Requested By Subject */
+      requested_by_subject: string;
+      requested_by: components["schemas"]["app__modules__dpps__router__ActorSummary"];
+      /** Total */
+      total: number;
+      /** Succeeded */
+      succeeded: number;
+      /** Failed */
+      failed: number;
+      /** Created At */
+      created_at: string;
+      /** Items */
+      items: components["schemas"]["BatchImportJobItemResponse"][];
+    };
+    /**
+     * BatchImportJobItemResponse
+     * @description Persisted batch import item result.
+     */
+    BatchImportJobItemResponse: {
+      /** Index */
+      index: number;
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /** Status */
+      status: string;
+      /** Error */
+      error?: string | null;
+      /** Created At */
+      created_at: string;
+    };
+    /**
+     * BatchImportJobListResponse
+     * @description Paginated batch import job listing.
+     */
+    BatchImportJobListResponse: {
+      /** Jobs */
+      jobs: components["schemas"]["BatchImportJobSummaryResponse"][];
+      /** Count */
+      count: number;
+      /** Total Count */
+      total_count: number;
+      /** Limit */
+      limit: number;
+      /** Offset */
+      offset: number;
+    };
+    /**
+     * BatchImportJobSummaryResponse
+     * @description Persisted batch import job summary row.
+     */
+    BatchImportJobSummaryResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Requested By Subject */
+      requested_by_subject: string;
+      requested_by: components["schemas"]["app__modules__dpps__router__ActorSummary"];
+      /** Total */
+      total: number;
+      /** Succeeded */
+      succeeded: number;
+      /** Failed */
+      failed: number;
+      /** Created At */
+      created_at: string;
+    };
+    /**
+     * BatchImportRequest
+     * @description Request model for batch DPP import.
+     */
+    BatchImportRequest: {
+      /** Dpps */
+      dpps: components["schemas"]["BatchImportItem"][];
+    };
+    /**
+     * BatchImportResponse
+     * @description Response model for batch import results.
+     */
+    BatchImportResponse: {
+      /**
+       * Job Id
+       * Format: uuid
+       */
+      job_id: string;
+      /** Total */
+      total: number;
+      /** Succeeded */
+      succeeded: number;
+      /** Failed */
+      failed: number;
+      /** Results */
+      results: components["schemas"]["BatchImportResultItem"][];
+    };
+    /**
+     * BatchImportResultItem
+     * @description Result for a single batch import item.
+     */
+    BatchImportResultItem: {
+      /** Index */
+      index: number;
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /** Status */
+      status: string;
+      /** Error */
+      error?: string | null;
+    };
+    /**
+     * BizTransaction
+     * @description EPCIS business transaction reference.
+     */
+    BizTransaction: {
+      /** Type */
+      type: string;
+      /** Biztransaction */
+      bizTransaction: string;
+    };
     /**
      * BulkRebuildError
      * @description Response model for rebuild errors.
@@ -698,6 +1527,16 @@ export interface components {
       skipped: number;
       /** Errors */
       errors: components["schemas"]["BulkRebuildError"][];
+    };
+    /**
+     * CaptureResponse
+     * @description Response after successful event capture.
+     */
+    CaptureResponse: {
+      /** Captureid */
+      captureId: string;
+      /** Eventcount */
+      eventCount: number;
     };
     /**
      * CarrierFormat
@@ -916,6 +1755,12 @@ export interface components {
       connector_type: string;
       /** Status */
       status: string;
+      /** Created By Subject */
+      created_by_subject: string;
+      created_by: components["schemas"]["app__modules__connectors__router__ActorSummary"];
+      /** Visibility Scope */
+      visibility_scope: string;
+      access: components["schemas"]["AccessSummary"];
       /** Last Tested At */
       last_tested_at: string | null;
       /** Last Test Result */
@@ -964,6 +1809,13 @@ export interface components {
       status: string;
       /** Owner Subject */
       owner_subject: string;
+      /**
+       * Visibility Scope
+       * @enum {string}
+       */
+      visibility_scope: "owner_team" | "tenant";
+      owner: components["schemas"]["app__modules__dpps__router__ActorSummary"];
+      access: components["schemas"]["app__modules__dpps__router__AccessSummary"];
       /** Asset Ids */
       asset_ids: {
         [key: string]: unknown;
@@ -982,6 +1834,24 @@ export interface components {
       } | null;
       /** Digest Sha256 */
       digest_sha256: string | null;
+      /** Submodel Bindings */
+      submodel_bindings?: components["schemas"]["SubmodelBindingResponse"][];
+    };
+    /**
+     * DPPDiffResult
+     * @description Structured diff between two DPP revisions.
+     */
+    DPPDiffResult: {
+      /** From Rev */
+      from_rev: number;
+      /** To Rev */
+      to_rev: number;
+      /** Added */
+      added: components["schemas"]["DiffEntry"][];
+      /** Removed */
+      removed: components["schemas"]["DiffEntry"][];
+      /** Changed */
+      changed: components["schemas"]["DiffEntry"][];
     };
     /**
      * DPPListResponse
@@ -1013,6 +1883,13 @@ export interface components {
       status: string;
       /** Owner Subject */
       owner_subject: string;
+      /**
+       * Visibility Scope
+       * @enum {string}
+       */
+      visibility_scope: "owner_team" | "tenant";
+      owner: components["schemas"]["app__modules__dpps__router__ActorSummary"];
+      access: components["schemas"]["app__modules__dpps__router__AccessSummary"];
       /** Asset Ids */
       asset_ids: {
         [key: string]: unknown;
@@ -1030,6 +1907,57 @@ export interface components {
      * @enum {string}
      */
     DPPStatus: "draft" | "published" | "archived";
+    /** DeliveryLogResponse */
+    DeliveryLogResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Subscription Id
+       * Format: uuid
+       */
+      subscription_id: string;
+      /** Event Type */
+      event_type: string;
+      /** Payload */
+      payload: {
+        [key: string]: unknown;
+      };
+      /** Http Status */
+      http_status: number | null;
+      /** Response Body */
+      response_body: string | null;
+      /** Attempt */
+      attempt: number;
+      /** Success */
+      success: boolean;
+      /** Error Message */
+      error_message: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * DiffEntry
+     * @description Individual change between two revisions.
+     */
+    DiffEntry: {
+      /** Path */
+      path: string;
+      /**
+       * Operation
+       * @enum {string}
+       */
+      operation: "added" | "removed" | "changed";
+      /** Old Value */
+      old_value?: unknown;
+      /** New Value */
+      new_value?: unknown;
+    };
     /**
      * EDCHealthResponse
      * @description Response model for EDC health check.
@@ -1073,6 +2001,179 @@ export interface components {
       error?: string | null;
     };
     /**
+     * EPCISBody
+     * @description Body of an EPCIS document containing the event list.
+     */
+    EPCISBody: {
+      /** Eventlist */
+      eventList: (components["schemas"]["ObjectEventCreate"] | components["schemas"]["AggregationEventCreate"] | components["schemas"]["TransactionEventCreate"] | components["schemas"]["TransformationEventCreate"] | components["schemas"]["AssociationEventCreate"])[];
+    };
+    /**
+     * EPCISDocumentCreate
+     * @description EPCIS 2.0 Document — the top-level capture input.
+     *
+     * Mirrors the JSON-LD structure with ``@context``, ``type``,
+     * ``schemaVersion``, ``creationDate``, and ``epcisBody``.
+     */
+    EPCISDocumentCreate: {
+      /** @Context */
+      "@context": string[];
+      /**
+       * Type
+       * @default EPCISDocument
+       * @constant
+       */
+      type?: "EPCISDocument";
+      /** Schemaversion */
+      schemaVersion: string;
+      /**
+       * Creationdate
+       * Format: date-time
+       */
+      creationDate: string;
+      epcisBody: components["schemas"]["EPCISBody"];
+    };
+    /**
+     * EPCISEventResponse
+     * @description Persisted EPCIS event returned from queries.
+     */
+    EPCISEventResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Event Id */
+      event_id: string;
+      /** Event Type */
+      event_type: string;
+      /**
+       * Event Time
+       * Format: date-time
+       */
+      event_time: string;
+      /** Event Time Zone Offset */
+      event_time_zone_offset: string;
+      /** Action */
+      action?: string | null;
+      /** Biz Step */
+      biz_step?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Read Point */
+      read_point?: string | null;
+      /** Biz Location */
+      biz_location?: string | null;
+      /** Payload */
+      payload?: {
+        [key: string]: unknown;
+      };
+      /** Error Declaration */
+      error_declaration?: {
+        [key: string]: unknown;
+      } | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * EPCISEventType
+     * @description EPCIS 2.0 event type discriminator.
+     * @enum {string}
+     */
+    EPCISEventType: "ObjectEvent" | "AggregationEvent" | "TransactionEvent" | "TransformationEvent" | "AssociationEvent";
+    /**
+     * EPCISQueryParams
+     * @description Query parameters for EPCIS SimpleEventQuery.
+     */
+    EPCISQueryParams: {
+      event_type?: components["schemas"]["EPCISEventType"] | null;
+      /** Ge Event Time */
+      ge_event_time?: string | null;
+      /** Lt Event Time */
+      lt_event_time?: string | null;
+      /** Eq Action */
+      eq_action?: ("ADD" | "OBSERVE" | "DELETE") | null;
+      /** Eq Biz Step */
+      eq_biz_step?: string | null;
+      /** Eq Disposition */
+      eq_disposition?: string | null;
+      /** Match Epc */
+      match_epc?: string | null;
+      /** Match Any Epc */
+      match_any_epc?: string | null;
+      /** Match Parent Id */
+      match_parent_id?: string | null;
+      /** Match Input Epc */
+      match_input_epc?: string | null;
+      /** Match Output Epc */
+      match_output_epc?: string | null;
+      /** Eq Read Point */
+      eq_read_point?: string | null;
+      /** Eq Biz Location */
+      eq_biz_location?: string | null;
+      /** Ge Record Time */
+      ge_record_time?: string | null;
+      /** Lt Record Time */
+      lt_record_time?: string | null;
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /**
+       * Limit
+       * @default 100
+       */
+      limit?: number;
+      /**
+       * Offset
+       * @default 0
+       */
+      offset?: number;
+    };
+    /**
+     * EPCISQueryResponse
+     * @description EPCIS query result wrapper with JSON-LD context.
+     */
+    EPCISQueryResponse: {
+      /**
+       * @Context
+       * @default [
+       *   "https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"
+       * ]
+       */
+      "@context"?: string[];
+      /**
+       * Type
+       * @default EPCISQueryDocument
+       */
+      type?: string;
+      /** Eventlist */
+      eventList: components["schemas"]["EPCISEventResponse"][];
+    };
+    /**
+     * ErrorDeclaration
+     * @description EPCIS error declaration for correcting a previous event.
+     */
+    ErrorDeclaration: {
+      /**
+       * Declarationtime
+       * Format: date-time
+       */
+      declarationTime: string;
+      /** Reason */
+      reason?: string | null;
+      /** Correctiveeventids */
+      correctiveEventIDs?: string[];
+    };
+    /**
      * EventVerificationResponse
      * @description Result of verifying a single audit event.
      */
@@ -1086,6 +2187,20 @@ export interface components {
       event_id: string;
       /** Event Hash */
       event_hash?: string | null;
+    };
+    /**
+     * ExternalPCFApiRef
+     * @description External PCF API reference discovered in Carbon Footprint submodels.
+     */
+    ExternalPCFApiRef: {
+      /** Endpoint */
+      endpoint: string;
+      /** Query */
+      query?: string | null;
+      /** Source Submodel */
+      source_submodel?: string | null;
+      /** Source Path */
+      source_path?: string | null;
     };
     /**
      * GS1DigitalLinkResponse
@@ -1146,11 +2261,80 @@ export interface components {
       detail?: components["schemas"]["ValidationError"][];
     };
     /**
+     * IEC61406LinkResponse
+     * @description Response model for IEC 61406 identification link generation.
+     */
+    IEC61406LinkResponse: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /**
+       * Identification Link
+       * @description IEC 61406 identification link URL
+       */
+      identification_link: string;
+      /**
+       * Manufacturer Part Id
+       * @description Manufacturer part ID
+       * @default
+       */
+      manufacturer_part_id?: string;
+      /**
+       * Serial Number
+       * @description Serial number
+       * @default
+       */
+      serial_number?: string;
+    };
+    /**
      * ImportDPPRequest
      * @description Request model for importing a DPP from JSON.
      */
     ImportDPPRequest: {
       [key: string]: unknown;
+    };
+    /**
+     * IssuedCredentialResponse
+     * @description API response for an issued credential.
+     */
+    IssuedCredentialResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Issuer Did */
+      issuer_did: string;
+      /** Subject Id */
+      subject_id: string;
+      /**
+       * Issuance Date
+       * Format: date-time
+       */
+      issuance_date: string;
+      /** Expiration Date */
+      expiration_date?: string | null;
+      /**
+       * Revoked
+       * @default false
+       */
+      revoked?: boolean;
+      /** Credential */
+      credential: {
+        [key: string]: unknown;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
     };
     /**
      * LCAReport
@@ -1189,6 +2373,8 @@ export interface components {
       created_at: string;
       /** Breakdown */
       breakdown?: components["schemas"]["MaterialBreakdown"][];
+      /** Methodology Disclosure */
+      methodology_disclosure?: string | null;
     };
     /**
      * LifecyclePhase
@@ -1213,6 +2399,12 @@ export interface components {
       /** Total Events */
       total_events: number;
     };
+    /**
+     * LinkType
+     * @description GS1 link relation types for Digital Link resolver entries.
+     * @enum {string}
+     */
+    LinkType: "gs1:hasDigitalProductPassport" | "gs1:pip" | "gs1:certificationInfo" | "gs1:epil" | "gs1:defaultLink" | "gs1:productSustainabilityInfo" | "gs1:quickStartGuide" | "gs1:support" | "gs1:registration" | "gs1:recallStatus" | "iec61406:identificationLink";
     /**
      * MasterAliasesUpdateRequest
      * @description Request model for updating version aliases.
@@ -1494,6 +2686,8 @@ export interface components {
       total_mass_kg?: number;
       /** Source Submodels */
       source_submodels?: string[];
+      /** External Pcf Apis */
+      external_pcf_apis?: components["schemas"]["ExternalPCFApiRef"][];
     };
     /**
      * MaterialItem
@@ -1513,6 +2707,138 @@ export interface components {
       quantity?: number;
       /** Pre Declared Pcf */
       pre_declared_pcf?: number | null;
+    };
+    /**
+     * NamedQueryCreate
+     * @description Input schema for creating a named EPCIS query.
+     */
+    NamedQueryCreate: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      query_params: components["schemas"]["EPCISQueryParams"];
+    };
+    /**
+     * NamedQueryResponse
+     * @description Persisted named query returned from API.
+     */
+    NamedQueryResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /** Query Params */
+      query_params: {
+        [key: string]: unknown;
+      };
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * ObjectEventCreate
+     * @description EPCIS ObjectEvent — most common type, tracks observations of objects.
+     */
+    ObjectEventCreate: {
+      /**
+       * Eventtime
+       * Format: date-time
+       */
+      eventTime: string;
+      /** Eventtimezoneoffset */
+      eventTimeZoneOffset: string;
+      /** Recordtime */
+      recordTime?: string | null;
+      /** Eventid */
+      eventID?: string | null;
+      errorDeclaration?: components["schemas"]["ErrorDeclaration"] | null;
+      /** Readpoint */
+      readPoint?: string | null;
+      /** Bizlocation */
+      bizLocation?: string | null;
+      /** Bizstep */
+      bizStep?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Sensorelementlist */
+      sensorElementList?: components["schemas"]["SensorElement"][];
+      /**
+       * Type
+       * @constant
+       */
+      type: "ObjectEvent";
+      /** Epclist */
+      epcList?: string[];
+      /** Quantitylist */
+      quantityList?: components["schemas"]["QuantityElement"][];
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "ADD" | "OBSERVE" | "DELETE";
+      /** Biztransactionlist */
+      bizTransactionList?: components["schemas"]["BizTransaction"][];
+      /** Ilmd */
+      ilmd?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * OnboardingStatusResponse
+     * @description Response for the onboarding status check.
+     */
+    OnboardingStatusResponse: {
+      /** Provisioned */
+      provisioned: boolean;
+      /** Tenant Slug */
+      tenant_slug?: string | null;
+      /** Role */
+      role?: string | null;
+      /** Email Verified */
+      email_verified: boolean;
+      /** Blockers */
+      blockers?: ("email_unverified" | "tenant_missing" | "tenant_inactive" | "onboarding_disabled")[];
+      /** Next Actions */
+      next_actions?: ("provision" | "resend_verification" | "request_role_upgrade" | "go_home")[];
+    };
+    /** PagedResult[PublicDPPResponse] */
+    PagedResult_PublicDPPResponse_: {
+      /** Result */
+      result: components["schemas"]["PublicDPPResponse"][];
+      pagingMetadata: components["schemas"]["PagingMetadata"];
+    };
+    /** PagedResult[PublicShellDescriptorResponse] */
+    PagedResult_PublicShellDescriptorResponse_: {
+      /** Result */
+      result: components["schemas"]["PublicShellDescriptorResponse"][];
+      pagingMetadata: components["schemas"]["PagingMetadata"];
+    };
+    /**
+     * PagingMetadata
+     * @description Cursor-based pagination metadata per IDTA spec.
+     */
+    PagingMetadata: {
+      /** Cursor */
+      cursor?: string | null;
+    };
+    /** PlatformMetricsResponse */
+    PlatformMetricsResponse: {
+      /** Tenants */
+      tenants: components["schemas"]["TenantMetrics"][];
+      /** Totals */
+      totals: {
+        [key: string]: unknown;
+      };
     };
     /**
      * PolicyCreateRequest
@@ -1620,6 +2946,118 @@ export interface components {
       digest_sha256: string | null;
     };
     /**
+     * PublicEPCISEventResponse
+     * @description EPCIS event response for public (unauthenticated) endpoints.
+     *
+     * Excludes ``created_by_subject`` and ``created_at`` which are internal
+     * fields that should not be exposed to unauthenticated users.
+     */
+    PublicEPCISEventResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Event Id */
+      event_id: string;
+      /** Event Type */
+      event_type: string;
+      /**
+       * Event Time
+       * Format: date-time
+       */
+      event_time: string;
+      /** Event Time Zone Offset */
+      event_time_zone_offset: string;
+      /** Action */
+      action?: string | null;
+      /** Biz Step */
+      biz_step?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Read Point */
+      read_point?: string | null;
+      /** Biz Location */
+      biz_location?: string | null;
+      /** Payload */
+      payload?: {
+        [key: string]: unknown;
+      };
+      /** Error Declaration */
+      error_declaration?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * PublicEPCISQueryResponse
+     * @description EPCIS query result wrapper for public (unauthenticated) endpoints.
+     */
+    PublicEPCISQueryResponse: {
+      /**
+       * @Context
+       * @default [
+       *   "https://ref.gs1.org/standards/epcis/2.0.0/epcis-context.jsonld"
+       * ]
+       */
+      "@context"?: string[];
+      /**
+       * Type
+       * @default EPCISQueryDocument
+       */
+      type?: string;
+      /** Eventlist */
+      eventList: components["schemas"]["PublicEPCISEventResponse"][];
+    };
+    /**
+     * PublicLandingSummaryResponse
+     * @description Public aggregate metrics for the landing page.
+     *
+     * The response is intentionally aggregate-only and excludes record-level fields.
+     */
+    PublicLandingSummaryResponse: {
+      /** Tenant Slug */
+      tenant_slug: string;
+      /** Published Dpps */
+      published_dpps: number;
+      /** Active Product Families */
+      active_product_families: number;
+      /** Dpps With Traceability */
+      dpps_with_traceability: number;
+      /** Latest Publish At */
+      latest_publish_at: string | null;
+      /** Generated At */
+      generated_at: string;
+      /** Scope */
+      scope?: string | null;
+      /** Refresh Sla Seconds */
+      refresh_sla_seconds?: number | null;
+    };
+    /**
+     * PublicShellDescriptorResponse
+     * @description Public shell descriptor — excludes internal fields.
+     */
+    PublicShellDescriptorResponse: {
+      /** Aas Id */
+      aas_id: string;
+      /** Id Short */
+      id_short: string;
+      /** Global Asset Id */
+      global_asset_id: string;
+      /** Specific Asset Ids */
+      specific_asset_ids: {
+          [key: string]: unknown;
+        }[];
+      /** Submodel Descriptors */
+      submodel_descriptors: {
+          [key: string]: unknown;
+        }[];
+    };
+    /**
      * PublishResultResponse
      * @description Response model for DPP publish result.
      */
@@ -1632,6 +3070,333 @@ export interface components {
       shell_id?: string | null;
       /** Error Message */
       error_message?: string | null;
+    };
+    /**
+     * QuantityElement
+     * @description EPCIS quantity element for class-level identification.
+     */
+    QuantityElement: {
+      /** Epcclass */
+      epcClass: string;
+      /** Quantity */
+      quantity: number;
+      /** Uom */
+      uom?: string | null;
+    };
+    /**
+     * RefreshRebuildFailure
+     * @description Single template/submodel refresh+rebuild failure entry.
+     */
+    RefreshRebuildFailure: {
+      /** Template Key */
+      template_key?: string | null;
+      /** Submodel Id */
+      submodel_id?: string | null;
+      /** Submodel */
+      submodel: string;
+      /** Error */
+      error: string;
+    };
+    /**
+     * RefreshRebuildSkipped
+     * @description Single skipped submodel refresh+rebuild entry.
+     */
+    RefreshRebuildSkipped: {
+      /** Submodel */
+      submodel: string;
+      /** Reason */
+      reason: string;
+    };
+    /**
+     * RefreshRebuildSubmodelsResponse
+     * @description Response for one-DPP template refresh + submodel rebuild run.
+     */
+    RefreshRebuildSubmodelsResponse: {
+      /** Attempted */
+      attempted: number;
+      /** Succeeded */
+      succeeded: components["schemas"]["RefreshRebuildSuccess"][];
+      /** Failed */
+      failed: components["schemas"]["RefreshRebuildFailure"][];
+      /** Skipped */
+      skipped: components["schemas"]["RefreshRebuildSkipped"][];
+    };
+    /**
+     * RefreshRebuildSuccess
+     * @description Single successful template/submodel refresh+rebuild entry.
+     */
+    RefreshRebuildSuccess: {
+      /** Template Key */
+      template_key: string;
+      /** Submodel Id */
+      submodel_id: string;
+      /** Submodel */
+      submodel: string;
+    };
+    /**
+     * RegistrySearchRequest
+     * @description Search request for finding shell descriptors by asset ID.
+     */
+    RegistrySearchRequest: {
+      /** Asset Id Key */
+      asset_id_key: string;
+      /** Asset Id Value */
+      asset_id_value: string;
+    };
+    /**
+     * RepairInvalidListsError
+     * @description Per-DPP repair failure details.
+     */
+    RepairInvalidListsError: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Reason */
+      reason: string;
+    };
+    /**
+     * RepairInvalidListsRequest
+     * @description Request model for tenant-level AASd-120 list-item repairs.
+     */
+    RepairInvalidListsRequest: {
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+      /** Dpp Ids */
+      dpp_ids?: string[] | null;
+      /** Limit */
+      limit?: number | null;
+    };
+    /**
+     * RepairInvalidListsResponse
+     * @description Summary response for AASd-120 repair endpoint.
+     */
+    RepairInvalidListsResponse: {
+      /** Total */
+      total: number;
+      /** Repaired */
+      repaired: number;
+      /** Skipped */
+      skipped: number;
+      /** Errors */
+      errors: components["schemas"]["RepairInvalidListsError"][];
+      /** Dry Run */
+      dry_run: boolean;
+      stats: components["schemas"]["RepairInvalidListsStats"];
+    };
+    /**
+     * RepairInvalidListsStats
+     * @description Aggregate sanitizer stats for a repair run.
+     */
+    RepairInvalidListsStats: {
+      /** Lists Scanned */
+      lists_scanned: number;
+      /** Items Scanned */
+      items_scanned: number;
+      /** Idshort Removed */
+      idshort_removed: number;
+      /** Paths Changed */
+      paths_changed: number;
+    };
+    /**
+     * ResendVerificationResponse
+     * @description Response for resend verification endpoint.
+     */
+    ResendVerificationResponse: {
+      /** Queued */
+      queued: boolean;
+    };
+    /**
+     * ResolverDescriptionResponse
+     * @description GS1 resolver description document (.well-known/gs1resolver).
+     */
+    ResolverDescriptionResponse: {
+      /** Name */
+      name: string;
+      /** Resolverroot */
+      resolverRoot: string;
+      /** Supportedlinktypes */
+      supportedLinkTypes: {
+          [key: string]: unknown;
+        }[];
+      /** Supportedcontextvaluesenumerated */
+      supportedContextValuesEnumerated?: string[];
+    };
+    /**
+     * ResolverLinkCreate
+     * @description Input schema for creating a resolver link.
+     */
+    ResolverLinkCreate: {
+      /**
+       * Identifier
+       * @description GS1 identifier stem, e.g. '01/09520123456788/21/SERIAL001'
+       */
+      identifier: string;
+      /**
+       * @description GS1 link relation type
+       * @default gs1:hasDigitalProductPassport
+       */
+      link_type?: components["schemas"]["LinkType"];
+      /**
+       * Href
+       * @description Target URL the link resolves to
+       */
+      href: string;
+      /**
+       * Media Type
+       * @description MIME type of the target resource
+       * @default application/json
+       */
+      media_type?: string;
+      /**
+       * Title
+       * @description Human-readable title for the link
+       * @default
+       */
+      title?: string;
+      /**
+       * Hreflang
+       * @description Language of the target resource (BCP 47)
+       * @default en
+       */
+      hreflang?: string;
+      /**
+       * Priority
+       * @description Link priority (higher = preferred)
+       * @default 0
+       */
+      priority?: number;
+      /**
+       * Dpp Id
+       * @description Associated DPP ID (optional)
+       */
+      dpp_id?: string | null;
+    };
+    /**
+     * ResolverLinkResponse
+     * @description Response schema for resolver links.
+     */
+    ResolverLinkResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Identifier */
+      identifier: string;
+      /** Link Type */
+      link_type: string;
+      /** Href */
+      href: string;
+      /** Media Type */
+      media_type: string;
+      /** Title */
+      title: string;
+      /** Hreflang */
+      hreflang: string;
+      /** Priority */
+      priority: number;
+      /** Dpp Id */
+      dpp_id: string | null;
+      /** Active */
+      active: boolean;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ResolverLinkUpdate
+     * @description Partial update schema for resolver links.
+     */
+    ResolverLinkUpdate: {
+      /** Href */
+      href?: string | null;
+      /** Media Type */
+      media_type?: string | null;
+      /** Title */
+      title?: string | null;
+      /** Hreflang */
+      hreflang?: string | null;
+      /** Priority */
+      priority?: number | null;
+      /** Active */
+      active?: boolean | null;
+    };
+    /**
+     * ResourceShareListResponse
+     * @description Share list response.
+     */
+    ResourceShareListResponse: {
+      /** Shares */
+      shares: components["schemas"]["ResourceShareResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * ResourceShareRequest
+     * @description Request payload for grant/update share.
+     */
+    ResourceShareRequest: {
+      /** User Subject */
+      user_subject: string;
+      /**
+       * Permission
+       * @default read
+       */
+      permission?: string;
+      /** Expires At */
+      expires_at?: string | null;
+    };
+    /**
+     * ResourceShareResponse
+     * @description Single share record.
+     */
+    ResourceShareResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Resource Type
+       * @enum {string}
+       */
+      resource_type: "dpp" | "connector";
+      /**
+       * Resource Id
+       * Format: uuid
+       */
+      resource_id: string;
+      /** User Subject */
+      user_subject: string;
+      user: components["schemas"]["app__modules__shares__router__ActorSummary"];
+      /** Permission */
+      permission: string;
+      /** Granted By Subject */
+      granted_by_subject: string;
+      granted_by: components["schemas"]["app__modules__shares__router__ActorSummary"];
+      /** Created At */
+      created_at: string;
+      /** Expires At */
+      expires_at?: string | null;
     };
     /**
      * RevisionResponse
@@ -1653,6 +3418,66 @@ export interface components {
       created_by_subject: string;
       /** Created At */
       created_at: string;
+      /** Template Provenance */
+      template_provenance?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * RoleRequestCreate
+     * @description Request body for submitting a role upgrade request.
+     */
+    RoleRequestCreate: {
+      /**
+       * Requested Role
+       * @description Role to request (e.g. 'publisher')
+       */
+      requested_role: string;
+      /**
+       * Reason
+       * @description Optional reason for the request
+       */
+      reason?: string | null;
+    };
+    /**
+     * RoleRequestResponse
+     * @description Response for a role upgrade request.
+     */
+    RoleRequestResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** User Subject */
+      user_subject: string;
+      /** Requested Role */
+      requested_role: string;
+      /** Status */
+      status: string;
+      /** Reason */
+      reason?: string | null;
+      /** Reviewed By */
+      reviewed_by?: string | null;
+      /** Review Note */
+      review_note?: string | null;
+      /** Reviewed At */
+      reviewed_at?: string | null;
+      /** Created At */
+      created_at: string;
+    };
+    /**
+     * RoleRequestReview
+     * @description Request body for approving/denying a role request.
+     */
+    RoleRequestReview: {
+      /** Approved */
+      approved: boolean;
+      /**
+       * Review Note
+       * @description Optional note explaining the decision
+       */
+      review_note?: string | null;
     };
     /**
      * RuleCatalogEntry
@@ -1674,6 +3499,187 @@ export interface components {
       message: string;
       /** Semantic Id */
       semantic_id?: string | null;
+    };
+    /**
+     * SensorElement
+     * @description EPCIS sensor element containing metadata and report(s).
+     */
+    SensorElement: {
+      sensorMetadata?: components["schemas"]["SensorMetadata"] | null;
+      /** Sensorreport */
+      sensorReport?: components["schemas"]["SensorReport"][];
+    };
+    /**
+     * SensorMetadata
+     * @description Metadata for an EPCIS sensor element.
+     */
+    SensorMetadata: {
+      /** Time */
+      time?: string | null;
+      /** Deviceid */
+      deviceID?: string | null;
+      /** Devicemetadata */
+      deviceMetadata?: string | null;
+      /** Rawdata */
+      rawData?: string | null;
+    };
+    /**
+     * SensorReport
+     * @description Individual sensor reading within a sensor element.
+     */
+    SensorReport: {
+      /** Type */
+      type?: string | null;
+      /** Value */
+      value?: number | null;
+      /** Uom */
+      uom?: string | null;
+      /** Minvalue */
+      minValue?: number | null;
+      /** Maxvalue */
+      maxValue?: number | null;
+      /** Meanvalue */
+      meanValue?: number | null;
+    };
+    /**
+     * ServiceDescription
+     * @description IDTA-01002 $metadata / service-description response.
+     */
+    ServiceDescription: {
+      /** Profiles */
+      profiles: string[];
+    };
+    /**
+     * ShellDescriptorCreate
+     * @description Input schema for creating a shell descriptor.
+     */
+    ShellDescriptorCreate: {
+      /**
+       * Aas Id
+       * @description AAS identifier
+       */
+      aas_id: string;
+      /**
+       * Id Short
+       * @description Short identifier
+       * @default
+       */
+      id_short?: string;
+      /**
+       * Global Asset Id
+       * @description Global asset ID
+       * @default
+       */
+      global_asset_id?: string;
+      /**
+       * Specific Asset Ids
+       * @description Specific asset IDs (name/value pairs)
+       */
+      specific_asset_ids?: {
+          [key: string]: unknown;
+        }[];
+      /**
+       * Submodel Descriptors
+       * @description Submodel descriptor objects
+       */
+      submodel_descriptors?: {
+          [key: string]: unknown;
+        }[];
+      /**
+       * Dpp Id
+       * @description Associated DPP ID
+       */
+      dpp_id?: string | null;
+    };
+    /**
+     * ShellDescriptorResponse
+     * @description Full shell descriptor response.
+     */
+    ShellDescriptorResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Aas Id */
+      aas_id: string;
+      /** Id Short */
+      id_short: string;
+      /** Global Asset Id */
+      global_asset_id: string;
+      /** Specific Asset Ids */
+      specific_asset_ids: {
+          [key: string]: unknown;
+        }[];
+      /** Submodel Descriptors */
+      submodel_descriptors: {
+          [key: string]: unknown;
+        }[];
+      /** Dpp Id */
+      dpp_id: string | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ShellDescriptorUpdate
+     * @description Partial update schema for a shell descriptor.
+     */
+    ShellDescriptorUpdate: {
+      /** Id Short */
+      id_short?: string | null;
+      /** Global Asset Id */
+      global_asset_id?: string | null;
+      /** Specific Asset Ids */
+      specific_asset_ids?: {
+          [key: string]: unknown;
+        }[] | null;
+      /** Submodel Descriptors */
+      submodel_descriptors?: {
+          [key: string]: unknown;
+        }[] | null;
+      /** Dpp Id */
+      dpp_id?: string | null;
+    };
+    /**
+     * SubmodelBindingResponse
+     * @description Resolved submodel->template binding metadata.
+     */
+    SubmodelBindingResponse: {
+      /** Submodel Id */
+      submodel_id?: string | null;
+      /** Id Short */
+      id_short?: string | null;
+      /** Semantic Id */
+      semantic_id?: string | null;
+      /** Normalized Semantic Id */
+      normalized_semantic_id?: string | null;
+      /** Template Key */
+      template_key?: string | null;
+      /** Binding Source */
+      binding_source: string;
+      /** Idta Version */
+      idta_version?: string | null;
+      /** Resolved Version */
+      resolved_version?: string | null;
+      /** Support Status */
+      support_status?: string | null;
+      /** Refresh Enabled */
+      refresh_enabled?: boolean | null;
     };
     /**
      * SubmodelDefinitionResponse
@@ -1700,6 +3706,28 @@ export interface components {
       definition: {
         [key: string]: unknown;
       };
+    };
+    /**
+     * SubmodelDescriptorResponse
+     * @description Submodel descriptor info extracted from a shell descriptor.
+     */
+    SubmodelDescriptorResponse: {
+      /** Id */
+      id: string;
+      /**
+       * Id Short
+       * @default
+       */
+      id_short?: string;
+      /**
+       * Semantic Id
+       * @default
+       */
+      semantic_id?: string;
+      /** Endpoints */
+      endpoints?: {
+          [key: string]: unknown;
+        }[];
     };
     /**
      * TemplateContractResponse
@@ -1743,6 +3771,16 @@ export interface components {
       templates: components["schemas"]["TemplateResponse"][];
       /** Count */
       count: number;
+      /** Attempted Count */
+      attempted_count?: number | null;
+      /** Successful Count */
+      successful_count?: number | null;
+      /** Failed Count */
+      failed_count?: number | null;
+      /** Skipped Count */
+      skipped_count?: number | null;
+      /** Refresh Results */
+      refresh_results?: components["schemas"]["TemplateRefreshResultResponse"][] | null;
     };
     /**
      * TemplatePackageResponse
@@ -1763,6 +3801,25 @@ export interface components {
       template_string: string;
       /** Variables */
       variables: components["schemas"]["MasterVariableResponse"][];
+    };
+    /**
+     * TemplateRefreshResultResponse
+     * @description Per-template result from a refresh operation.
+     */
+    TemplateRefreshResultResponse: {
+      /** Template Key */
+      template_key: string;
+      /** Status */
+      status: string;
+      /** Support Status */
+      support_status: string;
+      /** Error */
+      error?: string | null;
+      /** Idta Version */
+      idta_version?: string | null;
+      /** Resolved Version */
+      resolved_version?: string | null;
+      source_metadata?: components["schemas"]["TemplateSourceMetadataResponse"] | null;
     };
     /**
      * TemplateResponse
@@ -1794,6 +3851,16 @@ export interface components {
       source_kind?: string | null;
       /** Selection Strategy */
       selection_strategy?: string | null;
+      /**
+       * Support Status
+       * @default supported
+       */
+      support_status?: string;
+      /**
+       * Refresh Enabled
+       * @default true
+       */
+      refresh_enabled?: boolean;
       /** Fetched At */
       fetched_at: string;
     };
@@ -1854,6 +3921,10 @@ export interface components {
       /** Created At */
       created_at: string;
     };
+    /** TenantMemberRoleUpdate */
+    TenantMemberRoleUpdate: {
+      role: components["schemas"]["TenantRole"];
+    };
     /** TenantMembershipListResponse */
     TenantMembershipListResponse: {
       /** Tenants */
@@ -1871,6 +3942,33 @@ export interface components {
       status: string;
       /** Role */
       role: string;
+    };
+    /** TenantMetrics */
+    TenantMetrics: {
+      /** Tenant Id */
+      tenant_id: string;
+      /** Slug */
+      slug: string;
+      /** Name */
+      name: string;
+      /** Status */
+      status: string;
+      /** Total Dpps */
+      total_dpps: number;
+      /** Draft Dpps */
+      draft_dpps: number;
+      /** Published Dpps */
+      published_dpps: number;
+      /** Archived Dpps */
+      archived_dpps: number;
+      /** Total Revisions */
+      total_revisions: number;
+      /** Total Members */
+      total_members: number;
+      /** Total Epcis Events */
+      total_epcis_events: number;
+      /** Total Audit Events */
+      total_audit_events: number;
     };
     /** TenantResponse */
     TenantResponse: {
@@ -1994,6 +4092,103 @@ export interface components {
       created_at: string;
     };
     /**
+     * TransactionEventCreate
+     * @description EPCIS TransactionEvent — associating objects with a business transaction.
+     */
+    TransactionEventCreate: {
+      /**
+       * Eventtime
+       * Format: date-time
+       */
+      eventTime: string;
+      /** Eventtimezoneoffset */
+      eventTimeZoneOffset: string;
+      /** Recordtime */
+      recordTime?: string | null;
+      /** Eventid */
+      eventID?: string | null;
+      errorDeclaration?: components["schemas"]["ErrorDeclaration"] | null;
+      /** Readpoint */
+      readPoint?: string | null;
+      /** Bizlocation */
+      bizLocation?: string | null;
+      /** Bizstep */
+      bizStep?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Sensorelementlist */
+      sensorElementList?: components["schemas"]["SensorElement"][];
+      /**
+       * Type
+       * @constant
+       */
+      type: "TransactionEvent";
+      /** Biztransactionlist */
+      bizTransactionList: components["schemas"]["BizTransaction"][];
+      /** Epclist */
+      epcList?: string[];
+      /** Quantitylist */
+      quantityList?: components["schemas"]["QuantityElement"][];
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "ADD" | "OBSERVE" | "DELETE";
+      /** Parentid */
+      parentID?: string | null;
+      /** Ilmd */
+      ilmd?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * TransformationEventCreate
+     * @description EPCIS TransformationEvent — input objects transformed into outputs.
+     */
+    TransformationEventCreate: {
+      /**
+       * Eventtime
+       * Format: date-time
+       */
+      eventTime: string;
+      /** Eventtimezoneoffset */
+      eventTimeZoneOffset: string;
+      /** Recordtime */
+      recordTime?: string | null;
+      /** Eventid */
+      eventID?: string | null;
+      errorDeclaration?: components["schemas"]["ErrorDeclaration"] | null;
+      /** Readpoint */
+      readPoint?: string | null;
+      /** Bizlocation */
+      bizLocation?: string | null;
+      /** Bizstep */
+      bizStep?: string | null;
+      /** Disposition */
+      disposition?: string | null;
+      /** Sensorelementlist */
+      sensorElementList?: components["schemas"]["SensorElement"][];
+      /**
+       * Type
+       * @constant
+       */
+      type: "TransformationEvent";
+      /** Inputepclist */
+      inputEPCList?: string[];
+      /** Inputquantitylist */
+      inputQuantityList?: components["schemas"]["QuantityElement"][];
+      /** Outputepclist */
+      outputEPCList?: string[];
+      /** Outputquantitylist */
+      outputQuantityList?: components["schemas"]["QuantityElement"][];
+      /** Transformationid */
+      transformationID?: string | null;
+      /** Ilmd */
+      ilmd?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
      * UISchemaResponse
      * @description Response model for UI schema.
      */
@@ -2021,6 +4216,46 @@ export interface components {
        * @default false
        */
       rebuild_from_template?: boolean;
+      /** Submodel Id */
+      submodel_id?: string | null;
+    };
+    /**
+     * VCIssueRequest
+     * @description Request body for issuing a Verifiable Credential.
+     */
+    VCIssueRequest: {
+      /**
+       * Expiration Days
+       * @default 365
+       */
+      expiration_days?: number;
+    };
+    /**
+     * VCVerifyRequest
+     * @description Request body for verifying a Verifiable Credential.
+     */
+    VCVerifyRequest: {
+      /** Credential */
+      credential: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * VCVerifyResponse
+     * @description Response from VC verification.
+     */
+    VCVerifyResponse: {
+      /** Valid */
+      valid: boolean;
+      /**
+       * Errors
+       * @default []
+       */
+      errors?: string[];
+      /** Issuer Did */
+      issuer_did?: string | null;
+      /** Subject Id */
+      subject_id?: string | null;
     };
     /** ValidationError */
     ValidationError: {
@@ -2030,6 +4265,97 @@ export interface components {
       msg: string;
       /** Error Type */
       type: string;
+    };
+    /** WebhookCreate */
+    WebhookCreate: {
+      /**
+       * Url
+       * Format: uri
+       */
+      url: string;
+      /** Events */
+      events: ("DPP_CREATED" | "DPP_PUBLISHED" | "DPP_ARCHIVED" | "DPP_EXPORTED" | "EPCIS_CAPTURED")[];
+    };
+    /** WebhookResponse */
+    WebhookResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Url */
+      url: string;
+      /** Events */
+      events: string[];
+      /** Active */
+      active: boolean;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * ActorSummary
+     * @description Actor identity summary for ownership metadata.
+     */
+    app__modules__connectors__router__ActorSummary: {
+      /** Subject */
+      subject: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Email Masked */
+      email_masked?: string | null;
+    };
+    /**
+     * AccessSummary
+     * @description Current user's effective access to the resource.
+     */
+    app__modules__dpps__router__AccessSummary: {
+      /** Can Read */
+      can_read: boolean;
+      /** Can Update */
+      can_update: boolean;
+      /** Can Publish */
+      can_publish: boolean;
+      /** Can Archive */
+      can_archive: boolean;
+      /**
+       * Source
+       * @enum {string}
+       */
+      source: "owner" | "share" | "tenant_admin";
+    };
+    /**
+     * ActorSummary
+     * @description Actor identity summary for ownership and provenance fields.
+     */
+    app__modules__dpps__router__ActorSummary: {
+      /** Subject */
+      subject: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Email Masked */
+      email_masked?: string | null;
+    };
+    /**
+     * ActorSummary
+     * @description Actor identity summary for share responses.
+     */
+    app__modules__shares__router__ActorSummary: {
+      /** Subject */
+      subject: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Email Masked */
+      email_masked?: string | null;
     };
   };
   responses: never;
@@ -2054,6 +4380,56 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+    };
+  };
+  /**
+   * Get Public Scoped Landing Summary
+   * @description Public aggregate-only metrics for landing page trust strip with scope support.
+   */
+  get_public_scoped_landing_summary_api_v1_public_landing_summary_get: {
+    parameters: {
+      query?: {
+        scope?: "default" | "all";
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicLandingSummaryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Public Landing Summary
+   * @description Public aggregate-only metrics for landing page trust strip.
+   */
+  get_public_landing_summary_api_v1_public__tenant_slug__landing_summary_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicLandingSummaryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
@@ -2111,6 +4487,536 @@ export interface operations {
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Service Description
+   * @description IDTA-01002 $metadata -- service description for this tenant.
+   */
+  get_service_description_api_v1_public__tenant_slug__service_description_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ServiceDescription"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Shells
+   * @description List all published shells with cursor-based pagination.
+   */
+  list_shells_api_v1_public__tenant_slug__shells_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PagedResult_PublicDPPResponse_"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Shell By Aas Id
+   * @description IDTA-01002 AAS Repository -- Get a shell (DPP) by base64url-encoded AAS ID.
+   */
+  get_shell_by_aas_id_api_v1_public__tenant_slug__shells__aas_id_b64__get: {
+    parameters: {
+      query?: {
+        espr_tier?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+        aas_id_b64: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Submodel Refs
+   * @description List submodel references (id + semanticId) for a shell.
+   */
+  list_submodel_refs_api_v1_public__tenant_slug__shells__aas_id_b64__submodels_get: {
+    parameters: {
+      query?: {
+        espr_tier?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+        aas_id_b64: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+              [key: string]: unknown;
+            }[];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Submodel By Id
+   * @description Get a specific submodel from a published DPP.
+   *
+   * Use ``?content=value`` to return only submodelElements (same as
+   * the ``/$value`` path suffix).
+   */
+  get_submodel_by_id_api_v1_public__tenant_slug__shells__aas_id_b64__submodels__submodel_id_b64__get: {
+    parameters: {
+      query?: {
+        espr_tier?: string | null;
+        content?: "normal" | "value";
+      };
+      path: {
+        tenant_slug: string;
+        aas_id_b64: string;
+        submodel_id_b64: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Submodel Value
+   * @description Get submodel $value (submodelElements only) -- Catena-X standard endpoint.
+   */
+  get_submodel_value_api_v1_public__tenant_slug__shells__aas_id_b64__submodels__submodel_id_b64___value_get: {
+    parameters: {
+      query?: {
+        espr_tier?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+        aas_id_b64: string;
+        submodel_id_b64: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Public Epcis Events
+   * @description Get EPCIS events for a published DPP (no authentication required).
+   *
+   * Only returns events for DPPs with status=PUBLISHED.
+   * Limited to the most recent 100 events ordered by event time.
+   */
+  get_public_epcis_events_api_v1_public__tenant_slug__epcis_events__dpp_id__get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        dpp_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicEPCISQueryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Public Discovery Lookup
+   * @description Public discovery: look up AAS IDs by asset ID key/value (no auth).
+   */
+  public_discovery_lookup_api_v1_public__tenant_slug__discovery_get: {
+    parameters: {
+      query: {
+        /** @description Asset ID key */
+        key: string;
+        /** @description Asset ID value */
+        value: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": string[];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Public List Shell Descriptors
+   * @description List shell descriptors with cursor-based pagination (no auth).
+   */
+  public_list_shell_descriptors_api_v1_public__tenant_slug__shell_descriptors_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PagedResult_PublicShellDescriptorResponse_"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Public Get Shell Descriptor
+   * @description Public shell descriptor lookup by base64-encoded AAS ID (no auth).
+   */
+  public_get_shell_descriptor_api_v1_public__tenant_slug__shell_descriptors__aas_id_b64__get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        aas_id_b64: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicShellDescriptorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Resolve Gtin
+   * @description Resolve by GTIN only.
+   */
+  resolve_gtin_api_v1_resolve_01__gtin__get: {
+    parameters: {
+      query?: {
+        /** @description Filter by link relation type */
+        linkType?: string | null;
+      };
+      path: {
+        gtin: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Resolve Gtin Serial
+   * @description Resolve by GTIN + serial number.
+   */
+  resolve_gtin_serial_api_v1_resolve_01__gtin__21__serial__get: {
+    parameters: {
+      query?: {
+        /** @description Filter by link relation type */
+        linkType?: string | null;
+      };
+      path: {
+        gtin: string;
+        serial: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Resolve Gtin Lot
+   * @description Resolve by GTIN + lot number.
+   */
+  resolve_gtin_lot_api_v1_resolve_01__gtin__10__lot__get: {
+    parameters: {
+      query?: {
+        /** @description Filter by link relation type */
+        linkType?: string | null;
+      };
+      path: {
+        gtin: string;
+        lot: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Resolve Gtin Serial Lot
+   * @description Resolve by GTIN + serial + lot.
+   */
+  resolve_gtin_serial_lot_api_v1_resolve_01__gtin__21__serial__10__lot__get: {
+    parameters: {
+      query?: {
+        /** @description Filter by link relation type */
+        linkType?: string | null;
+      };
+      path: {
+        gtin: string;
+        serial: string;
+        lot: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Resolver Description
+   * @description GS1 resolver description document.
+   */
+  resolver_description_api_v1_resolve__well_known_gs1resolver_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResolverDescriptionResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Did Document
+   * @description Return the DID Document for a tenant (public, no auth).
+   *
+   * Only active tenants get DID documents; unknown slugs return 404.
+   */
+  get_did_document_api_v1_public__tenant_slug___well_known_did_json_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Public Verify Credential
+   * @description Publicly verify a Verifiable Credential (no auth required).
+   */
+  public_verify_credential_api_v1_public_credentials_verify_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VCVerifyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["VCVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Onboarding Status
+   * @description Check whether the current user has been provisioned into a tenant.
+   */
+  get_onboarding_status_api_v1_onboarding_status_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OnboardingStatusResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Provision User
+   * @description Trigger first-login provisioning (idempotent).
+   *
+   * Creates a VIEWER membership in the default tenant if the user
+   * hasn't been provisioned yet.
+   */
+  provision_user_api_v1_onboarding_provision_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OnboardingStatusResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Resend Verification Email
+   * @description Trigger a Keycloak verification email for the current user.
+   */
+  resend_verification_email_api_v1_onboarding_resend_verification_post: {
+    responses: {
+      /** @description Successful Response */
+      202: {
+        content: {
+          "application/json": components["schemas"]["ResendVerificationResponse"];
         };
       };
     };
@@ -2303,6 +5209,51 @@ export interface operations {
     };
   };
   /**
+   * Update Member Role
+   * @description Change a member's role (tenant admin).
+   */
+  update_member_role_api_v1_tenants__tenant_slug__members__user_subject__patch: {
+    parameters: {
+      path: {
+        user_subject: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TenantMemberRoleUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TenantMemberResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Platform Metrics
+   * @description Get per-tenant usage metrics (platform admin).
+   */
+  get_platform_metrics_api_v1_tenants_metrics_platform_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PlatformMetricsResponse"];
+        };
+      };
+    };
+  };
+  /**
    * Get Template Definition
    * @description Get the template definition AST (BaSyx parsed).
    *
@@ -2473,16 +5424,13 @@ export interface operations {
   /**
    * List Dpps
    * @description List DPPs accessible to the current user.
-   *
-   * Access is controlled via ABAC policies. Typically:
-   * - Tenant admins see all DPPs in tenant
-   * - Publishers see their own DPPs
-   * - Viewers see all published DPPs
    */
   list_dpps_api_v1_tenants__tenant_slug__dpps_get: {
     parameters: {
       query?: {
         status?: components["schemas"]["DPPStatus"] | null;
+        /** @description Visibility filter: mine, shared, or all accessible resources */
+        scope?: "mine" | "shared" | "all";
         limit?: number;
         offset?: number;
       };
@@ -2527,6 +5475,94 @@ export interface operations {
       201: {
         content: {
           "application/json": components["schemas"]["DPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Batch Import Dpps
+   * @description Batch create multiple DPPs.
+   *
+   * Each item is created in its own savepoint — one failure does not rollback others.
+   * Max 100 items per request.
+   */
+  batch_import_dpps_api_v1_tenants__tenant_slug__dpps_batch_import_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BatchImportResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Batch Import Jobs
+   * @description List persisted batch import jobs for this tenant.
+   */
+  list_batch_import_jobs_api_v1_tenants__tenant_slug__dpps_batch_import_jobs_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BatchImportJobListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Batch Import Job
+   * @description Get one persisted batch import job and its item outcomes.
+   */
+  get_batch_import_job_api_v1_tenants__tenant_slug__dpps_batch_import_jobs__job_id__get: {
+    parameters: {
+      path: {
+        job_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BatchImportJobDetailResponse"];
         };
       };
       /** @description Validation Error */
@@ -2593,6 +5629,36 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["BulkRebuildResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Repair Invalid Lists
+   * @description Repair latest revisions with invalid SubmodelElementList item idShorts.
+   */
+  repair_invalid_lists_api_v1_tenants__tenant_slug__dpps_repair_invalid_lists_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RepairInvalidListsRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RepairInvalidListsResponse"];
         };
       };
       /** @description Validation Error */
@@ -2683,6 +5749,32 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["RevisionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Refresh Rebuild Submodels
+   * @description Refresh templates and rebuild all bound submodels for one DPP.
+   */
+  refresh_rebuild_submodels_api_v1_tenants__tenant_slug__dpps__dpp_id__submodels_refresh_rebuild_post: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RefreshRebuildSubmodelsResponse"];
         };
       };
       /** @description Validation Error */
@@ -2795,6 +5887,38 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["RevisionResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Diff Revisions
+   * @description Compare two revisions of a DPP.
+   */
+  diff_revisions_api_v1_tenants__tenant_slug__dpps__dpp_id__diff_get: {
+    parameters: {
+      query: {
+        /** @description Source revision number */
+        from: number;
+        /** @description Target revision number */
+        to: number;
+      };
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DPPDiffResult"];
         };
       };
       /** @description Validation Error */
@@ -3220,6 +6344,8 @@ export interface operations {
       query?: {
         /** @description Filter by connector type */
         connector_type?: components["schemas"]["ConnectorType"] | null;
+        /** @description mine, shared, or all accessible connectors */
+        scope?: string;
       };
       path: {
         tenant_slug: string;
@@ -3448,6 +6574,153 @@ export interface operations {
     };
   };
   /**
+   * List Resource Shares
+   * @description List active shares for a resource.
+   */
+  list_resource_shares_api_v1_tenants__tenant_slug__shares__resource_type___resource_id__get: {
+    parameters: {
+      path: {
+        resource_type: "dpp" | "connector";
+        resource_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceShareListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Grant Resource Share
+   * @description Grant or update explicit share access for a resource.
+   */
+  grant_resource_share_api_v1_tenants__tenant_slug__shares__resource_type___resource_id__post: {
+    parameters: {
+      path: {
+        resource_type: "dpp" | "connector";
+        resource_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResourceShareRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResourceShareResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Revoke Resource Share
+   * @description Revoke share access for a specific subject.
+   */
+  revoke_resource_share_api_v1_tenants__tenant_slug__shares__resource_type___resource_id___user_subject__delete: {
+    parameters: {
+      path: {
+        resource_type: "dpp" | "connector";
+        resource_id: string;
+        user_subject: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Activity Events
+   * @description List activity events scoped to tenant and caller privileges.
+   */
+  list_activity_events_api_v1_tenants__tenant_slug__activity_events_get: {
+    parameters: {
+      query?: {
+        resource_type?: string | null;
+        action?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ActivityEventListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Resource Activity
+   * @description Get timeline events for a specific resource.
+   */
+  get_resource_activity_api_v1_tenants__tenant_slug__activity_resources__resource_type___resource_id__get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        resource_type: "dpp" | "connector";
+        resource_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ActivityEventListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * Export Dpp
    * @description Export a DPP in the specified format.
    *
@@ -3460,13 +6733,43 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Export format */
-        format?: "json" | "aasx" | "pdf" | "jsonld" | "turtle";
+        format?: "json" | "aasx" | "pdf" | "jsonld" | "turtle" | "xml";
         /** @description Serialization format inside AASX package (json or xml) */
         aasx_serialization?: "json" | "xml";
       };
       path: {
         dpp_id: string;
         tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Batch Export
+   * @description Export multiple DPPs as a ZIP archive.
+   */
+  batch_export_api_v1_tenants__tenant_slug__export_batch_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchExportRequest"];
       };
     };
     responses: {
@@ -3574,6 +6877,35 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["GS1DigitalLinkResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Iec61406 Link
+   * @description Get the IEC 61406 identification link for a DPP.
+   *
+   * Returns a URL-based identification link per IEC 61406 that encodes
+   * the manufacturer part ID and serial number as query parameters.
+   */
+  get_iec61406_link_api_v1_tenants__tenant_slug__qr__dpp_id__iec61406_get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IEC61406LinkResponse"];
         };
       };
       /** @description Validation Error */
@@ -4061,6 +7393,980 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["ComparisonReport"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Capture Events
+   * @description Capture an EPCIS 2.0 document — persist all events for a DPP.
+   *
+   * Returns HTTP 202 (Accepted) per the EPCIS capture interface spec.
+   */
+  capture_events_api_v1_tenants__tenant_slug__epcis_capture_post: {
+    parameters: {
+      query: {
+        /** @description DPP to link captured events to */
+        dpp_id: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EPCISDocumentCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        content: {
+          "application/json": components["schemas"]["CaptureResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Query Events
+   * @description Query EPCIS events using SimpleEventQuery-style filters.
+   */
+  query_events_api_v1_tenants__tenant_slug__epcis_events_get: {
+    parameters: {
+      query?: {
+        event_type?: components["schemas"]["EPCISEventType"] | null;
+        GE_eventTime?: string | null;
+        LT_eventTime?: string | null;
+        EQ_action?: ("ADD" | "OBSERVE" | "DELETE") | null;
+        EQ_bizStep?: string | null;
+        EQ_disposition?: string | null;
+        MATCH_epc?: string | null;
+        MATCH_anyEPC?: string | null;
+        MATCH_parentID?: string | null;
+        MATCH_inputEPC?: string | null;
+        MATCH_outputEPC?: string | null;
+        EQ_readPoint?: string | null;
+        EQ_bizLocation?: string | null;
+        GE_recordTime?: string | null;
+        LT_recordTime?: string | null;
+        dpp_id?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EPCISQueryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Event
+   * @description Get a single EPCIS event by its event_id URI.
+   */
+  get_event_api_v1_tenants__tenant_slug__epcis_events__event_id__get: {
+    parameters: {
+      path: {
+        event_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EPCISEventResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Named Queries
+   * @description List all named queries for the current tenant.
+   */
+  list_named_queries_api_v1_tenants__tenant_slug__epcis_queries_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["NamedQueryResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Named Query
+   * @description Create a saved EPCIS named query.
+   */
+  create_named_query_api_v1_tenants__tenant_slug__epcis_queries_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NamedQueryCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["NamedQueryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Execute Named Query
+   * @description Execute a named query and return matching events.
+   */
+  execute_named_query_api_v1_tenants__tenant_slug__epcis_queries__name__events_get: {
+    parameters: {
+      path: {
+        name: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EPCISQueryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Named Query
+   * @description Delete a named query by name.
+   */
+  delete_named_query_api_v1_tenants__tenant_slug__epcis_queries__name__delete: {
+    parameters: {
+      path: {
+        name: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Webhooks
+   * @description List all webhook subscriptions for the tenant.
+   */
+  list_webhooks_api_v1_tenants__tenant_slug__webhooks_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["WebhookResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Webhook
+   * @description Create a new webhook subscription.
+   */
+  create_webhook_api_v1_tenants__tenant_slug__webhooks_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["WebhookCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["WebhookResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Webhook
+   * @description Delete a webhook subscription.
+   */
+  delete_webhook_api_v1_tenants__tenant_slug__webhooks__webhook_id__delete: {
+    parameters: {
+      path: {
+        webhook_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Deliveries
+   * @description List recent delivery attempts for a webhook subscription.
+   */
+  list_deliveries_api_v1_tenants__tenant_slug__webhooks__webhook_id__deliveries_get: {
+    parameters: {
+      path: {
+        webhook_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DeliveryLogResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Test Webhook
+   * @description Send a test payload to verify webhook connectivity.
+   */
+  test_webhook_api_v1_tenants__tenant_slug__webhooks__webhook_id__test_post: {
+    parameters: {
+      path: {
+        webhook_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Resolver Links
+   * @description List resolver links for the tenant.
+   */
+  list_resolver_links_api_v1_tenants__tenant_slug__resolver_get: {
+    parameters: {
+      query?: {
+        /** @description Filter by DPP ID */
+        dpp_id?: string | null;
+        /** @description Max results */
+        limit?: number;
+        /** @description Offset for pagination */
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResolverLinkResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Resolver Link
+   * @description Create a new resolver link.
+   */
+  create_resolver_link_api_v1_tenants__tenant_slug__resolver_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResolverLinkCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ResolverLinkResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Resolver Link
+   * @description Get a specific resolver link.
+   */
+  get_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__get: {
+    parameters: {
+      path: {
+        link_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResolverLinkResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Resolver Link
+   * @description Delete a resolver link.
+   */
+  delete_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__delete: {
+    parameters: {
+      path: {
+        link_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Resolver Link
+   * @description Update a resolver link.
+   */
+  update_resolver_link_api_v1_tenants__tenant_slug__resolver__link_id__patch: {
+    parameters: {
+      path: {
+        link_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ResolverLinkUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ResolverLinkResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Shell Descriptors
+   * @description List all shell descriptors for the current tenant.
+   */
+  list_shell_descriptors_api_v1_tenants__tenant_slug__registry_shell_descriptors_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ShellDescriptorResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Shell Descriptor
+   * @description Create a new shell descriptor.
+   */
+  create_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ShellDescriptorCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ShellDescriptorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Shell Descriptor
+   * @description Get a shell descriptor by base64-encoded AAS ID.
+   */
+  get_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__get: {
+    parameters: {
+      path: {
+        aas_id_b64: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ShellDescriptorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Shell Descriptor
+   * @description Update a shell descriptor by base64-encoded AAS ID.
+   */
+  update_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__put: {
+    parameters: {
+      path: {
+        aas_id_b64: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ShellDescriptorUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ShellDescriptorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Shell Descriptor
+   * @description Delete a shell descriptor by base64-encoded AAS ID.
+   */
+  delete_shell_descriptor_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__delete: {
+    parameters: {
+      path: {
+        aas_id_b64: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Submodel Descriptors
+   * @description List submodel descriptors for a shell descriptor.
+   */
+  list_submodel_descriptors_api_v1_tenants__tenant_slug__registry_shell_descriptors__aas_id_b64__submodel_descriptors_get: {
+    parameters: {
+      path: {
+        aas_id_b64: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SubmodelDescriptorResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Search Shell Descriptors
+   * @description Search shell descriptors by asset ID key/value.
+   */
+  search_shell_descriptors_api_v1_tenants__tenant_slug__registry_search_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RegistrySearchRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ShellDescriptorResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Lookup Discovery
+   * @description Look up AAS IDs by asset ID key/value pair.
+   */
+  lookup_discovery_api_v1_tenants__tenant_slug__registry_discovery_get: {
+    parameters: {
+      query: {
+        asset_id_key: string;
+        asset_id_value: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": string[];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Discovery Mapping
+   * @description Create a discovery mapping (asset ID -> AAS ID).
+   */
+  create_discovery_mapping_api_v1_tenants__tenant_slug__registry_discovery_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssetDiscoveryCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["AssetDiscoveryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Issue Credential
+   * @description Issue a Verifiable Credential for a published DPP.
+   */
+  issue_credential_api_v1_tenants__tenant_slug__credentials_issue__dpp_id__post: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VCIssueRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["IssuedCredentialResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Verify Credential
+   * @description Verify a Verifiable Credential.
+   */
+  verify_credential_api_v1_tenants__tenant_slug__credentials_verify_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["VCVerifyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["VCVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Credential
+   * @description Get the issued credential for a DPP.
+   */
+  get_credential_api_v1_tenants__tenant_slug__credentials__dpp_id__get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IssuedCredentialResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Credentials
+   * @description List issued credentials for the tenant.
+   */
+  list_credentials_api_v1_tenants__tenant_slug__credentials_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IssuedCredentialResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List All Requests
+   * @description List all role requests (admin only). Optional ?status_filter=pending.
+   */
+  list_all_requests_api_v1_tenants__tenant_slug__role_requests_get: {
+    parameters: {
+      query?: {
+        status_filter?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RoleRequestResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Role Request
+   * @description Submit a role upgrade request (any tenant member).
+   */
+  create_role_request_api_v1_tenants__tenant_slug__role_requests_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RoleRequestCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["RoleRequestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List My Requests
+   * @description List the current user's role requests.
+   */
+  list_my_requests_api_v1_tenants__tenant_slug__role_requests_mine_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RoleRequestResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Review Role Request
+   * @description Approve or deny a role request (admin only).
+   */
+  review_role_request_api_v1_tenants__tenant_slug__role_requests__request_id__patch: {
+    parameters: {
+      path: {
+        request_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RoleRequestReview"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RoleRequestResponse"];
         };
       };
       /** @description Validation Error */

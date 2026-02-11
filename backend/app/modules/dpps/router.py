@@ -5,11 +5,14 @@ API Router for DPP (Digital Product Passport) endpoints.
 import asyncio
 import hashlib
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field, RootModel
+from sqlalchemy import text
 
 from app.core.audit import emit_audit_event
 from app.core.identifiers import IdentifierValidationError
@@ -22,7 +25,7 @@ from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.aas.conformance import validate_aas_environment
 from app.modules.digital_thread.handlers import record_lifecycle_event
-from app.modules.dpps.service import DPPService
+from app.modules.dpps.service import AmbiguousSubmodelBindingError, DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
 from app.modules.registry.handlers import auto_register_shell_descriptor
@@ -32,6 +35,8 @@ from app.modules.webhooks.service import trigger_webhooks
 
 logger = get_logger(__name__)
 router = APIRouter()
+_refresh_rebuild_local_locks: dict[str, asyncio.Lock] = {}
+_refresh_rebuild_local_locks_guard = asyncio.Lock()
 
 
 def _can_view_drafts(dpp: Any, tenant: TenantContext, *, shared_with_current_user: bool) -> bool:
@@ -69,6 +74,49 @@ def _access_source(
     return "owner"
 
 
+@asynccontextmanager
+async def _acquire_refresh_rebuild_guard(db: DbSession, dpp_id: UUID) -> AsyncIterator[None]:
+    """
+    Enforce one in-flight refresh+rebuild per DPP.
+
+    Uses PostgreSQL transaction advisory lock when available.
+    Falls back to in-process lock for non-Postgres test/dev backends.
+    """
+    bind = db.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        lock_result = await db.execute(
+            text("SELECT pg_try_advisory_xact_lock(hashtext(:lock_key))"),
+            {"lock_key": f"dpp:refresh-rebuild:{dpp_id}"},
+        )
+        acquired = bool(lock_result.scalar())
+        if not acquired:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="A refresh and rebuild is already in progress for this DPP",
+            )
+        yield
+        return
+
+    lock_key = str(dpp_id)
+    async with _refresh_rebuild_local_locks_guard:
+        lock = _refresh_rebuild_local_locks.setdefault(lock_key, asyncio.Lock())
+    if lock.locked():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A refresh and rebuild is already in progress for this DPP",
+        )
+    await lock.acquire()
+    try:
+        yield
+    finally:
+        lock.release()
+        if not lock.locked():
+            async with _refresh_rebuild_local_locks_guard:
+                existing = _refresh_rebuild_local_locks.get(lock_key)
+                if existing is lock and not existing.locked():
+                    _refresh_rebuild_local_locks.pop(lock_key, None)
+
+
 class AssetIdsInput(BaseModel):
     """Input model for asset identifiers."""
 
@@ -99,6 +147,7 @@ class UpdateSubmodelRequest(BaseModel):
     template_key: str
     data: dict[str, Any]
     rebuild_from_template: bool = False
+    submodel_id: str | None = None
 
 
 class ActorSummary(BaseModel):
@@ -137,12 +186,28 @@ class DPPResponse(BaseModel):
         from_attributes = True
 
 
+class SubmodelBindingResponse(BaseModel):
+    """Resolved submodel->template binding metadata."""
+
+    submodel_id: str | None = None
+    id_short: str | None = None
+    semantic_id: str | None = None
+    normalized_semantic_id: str | None = None
+    template_key: str | None = None
+    binding_source: str
+    idta_version: str | None = None
+    resolved_version: str | None = None
+    support_status: str | None = None
+    refresh_enabled: bool | None = None
+
+
 class DPPDetailResponse(DPPResponse):
     """Detailed response model including revision data."""
 
     current_revision_no: int | None
     aas_environment: dict[str, Any] | None
     digest_sha256: str | None
+    submodel_bindings: list[SubmodelBindingResponse] = Field(default_factory=list)
 
 
 class DPPListResponse(BaseModel):
@@ -192,6 +257,39 @@ class BulkRebuildResponse(BaseModel):
     updated: int
     skipped: int
     errors: list[BulkRebuildError]
+
+
+class RefreshRebuildFailure(BaseModel):
+    """Single template/submodel refresh+rebuild failure entry."""
+
+    template_key: str | None = None
+    submodel_id: str | None = None
+    submodel: str
+    error: str
+
+
+class RefreshRebuildSkipped(BaseModel):
+    """Single skipped submodel refresh+rebuild entry."""
+
+    submodel: str
+    reason: str
+
+
+class RefreshRebuildSuccess(BaseModel):
+    """Single successful template/submodel refresh+rebuild entry."""
+
+    template_key: str
+    submodel_id: str
+    submodel: str
+
+
+class RefreshRebuildSubmodelsResponse(BaseModel):
+    """Response for one-DPP template refresh + submodel rebuild run."""
+
+    attempted: int
+    succeeded: list[RefreshRebuildSuccess]
+    failed: list[RefreshRebuildFailure]
+    skipped: list[RefreshRebuildSkipped]
 
 
 class RepairInvalidListsRequest(BaseModel):
@@ -937,6 +1035,7 @@ async def get_dpp_by_slug(
         tenant,
         shared_with_current_user=shared_with_current_user,
     )
+    submodel_bindings = await service.get_submodel_bindings(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
@@ -949,6 +1048,21 @@ async def get_dpp_by_slug(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
+        submodel_bindings=[
+            SubmodelBindingResponse(
+                submodel_id=binding.submodel_id,
+                id_short=binding.id_short,
+                semantic_id=binding.semantic_id,
+                normalized_semantic_id=binding.normalized_semantic_id,
+                template_key=binding.template_key,
+                binding_source=binding.binding_source,
+                idta_version=binding.idta_version,
+                resolved_version=binding.resolved_version,
+                support_status=binding.support_status,
+                refresh_enabled=binding.refresh_enabled,
+            )
+            for binding in submodel_bindings
+        ],
     )
 
 
@@ -993,6 +1107,7 @@ async def get_dpp(
         tenant,
         shared_with_current_user=shared_with_current_user,
     )
+    submodel_bindings = await service.get_submodel_bindings(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
@@ -1005,6 +1120,21 @@ async def get_dpp(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
+        submodel_bindings=[
+            SubmodelBindingResponse(
+                submodel_id=binding.submodel_id,
+                id_short=binding.id_short,
+                semantic_id=binding.semantic_id,
+                normalized_semantic_id=binding.normalized_semantic_id,
+                template_key=binding.template_key,
+                binding_source=binding.binding_source,
+                idta_version=binding.idta_version,
+                resolved_version=binding.resolved_version,
+                support_status=binding.support_status,
+                refresh_enabled=binding.refresh_enabled,
+            )
+            for binding in submodel_bindings
+        ],
     )
 
 
@@ -1052,6 +1182,7 @@ async def update_submodel(
             submodel_data=body.data,
             updated_by_subject=tenant.user.sub,
             rebuild_from_template=body.rebuild_from_template,
+            submodel_id=body.submodel_id,
         )
         await db.commit()
         await emit_audit_event(
@@ -1064,11 +1195,20 @@ async def update_submodel(
             request=request,
             metadata={"template_key": body.template_key},
         )
+    except AmbiguousSubmodelBindingError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(e),
+                "template_key": e.template_key,
+                "candidates": e.submodel_ids,
+            },
+        ) from e
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
     return RevisionResponse(
         id=revision.id,
@@ -1078,6 +1218,78 @@ async def update_submodel(
         created_by_subject=revision.created_by_subject,
         created_at=revision.created_at.isoformat(),
         template_provenance=revision.template_provenance,
+    )
+
+
+@router.post(
+    "/{dpp_id}/submodels/refresh-rebuild",
+    response_model=RefreshRebuildSubmodelsResponse,
+)
+async def refresh_rebuild_submodels(
+    dpp_id: UUID,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> RefreshRebuildSubmodelsResponse:
+    """Refresh templates and rebuild all bound submodels for one DPP."""
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can edit this DPP",
+        )
+
+    await require_access(
+        tenant.user,
+        "update",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
+
+    try:
+        async with _acquire_refresh_rebuild_guard(db, dpp_id):
+            summary = await service.refresh_and_rebuild_dpp_submodels(
+                dpp_id=dpp_id,
+                tenant_id=tenant.tenant_id,
+                updated_by_subject=tenant.user.sub,
+            )
+            await db.commit()
+            await emit_audit_event(
+                db_session=db,
+                action="refresh_rebuild_submodels",
+                resource_type="dpp",
+                resource_id=dpp_id,
+                tenant_id=tenant.tenant_id,
+                user=tenant.user,
+                request=request,
+                metadata={
+                    "attempted": summary["attempted"],
+                    "succeeded": len(summary["succeeded"]),
+                    "failed": len(summary["failed"]),
+                    "skipped": len(summary["skipped"]),
+                },
+            )
+    except HTTPException:
+        raise
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return RefreshRebuildSubmodelsResponse(
+        attempted=summary["attempted"],
+        succeeded=[RefreshRebuildSuccess(**entry) for entry in summary["succeeded"]],
+        failed=[RefreshRebuildFailure(**entry) for entry in summary["failed"]],
+        skipped=[RefreshRebuildSkipped(**entry) for entry in summary["skipped"]],
     )
 
 

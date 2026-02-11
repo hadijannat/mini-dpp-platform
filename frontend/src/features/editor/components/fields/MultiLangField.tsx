@@ -44,6 +44,7 @@ export function MultiLangField({ name, control, node }: FieldProps) {
             formUrl={formUrl}
             error={fieldState.error?.message}
             fieldId={fieldId}
+            fieldPath={name}
           >
             {requiredLangs.length > 0 && (
               <p className="text-xs text-gray-400">

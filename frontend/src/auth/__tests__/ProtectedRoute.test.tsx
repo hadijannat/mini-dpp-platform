@@ -34,6 +34,14 @@ function renderRoutes(initialEntry: string = '/console') {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/console/dpps/:dppId"
+          element={
+            <ProtectedRoute requiredRole="publisher">
+              <div>DPP Detail</div>
+            </ProtectedRoute>
+          }
+        />
         <Route path="/welcome" element={<WelcomeProbe />} />
         <Route path="/" element={<div>Landing</div>} />
       </Routes>
@@ -56,6 +64,13 @@ describe('ProtectedRoute', () => {
     expect(screen.queryByText('Console')).toBeNull();
     expect(screen.getByText(/reason=insufficient_role/)).toBeTruthy();
     expect(screen.getByText(/next=%2Fconsole/)).toBeTruthy();
+  });
+
+  it('allows viewers to access read-only DPP detail console route', async () => {
+    renderRoutes('/console/dpps/019c42a4-128f-7bd9-a95c-a842746f2f9a');
+
+    expect(await screen.findByText('DPP Detail')).toBeTruthy();
+    expect(screen.queryByText(/Welcome Page/)).toBeNull();
   });
 
   it('redirects unauthenticated users to landing and stores intended route', async () => {

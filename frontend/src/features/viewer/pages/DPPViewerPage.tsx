@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -17,6 +18,8 @@ import { RawSubmodelTree } from '../components/RawSubmodelTree';
 import { IntegrityCard } from '../components/IntegrityCard';
 import { classifySubmodelElements } from '../utils/esprCategories';
 import type { PublicDPPResponse } from '@/api/types';
+import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
+import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
 
 async function fetchDPP(
   dppId: string,
@@ -52,6 +55,7 @@ export default function DPPViewerPage() {
   const id = dppId || slug;
   const isSlug = !dppId && !!slug;
   const resolvedTenant = tenantSlug || getTenantSlug();
+  const rollout = resolveSubmodelUxRollout(resolvedTenant);
 
   const { data: dpp, isLoading, error } = useQuery<PublicDPPResponse>({
     queryKey: ['dpp', resolvedTenant, id, isSlug, !!token],
@@ -66,6 +70,23 @@ export default function DPPViewerPage() {
     queryFn: () => fetchPublicEPCISEvents(resolvedTenant, dppUuid),
     enabled: !!dppUuid && !!resolvedTenant,
   });
+
+  const submodels = (dpp?.aas_environment?.submodels || []) as Array<Record<string, unknown>>;
+  const classified = classifySubmodelElements(submodels);
+  const productName =
+    (dpp?.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
+  const epcisEvents = epcisData?.eventList ?? [];
+
+  useEffect(() => {
+    if (!dpp?.id || submodels.length === 0) return;
+    const uncategorized = classified.uncategorized ?? [];
+    const withSemanticId = uncategorized.filter((node) => Boolean(node.semanticId)).length;
+    emitSubmodelUxMetric('unresolved_semantic_classification', {
+      dpp_id: dpp.id,
+      uncategorized_count: uncategorized.length,
+      uncategorized_with_semantic_id: withSemanticId,
+    });
+  }, [classified, dpp?.id, submodels.length]);
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -88,12 +109,6 @@ export default function DPPViewerPage() {
   if (!dpp) {
     return <ErrorBanner message="Digital Product Passport not found" />;
   }
-
-  const submodels = (dpp.aas_environment?.submodels || []) as Array<Record<string, unknown>>;
-  const classified = classifySubmodelElements(submodels);
-  const productName =
-    (dpp.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
-  const epcisEvents = epcisData?.eventList ?? [];
 
   return (
     <div className="space-y-6">
@@ -138,7 +153,7 @@ export default function DPPViewerPage() {
       )}
 
       {/* Raw Data (for advanced users/regulators) */}
-      {submodels.length > 0 && (
+      {submodels.length > 0 && rollout.surfaces.viewer && (
         <Collapsible>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="w-full justify-between text-muted-foreground">

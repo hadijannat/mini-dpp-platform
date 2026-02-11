@@ -1,20 +1,21 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History, Filter } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { CaptureDialog } from '@/features/epcis/components/CaptureDialog';
 import { RevisionHistory } from '../components/RevisionHistory';
 import { useTenantSlug } from '@/lib/tenant';
-import { buildSubmodelData } from '@/features/editor/utils/submodelData';
-import {
-  summarizeRefreshRebuildSettled,
-  type RefreshRebuildSummary,
-  type RefreshRebuildTask,
-} from '@/features/publisher/utils/refreshRebuildSummary';
+import { SubmodelNodeTree } from '@/features/submodels/components/SubmodelNodeTree';
+import { buildDppActionState } from '@/features/submodels/policy/actionPolicy';
+import { buildSubmodelNodeTree, computeSubmodelHealth, flattenSubmodelNodes } from '@/features/submodels/utils/treeBuilder';
+import type { DppAccessSummary, SubmodelBinding, SubmodelNode } from '@/features/submodels/types';
+import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
+import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
+import { classifyElement, ESPR_CATEGORIES } from '@/features/viewer/utils/esprCategories';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -22,12 +23,6 @@ import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +37,50 @@ type TemplateDescriptor = {
   semantic_id: string;
 };
 
+type RefreshRebuildSummary = {
+  attempted: number;
+  succeeded: Array<{ template_key: string; submodel_id: string; submodel: string }>;
+  failed: Array<{ template_key?: string; submodel_id?: string; submodel: string; error: string }>;
+  skipped: Array<{ submodel: string; reason: string }>;
+};
+
+type DppDetail = {
+  id: string;
+  status: string;
+  asset_ids?: Record<string, unknown>;
+  owner_subject?: string;
+  current_revision_no?: number | null;
+  digest_sha256?: string | null;
+  aas_environment?: { submodels?: AASSubmodel[] };
+  submodel_bindings?: SubmodelBinding[];
+  access?: DppAccessSummary;
+};
+
+type RiskLevel = 'high' | 'medium' | 'low';
+type SubmodelSortKey = 'name-asc' | 'completion-desc' | 'completion-asc' | 'risk-desc';
+type CompletionFilter = 'all' | 'complete' | 'incomplete';
+type RiskFilter = 'all' | RiskLevel;
+
+type SubmodelRenderModel = {
+  submodel: AASSubmodel;
+  submodelId: string;
+  templateKey: string | null;
+  binding: SubmodelBinding | undefined;
+  editHref: string | null;
+  rootNode: SubmodelNode;
+  health: ReturnType<typeof computeSubmodelHealth>;
+  completionPercent: number | null;
+  categoryId: string;
+  categoryLabel: string;
+  risk: RiskLevel;
+  riskBadgeLabel: string;
+  riskSortRank: number;
+};
+
+function isTemplateSelectable(template: TemplateResponse): boolean {
+  return template.support_status !== 'unavailable' && template.refresh_enabled !== false;
+}
+
 type AASSubmodel = Record<string, unknown> & {
   idShort?: string;
   id?: string;
@@ -49,50 +88,38 @@ type AASSubmodel = Record<string, unknown> & {
   submodelElements?: Array<Record<string, unknown>>;
 };
 
-function extractSemanticId(submodel: AASSubmodel): string | null {
-  const semanticId = submodel?.semanticId;
-  if (semanticId && Array.isArray(semanticId.keys) && semanticId.keys[0]?.value) {
-    return String(semanticId.keys[0].value);
-  }
-  return null;
+function maxTreeDepth(node: SubmodelNode, depth = 0): number {
+  if (node.children.length === 0) return depth;
+  return Math.max(...node.children.map((child) => maxTreeDepth(child, depth + 1)));
 }
 
-function resolveTemplateKey(submodel: AASSubmodel, templates: TemplateDescriptor[]): string | null {
-  if (!Array.isArray(templates)) return null;
-  const semanticId = extractSemanticId(submodel);
-  if (semanticId) {
-    const direct = templates.find((template) => template.semantic_id === semanticId);
-    if (direct) return direct.template_key;
-    const partial = templates.find((template) =>
-      semanticId.includes(template.semantic_id) || template.semantic_id.includes(semanticId)
-    );
-    if (partial) return partial.template_key;
-  }
-  // Dynamic idShort fallback: match idShort against template keys (kebab-case)
-  const idShort = submodel?.idShort;
-  if (idShort) {
-    const kebab = idShort.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-    const byKey = templates.find((t) =>
-      t.template_key === kebab || t.template_key.includes(kebab) || kebab.includes(t.template_key)
-    );
-    if (byKey) return byKey.template_key;
-  }
-  return null;
+function extractSemanticId(submodel: AASSubmodel): string | undefined {
+  const keys = submodel.semanticId?.keys;
+  if (!Array.isArray(keys) || keys.length === 0) return undefined;
+  const value = keys[0]?.value;
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
-function formatElementValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '-';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
+function computeCompletionPercent(health: ReturnType<typeof computeSubmodelHealth>): number | null {
+  if (health.totalRequired === 0) return null;
+  return Math.round((health.completedRequired / health.totalRequired) * 100);
+}
+
+function deriveRiskModel(
+  health: ReturnType<typeof computeSubmodelHealth>,
+  supportStatus: string | null | undefined,
+): { level: RiskLevel; label: string; rank: number } {
+  const completionPercent = computeCompletionPercent(health);
+  const normalizedSupport = (supportStatus ?? '').toLowerCase();
+  const requiredIncomplete = completionPercent !== null && completionPercent < 100;
+
+  if (normalizedSupport === 'unavailable' || requiredIncomplete) {
+    return { level: 'high', label: 'High Risk', rank: 3 };
   }
-  if (Array.isArray(value)) {
-    return `[${value.length} items]`;
+  if (normalizedSupport === 'experimental' || health.validationSignals > 0) {
+    return { level: 'medium', label: 'Medium Risk', rank: 2 };
   }
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return '[object]';
-  }
+  return { level: 'low', label: 'Low Risk', rank: 1 };
 }
 
 async function fetchDPP(dppId: string, token?: string) {
@@ -100,7 +127,7 @@ async function fetchDPP(dppId: string, token?: string) {
   if (!response.ok) {
     throw new Error(await getApiErrorMessage(response, 'Failed to fetch DPP'));
   }
-  return response.json();
+  return response.json() as Promise<DppDetail>;
 }
 
 async function fetchTemplates(token?: string) {
@@ -111,35 +138,14 @@ async function fetchTemplates(token?: string) {
   return response.json();
 }
 
-async function refreshTemplates(token?: string) {
-  const response = await apiFetch('/api/v1/templates/refresh', {
+async function refreshRebuildSubmodels(dppId: string, token?: string) {
+  const response = await tenantApiFetch(`/dpps/${dppId}/submodels/refresh-rebuild`, {
     method: 'POST',
   }, token);
   if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, 'Failed to refresh templates'));
+    throw new Error(await getApiErrorMessage(response, 'Failed to refresh and rebuild submodels'));
   }
-  return response.json();
-}
-
-async function rebuildSubmodel(
-  dppId: string,
-  templateKey: string,
-  data: Record<string, unknown>,
-  token?: string,
-) {
-  const response = await tenantApiFetch(`/dpps/${dppId}/submodel`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      template_key: templateKey,
-      data,
-      rebuild_from_template: true,
-    }),
-  }, token);
-  if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, 'Failed to rebuild submodel'));
-  }
-  return response.json();
+  return response.json() as Promise<RefreshRebuildSummary>;
 }
 
 async function publishDPP(dppId: string, token?: string) {
@@ -213,6 +219,10 @@ export default function DPPEditorPage() {
   );
   const [copied, setCopied] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('all');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [submodelSort, setSubmodelSort] = useState<SubmodelSortKey>('risk-desc');
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
@@ -248,67 +258,181 @@ export default function DPPEditorPage() {
       setRefreshRebuildSummary(null);
       setActionError(null);
     },
-    mutationFn: async (): Promise<RefreshRebuildSummary> => {
-      if (!dppId) {
-        return { succeeded: [], failed: [], skipped: [] };
-      }
-      const refreshed = await refreshTemplates(token);
-      const refreshedTemplates = Array.isArray(refreshed?.templates)
-        ? (refreshed.templates as TemplateDescriptor[])
-        : [];
-      const templatesForRebuild =
-        refreshedTemplates.length > 0 ? refreshedTemplates : availableTemplates;
-
-      const submodels = dpp?.aas_environment?.submodels || [];
-      const seen = new Set<string>();
-      const rebuildTasks: Array<RefreshRebuildTask & { promise: Promise<unknown> }> = [];
-      const skippedSubmodels = new Set<string>();
-
-      for (const submodel of submodels) {
-        const templateKey = resolveTemplateKey(submodel, templatesForRebuild);
-        if (!templateKey) {
-          skippedSubmodels.add(
-            String(submodel.idShort ?? submodel.id ?? `submodel-${skippedSubmodels.size + 1}`),
-          );
-          continue;
-        }
-        if (seen.has(templateKey)) continue;
-        seen.add(templateKey);
-        const data = buildSubmodelData(submodel);
-        rebuildTasks.push({
-          templateKey,
-          promise: rebuildSubmodel(dppId, templateKey, data, token),
-        });
-      }
-
-      if (rebuildTasks.length === 0) {
-        return {
-          succeeded: [],
-          failed: [],
-          skipped: Array.from(skippedSubmodels).sort((a, b) => a.localeCompare(b)),
-        };
-      }
-
-      const settled = await Promise.allSettled(rebuildTasks.map((task) => task.promise));
-      return summarizeRefreshRebuildSettled(rebuildTasks, settled, skippedSubmodels);
-    },
+    mutationFn: async (): Promise<RefreshRebuildSummary> =>
+      dppId
+        ? refreshRebuildSubmodels(dppId, token)
+        : { attempted: 0, succeeded: [], failed: [], skipped: [] },
     onSuccess: (summary) => {
       setRefreshRebuildSummary(summary);
       if (summary.failed.length > 0) {
         // eslint-disable-next-line no-console
         console.warn('dpp_refresh_rebuild_partial_failure', {
-          failedTemplateKeys: summary.failed.map((entry) => entry.templateKey),
+          failedTemplateKeys: summary.failed.map((entry) => entry.template_key),
           failedCount: summary.failed.length,
           succeededCount: summary.succeeded.length,
           skippedCount: summary.skipped.length,
         });
       }
-      if (summary.succeeded.length > 0) {
-        queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
-        queryClient.invalidateQueries({ queryKey: ['templates'] });
-      }
+      queryClient.invalidateQueries({ queryKey: ['dpp', tenantSlug, dppId] });
+      queryClient.invalidateQueries({ queryKey: ['templates'] });
     },
   });
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!dpp) return;
+    setActionError(null);
+    try {
+      await downloadExport(dpp.id, format, token);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to export');
+      // eslint-disable-next-line no-console
+      console.error(error);
+    }
+  };
+
+  const handleQrCode = async () => {
+    if (!dpp) return;
+    setActionError(null);
+    try {
+      await openQrCode(dpp.id, token);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Failed to generate QR code');
+      // eslint-disable-next-line no-console
+      console.error(error);
+    }
+  };
+
+  const handleCopyDigest = async () => {
+    if (!dpp) return;
+    if (!dpp.digest_sha256) return;
+    await navigator.clipboard.writeText(dpp.digest_sha256);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const submodels: AASSubmodel[] = dpp?.aas_environment?.submodels || [];
+  const availableTemplates: TemplateResponse[] = templatesData?.templates || [];
+  const submodelBindings: SubmodelBinding[] = Array.isArray(dpp?.submodel_bindings)
+    ? dpp.submodel_bindings
+    : [];
+  const bindingBySubmodelId = new Map(
+    submodelBindings
+      .filter((binding) => binding.submodel_id)
+      .map((binding) => [String(binding.submodel_id), binding]),
+  );
+  const actionState = buildDppActionState(dpp?.access, dpp?.status ?? '');
+  const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
+  const manufacturerPartId =
+    typeof dpp?.asset_ids?.manufacturerPartId === 'string'
+      ? dpp.asset_ids.manufacturerPartId
+      : null;
+  const existingTemplateKeys = new Set(
+    submodelBindings
+      .map((binding) => binding.template_key ?? null)
+      .filter((value: string | null): value is string => Boolean(value)),
+  );
+  const missingTemplates = availableTemplates.filter(
+    (template: TemplateDescriptor) => !existingTemplateKeys.has(template.template_key),
+  );
+
+  const submodelCards = useMemo<SubmodelRenderModel[]>(
+    () =>
+      submodels.map((submodel, index) => {
+        const submodelId = String(submodel.id ?? `submodel-${index}`);
+        const binding = bindingBySubmodelId.get(submodelId);
+        const templateKey = binding?.template_key ?? null;
+        const editHref =
+          templateKey && binding?.submodel_id
+            ? `/console/dpps/${dpp?.id}/edit/${templateKey}?submodel_id=${encodeURIComponent(binding.submodel_id)}`
+            : templateKey
+              ? `/console/dpps/${dpp?.id}/edit/${templateKey}`
+              : null;
+        const rootNode = buildSubmodelNodeTree(submodel);
+        const health = computeSubmodelHealth(rootNode);
+        const completionPercent = computeCompletionPercent(health);
+        const category =
+          classifyElement(String(submodel.idShort ?? ''), extractSemanticId(submodel)) ??
+          null;
+        const riskModel = deriveRiskModel(health, binding?.support_status);
+
+        return {
+          submodel,
+          submodelId,
+          templateKey,
+          binding,
+          editHref,
+          rootNode,
+          health,
+          completionPercent,
+          categoryId: category?.id ?? 'uncategorized',
+          categoryLabel: category?.label ?? 'Uncategorized',
+          risk: riskModel.level,
+          riskBadgeLabel: riskModel.label,
+          riskSortRank: riskModel.rank,
+        };
+      }),
+    [bindingBySubmodelId, dpp?.id, submodels],
+  );
+
+  const filteredSubmodelCards = useMemo(() => {
+    const filtered = submodelCards.filter((entry) => {
+      if (categoryFilter !== 'all' && entry.categoryId !== categoryFilter) return false;
+      if (completionFilter === 'complete' && entry.completionPercent !== 100) return false;
+      if (
+        completionFilter === 'incomplete' &&
+        (entry.completionPercent === null || entry.completionPercent === 100)
+      ) {
+        return false;
+      }
+      if (riskFilter !== 'all' && entry.risk !== riskFilter) return false;
+      return true;
+    });
+
+    const sorted = [...filtered];
+    sorted.sort((a, b) => {
+      if (submodelSort === 'completion-desc') {
+        return (b.completionPercent ?? -1) - (a.completionPercent ?? -1);
+      }
+      if (submodelSort === 'completion-asc') {
+        return (a.completionPercent ?? 101) - (b.completionPercent ?? 101);
+      }
+      if (submodelSort === 'risk-desc') {
+        if (b.riskSortRank !== a.riskSortRank) return b.riskSortRank - a.riskSortRank;
+      }
+      return String(a.submodel.idShort ?? '').localeCompare(String(b.submodel.idShort ?? ''));
+    });
+    return sorted;
+  }, [categoryFilter, completionFilter, riskFilter, submodelCards, submodelSort]);
+  const visibleSubmodelCards = rollout.surfaces.publisher ? filteredSubmodelCards : submodelCards;
+
+  useEffect(() => {
+    if (!dppId || !dpp || submodels.length === 0) return;
+    const roots = submodels.map((submodel) => buildSubmodelNodeTree(submodel));
+    const maxDepth = Math.max(...roots.map((root) => maxTreeDepth(root, 0)));
+    const totalNodes = roots.reduce((sum, root) => sum + flattenSubmodelNodes(root).length, 0);
+    emitSubmodelUxMetric('render_depth_coverage', {
+      dpp_id: dppId,
+      submodel_count: submodels.length,
+      max_depth: maxDepth,
+      node_count: totalNodes,
+    });
+  }, [dppId, dpp, submodels]);
+
+  useEffect(() => {
+    if (!dppId || !dpp) return;
+    const reasons: string[] = [];
+    if (!actionState.canExport) reasons.push('export:requires-read');
+    if (!actionState.canPublish && dpp.status === 'draft') reasons.push('publish:requires-can_publish');
+    if (!actionState.canRefreshRebuild) reasons.push('refresh-rebuild:requires-update-non-archived');
+    if (!actionState.canCaptureEvent && dpp.status === 'draft') reasons.push('capture-event:requires-update');
+    if (reasons.length > 0) {
+      emitSubmodelUxMetric('action_disabled_reason', {
+        dpp_id: dppId,
+        status: dpp.status,
+        reasons,
+      });
+    }
+  }, [actionState, dpp?.status, dppId]);
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -322,51 +446,11 @@ export default function DPPEditorPage() {
     );
   }
 
-  const handleExport = async (format: ExportFormat) => {
-    setActionError(null);
-    try {
-      await downloadExport(dpp.id, format, token);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to export');
-      // eslint-disable-next-line no-console
-      console.error(error);
-    }
-  };
-
-  const handleQrCode = async () => {
-    setActionError(null);
-    try {
-      await openQrCode(dpp.id, token);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Failed to generate QR code');
-      // eslint-disable-next-line no-console
-      console.error(error);
-    }
-  };
-
-  const handleCopyDigest = async () => {
-    if (!dpp.digest_sha256) return;
-    await navigator.clipboard.writeText(dpp.digest_sha256);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const submodels: AASSubmodel[] = dpp.aas_environment?.submodels || [];
-  const availableTemplates: TemplateResponse[] = templatesData?.templates || [];
-  const existingTemplateKeys = new Set(
-    submodels
-      .map((submodel) => resolveTemplateKey(submodel, availableTemplates))
-      .filter((value: string | null): value is string => Boolean(value))
-  );
-  const missingTemplates = availableTemplates.filter(
-    (template: TemplateDescriptor) => !existingTemplateKeys.has(template.template_key)
-  );
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title={dpp.asset_ids?.manufacturerPartId || 'DPP Editor'}
+        title={manufacturerPartId || 'DPP Editor'}
         description={`ID: ${dpp.id}`}
         breadcrumb={
           <Button
@@ -383,7 +467,7 @@ export default function DPPEditorPage() {
           <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline">
+                <Button variant="outline" disabled={!actionState.canExport}>
                   <Download className="h-4 w-4 mr-2" />
                   Export
                 </Button>
@@ -407,7 +491,7 @@ export default function DPPEditorPage() {
                 <DropdownMenuItem onClick={() => { void handleExport('xml'); }}>
                   Export XML
                 </DropdownMenuItem>
-                {dpp.status === 'published' && (
+                {actionState.canGenerateQr && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => { void handleQrCode(); }}>
@@ -421,7 +505,7 @@ export default function DPPEditorPage() {
             {dpp.status === 'draft' && (
               <Button
                 onClick={() => publishMutation.mutate()}
-                disabled={publishMutation.isPending}
+                disabled={publishMutation.isPending || !actionState.canPublish}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Send className="h-4 w-4 mr-2" />
@@ -479,7 +563,7 @@ export default function DPPEditorPage() {
             variant="outline"
             size="sm"
             onClick={() => refreshRebuildMutation.mutate()}
-            disabled={refreshRebuildMutation.isPending || dpp.status === 'archived'}
+            disabled={refreshRebuildMutation.isPending || !actionState.canRefreshRebuild}
             data-testid="dpp-refresh-rebuild"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshRebuildMutation.isPending ? 'animate-spin' : ''}`} />
@@ -487,6 +571,13 @@ export default function DPPEditorPage() {
           </Button>
         </CardHeader>
         <CardContent>
+          <p className="sr-only" aria-live="polite">
+            {refreshRebuildMutation.isPending
+              ? 'Refresh and rebuild in progress'
+              : refreshRebuildSummary
+                ? `Refresh and rebuild finished. ${refreshRebuildSummary.succeeded.length} succeeded, ${refreshRebuildSummary.failed.length} failed, ${refreshRebuildSummary.skipped.length} skipped.`
+                : ''}
+          </p>
           {refreshRebuildMutation.isError && (
             <p className="mb-4 text-sm text-destructive">
               {(refreshRebuildMutation.error as Error)?.message || 'Failed to refresh templates.'}
@@ -495,15 +586,15 @@ export default function DPPEditorPage() {
           {refreshRebuildSummary && refreshRebuildSummary.failed.length > 0 && (
             <p className="mb-4 text-sm text-destructive">
               {`Refresh & Rebuild partially failed for templates: ${refreshRebuildSummary.failed
-                .map((entry) => entry.templateKey)
+                .map((entry) => entry.template_key ?? entry.submodel)
                 .join(', ')}`}
             </p>
           )}
           {refreshRebuildSummary && refreshRebuildSummary.skipped.length > 0 && (
             <p className="mb-4 text-sm text-muted-foreground">
-              {`Skipped submodels (no matching template): ${refreshRebuildSummary.skipped.join(
-                ', ',
-              )}`}
+              {`Skipped submodels: ${refreshRebuildSummary.skipped
+                .map((entry) => `${entry.submodel} (${entry.reason})`)
+                .join(', ')}`}
             </p>
           )}
           {submodels.length === 0 ? (
@@ -511,45 +602,168 @@ export default function DPPEditorPage() {
               No submodels yet. Add one from the templates below.
             </p>
           ) : (
-            <Accordion type="multiple" defaultValue={submodels.map((_, i) => `sm-${i}`)}>
-              {submodels.map((submodel, index) => {
-                const templateKey = resolveTemplateKey(submodel, availableTemplates);
+            <div className="space-y-4">
+              {rollout.surfaces.publisher && (
+                <div className="rounded-md border p-3">
+                  <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+                    <Filter className="h-4 w-4" />
+                    Filter and Sort
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    <label className="text-xs text-muted-foreground">
+                      ESPR category
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={categoryFilter}
+                        onChange={(event) => setCategoryFilter(event.target.value)}
+                      >
+                        <option value="all">All categories</option>
+                        {ESPR_CATEGORIES.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.label}
+                          </option>
+                        ))}
+                        <option value="uncategorized">Uncategorized</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Completion
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={completionFilter}
+                        onChange={(event) => setCompletionFilter(event.target.value as CompletionFilter)}
+                      >
+                        <option value="all">All</option>
+                        <option value="complete">100% required complete</option>
+                        <option value="incomplete">Incomplete required fields</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Risk
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={riskFilter}
+                        onChange={(event) => setRiskFilter(event.target.value as RiskFilter)}
+                      >
+                        <option value="all">All risk levels</option>
+                        <option value="high">High risk</option>
+                        <option value="medium">Medium risk</option>
+                        <option value="low">Low risk</option>
+                      </select>
+                    </label>
+                    <label className="text-xs text-muted-foreground">
+                      Sort
+                      <select
+                        className="mt-1 h-10 w-full rounded-md border bg-background px-2 text-sm"
+                        value={submodelSort}
+                        onChange={(event) => setSubmodelSort(event.target.value as SubmodelSortKey)}
+                      >
+                        <option value="risk-desc">Risk (high to low)</option>
+                        <option value="completion-desc">Completion (high to low)</option>
+                        <option value="completion-asc">Completion (low to high)</option>
+                        <option value="name-asc">Name (A-Z)</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Showing {visibleSubmodelCards.length} of {submodelCards.length} submodels
+                  </p>
+                </div>
+              )}
+
+              {visibleSubmodelCards.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No submodels match the selected filters.
+                </p>
+              )}
+
+              {visibleSubmodelCards.map((entry) => {
+                const requiredCompletion =
+                  entry.health.totalRequired === 0
+                    ? 'No required fields'
+                    : `${entry.health.completedRequired}/${entry.health.totalRequired} required`;
+
                 return (
-                  <AccordionItem key={index} value={`sm-${index}`}>
-                    <AccordionTrigger className="hover:no-underline">
-                      <div className="flex items-center justify-between w-full pr-4">
-                        <span>{submodel.idShort}</span>
-                        {templateKey && <Badge variant="secondary">{templateKey}</Badge>}
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <p className="text-xs text-muted-foreground mb-3">{submodel.id}</p>
-                      {submodel.submodelElements && (
-                        <div className="space-y-2">
-                          {submodel.submodelElements.map((element: Record<string, unknown>, idx: number) => (
-                            <div key={idx} className="flex justify-between text-sm border-b pb-2">
-                              <span className="text-muted-foreground">{String(element.idShort ?? '')}</span>
-                              <span>{formatElementValue(element.value)}</span>
-                            </div>
-                          ))}
+                  <Card key={entry.submodelId} className="border bg-card/70">
+                    <CardHeader className="pb-2">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <CardTitle className="text-base">{String(entry.submodel.idShort ?? 'Submodel')}</CardTitle>
+                            {entry.templateKey && <Badge variant="secondary">{entry.templateKey}</Badge>}
+                            <Badge variant="outline" className="text-[10px]">
+                              {entry.categoryLabel}
+                            </Badge>
+                            <Badge
+                              variant={entry.risk === 'high' ? 'destructive' : 'outline'}
+                              className="text-[10px]"
+                            >
+                              {entry.riskBadgeLabel}
+                            </Badge>
+                            {entry.binding?.support_status && (
+                              <Badge
+                                variant={entry.binding.support_status === 'supported' ? 'outline' : 'destructive'}
+                                className="text-[10px]"
+                              >
+                                {entry.binding.support_status}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground break-all">{String(entry.submodel.id ?? '-')}</p>
+                          {entry.binding?.semantic_id && (
+                            <p className="text-[11px] text-muted-foreground break-all">
+                              semantic: {entry.binding.semantic_id}
+                            </p>
+                          )}
                         </div>
-                      )}
-                      {templateKey && (
-                        <Button variant="link" asChild className="mt-3 px-0">
-                          <Link
-                            to={`/console/dpps/${dpp.id}/edit/${templateKey}`}
-                            data-testid={`submodel-edit-${templateKey}`}
-                          >
-                            <Edit3 className="h-4 w-4 mr-1" />
-                            Edit
-                          </Link>
-                        </Button>
-                      )}
-                    </AccordionContent>
-                  </AccordionItem>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">{requiredCompletion}</Badge>
+                          {entry.completionPercent !== null && (
+                            <Badge variant={entry.completionPercent === 100 ? 'outline' : 'destructive'}>
+                              {entry.completionPercent}% required complete
+                            </Badge>
+                          )}
+                          <Badge variant="outline">{entry.health.leafCount} leaf fields</Badge>
+                          <Badge variant="outline">{entry.health.validationSignals} rule signals</Badge>
+                          {entry.binding?.binding_source && (
+                            <Badge variant="outline" className="uppercase text-[10px]">
+                              {entry.binding.binding_source}
+                            </Badge>
+                          )}
+                          {entry.templateKey && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              asChild={actionState.canUpdate}
+                              disabled={!actionState.canUpdate}
+                              data-testid={`submodel-edit-${entry.templateKey}`}
+                            >
+                              {actionState.canUpdate ? (
+                                <Link
+                                  to={entry.editHref!}
+                                >
+                                  <Edit3 className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Link>
+                              ) : (
+                                <span>
+                                  <Edit3 className="h-4 w-4 mr-1 inline" />
+                                  Edit
+                                </span>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <SubmodelNodeTree root={entry.rootNode} showSemanticMeta />
+                    </CardContent>
+                  </Card>
                 );
               })}
-            </Accordion>
+            </div>
           )}
 
           {/* Missing templates */}
@@ -569,13 +783,22 @@ export default function DPPEditorPage() {
                           <p className="text-sm font-medium">{template.template_key}</p>
                           <p className="text-xs text-muted-foreground">v{template.idta_version}</p>
                         </div>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link
-                            to={`/console/dpps/${dpp.id}/edit/${template.template_key}`}
-                            data-testid={`submodel-add-${template.template_key}`}
-                          >
-                            Add
-                          </Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild={actionState.canUpdate && isTemplateSelectable(template)}
+                          disabled={!actionState.canUpdate || !isTemplateSelectable(template)}
+                          data-testid={`submodel-add-${template.template_key}`}
+                        >
+                          {actionState.canUpdate && isTemplateSelectable(template) ? (
+                            <Link
+                              to={`/console/dpps/${dpp.id}/edit/${template.template_key}`}
+                            >
+                              Add
+                            </Link>
+                          ) : (
+                            <span>Add</span>
+                          )}
                         </Button>
                       </CardContent>
                     </Card>
@@ -594,24 +817,30 @@ export default function DPPEditorPage() {
             <CardTitle className="text-lg">Integrity</CardTitle>
           </CardHeader>
           <CardContent>
-            <dt className="text-sm font-medium text-muted-foreground">SHA-256 Digest</dt>
-            <div className="mt-1 flex items-start gap-2">
-              <dd className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
-                {dpp.digest_sha256}
-              </dd>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="shrink-0 h-8 w-8"
-                onClick={() => { void handleCopyDigest(); }}
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            <dl>
+              <div className="space-y-1">
+                <dt className="text-sm font-medium text-muted-foreground">SHA-256 Digest</dt>
+                <dd className="m-0 flex items-start gap-2">
+                  <span className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
+                    {dpp.digest_sha256}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 h-8 w-8"
+                    onClick={() => { void handleCopyDigest(); }}
+                    aria-label={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                    title={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                  >
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </dd>
+              </div>
+            </dl>
           </CardContent>
         </Card>
       )}
@@ -642,7 +871,12 @@ export default function DPPEditorPage() {
             )}
           </CardTitle>
           {dpp.status === 'draft' && (
-            <Button variant="outline" size="sm" onClick={() => setCaptureOpen(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCaptureOpen(true)}
+              disabled={!actionState.canCaptureEvent}
+            >
               <Plus className="h-4 w-4 mr-1" />
               Capture Event
             </Button>
@@ -659,12 +893,18 @@ export default function DPPEditorPage() {
             <>
               <EPCISTimeline events={epcisData?.eventList ?? []} />
               {dppId && (
-                <Link
-                  to={`/console/epcis?dpp_id=${dppId}`}
-                  className="mt-3 inline-block text-sm text-muted-foreground hover:underline"
-                >
-                  View all events
-                </Link>
+                actionState.canViewEvents ? (
+                  <Link
+                    to={`/console/epcis?dpp_id=${dppId}`}
+                    className="mt-3 inline-block text-sm text-muted-foreground hover:underline"
+                  >
+                    View all events
+                  </Link>
+                ) : (
+                  <span className="mt-3 inline-block text-sm text-muted-foreground/70">
+                    View all events
+                  </span>
+                )
               )}
             </>
           )}

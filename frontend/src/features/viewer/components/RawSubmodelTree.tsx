@@ -1,5 +1,6 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { DataField } from './DataField';
+import { SubmodelNodeTree } from '@/features/submodels/components/SubmodelNodeTree';
+import { buildSubmodelNodeTree } from '@/features/submodels/utils/treeBuilder';
 
 interface RawSubmodelTreeProps {
   submodels: Array<Record<string, unknown>>;
@@ -19,13 +20,9 @@ export function RawSubmodelTree({ submodels }: RawSubmodelTreeProps) {
             </div>
           </AccordionTrigger>
           <AccordionContent>
-            <dl className="grid gap-3 sm:grid-cols-2 p-2">
-              {((submodel.submodelElements || []) as Array<Record<string, unknown>>).map(
-                (el, idx) => (
-                  <DataField key={idx} label={el.idShort as string} value={el.value} />
-                ),
-              )}
-            </dl>
+            <div className="p-2">
+              <SubmodelNodeTree root={buildSubmodelNodeTree(submodel)} showSemanticMeta />
+            </div>
           </AccordionContent>
         </AccordionItem>
       ))}

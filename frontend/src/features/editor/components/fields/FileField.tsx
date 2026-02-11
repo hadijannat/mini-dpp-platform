@@ -26,6 +26,7 @@ export function FileField({ name, control, node }: FieldProps) {
             description={description}
             formUrl={formUrl}
             error={fieldState.error?.message}
+            fieldPath={name}
           >
             <div className="space-y-2">
               <input
