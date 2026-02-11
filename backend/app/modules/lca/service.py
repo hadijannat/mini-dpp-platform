@@ -7,8 +7,9 @@ calculation results, and comparing revisions.
 
 from __future__ import annotations
 
-from urllib.parse import urlparse
+import asyncio
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import httpx
@@ -304,62 +305,92 @@ class LCAService:
         if not inventory.external_pcf_apis:
             return inventory, []
 
-        overrides: dict[str, float] = {}
         fetch_log: list[dict[str, Any]] = []
         allowed_hosts = {host.lower() for host in settings.lca_external_pcf_allowlist}
-
-        async with httpx.AsyncClient(timeout=settings.lca_external_pcf_timeout_seconds) as client:
+        if not allowed_hosts:
             for ref in inventory.external_pcf_apis:
-                endpoint = ref.endpoint.strip()
-                parsed = urlparse(endpoint)
-                host = parsed.hostname.lower() if parsed.hostname else ""
-                if parsed.scheme not in {"https", "http"}:
-                    fetch_log.append(
-                        {
-                            "endpoint": endpoint,
-                            "status": "blocked",
-                            "reason": "unsupported_scheme",
-                        }
-                    )
-                    continue
-                if allowed_hosts and host not in allowed_hosts:
-                    fetch_log.append(
-                        {
-                            "endpoint": endpoint,
-                            "status": "blocked",
-                            "reason": "host_not_allowlisted",
-                            "host": host,
-                        }
-                    )
-                    continue
+                fetch_log.append(
+                    {
+                        "endpoint": ref.endpoint,
+                        "status": "blocked",
+                        "reason": "allowlist_not_configured",
+                    }
+                )
+            return inventory, fetch_log
 
-                url = endpoint
-                if ref.query:
-                    separator = "&" if "?" in endpoint else "?"
-                    url = f"{endpoint}{separator}{ref.query.lstrip('?')}"
+        unique_refs: dict[tuple[str, str], Any] = {}
+        for ref in inventory.external_pcf_apis:
+            endpoint = ref.endpoint.strip()
+            query = (ref.query or "").strip()
+            key = (endpoint, query)
+            if key not in unique_refs:
+                unique_refs[key] = ref
 
-                try:
+        semaphore = asyncio.Semaphore(settings.lca_external_pcf_max_concurrency)
+
+        async def fetch_one(
+            client: httpx.AsyncClient,
+            ref: Any,
+        ) -> tuple[dict[str, Any], list[tuple[str, float]]]:
+            endpoint = ref.endpoint.strip()
+            parsed = urlparse(endpoint)
+            host = parsed.hostname.lower() if parsed.hostname else ""
+            if parsed.scheme not in {"https", "http"}:
+                return (
+                    {
+                        "endpoint": endpoint,
+                        "status": "blocked",
+                        "reason": "unsupported_scheme",
+                    },
+                    [],
+                )
+            if host not in allowed_hosts:
+                return (
+                    {
+                        "endpoint": endpoint,
+                        "status": "blocked",
+                        "reason": "host_not_allowlisted",
+                        "host": host,
+                    },
+                    [],
+                )
+
+            url = endpoint
+            if ref.query:
+                separator = "&" if "?" in endpoint else "?"
+                url = f"{endpoint}{separator}{ref.query.lstrip('?')}"
+
+            try:
+                async with semaphore:
                     response = await client.get(url, headers={"Accept": "application/json"})
-                    response.raise_for_status()
-                    payload = response.json()
-                    parsed_items = self._parse_external_pcf_payload(payload)
-                    for material_name, pcf_value in parsed_items:
-                        overrides[material_name.lower()] = pcf_value
-                    fetch_log.append(
-                        {
-                            "endpoint": endpoint,
-                            "status": "ok",
-                            "resolved_values": len(parsed_items),
-                        }
-                    )
-                except Exception as exc:  # pragma: no cover - defensive
-                    fetch_log.append(
-                        {
-                            "endpoint": endpoint,
-                            "status": "failed",
-                            "error": str(exc),
-                        }
-                    )
+                response.raise_for_status()
+                payload = response.json()
+                parsed_items = self._parse_external_pcf_payload(payload)
+                return (
+                    {
+                        "endpoint": endpoint,
+                        "status": "ok",
+                        "resolved_values": len(parsed_items),
+                    },
+                    parsed_items,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                return (
+                    {
+                        "endpoint": endpoint,
+                        "status": "failed",
+                        "error": str(exc),
+                    },
+                    [],
+                )
+
+        overrides: dict[str, float] = {}
+        async with httpx.AsyncClient(timeout=settings.lca_external_pcf_timeout_seconds) as client:
+            tasks = [fetch_one(client, ref) for ref in unique_refs.values()]
+            for log_entry, parsed_items in await asyncio.gather(*tasks):
+                fetch_log.append(log_entry)
+                for material_name, pcf_value in parsed_items:
+                    overrides[material_name.lower()] = pcf_value
 
         if not overrides:
             return inventory, fetch_log
@@ -368,9 +399,9 @@ class LCAService:
         for item in updated.items:
             if item.pre_declared_pcf is not None:
                 continue
-            key = item.material_name.lower()
-            if key in overrides:
-                item.pre_declared_pcf = overrides[key]
+            material_key = item.material_name.lower()
+            if material_key in overrides:
+                item.pre_declared_pcf = overrides[material_key]
 
         return updated, fetch_log
 
@@ -396,9 +427,11 @@ class LCAService:
                         if not isinstance(entry, dict):
                             continue
                         name = str(entry.get("material_name", "")).strip()
-                        value = entry.get("pcf_kg_co2e", entry.get("pcf"))
+                        raw_value = entry.get("pcf_kg_co2e", entry.get("pcf"))
+                        if not isinstance(raw_value, str | int | float):
+                            continue
                         try:
-                            pcf = float(value)
+                            pcf = float(raw_value)
                         except (TypeError, ValueError):
                             continue
                         if name and pcf >= 0:

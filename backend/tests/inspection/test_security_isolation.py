@@ -13,9 +13,7 @@ def _aas_env_fixture() -> dict:
                 "idShort": "CarbonFootprint",
                 "semanticId": {
                     "keys": [
-                        {
-                            "value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"
-                        }
+                        {"value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"}
                     ]
                 },
                 "submodelElements": [
@@ -73,4 +71,3 @@ def test_public_filter_removes_sensitive_keys_and_confidential_elements() -> Non
     id_shorts = [element["idShort"] for element in elements]
     assert "SupplierMargin" not in id_shorts
     assert "PublicPCF" in id_shorts
-

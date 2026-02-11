@@ -78,4 +78,3 @@ def test_schema_emits_either_or_and_required_languages() -> None:
     assert method_schema["x-either-or"] == "method_or_api"
     assert description_schema["x-either-or"] == "method_or_api"
     assert description_schema["x-required-languages"] == ["de", "en"]
-

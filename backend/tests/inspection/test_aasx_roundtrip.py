@@ -50,4 +50,3 @@ def test_builtin_roundtrip_validator_passes() -> None:
     assert report["passed"], report
     assert report["steps"]["store_to_aasx"]["structure_valid"] is True
     assert report["steps"]["id_comparison"]["missing_after_roundtrip"] == []
-

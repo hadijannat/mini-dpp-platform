@@ -25,8 +25,7 @@ _DEFAULT_SCOPE_MULTIPLIERS: dict[str, float] = {
 
 _DEFAULT_METHODOLOGY = "activity-based-gwp"
 _DEFAULT_DISCLOSURE = (
-    "Calculated estimate for interoperability and comparison; "
-    "not a certification substitute."
+    "Calculated estimate for interoperability and comparison; not a certification substitute."
 )
 
 
@@ -130,8 +129,7 @@ class PCFEngine:
         """
         if scope not in scope_multipliers:
             raise ValueError(
-                f"Unknown LCA scope '{scope}'. "
-                f"Valid scopes: {', '.join(sorted(scope_multipliers))}"
+                f"Unknown LCA scope '{scope}'. Valid scopes: {', '.join(sorted(scope_multipliers))}"
             )
         multiplier = scope_multipliers[scope]
         if multiplier == 1.0:

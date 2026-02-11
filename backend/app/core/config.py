@@ -373,6 +373,12 @@ class Settings(BaseSettings):
         le=60,
         description="HTTP timeout for ExternalPcfApi calls",
     )
+    lca_external_pcf_max_concurrency: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum concurrent outbound ExternalPcfApi requests per calculation",
+    )
 
     # ==========================================================================
     # EPCIS 2.0
