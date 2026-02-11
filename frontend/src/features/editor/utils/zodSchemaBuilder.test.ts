@@ -202,6 +202,21 @@ describe('buildZodSchema', () => {
         schema.safeParse({ doc: { contentType: 'application/pdf', value: '/file.pdf' } }).success,
       ).toBe(true);
     });
+
+    it('rejects invalid MIME type in file structure', () => {
+      const def: TemplateDefinition = {
+        submodel: {
+          elements: [{ modelType: 'File', idShort: 'doc' }],
+        },
+      };
+      const schema = buildZodSchema(def);
+      expect(
+        schema.safeParse({ doc: { contentType: 'not a mime', value: '/file.pdf' } }).success,
+      ).toBe(false);
+      expect(
+        schema.safeParse({ doc: { contentType: 'image/png', value: '/image.png' } }).success,
+      ).toBe(true);
+    });
   });
 
   describe('ReferenceElement nodes', () => {

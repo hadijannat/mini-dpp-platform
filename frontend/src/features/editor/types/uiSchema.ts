@@ -22,6 +22,9 @@ export type UISchema = {
   'x-multi-language'?: boolean;
   'x-range'?: boolean;
   'x-file-upload'?: boolean;
+  'x-file-content-type-suggestions'?: string[];
+  'x-content-type-pattern'?: string;
+  'x-file-accept'?: string[];
   'x-reference'?: boolean;
   'x-entity'?: boolean;
   'x-relationship'?: boolean;
@@ -37,4 +40,7 @@ export type UISchema = {
   'x-allowed-id-short'?: string[];
   'x-edit-id-short'?: boolean;
   'x-naming'?: string;
+  'x-unresolved-definition'?: boolean;
+  'x-unresolved-reason'?: string;
+  'x-resolution'?: Record<string, unknown>;
 };

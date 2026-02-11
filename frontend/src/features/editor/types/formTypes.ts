@@ -2,6 +2,12 @@ import type { Control, UseFormReturn } from 'react-hook-form';
 import type { DefinitionNode } from './definition';
 import type { UISchema } from './uiSchema';
 
+export type EditorContext = {
+  dppId: string;
+  tenantSlug: string;
+  token?: string;
+};
+
 /** Props passed to every field component */
 export type FieldProps = {
   /** RHF field name (dot-separated path like "ContactInformation.0.Phone") */
@@ -18,6 +24,8 @@ export type FieldProps = {
   readOnly?: boolean;
   /** Whether user interaction should be disabled (permission/policy gate) */
   disabled?: boolean;
+  /** Optional editor request context used by upload-capable fields */
+  editorContext?: EditorContext;
 };
 
 /** Props for the AASRenderer dispatcher */
@@ -28,6 +36,7 @@ export type AASRendererProps = {
   schema?: UISchema;
   control: Control<Record<string, unknown>>;
   disabled?: boolean;
+  editorContext?: EditorContext;
 };
 
 /** Props for the FieldWrapper label/error shell */

@@ -318,6 +318,14 @@ export default function SubmodelEditorPage() {
 
   const selectedSubmodelId = requestedSubmodelId ?? selectedBinding?.submodel_id ?? undefined;
   const hasAmbiguousTemplateBindings = templateBindings.length > 1 && !requestedSubmodelId;
+  const editorContext = useMemo(() => {
+    if (!dppId || !tenantSlug) return undefined;
+    return {
+      dppId,
+      tenantSlug,
+      token,
+    };
+  }, [dppId, tenantSlug, token]);
 
   const initialData = useMemo(() => {
     if (!submodel) return {};
@@ -779,6 +787,7 @@ export default function SubmodelEditorPage() {
                       depth={0}
                       rootSchema={uiSchema}
                       control={form.control}
+                      editorContext={editorContext}
                     />
                   ) : hasSchemaForm ? (
                     <AASRendererList
@@ -790,6 +799,7 @@ export default function SubmodelEditorPage() {
                       depth={0}
                       rootSchema={uiSchema}
                       control={form.control}
+                      editorContext={editorContext}
                     />
                   ) : (
                     <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">

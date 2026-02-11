@@ -13,12 +13,20 @@ from typing import Any, cast
 from basyx.aas import model
 from basyx.aas.adapter import json as basyx_json
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.modules.aas.model_utils import clear_parent, clone_identifiable, detach_from_namespace
+from app.modules.aas.model_utils import (
+    clear_parent,
+    clone_identifiable,
+    detach_from_namespace,
+    iterable_attr,
+)
 from app.modules.aas.references import reference_from_dict, reference_to_dict, reference_to_str
+from app.modules.dpps.mime import validate_mime_type
 from app.modules.templates.basyx_parser import BasyxTemplateParser
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.definition import TemplateDefinitionBuilder
+from app.modules.templates.dropin_resolver import TemplateDropInResolver
 from app.modules.templates.service import TemplateRegistryService
 
 logger = get_logger(__name__)
@@ -30,6 +38,8 @@ class BasyxDppBuilder:
     def __init__(self, template_service: TemplateRegistryService) -> None:
         self._template_service = template_service
         self._template_parser = BasyxTemplateParser()
+        self._dropin_resolver = TemplateDropInResolver()
+        self._settings = get_settings()
 
     async def build_environment(
         self,
@@ -41,6 +51,9 @@ class BasyxDppBuilder:
 
         aas = self._build_aas(asset_ids)
         store.add(aas)
+        template_lookup: dict[str, Any] = {
+            row.template_key: row for row in await self._template_service.get_all_templates()
+        }
 
         for template_key in selected_templates:
             template = await self._template_service.get_template(template_key)
@@ -58,13 +71,19 @@ class BasyxDppBuilder:
             if not template:
                 logger.warning("template_not_found", template_key=template_key)
                 continue
+            template_lookup[template_key] = template
 
             descriptor = get_template_descriptor(template_key)
             if descriptor is None:
                 logger.warning("template_descriptor_missing", template_key=template_key)
                 continue
 
-            parsed = self._parse_template(template, descriptor.semantic_id)
+            parsed = self._parse_template(
+                template,
+                descriptor.semantic_id,
+                template_key=template_key,
+                template_lookup=template_lookup,
+            )
             submodel = self._instantiate_submodel(
                 template_key,
                 asset_ids,
@@ -91,6 +110,7 @@ class BasyxDppBuilder:
         asset_ids: dict[str, Any],
         rebuild_from_template: bool,
         submodel_id: str | None = None,
+        template_lookup: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         descriptor = get_template_descriptor(template_key)
         if descriptor is None:
@@ -103,7 +123,12 @@ class BasyxDppBuilder:
             else self._find_submodel(store, descriptor.semantic_id)
         )
 
-        parsed = self._parse_template(template, descriptor.semantic_id)
+        parsed = self._parse_template(
+            template,
+            descriptor.semantic_id,
+            template_key=template_key,
+            template_lookup=template_lookup or {},
+        )
         template_submodel = parsed.submodel
 
         if rebuild_from_template or existing_submodel is None:
@@ -120,10 +145,21 @@ class BasyxDppBuilder:
             if existing_submodel is None:
                 aas.submodel.add(model.ModelReference.from_referable(new_submodel))
         else:
-            updated_elements = [
-                self._instantiate_element(element, submodel_data.get(element.id_short))
-                for element in existing_submodel.submodel_element
-            ]
+            template_elements = {
+                element.id_short: element
+                for element in template_submodel.submodel_element
+                if element.id_short
+            }
+            updated_elements: list[model.SubmodelElement] = []
+            for element in existing_submodel.submodel_element:
+                incoming_value = submodel_data.get(element.id_short)
+                template_element = template_elements.get(element.id_short)
+                source_element = self._select_element_template_for_update(
+                    current_element=element,
+                    template_element=template_element,
+                    incoming_value=incoming_value,
+                )
+                updated_elements.append(self._instantiate_element(source_element, incoming_value))
             existing_submodel.submodel_element = cast(Any, updated_elements)
 
         for cd in parsed.concept_descriptions:
@@ -171,6 +207,11 @@ class BasyxDppBuilder:
             return aas_env_json, False
 
         changed = False
+        template_lookup = {
+            template.template_key: template
+            for template in templates
+            if getattr(template, "template_key", None)
+        }
 
         for submodel in submodels:
             template = self._match_template_for_submodel(submodel, templates)
@@ -181,7 +222,12 @@ class BasyxDppBuilder:
             if descriptor is None:
                 continue
 
-            parsed = self._parse_template(template, descriptor.semantic_id)
+            parsed = self._parse_template(
+                template,
+                descriptor.semantic_id,
+                template_key=template_key,
+                template_lookup=template_lookup,
+            )
             submodel_data = self._extract_submodel_data(submodel)
             new_submodel = self._instantiate_submodel(
                 template_key,
@@ -205,12 +251,23 @@ class BasyxDppBuilder:
         env_json_str = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
         return cast(dict[str, Any], json.loads(env_json_str)), True
 
-    def _parse_template(self, template: Any, semantic_id: str) -> Any:
+    def _parse_template(
+        self,
+        template: Any,
+        semantic_id: str,
+        template_key: str | None = None,
+        template_lookup: dict[str, Any] | None = None,
+    ) -> Any:
         if template.template_aasx:
             try:
-                return self._template_parser.parse_aasx(
+                parsed = self._template_parser.parse_aasx(
                     template.template_aasx,
                     expected_semantic_id=semantic_id,
+                )
+                return self._resolve_dropins(
+                    parsed=parsed,
+                    template_key=template_key,
+                    template_lookup=template_lookup,
                 )
             except Exception as exc:
                 logger.warning(
@@ -221,10 +278,65 @@ class BasyxDppBuilder:
                 )
 
         payload = json.dumps(template.template_json).encode()
-        return self._template_parser.parse_json(
+        parsed = self._template_parser.parse_json(
             payload,
             expected_semantic_id=semantic_id,
         )
+        return self._resolve_dropins(
+            parsed=parsed,
+            template_key=template_key,
+            template_lookup=template_lookup,
+        )
+
+    def _resolve_dropins(
+        self,
+        *,
+        parsed: Any,
+        template_key: str | None,
+        template_lookup: dict[str, Any] | None,
+    ) -> Any:
+        if not template_key or not template_lookup:
+            return parsed
+
+        parsed_sources: dict[str, Any] = {}
+
+        def source_provider(source_template_key: str) -> model.Submodel | None:
+            source_template = template_lookup.get(source_template_key)
+            if source_template is None:
+                return None
+            if source_template_key not in parsed_sources:
+                descriptor = get_template_descriptor(source_template_key)
+                expected_semantic = (
+                    descriptor.semantic_id
+                    if descriptor is not None
+                    else getattr(source_template, "semantic_id", None)
+                )
+                if source_template.template_aasx:
+                    try:
+                        parsed_sources[source_template_key] = self._template_parser.parse_aasx(
+                            source_template.template_aasx,
+                            expected_semantic_id=expected_semantic,
+                        )
+                    except Exception:
+                        payload = json.dumps(source_template.template_json).encode()
+                        parsed_sources[source_template_key] = self._template_parser.parse_json(
+                            payload,
+                            expected_semantic_id=expected_semantic,
+                        )
+                else:
+                    payload = json.dumps(source_template.template_json).encode()
+                    parsed_sources[source_template_key] = self._template_parser.parse_json(
+                        payload,
+                        expected_semantic_id=expected_semantic,
+                    )
+            return parsed_sources[source_template_key].submodel
+
+        self._dropin_resolver.resolve(
+            template_key=template_key,
+            submodel=parsed.submodel,
+            source_provider=source_provider,
+        )
+        return parsed
 
     def _load_environment(
         self, aas_env_json: dict[str, Any]
@@ -383,7 +495,12 @@ class BasyxDppBuilder:
                 element.max = element_value.get("max")
         elif isinstance(element, (model.File, model.Blob)):
             if isinstance(element_value, dict):
-                element.content_type = element_value.get("contentType", element.content_type)
+                if "contentType" in element_value:
+                    element.content_type = validate_mime_type(
+                        cast(str | None, element_value.get("contentType")),
+                        pattern=self._settings.mime_validation_regex,
+                        allow_empty=True,
+                    )
                 raw_value = element_value.get("value")
                 if raw_value in ("", None):
                     element.value = None
@@ -432,6 +549,78 @@ class BasyxDppBuilder:
                 element.statement = cast(Any, self._hydrate_children(statements, statement_values))
 
         return element
+
+    def _select_element_template_for_update(
+        self,
+        *,
+        current_element: model.SubmodelElement,
+        template_element: model.SubmodelElement | None,
+        incoming_value: Any,
+    ) -> model.SubmodelElement:
+        if template_element is None:
+            return current_element
+        if type(current_element) is not type(template_element):
+            return current_element
+        if not self._should_backfill_structure(current_element, template_element, incoming_value):
+            return current_element
+        logger.info(
+            "submodel_update_structure_backfill",
+            id_short=current_element.id_short,
+            model_type=type(current_element).__name__,
+        )
+        return template_element
+
+    def _should_backfill_structure(
+        self,
+        current_element: model.SubmodelElement,
+        template_element: model.SubmodelElement,
+        incoming_value: Any,
+    ) -> bool:
+        if not self._has_nested_payload(incoming_value):
+            return False
+
+        if isinstance(current_element, model.SubmodelElementCollection):
+            current_children = iterable_attr(
+                current_element, "value", "submodel_element", "submodel_elements"
+            )
+            template_children = iterable_attr(
+                template_element, "value", "submodel_element", "submodel_elements"
+            )
+            return len(current_children) == 0 and len(template_children) > 0
+
+        if isinstance(current_element, model.SubmodelElementList):
+            if not isinstance(incoming_value, list) or not incoming_value:
+                return False
+            has_nested_item = any(self._has_nested_payload(item) for item in incoming_value)
+            if not has_nested_item:
+                return False
+            return not self._list_has_structural_template(
+                current_element
+            ) and self._list_has_structural_template(template_element)
+
+        if isinstance(current_element, model.Entity):
+            current_statements = iterable_attr(current_element, "statement", "statements")
+            template_statements = iterable_attr(template_element, "statement", "statements")
+            return len(current_statements) == 0 and len(template_statements) > 0
+
+        return False
+
+    def _list_has_structural_template(self, element: model.SubmodelElementList) -> bool:
+        items = iterable_attr(element, "value", "submodel_element", "submodel_elements")
+        if not items:
+            return False
+        first = items[0]
+        if isinstance(first, model.SubmodelElementCollection):
+            children = iterable_attr(first, "value", "submodel_element", "submodel_elements")
+            return len(children) > 0
+        return True
+
+    def _has_nested_payload(self, value: Any) -> bool:
+        if isinstance(value, dict):
+            return any(v is not None for v in value.values())
+        if isinstance(value, list):
+            return any(self._has_nested_payload(item) for item in value)
+        return False
 
     def _extract_submodel_data(self, submodel: model.Submodel) -> dict[str, Any]:
         return self._extract_elements(submodel.submodel_element)

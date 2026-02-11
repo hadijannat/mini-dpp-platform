@@ -441,6 +441,11 @@ class DPP(TenantScopedMixin, Base):
         back_populates="dpp",
         cascade="all, delete-orphan",
     )
+    attachments: Mapped[list["DPPAttachment"]] = relationship(
+        back_populates="dpp",
+        cascade="all, delete-orphan",
+        order_by="DPPAttachment.created_at.desc()",
+    )
 
     __table_args__ = (
         Index("ix_dpps_owner_subject", "owner_subject"),
@@ -517,6 +522,39 @@ class DPPRevision(TenantScopedMixin, Base):
         UniqueConstraint("dpp_id", "revision_no", name="uq_dpp_revision_no"),
         Index("ix_dpp_revisions_dpp_id", "dpp_id"),
         Index("ix_dpp_revisions_state", "state"),
+    )
+
+
+class DPPAttachment(TenantScopedMixin, Base):
+    """Attachment metadata stored in object storage and linked to a DPP."""
+
+    __tablename__ = "dpp_attachments"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    filename: Mapped[str] = mapped_column(String(512), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(255), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    dpp: Mapped["DPP"] = relationship(back_populates="attachments")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "object_key", name="uq_dpp_attachment_object_key"),
+        Index("ix_dpp_attachments_dpp_id", "dpp_id"),
+        Index("ix_dpp_attachments_tenant_created", "tenant_id", "created_at"),
     )
 
 

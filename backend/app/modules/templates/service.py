@@ -7,6 +7,7 @@ import io
 import json
 import re
 import zipfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -29,6 +30,7 @@ from app.modules.templates.catalog import (
     list_template_keys,
 )
 from app.modules.templates.definition import TemplateDefinitionBuilder
+from app.modules.templates.dropin_resolver import TemplateDropInResolver
 from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter
 
 logger = get_logger(__name__)
@@ -336,16 +338,79 @@ class TemplateRegistryService:
 
         return template
 
-    def generate_template_definition(self, template: Template) -> dict[str, Any]:
+    def generate_template_definition(
+        self,
+        template: Template,
+        template_lookup: Mapping[str, Template] | None = None,
+    ) -> dict[str, Any]:
+        return self._generate_template_definition(template, template_lookup=template_lookup)
+
+    def _generate_template_definition(
+        self,
+        template: Template,
+        template_lookup: Mapping[str, Template] | None,
+    ) -> dict[str, Any]:
+        use_cache = not template_lookup
         cache_key = (template.template_key, template.idta_version, template.source_file_sha)
-        cached = _definition_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        if use_cache:
+            cached = _definition_cache.get(cache_key)
+            if cached is not None:
+                return cached
 
         descriptor = get_template_descriptor(template.template_key)
         if descriptor is None:
             raise ValueError(f"Unknown template key: {template.template_key}")
 
+        parsed = self._parse_template_model(template, descriptor.semantic_id)
+        resolution_by_element_id: dict[int, dict[str, Any]] = {}
+        if template_lookup:
+            parsed_by_template: dict[str, Any] = {}
+
+            def source_provider(source_template_key: str) -> model.Submodel | None:
+                source_template = template_lookup.get(source_template_key)
+                if source_template is None:
+                    return None
+                if source_template_key not in parsed_by_template:
+                    source_descriptor = get_template_descriptor(source_template_key)
+                    expected_semantic_id = (
+                        source_descriptor.semantic_id
+                        if source_descriptor is not None
+                        else source_template.semantic_id
+                    )
+                    parsed_by_template[source_template_key] = self._parse_template_model(
+                        source_template,
+                        expected_semantic_id,
+                    )
+                return parsed_by_template[source_template_key].submodel
+
+            resolution_by_element_id = TemplateDropInResolver().resolve(
+                template_key=template.template_key,
+                submodel=parsed.submodel,
+                source_provider=source_provider,
+            )
+
+        builder = TemplateDefinitionBuilder(resolution_by_element_id=resolution_by_element_id)
+        definition = builder.build_definition(
+            template_key=template.template_key,
+            parsed=parsed,
+            idta_version=template.idta_version,
+            semantic_id=template.semantic_id,
+        )
+
+        if use_cache:
+            # Evict oldest entry if cache is full
+            if len(_definition_cache) >= _DEFINITION_CACHE_MAX:
+                oldest_key = next(iter(_definition_cache))
+                del _definition_cache[oldest_key]
+            _definition_cache[cache_key] = definition
+
+        return definition
+
+    def _parse_template_model(
+        self,
+        template: Template,
+        expected_semantic_id: str | None,
+    ) -> Any:
         parser = BasyxTemplateParser()
         parsed = None
 
@@ -353,7 +418,7 @@ class TemplateRegistryService:
             try:
                 parsed = parser.parse_aasx(
                     template.template_aasx,
-                    expected_semantic_id=descriptor.semantic_id,
+                    expected_semantic_id=expected_semantic_id,
                 )
             except Exception as exc:
                 logger.warning(
@@ -368,7 +433,7 @@ class TemplateRegistryService:
                 payload = json.dumps(template.template_json).encode()
                 parsed = parser.parse_json(
                     payload,
-                    expected_semantic_id=descriptor.semantic_id,
+                    expected_semantic_id=expected_semantic_id,
                 )
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error(
@@ -382,22 +447,7 @@ class TemplateRegistryService:
                     template.idta_version,
                     "Template parse failed; unable to load BaSyx object model.",
                 ) from exc
-
-        builder = TemplateDefinitionBuilder()
-        definition = builder.build_definition(
-            template_key=template.template_key,
-            parsed=parsed,
-            idta_version=template.idta_version,
-            semantic_id=template.semantic_id,
-        )
-
-        # Evict oldest entry if cache is full
-        if len(_definition_cache) >= _DEFINITION_CACHE_MAX:
-            oldest_key = next(iter(_definition_cache))
-            del _definition_cache[oldest_key]
-        _definition_cache[cache_key] = definition
-
-        return definition
+        return parsed
 
     async def refresh_all_templates(self) -> tuple[list[Template], list[TemplateRefreshResult]]:
         """
@@ -885,15 +935,23 @@ class TemplateRegistryService:
         normalized.setdefault("conceptDescriptions", [])
         return normalized
 
-    def generate_ui_schema(self, template: Template) -> dict[str, Any]:
+    def generate_ui_schema(
+        self,
+        template: Template,
+        template_lookup: Mapping[str, Template] | None = None,
+    ) -> dict[str, Any]:
         """
         Generate a UI schema from the canonical template definition AST.
         """
-        definition = self.generate_template_definition(template)
+        definition = self._generate_template_definition(template, template_lookup=template_lookup)
         return DefinitionToSchemaConverter().convert(definition)
 
-    def generate_template_contract(self, template: Template) -> dict[str, Any]:
-        definition = self.generate_template_definition(template)
+    def generate_template_contract(
+        self,
+        template: Template,
+        template_lookup: Mapping[str, Template] | None = None,
+    ) -> dict[str, Any]:
+        definition = self._generate_template_definition(template, template_lookup=template_lookup)
         schema = DefinitionToSchemaConverter().convert(definition)
         return {
             "template_key": template.template_key,

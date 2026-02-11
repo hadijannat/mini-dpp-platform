@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from basyx.aas import model
 
 from app.modules.templates.catalog import (
     TEMPLATE_CATALOG,
@@ -59,7 +60,7 @@ class TestTemplateRegistryService:
         }
 
         mock_template = MagicMock()
-        service.generate_template_definition = MagicMock(return_value=definition)
+        service._generate_template_definition = MagicMock(return_value=definition)
 
         schema = service.generate_ui_schema(mock_template)
 
@@ -162,7 +163,7 @@ class TestTemplateRegistryService:
         mock_template.selection_strategy = "deterministic_v2"
         mock_template.source_url = "https://raw.githubusercontent.com/example/template.json"
 
-        service.generate_template_definition = MagicMock(return_value=definition)
+        service._generate_template_definition = MagicMock(return_value=definition)
 
         contract = service.generate_template_contract(mock_template)
 
@@ -222,13 +223,91 @@ class TestTemplateRegistryService:
         mock_template.selection_strategy = None
         mock_template.source_url = ""
 
-        service.generate_template_definition = MagicMock(return_value=definition)
+        service._generate_template_definition = MagicMock(return_value=definition)
 
         contract = service.generate_template_contract(mock_template)
 
         # Re-derive schema from the definition in the contract
         re_derived = DefinitionToSchemaConverter().convert(contract["definition"])
         assert contract["schema"] == re_derived
+
+    def test_generate_template_definition_expands_dropins_from_template_lookup(self):
+        service = TemplateRegistryService(MagicMock())
+
+        target_semantic = (
+            "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/AddressInformation"
+        )
+        source_semantic = (
+            "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/ContactInformation"
+        )
+
+        def _ref(iri: str) -> model.Reference:
+            return model.ExternalReference((model.Key(model.KeyTypes.GLOBAL_REFERENCE, iri),))
+
+        target_submodel = model.Submodel(
+            id_="urn:test:nameplate",
+            id_short="Nameplate",
+            submodel_element=[
+                model.SubmodelElementCollection(
+                    id_short="AddressInformation",
+                    semantic_id=_ref(target_semantic),
+                    value=[],
+                )
+            ],
+        )
+        source_submodel = model.Submodel(
+            id_="urn:test:contact",
+            id_short="ContactInformations",
+            submodel_element=[
+                model.SubmodelElementCollection(
+                    id_short="ContactInformation",
+                    semantic_id=_ref(source_semantic),
+                    value=[
+                        model.Property(
+                            id_short="Street",
+                            value_type=model.datatypes.String,
+                            value=None,
+                        )
+                    ],
+                )
+            ],
+        )
+
+        target_template = MagicMock()
+        target_template.template_key = "digital-nameplate"
+        target_template.idta_version = "3.0.1"
+        target_template.source_file_sha = "sha-target"
+        target_template.semantic_id = target_semantic
+        target_template.template_aasx = None
+        target_template.template_json = {}
+
+        source_template = MagicMock()
+        source_template.template_key = "contact-information"
+        source_template.idta_version = "1.0.1"
+        source_template.source_file_sha = "sha-source"
+        source_template.semantic_id = source_semantic
+        source_template.template_aasx = None
+        source_template.template_json = {}
+
+        service._parse_template_model = MagicMock(
+            side_effect=[
+                MagicMock(submodel=target_submodel, concept_descriptions=[]),
+                MagicMock(submodel=source_submodel, concept_descriptions=[]),
+            ]
+        )
+
+        definition = service.generate_template_definition(
+            target_template,
+            template_lookup={
+                "digital-nameplate": target_template,
+                "contact-information": source_template,
+            },
+        )
+
+        address_node = definition["submodel"]["elements"][0]
+        assert address_node["idShort"] == "AddressInformation"
+        assert len(address_node.get("children") or []) == 1
+        assert address_node.get("x_resolution", {}).get("status") == "resolved"
 
     @pytest.mark.asyncio
     async def test_refresh_all_templates_reports_skipped_unavailable_templates(self):

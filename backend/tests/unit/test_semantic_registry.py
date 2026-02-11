@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from app.modules.semantic_registry import (
+    get_dropin_bindings_for_semantic_id,
     get_template_registry_entry,
     get_template_semantic_id,
     get_template_support_status,
     is_template_refresh_enabled,
+    list_dropin_bindings,
     list_espr_tier_prefixes,
     load_semantic_registry,
 )
@@ -131,3 +133,30 @@ class TestLegacyAliases:
             aliases["urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass"]
             == "battery-passport"
         )
+
+
+class TestDropinBindings:
+    """Drop-in bindings are registry-driven and discoverable by semantic ID."""
+
+    def test_registry_contains_dropin_bindings_map(self) -> None:
+        bindings = list_dropin_bindings()
+        assert isinstance(bindings, dict)
+        assert bindings
+
+    def test_get_dropin_bindings_for_semantic_id_returns_entries(self) -> None:
+        entries = get_dropin_bindings_for_semantic_id(
+            "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/AddressInformation"
+        )
+        assert entries
+        first = entries[0]
+        assert first.get("source_template_key") == "contact-information"
+        assert isinstance(first.get("source_selector"), dict)
+
+    def test_get_dropin_bindings_is_case_and_trailing_slash_insensitive(self) -> None:
+        a = get_dropin_bindings_for_semantic_id(
+            "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/AddressInformation"
+        )
+        b = get_dropin_bindings_for_semantic_id(
+            "HTTPS://ADMIN-SHELL.IO/ZVEI/NAMEPLATE/1/0/CONTACTINFORMATIONS/ADDRESSINFORMATION/"
+        )
+        assert a == b

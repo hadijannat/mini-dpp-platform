@@ -2,6 +2,9 @@ import { z, type ZodTypeAny } from 'zod';
 import type { DefinitionNode, TemplateDefinition } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
 
+const DEFAULT_MIME_PATTERN =
+  '^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$';
+
 /** AAS Reference schema matching BaSyx model: {type, keys: [{type, value}]} */
 const aasReferenceSchema = z.object({
   type: z.string().optional(),
@@ -54,7 +57,7 @@ function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
     case 'Range':
       return buildRangeSchema();
     case 'File':
-      return z.object({ contentType: z.string(), value: z.string() }).passthrough();
+      return buildFileSchema(schema);
     case 'ReferenceElement':
       return z.object({
         type: z.string(),
@@ -207,6 +210,24 @@ function buildRangeSchema(): ZodTypeAny {
     );
 }
 
+function buildFileSchema(schema?: UISchema): ZodTypeAny {
+  const contentTypePattern =
+    schema?.properties?.contentType?.pattern ??
+    schema?.['x-content-type-pattern'] ??
+    DEFAULT_MIME_PATTERN;
+  let contentType: ZodTypeAny = z.string();
+  try {
+    const pattern = new RegExp(contentTypePattern);
+    contentType = contentType.refine(
+      (value) => value.trim() === '' || pattern.test(value.trim()),
+      'Invalid MIME type',
+    );
+  } catch {
+    // Ignore invalid patterns from upstream contracts.
+  }
+  return z.object({ contentType, value: z.string() }).passthrough();
+}
+
 function buildEntitySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
   const statementsShape: Record<string, ZodTypeAny> = {};
   for (const stmt of node.statements ?? []) {
@@ -245,7 +266,7 @@ function buildAnnotatedRelationshipSchema(node: DefinitionNode, schema?: UISchem
 function buildFromUISchema(schema: UISchema): ZodTypeAny {
   if (schema['x-multi-language']) return z.record(z.string(), z.string());
   if (schema['x-range']) return buildRangeSchema();
-  if (schema['x-file-upload']) return z.object({ contentType: z.string(), value: z.string() });
+  if (schema['x-file-upload']) return buildFileSchema(schema);
   if (schema['x-reference']) return z.object({ type: z.string(), keys: z.array(z.unknown()) });
   if (schema['x-readonly'] || schema['x-blob']) return z.unknown();
 

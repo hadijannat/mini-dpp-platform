@@ -4,13 +4,15 @@ API Router for DPP (Digital Product Passport) endpoints.
 
 import asyncio
 import hashlib
+import io
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, RootModel
 from sqlalchemy import text
 
@@ -25,6 +27,7 @@ from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.aas.conformance import validate_aas_environment
 from app.modules.digital_thread.handlers import record_lifecycle_event
+from app.modules.dpps.attachment_service import AttachmentNotFoundError, AttachmentService
 from app.modules.dpps.service import AmbiguousSubmodelBindingError, DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
 from app.modules.masters.service import DPPMasterService
@@ -148,6 +151,15 @@ class UpdateSubmodelRequest(BaseModel):
     data: dict[str, Any]
     rebuild_from_template: bool = False
     submodel_id: str | None = None
+
+
+class AttachmentUploadResponse(BaseModel):
+    """Response payload for uploaded DPP attachments."""
+
+    attachment_id: UUID
+    content_type: str
+    size_bytes: int
+    url: str
 
 
 class ActorSummary(BaseModel):
@@ -1218,6 +1230,142 @@ async def update_submodel(
         created_by_subject=revision.created_by_subject,
         created_at=revision.created_at.isoformat(),
         template_provenance=revision.template_provenance,
+    )
+
+
+@router.post("/{dpp_id}/attachments", response_model=AttachmentUploadResponse)
+async def upload_attachment(
+    dpp_id: UUID,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+    file: UploadFile = File(...),
+    content_type: str | None = Form(default=None),
+) -> AttachmentUploadResponse:
+    """Upload a tenant-private attachment linked to a DPP."""
+    service = DPPService(db)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can upload attachments for this DPP",
+        )
+
+    await require_access(
+        tenant.user,
+        "update",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
+
+    attachment_service = AttachmentService(db)
+    try:
+        uploaded = await attachment_service.upload_attachment(
+            tenant_id=tenant.tenant_id,
+            dpp_id=dpp_id,
+            upload_file=file,
+            created_by_subject=tenant.user.sub,
+            requested_content_type=content_type,
+        )
+        await db.commit()
+        await emit_audit_event(
+            db_session=db,
+            action="upload_attachment",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={
+                "attachment_id": str(uploaded.attachment_id),
+                "content_type": uploaded.content_type,
+                "size_bytes": uploaded.size_bytes,
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    private_url = (
+        f"/api/v1/tenants/{tenant.tenant_slug}/dpps/{dpp_id}/attachments/{uploaded.attachment_id}"
+    )
+    return AttachmentUploadResponse(
+        attachment_id=uploaded.attachment_id,
+        content_type=uploaded.content_type,
+        size_bytes=uploaded.size_bytes,
+        url=private_url,
+    )
+
+
+@router.get("/{dpp_id}/attachments/{attachment_id}")
+async def download_attachment(
+    dpp_id: UUID,
+    attachment_id: UUID,
+    request: Request,
+    db: DbSession,
+    tenant: TenantContextDep,
+) -> StreamingResponse:
+    """Download a tenant-private attachment (requires authenticated tenant access)."""
+    service = DPPService(db)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    shared_with_current_user = await service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
+
+    attachment_service = AttachmentService(db)
+    try:
+        attachment, payload = await attachment_service.download_attachment_bytes(
+            tenant_id=tenant.tenant_id,
+            dpp_id=dpp_id,
+            attachment_id=attachment_id,
+        )
+    except AttachmentNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    await emit_audit_event(
+        db_session=db,
+        action="download_attachment",
+        resource_type="dpp",
+        resource_id=dpp_id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"attachment_id": str(attachment_id)},
+    )
+    headers = {
+        "Content-Disposition": f'inline; filename="{attachment.filename}"',
+        "Cache-Control": "private, no-store",
+    }
+    return StreamingResponse(
+        io.BytesIO(payload),
+        media_type=attachment.content_type,
+        headers=headers,
     )
 
 

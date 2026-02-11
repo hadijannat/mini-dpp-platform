@@ -64,3 +64,35 @@ def list_espr_tier_prefixes(tier: str) -> tuple[str, ...]:
     if not isinstance(prefixes, list):
         return ()
     return tuple(prefix for prefix in prefixes if isinstance(prefix, str) and prefix)
+
+
+def _normalize_semantic_id(value: str) -> str:
+    return value.strip().rstrip("/").lower()
+
+
+def list_dropin_bindings() -> dict[str, list[dict[str, Any]]]:
+    """Return registry-configured drop-in bindings keyed by semantic ID."""
+    raw = load_semantic_registry().get("dropin_bindings", {})
+    if not isinstance(raw, dict):
+        return {}
+
+    bindings: dict[str, list[dict[str, Any]]] = {}
+    for semantic_id, entries in raw.items():
+        if not isinstance(semantic_id, str) or not semantic_id.strip():
+            continue
+        if not isinstance(entries, list):
+            continue
+        normalized_key = _normalize_semantic_id(semantic_id)
+        normalized_entries = [entry for entry in entries if isinstance(entry, dict)]
+        if normalized_entries:
+            bindings[normalized_key] = normalized_entries
+    return bindings
+
+
+def get_dropin_bindings_for_semantic_id(semantic_id: str | None) -> tuple[dict[str, Any], ...]:
+    """Return drop-in bindings registered for a semantic ID."""
+    if not semantic_id:
+        return ()
+    normalized = _normalize_semantic_id(semantic_id)
+    entries = list_dropin_bindings().get(normalized, [])
+    return tuple(entries)
