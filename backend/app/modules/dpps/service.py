@@ -814,7 +814,17 @@ class DPPService:
                 idta_version=idta_version,
             )
         except ValueError:
-            definition = self._template_service.generate_template_definition(template)
+            available_templates = await self._template_service.get_all_templates()
+            template_lookup = {
+                candidate.template_key: candidate
+                for candidate in available_templates
+                if getattr(candidate, "template_key", None)
+            }
+            template_lookup[template.template_key] = template
+            definition = self._template_service.generate_template_definition(
+                template,
+                template_lookup=template_lookup,
+            )
 
         return definition, revision
 
@@ -899,6 +909,12 @@ class DPPService:
             available_templates = await get_all_templates()
         else:
             available_templates = [template]
+        template_lookup = {
+            candidate.template_key: candidate
+            for candidate in available_templates
+            if getattr(candidate, "template_key", None)
+        }
+        template_lookup[template.template_key] = template
         bindings = resolve_submodel_bindings(
             aas_env_json=base_env,
             templates=available_templates,
@@ -949,6 +965,7 @@ class DPPService:
                 asset_ids=asset_ids,
                 rebuild_from_template=rebuild_from_template,
                 submodel_id=target_submodel_id,
+                template_lookup=template_lookup,
             )
         except Exception as exc:
             if not self._is_aasd120_list_idshort_error(exc):
@@ -980,6 +997,7 @@ class DPPService:
                     asset_ids=asset_ids,
                     rebuild_from_template=rebuild_from_template,
                     submodel_id=target_submodel_id,
+                    template_lookup=template_lookup,
                 )
                 logger.info(
                     "aasd120_autofix_retry_success",

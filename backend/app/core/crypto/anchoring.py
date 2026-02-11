@@ -11,7 +11,7 @@ import hashlib
 import os
 
 import httpx
-from asn1crypto import algos, core, tsp  # type: ignore[import-untyped]
+from asn1crypto import algos, core, tsp
 
 from app.core.logging import get_logger
 

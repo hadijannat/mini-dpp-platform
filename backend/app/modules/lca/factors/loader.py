@@ -9,7 +9,7 @@ from __future__ import annotations
 from importlib import resources as importlib_resources
 from pathlib import Path
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 from app.core.logging import get_logger
 from app.modules.lca.schemas import EmissionFactor

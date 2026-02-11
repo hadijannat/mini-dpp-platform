@@ -1,6 +1,7 @@
 import type { Control } from 'react-hook-form';
 import type { DefinitionNode } from '../../types/definition';
 import type { UISchema } from '../../types/uiSchema';
+import type { EditorContext } from '../../types/formTypes';
 import { CollapsibleSection } from '../CollapsibleSection';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
 
@@ -16,7 +17,9 @@ type CollectionFieldProps = {
     depth: number;
     schema?: UISchema;
     control: Control<Record<string, unknown>>;
+    editorContext?: EditorContext;
   }) => React.ReactNode;
+  editorContext?: EditorContext;
 };
 
 export function CollectionField({
@@ -26,6 +29,7 @@ export function CollectionField({
   schema,
   depth,
   renderNode,
+  editorContext,
 }: CollectionFieldProps) {
   const label = getNodeLabel(node, node.idShort ?? name);
   const description = getNodeDescription(node);
@@ -40,6 +44,11 @@ export function CollectionField({
       depth={depth}
       childCount={children.length}
     >
+      {schema?.['x-unresolved-definition'] && (
+        <p className="mb-2 text-xs text-amber-700">
+          Definition unresolved: {schema['x-unresolved-reason'] ?? 'missing structural definition'}.
+        </p>
+      )}
       {children.map((child, index) => {
         const childId = child.idShort ?? `Item${index + 1}`;
         const childPath = name ? `${name}.${childId}` : childId;
@@ -52,6 +61,7 @@ export function CollectionField({
               depth: depth + 1,
               schema: childSchema,
               control,
+              editorContext,
             })}
           </div>
         );
@@ -65,6 +75,7 @@ export function CollectionField({
               depth: depth + 1,
               schema: childSchema,
               control,
+              editorContext,
             })}
           </div>
         ))

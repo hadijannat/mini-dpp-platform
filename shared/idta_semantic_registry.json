@@ -43,6 +43,28 @@
       "refresh_enabled": false
     }
   },
+  "dropin_bindings": {
+    "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/AddressInformation": [
+      {
+        "binding_id": "zvei-address-information-from-contact-information",
+        "source_template_key": "contact-information",
+        "source_selector": {
+          "path": "ContactInformation",
+          "semantic_id": "https://admin-shell.io/zvei/nameplate/1/0/ContactInformations/ContactInformation",
+          "model_type": "SubmodelElementCollection"
+        },
+        "target_template_keys": [
+          "carbon-footprint",
+          "digital-nameplate"
+        ],
+        "target_model_types": [
+          "SubmodelElementCollection",
+          "SubmodelElementList"
+        ],
+        "projection": "children"
+      }
+    ]
+  },
   "espr_tier_prefixes": {
     "consumer": [
       "https://admin-shell.io/idta/nameplate",

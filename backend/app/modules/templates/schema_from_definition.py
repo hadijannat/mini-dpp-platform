@@ -20,6 +20,10 @@ VALUE_TYPE_TO_JSON: dict[str, str] = {
     "xs:anyURI": "string",
 }
 
+MIME_TYPE_PATTERN = (
+    r"^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$"
+)
+
 
 class DefinitionToSchemaConverter:
     """Derive JSON schema from the canonical template definition AST."""
@@ -78,7 +82,8 @@ class DefinitionToSchemaConverter:
                 "x-readonly": True,
             }
 
-        return self._apply_smt(schema, node.get("smt") or {})
+        schema = self._apply_smt(schema, node.get("smt") or {})
+        return self._apply_resolution_hints(schema, node)
 
     def _collection_schema(self, node: dict[str, Any]) -> dict[str, Any]:
         schema: dict[str, Any] = {
@@ -95,18 +100,34 @@ class DefinitionToSchemaConverter:
             schema["properties"][child_key] = self._node_to_schema(child)
             if self._is_required(child):
                 schema["required"].append(child_key)
+        if not schema["properties"] and node.get("semanticId"):
+            schema["x-unresolved-definition"] = True
+            schema["x-unresolved-reason"] = "collection_children_missing"
         return schema
 
     def _list_schema(self, node: dict[str, Any]) -> dict[str, Any]:
         item = node.get("items")
         items_schema: dict[str, Any]
+        unresolved_reason: str | None = None
         if isinstance(item, dict):
             items_schema = self._node_to_schema(item)
+            if item.get("modelType") == "SubmodelElementCollection" and not self._sorted_nodes(
+                item.get("children") or []
+            ):
+                items_schema["x-unresolved-definition"] = True
+                items_schema["x-unresolved-reason"] = "list_item_collection_children_missing"
+                unresolved_reason = "list_item_collection_children_missing"
         else:
             # Synthesize item schema from list's type hints when no sample item exists
             type_hint = node.get("typeValueListElement")
             if type_hint == "SubmodelElementCollection":
-                items_schema = {"type": "object", "properties": {}}
+                items_schema = {
+                    "type": "object",
+                    "properties": {},
+                    "x-unresolved-definition": True,
+                    "x-unresolved-reason": "list_item_collection_definition_missing",
+                }
+                unresolved_reason = "list_item_collection_definition_missing"
             elif type_hint in {
                 "Property",
                 "MultiLanguageProperty",
@@ -131,6 +152,9 @@ class DefinitionToSchemaConverter:
             "description": self._pick_text(node.get("description")),
             "items": items_schema,
         }
+        if unresolved_reason:
+            schema["x-unresolved-definition"] = True
+            schema["x-unresolved-reason"] = unresolved_reason
         cardinality = ((node.get("smt") or {}).get("cardinality") or "").strip()
         if cardinality == "OneToMany":
             schema["minItems"] = 1
@@ -180,10 +204,12 @@ class DefinitionToSchemaConverter:
             "title": node.get("idShort") or "",
             "description": self._pick_text(node.get("description")),
             "properties": {
-                "contentType": {"type": "string"},
+                "contentType": {"type": "string", "pattern": MIME_TYPE_PATTERN},
                 "value": {"type": "string", "format": "uri"},
             },
             "x-file-upload": True,
+            "x-content-type-pattern": MIME_TYPE_PATTERN,
+            "x-file-content-type-suggestions": ["application/pdf", "image/png"],
         }
 
     def _blob_schema(self, node: dict[str, Any]) -> dict[str, Any]:
@@ -418,3 +444,31 @@ class DefinitionToSchemaConverter:
             if normalized in {"false", "0", "no"}:
                 return False
         return value
+
+    def _apply_resolution_hints(
+        self,
+        schema: dict[str, Any],
+        node: dict[str, Any],
+    ) -> dict[str, Any]:
+        metadata = node.get("x_resolution")
+        if isinstance(metadata, dict) and metadata:
+            schema["x-resolution"] = self._sorted_mapping(metadata)
+            status = str(metadata.get("status") or "").strip().lower()
+            if status and status not in {"resolved", "skipped"}:
+                schema["x-unresolved-definition"] = True
+                schema["x-unresolved-reason"] = str(metadata.get("reason") or status)
+        return schema
+
+    def _sorted_mapping(self, payload: dict[str, Any]) -> dict[str, Any]:
+        output: dict[str, Any] = {}
+        for key in sorted(payload.keys()):
+            value = payload[key]
+            if isinstance(value, dict):
+                output[key] = self._sorted_mapping(value)
+            elif isinstance(value, list):
+                output[key] = [
+                    self._sorted_mapping(item) if isinstance(item, dict) else item for item in value
+                ]
+            else:
+                output[key] = value
+        return output

@@ -22,6 +22,7 @@ function renderNode(props: {
   depth: number;
   schema?: UISchema;
   control: Control<Record<string, unknown>>;
+  editorContext?: AASRendererProps['editorContext'];
 }): React.ReactNode {
   return <AASRenderer {...props} />;
 }
@@ -30,7 +31,14 @@ function renderNode(props: {
  * Recursive type-dispatch renderer for AAS SubmodelElements.
  * Replaces the monolithic renderDefinitionNode / renderField functions.
  */
-export function AASRenderer({ node, basePath, depth, schema, control }: AASRendererProps) {
+export function AASRenderer({
+  node,
+  basePath,
+  depth,
+  schema,
+  control,
+  editorContext,
+}: AASRendererProps) {
   const accessMode = node.smt?.access_mode?.toLowerCase();
   const readOnly = accessMode === 'readonly' || accessMode === 'read-only';
 
@@ -41,6 +49,7 @@ export function AASRenderer({ node, basePath, depth, schema, control }: AASRende
     schema,
     depth,
     readOnly,
+    editorContext,
   };
 
   // Read-only access mode or read-only element types
@@ -58,6 +67,7 @@ export function AASRenderer({ node, basePath, depth, schema, control }: AASRende
           schema={schema}
           depth={depth}
           renderNode={renderNode}
+          editorContext={editorContext}
         />
       );
 
@@ -70,6 +80,7 @@ export function AASRenderer({ node, basePath, depth, schema, control }: AASRende
           schema={schema}
           depth={depth}
           renderNode={renderNode}
+          editorContext={editorContext}
         />
       );
 
@@ -116,12 +127,14 @@ export function AASRendererList({
   depth,
   rootSchema,
   control,
+  editorContext,
 }: {
   nodes: DefinitionNode[];
   basePath: string;
   depth: number;
   rootSchema?: UISchema;
   control: Control<Record<string, unknown>>;
+  editorContext?: AASRendererProps['editorContext'];
 }) {
   return (
     <div className="space-y-4">
@@ -138,6 +151,7 @@ export function AASRendererList({
             depth={depth}
             schema={schemaNode}
             control={control}
+            editorContext={editorContext}
           />
         );
       })}

@@ -118,6 +118,43 @@ export async function tenantApiFetch(
   return apiFetch(`/api/v1/tenants/${slug}${normalizedPath}`, options, token);
 }
 
+export type DppAttachmentUploadResponse = {
+  attachment_id: string;
+  content_type: string;
+  size_bytes: number;
+  url: string;
+};
+
+export async function uploadDppAttachment(
+  dppId: string,
+  file: File,
+  options: {
+    token?: string;
+    tenantSlug?: string;
+    contentType?: string;
+  } = {},
+): Promise<DppAttachmentUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (options.contentType && options.contentType.trim() !== '') {
+    formData.append('content_type', options.contentType.trim());
+  }
+
+  const response = await tenantApiFetch(
+    `/dpps/${dppId}/attachments`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+    options.token,
+    options.tenantSlug,
+  );
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to upload attachment'));
+  }
+  return (await response.json()) as DppAttachmentUploadResponse;
+}
+
 export type LcaScope = 'cradle-to-gate' | 'gate-to-gate' | 'cradle-to-grave';
 
 export type MaterialBreakdown = {

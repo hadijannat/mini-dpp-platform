@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from dataclasses import asdict
 from typing import Any
 
@@ -19,6 +20,11 @@ logger = logging.getLogger(__name__)
 
 class TemplateDefinitionBuilder:
     """Build a stable, UI-friendly definition AST from a parsed template."""
+
+    def __init__(
+        self, resolution_by_element_id: Mapping[int, dict[str, Any]] | None = None
+    ) -> None:
+        self._resolution_by_element_id = dict(resolution_by_element_id or {})
 
     def build_definition(
         self,
@@ -65,7 +71,7 @@ class TemplateDefinitionBuilder:
         elements = self._sorted_elements(
             iterable_attr(submodel, "submodel_element", "submodel_elements")
         )
-        return {
+        node = {
             "id": submodel.id,
             "idShort": submodel.id_short,
             "kind": enum_to_str(getattr(submodel, "kind", None)),
@@ -79,6 +85,10 @@ class TemplateDefinitionBuilder:
                 for element in elements
             ],
         }
+        supplemental_ids = self._supplemental_semantic_ids(submodel)
+        if supplemental_ids:
+            node["supplementalSemanticIds"] = supplemental_ids
+        return node
 
     def _element_definition(
         self,
@@ -104,6 +114,10 @@ class TemplateDefinitionBuilder:
             "qualifiers": qualifiers,
             "smt": asdict(parse_smt_qualifiers(qualifiers)),
         }
+
+        supplemental_ids = self._supplemental_semantic_ids(element)
+        if supplemental_ids:
+            node["supplementalSemanticIds"] = supplemental_ids
 
         if isinstance(element, model.Property):
             node["valueType"] = enum_to_str(element.value_type)
@@ -162,6 +176,10 @@ class TemplateDefinitionBuilder:
             node["observed"] = reference_to_str(getattr(element, "observed", None))
             node["direction"] = enum_to_str(getattr(element, "direction", None))
             node["state"] = enum_to_str(getattr(element, "state", None))
+
+        resolution = self._resolution_by_element_id.get(id(element))
+        if resolution:
+            node["x_resolution"] = self._sorted_dict(resolution)
 
         return node
 
@@ -272,3 +290,27 @@ class TemplateDefinitionBuilder:
             )
         )
         return sequence
+
+    def _supplemental_semantic_ids(self, referable: Any) -> list[str]:
+        refs = iterable_attr(referable, "supplemental_semantic_id", "supplemental_semantic_ids")
+        values = [
+            value
+            for value in (reference_to_str(ref) for ref in refs)
+            if isinstance(value, str) and value.strip()
+        ]
+        deduped = sorted({value.strip() for value in values})
+        return deduped
+
+    def _sorted_dict(self, payload: dict[str, Any]) -> dict[str, Any]:
+        sorted_payload: dict[str, Any] = {}
+        for key in sorted(payload.keys()):
+            value = payload[key]
+            if isinstance(value, dict):
+                sorted_payload[key] = self._sorted_dict(value)
+            elif isinstance(value, list):
+                sorted_payload[key] = [
+                    self._sorted_dict(item) if isinstance(item, dict) else item for item in value
+                ]
+            else:
+                sorted_payload[key] = value
+        return sorted_payload

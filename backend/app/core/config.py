@@ -187,6 +187,18 @@ class Settings(BaseSettings):
     minio_secure: bool = Field(default=False)
     minio_bucket_attachments: str = Field(default="dpp-attachments")
     minio_bucket_exports: str = Field(default="dpp-exports")
+    attachments_max_upload_bytes: int = Field(
+        default=10 * 1024 * 1024,
+        ge=1024,
+        description="Maximum attachment upload size in bytes",
+    )
+    mime_validation_regex: str = Field(
+        default=(
+            r"^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/"
+            r"[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}$"
+        ),
+        description="Open MIME policy regex used for validating content types",
+    )
 
     # ==========================================================================
     # Security Configuration

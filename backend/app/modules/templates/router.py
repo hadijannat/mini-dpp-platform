@@ -154,7 +154,12 @@ async def get_template_definition(
         )
 
     try:
-        definition = service.generate_template_definition(template)
+        template_lookup = {row.template_key: row for row in await service.get_all_templates()}
+        template_lookup.setdefault(template.template_key, template)
+        definition = service.generate_template_definition(
+            template,
+            template_lookup=template_lookup,
+        )
     except TemplateParseError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -186,7 +191,9 @@ async def get_template_contract(
             detail=f"Template '{template_key}' not found",
         )
 
-    contract = service.generate_template_contract(template)
+    template_lookup = {row.template_key: row for row in await service.get_all_templates()}
+    template_lookup.setdefault(template.template_key, template)
+    contract = service.generate_template_contract(template, template_lookup=template_lookup)
     return TemplateContractResponse(
         template_key=template_key,
         idta_version=contract["idta_version"],
@@ -264,7 +271,9 @@ async def get_template_ui_schema(
             detail=f"Template '{template_key}' not found",
         )
 
-    schema = service.generate_ui_schema(template)
+    template_lookup = {row.template_key: row for row in await service.get_all_templates()}
+    template_lookup.setdefault(template.template_key, template)
+    schema = service.generate_ui_schema(template, template_lookup=template_lookup)
 
     return UISchemaResponse(
         template_key=template_key,

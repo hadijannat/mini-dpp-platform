@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Controller, type Control } from 'react-hook-form';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { DefinitionNode } from '../../types/definition';
+import type { EditorContext } from '../../types/formTypes';
 import type { UISchema } from '../../types/uiSchema';
 import { FieldWrapper } from '../FieldWrapper';
 import { getNodeLabel, getNodeDescription, isNodeRequired } from '../../utils/pathUtils';
@@ -22,7 +23,9 @@ type ListFieldProps = {
     depth: number;
     schema?: UISchema;
     control: Control<Record<string, unknown>>;
+    editorContext?: EditorContext;
   }) => React.ReactNode;
+  editorContext?: EditorContext;
 };
 
 export function ListField({
@@ -32,6 +35,7 @@ export function ListField({
   schema,
   depth,
   renderNode,
+  editorContext,
 }: ListFieldProps) {
   const label = getNodeLabel(node, node.idShort ?? name);
   const description = getNodeDescription(node);
@@ -97,6 +101,11 @@ export function ListField({
                 {namingRule && <>Naming rule: {namingRule}.</>}
               </p>
             )}
+            {schema?.['x-unresolved-definition'] && (
+              <p className="mb-2 text-xs text-amber-700">
+                Definition unresolved: {schema['x-unresolved-reason'] ?? 'missing list item definition'}.
+              </p>
+            )}
             {list.length === 0 && (
               <p className="text-xs text-gray-400">No items yet.</p>
             )}
@@ -110,6 +119,7 @@ export function ListField({
                 itemsSchema={itemsSchema}
                 scrollRef={scrollRef}
                 renderNode={renderNode}
+                editorContext={editorContext}
                 onRemove={(index) => {
                   const next = list.filter((_, idx) => idx !== index);
                   field.onChange(next);
@@ -135,6 +145,7 @@ export function ListField({
                     itemDefinition={itemDefinition}
                     itemsSchema={itemsSchema}
                     renderNode={renderNode}
+                    editorContext={editorContext}
                     onRemove={() => {
                       const next = list.filter((_, idx) => idx !== index);
                       field.onChange(next);
@@ -167,6 +178,7 @@ function ListItem({
   itemDefinition,
   itemsSchema,
   renderNode,
+  editorContext,
   onRemove,
   onMove,
   orderRelevant,
@@ -179,6 +191,7 @@ function ListItem({
   itemDefinition?: DefinitionNode;
   itemsSchema?: UISchema;
   renderNode: ListFieldProps['renderNode'];
+  editorContext?: EditorContext;
   onRemove: () => void;
   onMove: (toIndex: number) => void;
   orderRelevant: boolean;
@@ -227,6 +240,7 @@ function ListItem({
               depth: depth + 1,
               schema: itemsSchema,
               control,
+              editorContext,
             })
           : renderNode({
               node: { modelType: 'Property', idShort: `Item ${index + 1}` },
@@ -234,6 +248,7 @@ function ListItem({
               depth: depth + 1,
               schema: itemsSchema ?? { type: 'string' },
               control,
+              editorContext,
             })}
       </div>
     </div>
@@ -249,6 +264,7 @@ function VirtualizedList({
   itemsSchema,
   scrollRef,
   renderNode,
+  editorContext,
   onRemove,
   onMove,
   orderRelevant,
@@ -261,6 +277,7 @@ function VirtualizedList({
   itemsSchema?: UISchema;
   scrollRef: React.RefObject<HTMLDivElement | null>;
   renderNode: ListFieldProps['renderNode'];
+  editorContext?: EditorContext;
   onRemove: (index: number) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
   orderRelevant: boolean;
@@ -295,6 +312,7 @@ function VirtualizedList({
               itemDefinition={itemDefinition}
               itemsSchema={itemsSchema}
               renderNode={renderNode}
+              editorContext={editorContext}
               onRemove={() => onRemove(virtualItem.index)}
               onMove={(to) => onMove(virtualItem.index, to)}
               listLength={list.length}

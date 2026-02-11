@@ -25,11 +25,21 @@ export type DefinitionNode = {
   modelType: string;
   orderRelevant?: boolean;
   semanticId?: string | null;
+  supplementalSemanticIds?: string[];
   valueType?: string;
   contentType?: string;
   displayName?: LangStringSet;
   description?: LangStringSet;
   smt?: SmtQualifiers;
+  x_resolution?: {
+    status?: string;
+    reason?: string;
+    binding_id?: string;
+    source_template_key?: string;
+    target_semantic_id?: string;
+    path?: string;
+    [key: string]: unknown;
+  };
   children?: DefinitionNode[];
   items?: DefinitionNode | null;
   entityType?: string;

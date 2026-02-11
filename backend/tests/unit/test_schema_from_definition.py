@@ -264,6 +264,21 @@ class TestSubmodelElementList:
         schema = converter._node_to_schema(node)
         assert schema["items"] == {"type": "string"}
 
+    def test_list_collection_without_item_definition_is_annotated_as_unresolved(
+        self, converter: DefinitionToSchemaConverter
+    ) -> None:
+        node = {
+            "idShort": "AddressInformation",
+            "modelType": "SubmodelElementList",
+            "typeValueListElement": "SubmodelElementCollection",
+            "smt": {},
+        }
+        schema = converter._node_to_schema(node)
+        assert schema["type"] == "array"
+        assert schema["x-unresolved-definition"] is True
+        assert schema["items"]["x-unresolved-definition"] is True
+        assert schema["items"]["x-unresolved-reason"] == "list_item_collection_definition_missing"
+
 
 class TestMultiLanguageProperty:
     def test_multi_language_schema(self, converter: DefinitionToSchemaConverter) -> None:
@@ -306,7 +321,10 @@ class TestFile:
         assert schema["type"] == "object"
         assert schema["x-file-upload"] is True
         assert "contentType" in schema["properties"]
+        assert "pattern" in schema["properties"]["contentType"]
         assert schema["properties"]["value"]["format"] == "uri"
+        assert "image/png" in schema["x-file-content-type-suggestions"]
+        assert "application/pdf" in schema["x-file-content-type-suggestions"]
 
 
 class TestBlob:
