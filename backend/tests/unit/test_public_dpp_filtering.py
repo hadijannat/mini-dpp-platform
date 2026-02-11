@@ -137,7 +137,9 @@ def test_filter_removes_confidential_nested_elements() -> None:
                             {
                                 "idShort": "SecretInner",
                                 "value": "hidden",
-                                "qualifiers": [{"type": "Confidentiality", "value": "confidential"}],
+                                "qualifiers": [
+                                    {"type": "Confidentiality", "value": "confidential"}
+                                ],
                             },
                         ],
                     }

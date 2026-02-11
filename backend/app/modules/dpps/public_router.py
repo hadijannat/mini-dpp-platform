@@ -116,11 +116,7 @@ def _element_is_public(element: dict[str, Any]) -> bool:
 
 def _filter_public_asset_ids(asset_ids: dict[str, Any]) -> dict[str, Any]:
     """Strip sensitive product-level identifiers from public asset ID maps."""
-    return {
-        key: value
-        for key, value in asset_ids.items()
-        if not _is_sensitive_asset_id_key(key)
-    }
+    return {key: value for key, value in asset_ids.items() if not _is_sensitive_asset_id_key(key)}
 
 
 router = APIRouter()
