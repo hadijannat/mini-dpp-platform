@@ -36,5 +36,7 @@ export interface LandingSummary {
   active_product_families: number;
   dpps_with_traceability: number;
   latest_publish_at: string | null;
-  generated_at: string;
+  generated_at: string | null;
+  scope?: string | null;
+  refresh_sla_seconds?: number | null;
 }

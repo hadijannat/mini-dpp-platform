@@ -120,6 +120,8 @@ def _filter_public_asset_ids(asset_ids: dict[str, Any]) -> dict[str, Any]:
 
 
 router = APIRouter()
+LANDING_REFRESH_SLA_SECONDS = 30
+LANDING_SUMMARY_CACHE_CONTROL = "public, max-age=15, stale-while-revalidate=15"
 
 
 class PublicDPPResponse(BaseModel):
@@ -147,6 +149,8 @@ class PublicLandingSummaryResponse(BaseModel):
     dpps_with_traceability: int
     latest_publish_at: str | None
     generated_at: str
+    scope: str | None = None
+    refresh_sla_seconds: int | None = None
 
 
 async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
@@ -168,48 +172,87 @@ async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
 
 async def _load_public_landing_summary(
     db: DbSession,
-    tenant_id: UUID,
+    tenant_id: UUID | None,
     tenant_slug: str,
+    scope: Literal["default", "all"] | None = None,
 ) -> PublicLandingSummaryResponse:
     """Compute public aggregate metrics for landing page consumption."""
-    published_count_result = await db.execute(
-        select(func.count(DPP.id)).where(
+    if tenant_id is not None:
+        published_count_stmt = select(func.count(DPP.id)).where(
             DPP.tenant_id == tenant_id,
             DPP.status == DPPStatus.PUBLISHED,
         )
-    )
+    else:
+        published_count_stmt = (
+            select(func.count(DPP.id))
+            .select_from(DPP)
+            .join(Tenant, DPP.tenant_id == Tenant.id)
+            .where(
+                DPP.status == DPPStatus.PUBLISHED,
+                Tenant.status == TenantStatus.ACTIVE,
+            )
+        )
+    published_count_result = await db.execute(published_count_stmt)
     published_dpps = int(published_count_result.scalar_one() or 0)
 
-    families_result = await db.execute(
-        select(func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext))).where(
+    if tenant_id is not None:
+        families_stmt = select(
+            func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext))
+        ).where(
             DPP.tenant_id == tenant_id,
             DPP.status == DPPStatus.PUBLISHED,
             DPP.asset_ids["manufacturerPartId"].astext.is_not(None),
             DPP.asset_ids["manufacturerPartId"].astext != "",
         )
-    )
+    else:
+        families_stmt = (
+            select(func.count(func.distinct(DPP.asset_ids["manufacturerPartId"].astext)))
+            .select_from(DPP)
+            .join(Tenant, DPP.tenant_id == Tenant.id)
+            .where(
+                DPP.status == DPPStatus.PUBLISHED,
+                Tenant.status == TenantStatus.ACTIVE,
+                DPP.asset_ids["manufacturerPartId"].astext.is_not(None),
+                DPP.asset_ids["manufacturerPartId"].astext != "",
+            )
+        )
+    families_result = await db.execute(families_stmt)
     active_product_families = int(families_result.scalar_one() or 0)
 
-    traceability_result = await db.execute(
+    traceability_stmt = (
         select(func.count(func.distinct(EPCISEvent.dpp_id)))
         .select_from(EPCISEvent)
         .join(
             DPP,
             (DPP.id == EPCISEvent.dpp_id) & (DPP.tenant_id == EPCISEvent.tenant_id),
         )
-        .where(
-            EPCISEvent.tenant_id == tenant_id,
-            DPP.status == DPPStatus.PUBLISHED,
-        )
+        .where(DPP.status == DPPStatus.PUBLISHED)
     )
+    if tenant_id is not None:
+        traceability_stmt = traceability_stmt.where(EPCISEvent.tenant_id == tenant_id)
+    else:
+        traceability_stmt = traceability_stmt.join(Tenant, DPP.tenant_id == Tenant.id).where(
+            Tenant.status == TenantStatus.ACTIVE
+        )
+    traceability_result = await db.execute(traceability_stmt)
     dpps_with_traceability = int(traceability_result.scalar_one() or 0)
 
-    latest_publish_result = await db.execute(
-        select(func.max(DPP.updated_at)).where(
+    if tenant_id is not None:
+        latest_publish_stmt = select(func.max(DPP.updated_at)).where(
             DPP.tenant_id == tenant_id,
             DPP.status == DPPStatus.PUBLISHED,
         )
-    )
+    else:
+        latest_publish_stmt = (
+            select(func.max(DPP.updated_at))
+            .select_from(DPP)
+            .join(Tenant, DPP.tenant_id == Tenant.id)
+            .where(
+                DPP.status == DPPStatus.PUBLISHED,
+                Tenant.status == TenantStatus.ACTIVE,
+            )
+        )
+    latest_publish_result = await db.execute(latest_publish_stmt)
     latest_publish_dt = latest_publish_result.scalar_one()
 
     return PublicLandingSummaryResponse(
@@ -219,7 +262,76 @@ async def _load_public_landing_summary(
         dpps_with_traceability=dpps_with_traceability,
         latest_publish_at=latest_publish_dt.isoformat() if latest_publish_dt else None,
         generated_at=datetime.now(UTC).isoformat(),
+        scope=scope,
+        refresh_sla_seconds=LANDING_REFRESH_SLA_SECONDS,
     )
+
+
+def _attach_landing_summary_observability_headers(
+    response: Response,
+    summary: PublicLandingSummaryResponse,
+    request_started_at: datetime,
+) -> None:
+    elapsed_ms = max(
+        0,
+        int((datetime.now(UTC) - request_started_at).total_seconds() * 1_000),
+    )
+    response.headers["Server-Timing"] = f"landing_summary;dur={elapsed_ms}"
+
+    latest_publish = summary.latest_publish_at
+    if latest_publish:
+        try:
+            generated_at_dt = datetime.fromisoformat(summary.generated_at)
+            latest_publish_dt = datetime.fromisoformat(latest_publish)
+        except ValueError:
+            return
+
+        if generated_at_dt.tzinfo is None:
+            generated_at_dt = generated_at_dt.replace(tzinfo=UTC)
+        if latest_publish_dt.tzinfo is None:
+            latest_publish_dt = latest_publish_dt.replace(tzinfo=UTC)
+
+        freshness_age_seconds = max(
+            0,
+            int(
+                (
+                    generated_at_dt.astimezone(UTC) - latest_publish_dt.astimezone(UTC)
+                ).total_seconds()
+            ),
+        )
+        response.headers["X-Landing-Freshness-Age-Seconds"] = str(freshness_age_seconds)
+
+
+@router.get(
+    "/landing/summary",
+    response_model=PublicLandingSummaryResponse,
+)
+async def get_public_scoped_landing_summary(
+    db: DbSession,
+    response: Response,
+    scope: Literal["default", "all"] = Query(default="all"),
+) -> PublicLandingSummaryResponse:
+    """Public aggregate-only metrics for landing page trust strip with scope support."""
+    request_started_at = datetime.now(UTC)
+    if scope == "default":
+        tenant = await _resolve_tenant(db, "default")
+        summary = await _load_public_landing_summary(
+            db,
+            tenant.id,
+            tenant.slug,
+            scope=scope,
+        )
+    else:
+        summary = await _load_public_landing_summary(
+            db,
+            tenant_id=None,
+            tenant_slug="all",
+            scope=scope,
+        )
+
+    response.headers["Cache-Control"] = LANDING_SUMMARY_CACHE_CONTROL
+    _attach_landing_summary_observability_headers(response, summary, request_started_at)
+    return summary
 
 
 @router.get(
@@ -232,9 +344,17 @@ async def get_public_landing_summary(
     response: Response,
 ) -> PublicLandingSummaryResponse:
     """Public aggregate-only metrics for landing page trust strip."""
+    request_started_at = datetime.now(UTC)
     tenant = await _resolve_tenant(db, tenant_slug)
-    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=900"
-    return await _load_public_landing_summary(db, tenant.id, tenant.slug)
+    response.headers["Cache-Control"] = LANDING_SUMMARY_CACHE_CONTROL
+    summary = await _load_public_landing_summary(
+        db,
+        tenant.id,
+        tenant.slug,
+        scope="default" if tenant.slug == "default" else None,
+    )
+    _attach_landing_summary_observability_headers(response, summary, request_started_at)
+    return summary
 
 
 @router.get(

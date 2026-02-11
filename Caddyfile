@@ -4,7 +4,6 @@
 dpp-platform.dev {
 	# Public API (unauthenticated) — allow caching
 	handle /api/v1/public/* {
-		header Cache-Control "public, max-age=300"
 		reverse_proxy backend:8000
 	}
 

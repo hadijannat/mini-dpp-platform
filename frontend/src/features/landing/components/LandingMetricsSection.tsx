@@ -1,32 +1,94 @@
+import { useEffect, useState } from 'react';
 import { Activity, Boxes, CalendarDays, Layers } from 'lucide-react';
 import { landingContent } from '../content/landingContent';
-import { useLandingSummary } from '../hooks/useLandingSummary';
+import {
+  LANDING_SUMMARY_REFRESH_SLA_MS,
+  type LandingSummaryScope,
+  useLandingSummary,
+} from '../hooks/useLandingSummary';
 
 interface LandingMetricsSectionProps {
-  tenantSlug: string;
+  tenantSlug?: string;
+  scope?: LandingSummaryScope;
 }
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
 }
 
-function formatDate(value: string | null): string {
+function parseIso(value: string | null): Date | null {
   if (!value) {
-    return 'No published records yet';
+    return null;
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
+function formatDateTime(value: string | null): string {
+  const parsed = parseIso(value);
+  if (!parsed) {
     return 'No published records yet';
   }
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
   }).format(parsed);
 }
 
-export default function LandingMetricsSection({ tenantSlug }: LandingMetricsSectionProps) {
-  const { data, isLoading, isError } = useLandingSummary(tenantSlug);
+function formatFreshnessAge(value: string | null, nowMs: number): string {
+  const parsed = parseIso(value);
+  if (!parsed) {
+    return 'Freshness unavailable';
+  }
+  const deltaMs = Math.max(0, nowMs - parsed.getTime());
+  const totalSeconds = Math.floor(deltaMs / 1000);
+  if (totalSeconds < 5) {
+    return 'Updated just now';
+  }
+  if (totalSeconds < 60) {
+    return `Updated ${totalSeconds}s ago`;
+  }
+  const totalMinutes = Math.floor(totalSeconds / 60);
+  if (totalMinutes < 60) {
+    return `Updated ${totalMinutes}m ago`;
+  }
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours < 24) {
+    return `Updated ${totalHours}h ago`;
+  }
+  const totalDays = Math.floor(totalHours / 24);
+  return `Updated ${totalDays}d ago`;
+}
+
+function formatScopeDescription(scope: string | null | undefined, tenantSlug?: string): string {
+  if (scope === 'all') {
+    return 'Scope: ecosystem-wide aggregate across all active tenants.';
+  }
+  if (scope === 'default') {
+    return 'Scope: default tenant aggregate.';
+  }
+  if (tenantSlug) {
+    return `Scope: ${tenantSlug} tenant aggregate.`;
+  }
+  return 'Scope: aggregate-only public summary.';
+}
+
+export default function LandingMetricsSection({ tenantSlug, scope = 'all' }: LandingMetricsSectionProps) {
+  const { data, isLoading, isError } = useLandingSummary(tenantSlug, scope);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   return (
     <section id="metrics" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
@@ -41,10 +103,18 @@ export default function LandingMetricsSection({ tenantSlug }: LandingMetricsSect
             </h2>
           </div>
           <p className="max-w-xl text-sm leading-relaxed text-landing-muted sm:text-base">
-            Landing metrics are tenant-scoped aggregates from a dedicated public summary endpoint. No
+            Landing metrics are scope-aware aggregates from a dedicated public summary endpoint. No
             record-level IDs, no raw payloads, and no actor metadata are exposed.
           </p>
         </div>
+        {!isLoading && !isError && data && (
+          <p
+            className="mb-5 text-sm font-medium text-landing-muted"
+            data-testid="landing-metrics-scope-description"
+          >
+            {formatScopeDescription(data.scope, tenantSlug)}
+          </p>
+        )}
 
         {isLoading && (
           <div
@@ -137,14 +207,27 @@ export default function LandingMetricsSection({ tenantSlug }: LandingMetricsSect
                 Latest Publish
               </div>
               <p className="mt-4 font-display text-2xl font-semibold leading-tight text-landing-ink">
-                {formatDate(data.latest_publish_at)}
+                {formatDateTime(data.latest_publish_at)}
               </p>
-              <p className="mt-3 text-sm text-landing-muted">
-                Generated{' '}
-                {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
-                  new Date(data.generated_at),
-                )}
-              </p>
+              {data.generated_at ? (
+                <>
+                  <p className="mt-3 text-sm text-landing-muted" data-testid="landing-metric-freshness-exact">
+                    Generated {formatDateTime(data.generated_at)}
+                  </p>
+                  <p
+                    className="mt-1 text-xs font-medium uppercase tracking-[0.1em] text-landing-muted"
+                    data-testid="landing-metric-freshness-relative"
+                  >
+                    {formatFreshnessAge(data.generated_at, nowMs)} · Auto-refreshes every{' '}
+                    {data.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)}s
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 text-sm text-landing-muted" data-testid="landing-metric-freshness-unavailable">
+                  Freshness unavailable · Auto-refreshes every{' '}
+                  {data.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)}s
+                </p>
+              )}
             </article>
           </div>
         )}
