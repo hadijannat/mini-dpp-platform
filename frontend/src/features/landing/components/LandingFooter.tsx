@@ -1,153 +1,84 @@
-import { useAuth } from 'react-oidc-context';
 import { Fingerprint, ExternalLink } from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-
-const standardLinks = [
-  {
-    label: 'EU ESPR Regulation',
-    href: 'https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/sustainable-products/ecodesign-sustainable-products-regulation_en',
-  },
-  {
-    label: 'IDTA Specifications',
-    href: 'https://industrialdigitaltwin.org/en/content-hub/submodels',
-  },
-  {
-    label: 'Asset Administration Shell',
-    href: 'https://industrialdigitaltwin.org/en/content-hub/aasspecifications',
-  },
-  {
-    label: 'Catena-X',
-    href: 'https://catena-x.net/en/',
-  },
-];
-
-const regulationLinks = [
-  {
-    label: 'ESPR Full Text (EU 2024/1781)',
-    href: 'https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng',
-  },
-  {
-    label: 'Battery Regulation (EU 2023/1542)',
-    href: 'https://eur-lex.europa.eu/EN/legal-content/summary/sustainability-rules-for-batteries-and-waste-batteries.html',
-  },
-  {
-    label: 'ESPR Working Plan 2025–2030',
-    href: 'https://green-forum.ec.europa.eu/implementing-ecodesign-sustainable-products-regulation_en',
-  },
-];
+import { useAuth } from 'react-oidc-context';
+import { landingContent } from '../content/landingContent';
 
 export default function LandingFooter() {
   const auth = useAuth();
 
   return (
-    <footer className="border-t bg-card py-12">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {/* Brand */}
-          <div>
-            <div className="flex items-center gap-2 font-semibold">
-              <Fingerprint className="h-5 w-5 text-primary" />
-              DPP Platform
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">
-              Open-source Digital Product Passport management based on IDTA DPP4.0
-              and the Asset Administration Shell standard.
-            </p>
+    <footer className="border-t border-landing-ink/10 bg-landing-surface-1 px-4 py-14 sm:px-6 lg:px-8">
+      <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full border border-landing-cyan/30 bg-landing-cyan/10 p-1.5 text-landing-cyan">
+              <Fingerprint className="h-4 w-4" />
+            </span>
+            <span className="font-display text-xl font-semibold text-landing-ink">DPP Platform</span>
           </div>
-
-          {/* Standards */}
-          <div>
-            <h3 className="mb-3 text-sm font-semibold">Standards</h3>
-            <ul className="space-y-2">
-              {standardLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {link.label}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Regulations */}
-          <div>
-            <h3 className="mb-3 text-sm font-semibold">EU Regulations</h3>
-            <ul className="space-y-2">
-              {regulationLinks.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    {link.label}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Platform */}
-          <div>
-            <h3 className="mb-3 text-sm font-semibold">Platform</h3>
-            <ul className="space-y-2">
-              <li>
-                <button
-                  onClick={() =>
-                    auth.isAuthenticated
-                      ? window.location.assign('/console')
-                      : auth.signinRedirect()
-                  }
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {auth.isAuthenticated ? 'Dashboard' : 'Sign in'}
-                </button>
-              </li>
-              <li>
-                <a
-                  href="/api/v1/docs"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  API Documentation
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/hadijannat/mini-dpp-platform"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  GitHub
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </li>
-            </ul>
-          </div>
+          <p className="mt-4 max-w-md text-sm leading-relaxed text-landing-muted">
+            A multi-audience digital product passport platform focused on trustworthy communication,
+            standards-linked claims, and privacy-preserving public summaries.
+          </p>
+          <button
+            type="button"
+            className="mt-5 rounded-full border border-landing-ink/20 bg-white px-4 py-2 text-sm font-semibold text-landing-ink transition-colors hover:border-landing-cyan/40 hover:text-landing-cyan"
+            onClick={() =>
+              auth.isAuthenticated ? window.location.assign('/console') : auth.signinRedirect()
+            }
+          >
+            {auth.isAuthenticated ? 'Open dashboard' : 'Sign in to continue'}
+          </button>
         </div>
 
-        <Separator className="my-8" />
+        <div>
+          <h3 className="font-display text-lg font-semibold text-landing-ink">Developers</h3>
+          <ul className="mt-3 space-y-2">
+            {landingContent.footer.developerLinks.map((link) => (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  target={link.external ? '_blank' : undefined}
+                  rel={link.external ? 'noopener noreferrer' : undefined}
+                  className="inline-flex items-center gap-1.5 text-sm text-landing-muted transition-colors hover:text-landing-ink"
+                >
+                  {link.label}
+                  {link.external && <ExternalLink className="h-3.5 w-3.5" />}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
 
-        <p className="text-center text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} Mini DPP Platform. Built with IDTA
-          DPP4.0 and Asset Administration Shell standards.
-          {import.meta.env.VITE_COMMIT_SHA && (
-            <span className="ml-2 font-mono text-xs text-muted-foreground/60">
-              &middot; {import.meta.env.VITE_COMMIT_SHA.slice(0, 7)}
-            </span>
-          )}
+        <div>
+          <h3 className="font-display text-lg font-semibold text-landing-ink">Policy & Evidence</h3>
+          <ul className="mt-3 space-y-2">
+            {landingContent.footer.policyLinks.map((link) => (
+              <li key={link.label}>
+                <a
+                  href={link.href}
+                  target={link.external ? '_blank' : undefined}
+                  rel={link.external ? 'noopener noreferrer' : undefined}
+                  className="inline-flex items-center gap-1.5 text-sm text-landing-muted transition-colors hover:text-landing-ink"
+                >
+                  {link.label}
+                  {link.external && <ExternalLink className="h-3.5 w-3.5" />}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-2 border-t border-landing-ink/10 pt-6 text-xs text-landing-muted sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          © {new Date().getFullYear()} DPP Platform. Public landing pages are aggregate-only by
+          policy.
         </p>
+        {import.meta.env.VITE_COMMIT_SHA && (
+          <p className="font-mono text-[11px] text-landing-muted/80">
+            build {import.meta.env.VITE_COMMIT_SHA.slice(0, 7)}
+          </p>
+        )}
       </div>
     </footer>
   );

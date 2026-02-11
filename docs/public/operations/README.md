@@ -125,3 +125,4 @@ TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/dpp_insp
 - Getting started: [`../getting-started/README.md`](../getting-started/README.md)
 - Architecture: [`../architecture/README.md`](../architecture/README.md)
 - Release guide: [`../releases/release-guide.md`](../releases/release-guide.md)
+- Public data policy: [`public-data-exposure-policy.md`](public-data-exposure-policy.md)

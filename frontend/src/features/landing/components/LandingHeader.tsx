@@ -1,118 +1,114 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { Fingerprint, LogIn, LayoutDashboard, Menu } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Fingerprint, LayoutDashboard, LogIn, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isPublisher } from '@/lib/auth';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
-
-const navLinks = [
-  { label: 'What is DPP?', href: '#what-is-dpp' },
-  { label: 'Standards', href: '#standards' },
-  { label: 'Features', href: '#features' },
-];
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { landingContent } from '../content/landingContent';
 
 export default function LandingHeader() {
   const auth = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
   const consoleEnabled = auth.isAuthenticated && isPublisher(auth.user);
 
   const handleSignIn = () => auth.signinRedirect();
   const handleDashboard = () => navigate(consoleEnabled ? '/console' : '/welcome');
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        {/* Brand */}
-        <a href="#" className="flex items-center gap-2 font-semibold">
-          <Fingerprint className="h-5 w-5 text-primary" />
-          <span>DPP Platform</span>
+        <a href="#" className="group inline-flex items-center gap-2">
+          <span className="rounded-full border border-landing-cyan/30 bg-landing-cyan/10 p-1.5 text-landing-cyan transition-transform group-hover:scale-105">
+            <Fingerprint className="h-4 w-4" />
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="font-display text-base font-semibold text-landing-ink">DPP Platform</span>
+            <span className="text-[11px] uppercase tracking-[0.12em] text-landing-muted">Landing</span>
+          </span>
         </a>
 
-        {/* Desktop nav */}
         <nav className="hidden items-center gap-6 md:flex">
-          {navLinks.map((link) => (
+          {landingContent.navigation.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className="text-sm font-medium text-landing-muted transition-colors hover:text-landing-ink"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        {/* Desktop auth */}
         <div className="hidden items-center gap-2 md:flex">
           {auth.isAuthenticated ? (
-            <Button size="sm" onClick={handleDashboard}>
-              <LayoutDashboard className="mr-1.5 h-4 w-4" />
+            <Button size="sm" className="rounded-full px-4" onClick={handleDashboard}>
+              <LayoutDashboard className="h-4 w-4" />
               Dashboard
             </Button>
           ) : (
-            <Button size="sm" onClick={handleSignIn}>
-              <LogIn className="mr-1.5 h-4 w-4" />
+            <Button size="sm" className="rounded-full px-4" onClick={handleSignIn}>
+              <LogIn className="h-4 w-4" />
               Sign in
             </Button>
           )}
         </div>
 
-        {/* Mobile hamburger */}
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="text-landing-ink md:hidden">
               <Menu className="h-5 w-5" />
               <span className="sr-only">Open menu</span>
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-64">
+          <SheetContent
+            side="right"
+            className="w-72 border-l border-landing-ink/12 bg-[hsl(var(--landing-surface-0))]"
+          >
             <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <Fingerprint className="h-5 w-5 text-primary" />
+              <SheetTitle className="flex items-center gap-2 font-display text-landing-ink">
+                <Fingerprint className="h-5 w-5 text-landing-cyan" />
                 DPP Platform
               </SheetTitle>
             </SheetHeader>
-            <nav className="mt-6 flex flex-col gap-4">
-              {navLinks.map((link) => (
+
+            <nav className="mt-8 flex flex-col gap-3">
+              {landingContent.navigation.map((link) => (
                 <a
                   key={link.href}
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  className="rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-landing-muted transition-colors hover:border-landing-ink/10 hover:bg-white hover:text-landing-ink"
                 >
                   {link.label}
                 </a>
               ))}
-              <div className="mt-4 border-t pt-4">
+
+              <div className="mt-4 border-t border-landing-ink/10 pt-4">
                 {auth.isAuthenticated ? (
                   <Button
-                    className="w-full"
+                    className="w-full rounded-full"
                     size="sm"
                     onClick={() => {
                       setMobileOpen(false);
                       handleDashboard();
                     }}
                   >
-                    <LayoutDashboard className="mr-1.5 h-4 w-4" />
+                    <LayoutDashboard className="h-4 w-4" />
                     Dashboard
                   </Button>
                 ) : (
                   <Button
-                    className="w-full"
+                    className="w-full rounded-full"
                     size="sm"
                     onClick={() => {
                       setMobileOpen(false);
                       handleSignIn();
                     }}
                   >
-                    <LogIn className="mr-1.5 h-4 w-4" />
+                    <LogIn className="h-4 w-4" />
                     Sign in
                   </Button>
                 )}
