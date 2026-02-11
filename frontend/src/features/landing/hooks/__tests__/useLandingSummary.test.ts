@@ -23,6 +23,8 @@ describe('sanitizeLandingSummary', () => {
       'generated_at',
       'latest_publish_at',
       'published_dpps',
+      'refresh_sla_seconds',
+      'scope',
       'tenant_slug',
     ]);
 
@@ -31,6 +33,8 @@ describe('sanitizeLandingSummary', () => {
     expect(result.active_product_families).toBe(0);
     expect(result.dpps_with_traceability).toBe(0);
     expect(result.latest_publish_at).toBeNull();
-    expect(typeof result.generated_at).toBe('string');
+    expect(result.generated_at).toBeNull();
+    expect(result.scope).toBeNull();
+    expect(result.refresh_sla_seconds).toBeNull();
   });
 });

@@ -23,8 +23,6 @@ const capabilityIcons: Record<LandingIconKey, ComponentType<{ className?: string
   scan: Globe2,
 };
 
-const defaultTenant = (import.meta.env.VITE_DEFAULT_TENANT ?? 'default').trim().toLowerCase();
-
 export default function LandingPage() {
   const auth = useAuth();
 
@@ -42,7 +40,7 @@ export default function LandingPage() {
       <main id="main-content" className="pb-6">
         <HeroSection />
         <AudienceSegmentsSection />
-        <LandingMetricsSection tenantSlug={defaultTenant || 'default'} />
+        <LandingMetricsSection scope="all" />
 
         <AnimatedSection className="scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
           <section id="workflow" className="mx-auto max-w-6xl">

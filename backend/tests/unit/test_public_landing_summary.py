@@ -67,6 +67,8 @@ def test_summary_schema_is_aggregate_only() -> None:
         "dpps_with_traceability",
         "latest_publish_at",
         "generated_at",
+        "scope",
+        "refresh_sla_seconds",
     }
 
 
@@ -93,7 +95,10 @@ async def test_public_landing_summary_success(_app: FastAPI) -> None:
         response = await client.get("/public/default/landing/summary")
 
     assert response.status_code == 200
-    assert response.headers["cache-control"] == "public, max-age=300, stale-while-revalidate=900"
+    assert response.headers["cache-control"] == "public, max-age=15, stale-while-revalidate=15"
+    assert "server-timing" in response.headers
+    assert "landing_summary;dur=" in response.headers["server-timing"]
+    assert "x-landing-freshness-age-seconds" in response.headers
     body = response.json()
     assert body["tenant_slug"] == "default"
     assert body["published_dpps"] == 12
@@ -101,6 +106,9 @@ async def test_public_landing_summary_success(_app: FastAPI) -> None:
     assert body["dpps_with_traceability"] == 7
     assert body["latest_publish_at"] == latest_publish.isoformat()
     assert "generated_at" in body
+    datetime.fromisoformat(body["generated_at"])
+    assert body["scope"] == "default"
+    assert body["refresh_sla_seconds"] == 30
 
     blocked = {
         "dpp_id",
@@ -166,4 +174,79 @@ async def test_public_landing_summary_returns_zeroed_aggregates_when_no_data(_ap
     assert body["active_product_families"] == 0
     assert body["dpps_with_traceability"] == 0
     assert body["latest_publish_at"] is None
+    assert body["scope"] == "default"
+    assert body["refresh_sla_seconds"] == 30
+    assert "x-landing-freshness-age-seconds" not in response.headers
+    _app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_public_scoped_landing_summary_default_scope(_app: FastAPI) -> None:
+    tenant = _make_tenant()
+    latest_publish = datetime(2026, 2, 9, 12, 0, tzinfo=UTC)
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(tenant),  # _resolve_tenant
+            _FakeScalarResult(3),  # published_dpps
+            _FakeScalarResult(2),  # active_product_families
+            _FakeScalarResult(1),  # dpps_with_traceability
+            _FakeScalarResult(latest_publish),  # latest_publish_at
+        ]
+    )
+
+    async def _override_db() -> Any:
+        return fake_session
+
+    _app.dependency_overrides[get_db_session] = _override_db
+    transport = ASGITransport(app=_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/public/landing/summary?scope=default")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=15, stale-while-revalidate=15"
+    assert "server-timing" in response.headers
+    assert "x-landing-freshness-age-seconds" in response.headers
+    body = response.json()
+    assert body["tenant_slug"] == "default"
+    assert body["scope"] == "default"
+    assert body["published_dpps"] == 3
+    assert body["active_product_families"] == 2
+    assert body["dpps_with_traceability"] == 1
+    assert body["latest_publish_at"] == latest_publish.isoformat()
+    assert body["refresh_sla_seconds"] == 30
+    _app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_public_scoped_landing_summary_all_scope(_app: FastAPI) -> None:
+    latest_publish = datetime(2026, 2, 9, 12, 0, tzinfo=UTC)
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(21),  # published_dpps
+            _FakeScalarResult(11),  # active_product_families
+            _FakeScalarResult(8),  # dpps_with_traceability
+            _FakeScalarResult(latest_publish),  # latest_publish_at
+        ]
+    )
+
+    async def _override_db() -> Any:
+        return fake_session
+
+    _app.dependency_overrides[get_db_session] = _override_db
+    transport = ASGITransport(app=_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.get("/public/landing/summary")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=15, stale-while-revalidate=15"
+    assert "server-timing" in response.headers
+    assert "x-landing-freshness-age-seconds" in response.headers
+    body = response.json()
+    assert body["tenant_slug"] == "all"
+    assert body["scope"] == "all"
+    assert body["published_dpps"] == 21
+    assert body["active_product_families"] == 11
+    assert body["dpps_with_traceability"] == 8
+    assert body["latest_publish_at"] == latest_publish.isoformat()
+    assert body["refresh_sla_seconds"] == 30
     _app.dependency_overrides.clear()
