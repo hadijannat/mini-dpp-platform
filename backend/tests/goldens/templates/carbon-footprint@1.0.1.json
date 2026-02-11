@@ -4,6 +4,6 @@
   "semantic_id": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
   "expected": {
     "definition_sha256": "78a3cff7d8f008332d95b61a3d14fb76888aca252df5a76d40b0cb691f54cc75",
-    "schema_sha256": "f84b2e72ff082f8fec395a631164f1563b2edb2ae30c3b0c2a5d9bb6e9962360"
+    "schema_sha256": "5306469f7b6fdd41f37c2bd751b6894f51a1f1b5fcd5ae466a616501a6992e53"
   }
 }
