@@ -32,7 +32,7 @@ spec:
               protocol: TCP
           env:
             - name: EDC_FS_CONFIG
-              value: /app/config.properties
+              value: /app/configuration.properties
             - name: JAVA_TOOL_OPTIONS
               value: -Djava.util.logging.config.file=/app/logging.properties
             - name: EDC_PARTICIPANT_ID
@@ -56,7 +56,7 @@ spec:
               value: /control
           volumeMounts:
             - name: edc-config
-              mountPath: /app/config.properties
+              mountPath: /app/configuration.properties
               subPath: config.properties
               readOnly: true
             - name: edc-config

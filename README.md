@@ -91,9 +91,12 @@ uv run pytest
 uv run ruff check .
 uv run ruff format .
 uv run mypy app
+uv run python tools/check_plaintext_connector_secrets.py
 ```
 
 Backend test fixtures default to a PostgreSQL endpoint on `localhost:5433`. For a reproducible full run, start `docker-compose.inspection.yml` or set `TEST_DATABASE_URL` explicitly (see Validation Snapshot).
+
+`tools/check_plaintext_connector_secrets.py` is a rollout guardrail that fails if legacy connector config fields or dataspace connector secret records contain plaintext values.
 
 ### Frontend (`frontend/`)
 

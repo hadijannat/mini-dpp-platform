@@ -16,6 +16,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.encryption import ConnectorConfigEncryptor, EncryptionError
 from app.core.logging import get_logger
 from app.db.models import Connector, ConnectorStatus
 from app.modules.connectors.edc.asset_mapper import map_dpp_to_edc_asset
@@ -39,6 +41,10 @@ class EDCContractService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._dpp_service = DPPService(session)
+        self._encryptor: ConnectorConfigEncryptor | None = None
+        settings = get_settings()
+        if settings.encryption_master_key:
+            self._encryptor = ConnectorConfigEncryptor(settings.encryption_master_key)
 
     async def publish_to_dataspace(
         self,
@@ -87,7 +93,7 @@ class EDCContractService:
             )
 
         # --- build EDC client ---
-        config = connector.config
+        config = self._decrypt_config(connector.config)
         edc_config = EDCConfig(
             management_url=config.get("edc_management_url", ""),
             api_key=config.get("edc_management_api_key", ""),
@@ -132,7 +138,7 @@ class EDCContractService:
         if not connector:
             return {"registered": False, "error": "Connector not found"}
 
-        config = connector.config
+        config = self._decrypt_config(connector.config)
         edc_config = EDCConfig(
             management_url=config.get("edc_management_url", ""),
             api_key=config.get("edc_management_api_key", ""),
@@ -232,3 +238,11 @@ class EDCContractService:
             usage_policy_id=usage_policy_id,
             contract_definition_id=contract_id,
         )
+
+    def _decrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        if self._encryptor is None:
+            return config
+        try:
+            return self._encryptor.decrypt_config(config)
+        except EncryptionError as exc:
+            raise ValueError(str(exc)) from exc

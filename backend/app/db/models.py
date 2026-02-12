@@ -156,6 +156,31 @@ class TenantRole(str, PyEnum):
     TENANT_ADMIN = "tenant_admin"
 
 
+class DataspaceConnectorRuntime(str, PyEnum):
+    """Supported dataspace connector runtimes."""
+
+    EDC = "edc"
+    CATENA_X_DTR = "catena_x_dtr"
+
+
+class DataspacePolicyTemplateState(str, PyEnum):
+    """Lifecycle state for dataspace policy templates."""
+
+    DRAFT = "draft"
+    APPROVED = "approved"
+    ACTIVE = "active"
+    SUPERSEDED = "superseded"
+
+
+class DataspaceRunStatus(str, PyEnum):
+    """Execution status for conformance runs."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    PASSED = "passed"
+    FAILED = "failed"
+
+
 # =============================================================================
 # Tenant Models
 # =============================================================================
@@ -1037,6 +1062,341 @@ class Connector(TenantScopedMixin, Base):
     __table_args__ = (
         Index("ix_connectors_type", "connector_type"),
         Index("ix_connectors_status", "status"),
+    )
+
+
+class DataspaceConnector(TenantScopedMixin, Base):
+    """
+    Tenant-scoped dataspace connector instance configuration.
+
+    Stores non-secret runtime configuration and participant metadata.
+    Secret values are stored separately in ``dataspace_connector_secrets``.
+    """
+
+    __tablename__ = "dataspace_connectors"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    runtime: Mapped[DataspaceConnectorRuntime] = mapped_column(
+        Enum(DataspaceConnectorRuntime, values_callable=lambda e: [m.value for m in e]),
+        default=DataspaceConnectorRuntime.EDC,
+        nullable=False,
+    )
+    participant_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[ConnectorStatus] = mapped_column(
+        Enum(ConnectorStatus, values_callable=lambda e: [m.value for m in e]),
+        default=ConnectorStatus.DISABLED,
+        nullable=False,
+    )
+    runtime_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Non-secret runtime configuration (URLs, IDs, capabilities)",
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_validation_result: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    secrets: Mapped[list["DataspaceConnectorSecret"]] = relationship(
+        back_populates="connector",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "name", name="uq_dataspace_connectors_tenant_name"),
+        Index("ix_dataspace_connectors_runtime", "runtime"),
+        Index("ix_dataspace_connectors_status", "status"),
+    )
+
+
+class DataspaceConnectorSecret(TenantScopedMixin, Base):
+    """Encrypted secret material bound to a dataspace connector."""
+
+    __tablename__ = "dataspace_connector_secrets"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataspace_connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    secret_ref: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Opaque secret reference used by runtime config fields",
+    )
+    encrypted_value: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Envelope encrypted secret value",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    connector: Mapped["DataspaceConnector"] = relationship(back_populates="secrets")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "connector_id",
+            "secret_ref",
+            name="uq_dataspace_connector_secret_ref",
+        ),
+        Index("ix_dataspace_connector_secrets_connector", "connector_id"),
+    )
+
+
+class DataspacePolicyTemplate(TenantScopedMixin, Base):
+    """Reusable usage-control policy templates for dataspace publication."""
+
+    __tablename__ = "dataspace_policy_templates"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    version: Mapped[str] = mapped_column(String(64), nullable=False, default="1")
+    state: Mapped[DataspacePolicyTemplateState] = mapped_column(
+        Enum(DataspacePolicyTemplateState, values_callable=lambda e: [m.value for m in e]),
+        default=DataspacePolicyTemplateState.DRAFT,
+        nullable=False,
+    )
+    policy: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Normalized policy payload used for runtime policy generation",
+    )
+    description: Mapped[str | None] = mapped_column(Text)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    approved_by_subject: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "name",
+            "version",
+            name="uq_dataspace_policy_templates_tenant_name_version",
+        ),
+        Index("ix_dataspace_policy_templates_state", "state"),
+    )
+
+
+class DataspaceAssetPublication(TenantScopedMixin, Base):
+    """Published dataspace asset record for a DPP revision."""
+
+    __tablename__ = "dataspace_asset_publications"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataspace_connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    policy_template_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dataspace_policy_templates.id", ondelete="SET NULL"),
+    )
+    revision_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dpp_revisions.id", ondelete="SET NULL"),
+    )
+    asset_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    access_policy_id: Mapped[str | None] = mapped_column(String(255))
+    usage_policy_id: Mapped[str | None] = mapped_column(String(255))
+    contract_definition_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="published")
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    metadata_: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSONB)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_dataspace_asset_publications_idempotency",
+        ),
+        Index("ix_dataspace_asset_publications_dpp", "tenant_id", "dpp_id"),
+        Index("ix_dataspace_asset_publications_connector", "connector_id"),
+        Index("ix_dataspace_asset_publications_asset", "asset_id"),
+    )
+
+
+class DataspaceNegotiation(TenantScopedMixin, Base):
+    """Negotiation state tracking for dataspace contract negotiations."""
+
+    __tablename__ = "dataspace_negotiations"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataspace_connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    publication_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dataspace_asset_publications.id", ondelete="SET NULL"),
+    )
+    negotiation_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Runtime negotiation ID (e.g., EDC @id)",
+    )
+    state: Mapped[str] = mapped_column(String(64), nullable=False)
+    contract_agreement_id: Mapped[str | None] = mapped_column(String(255))
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    response_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_dataspace_negotiations_idempotency",
+        ),
+        Index("ix_dataspace_negotiations_connector", "connector_id"),
+        Index("ix_dataspace_negotiations_external_id", "negotiation_id"),
+    )
+
+
+class DataspaceTransfer(TenantScopedMixin, Base):
+    """Transfer process tracking for dataspace contract execution."""
+
+    __tablename__ = "dataspace_transfers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    connector_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dataspace_connectors.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    negotiation_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dataspace_negotiations.id", ondelete="SET NULL"),
+    )
+    transfer_id: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Runtime transfer process ID (e.g., EDC @id)",
+    )
+    state: Mapped[str] = mapped_column(String(64), nullable=False)
+    data_destination: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255))
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "idempotency_key",
+            name="uq_dataspace_transfers_idempotency",
+        ),
+        Index("ix_dataspace_transfers_connector", "connector_id"),
+        Index("ix_dataspace_transfers_external_id", "transfer_id"),
+    )
+
+
+class DataspaceConformanceRun(TenantScopedMixin, Base):
+    """Stored conformance run metadata and outcomes for auditability."""
+
+    __tablename__ = "dataspace_conformance_runs"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    connector_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dataspace_connectors.id", ondelete="SET NULL"),
+    )
+    run_type: Mapped[str] = mapped_column(String(64), nullable=False, default="dsp-tck")
+    status: Mapped[DataspaceRunStatus] = mapped_column(
+        Enum(DataspaceRunStatus, values_callable=lambda e: [m.value for m in e]),
+        default=DataspaceRunStatus.QUEUED,
+        nullable=False,
+    )
+    request_payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    result_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    artifact_url: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_dataspace_conformance_runs_tenant_created", "tenant_id", "created_at"),
+        Index("ix_dataspace_conformance_runs_status", "status"),
     )
 
 
