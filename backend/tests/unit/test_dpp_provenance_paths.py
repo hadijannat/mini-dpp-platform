@@ -13,6 +13,8 @@ from app.db.models import DPPStatus, RevisionState
 from app.modules.dpps.router import list_revisions
 from app.modules.dpps.service import DPPService
 
+DIGITAL_NAMEPLATE_SEMANTIC_ID = "https://admin-shell.io/idta/DigitalNameplate/Nameplate/3/0"
+
 
 def _session_mock() -> AsyncMock:
     session = AsyncMock()
@@ -45,6 +47,15 @@ def _minimal_conformant_env() -> dict[str, object]:
                 "id": "urn:sm:test:1",
                 "idShort": "SM1",
                 "modelType": "Submodel",
+                "semanticId": {
+                    "type": "ExternalReference",
+                    "keys": [
+                        {
+                            "type": "GlobalReference",
+                            "value": DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                        }
+                    ],
+                },
                 "submodelElements": [],
             }
         ],
@@ -100,7 +111,12 @@ class TestProvenancePropagation:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(return_value=env)
@@ -142,7 +158,12 @@ class TestProvenancePropagation:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(return_value=env)
