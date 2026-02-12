@@ -20,13 +20,13 @@ export default function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <a href="#" className="group inline-flex items-center gap-2">
+        <a href="/" className="group inline-flex items-center gap-2" aria-label="DPP Platform home">
           <span className="rounded-full border border-landing-cyan/30 bg-landing-cyan/10 p-1.5 text-landing-cyan transition-transform group-hover:scale-105">
             <Fingerprint className="h-4 w-4" />
           </span>
           <span className="flex flex-col leading-none">
             <span className="font-display text-base font-semibold text-landing-ink">DPP Platform</span>
-            <span className="text-[11px] uppercase tracking-[0.12em] text-landing-muted">Landing</span>
+            <span className="text-[11px] uppercase tracking-[0.12em] text-landing-muted">dpp-platform.dev</span>
           </span>
         </a>
 
@@ -35,6 +35,8 @@ export default function LandingHeader() {
             <a
               key={link.href}
               href={link.href}
+              target={link.external ? '_blank' : undefined}
+              rel={link.external ? 'noopener noreferrer' : undefined}
               className="text-sm font-medium text-landing-muted transition-colors hover:text-landing-ink"
             >
               {link.label}
@@ -79,6 +81,8 @@ export default function LandingHeader() {
                 <a
                   key={link.href}
                   href={link.href}
+                  target={link.external ? '_blank' : undefined}
+                  rel={link.external ? 'noopener noreferrer' : undefined}
                   onClick={() => setMobileOpen(false)}
                   className="rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-landing-muted transition-colors hover:border-landing-ink/10 hover:bg-white hover:text-landing-ink"
                 >

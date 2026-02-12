@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build:static": "tsc -b && vite build",
+    "prerender:landing": "node scripts/prerender-landing.mjs",
+    "build": "npm run build:static && npm run prerender:landing",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx",
     "lint:fix": "eslint . --ext ts,tsx --fix",

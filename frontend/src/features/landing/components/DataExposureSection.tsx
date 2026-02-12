@@ -13,10 +13,17 @@ export default function DataExposureSection() {
             What is public vs what stays protected
           </h2>
           <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
-            Public pages are intentionally conservative. The first page shows aggregate metrics and
-            curated standards context only. Sensitive identifiers, event payloads, and user metadata
-            are blocked from landing responses.
+            Landing responses are intentionally conservative: aggregate metrics and curated evidence
+            links only. Product identifiers, event payloads, and actor metadata are blocked.
           </p>
+          <a
+            href="https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
+          >
+            Read full public data exposure policy
+          </a>
         </div>
 
         <div className="overflow-hidden rounded-3xl border border-landing-ink/12 bg-white/80 shadow-[0_24px_50px_-38px_rgba(13,39,50,0.75)]">

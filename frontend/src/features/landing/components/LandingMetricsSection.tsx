@@ -10,6 +10,7 @@ import {
 interface LandingMetricsSectionProps {
   tenantSlug?: string;
   scope?: LandingSummaryScope;
+  enabled?: boolean;
 }
 
 function formatNumber(value: number): string {
@@ -81,8 +82,12 @@ function formatScopeDescription(scope: string | null | undefined, tenantSlug?: s
   return 'Scope: aggregate-only public summary.';
 }
 
-export default function LandingMetricsSection({ tenantSlug, scope = 'all' }: LandingMetricsSectionProps) {
-  const { data, isLoading, isError } = useLandingSummary(tenantSlug, scope);
+export default function LandingMetricsSection({
+  tenantSlug,
+  scope = 'all',
+  enabled = true,
+}: LandingMetricsSectionProps) {
+  const { data, isLoading, isError } = useLandingSummary(tenantSlug, scope, enabled);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
   useEffect(() => {
