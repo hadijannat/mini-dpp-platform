@@ -30,6 +30,9 @@ services:
         condition: service_healthy
       vault:
         condition: service_started
+    networks:
+      - default
+      - dpp-network
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:19191/api/check/health || exit 1"]
       interval: 10s
@@ -59,6 +62,9 @@ services:
     depends_on:
       edc-controlplane:
         condition: service_healthy
+    networks:
+      - default
+      - dpp-network
     restart: unless-stopped
 
   # ---- EDC PostgreSQL ----

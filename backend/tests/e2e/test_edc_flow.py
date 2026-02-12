@@ -7,7 +7,7 @@ These tests provision their own dataspace connector deterministically.
 from __future__ import annotations
 
 import os
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -41,8 +41,9 @@ def _create_test_dpp(api_client: httpx.Client, tenant_slug: str) -> str:
 
 def _create_dataspace_connector(api_client: httpx.Client, tenant_slug: str) -> str:
     """Provision a tenant-scoped dataspace EDC connector for test execution."""
+    connector_name = f"e2e-dataspace-edc-{uuid4().hex[:8]}"
     payload = {
-        "name": "e2e-dataspace-edc",
+        "name": connector_name,
         "runtime": "edc",
         "participant_id": os.getenv("E2E_EDC_PARTICIPANT_ID", "BPNL000000000000"),
         "runtime_config": {
@@ -78,7 +79,7 @@ def _create_dataspace_connector(api_client: httpx.Client, tenant_slug: str) -> s
         connectors = api_client.get(f"/api/v1/tenants/{tenant_slug}/dataspace/connectors")
         assert connectors.status_code == 200, connectors.text
         for connector in connectors.json().get("connectors", []):
-            if connector.get("name") == "e2e-dataspace-edc":
+            if connector.get("name") == connector_name:
                 connector_id = connector.get("id")
                 assert connector_id, connectors.text
                 return str(connector_id)
