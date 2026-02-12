@@ -23,6 +23,7 @@ export type DefinitionNode = {
   path?: string;
   idShort?: string;
   modelType: string;
+  order?: number;
   orderRelevant?: boolean;
   semanticId?: string | null;
   supplementalSemanticIds?: string[];
@@ -99,6 +100,14 @@ export type TemplateContractResponse = {
     selection_strategy?: string | null;
     source_url: string;
   };
+  dropin_resolution_report?: Array<Record<string, unknown>>;
+  unsupported_nodes?: Array<{
+    path?: string | null;
+    idShort?: string | null;
+    modelType?: string | null;
+    semanticId?: string | null;
+    reasons?: string[];
+  }>;
 };
 
 export type FormData = Record<string, unknown>;

@@ -14,6 +14,7 @@ import { AnnotatedRelationshipField } from './fields/AnnotatedRelationshipField'
 import { ReadOnlyField } from './fields/ReadOnlyField';
 import { CollectionField } from './fields/CollectionField';
 import { ListField } from './fields/ListField';
+import { UnsupportedField } from './fields/UnsupportedField';
 
 /** Recursive render callback passed to container fields to break import cycles */
 function renderNode(props: {
@@ -55,6 +56,16 @@ export function AASRenderer({
   // Read-only access mode or read-only element types
   if (readOnly) {
     return <ReadOnlyField {...fieldProps} />;
+  }
+
+  if (schema?.['x-unresolved-definition']) {
+    return (
+      <UnsupportedField
+        name={basePath}
+        node={node}
+        reason={`Unresolved definition: ${schema['x-unresolved-reason'] ?? 'missing structural contract'}`}
+      />
+    );
   }
 
   switch (node.modelType) {
@@ -109,7 +120,13 @@ export function AASRenderer({
     case 'Operation':
     case 'Capability':
     case 'BasicEventElement':
-      return <ReadOnlyField {...fieldProps} />;
+      return (
+        <UnsupportedField
+          name={basePath}
+          node={node}
+          reason="This IDTA model type is not editable in the current contract-driven renderer."
+        />
+      );
 
     case 'Property':
     default:
@@ -138,7 +155,14 @@ export function AASRendererList({
 }) {
   return (
     <div className="space-y-4">
-      {nodes.map((node, index) => {
+      {[...nodes]
+        .sort((left, right) => {
+          const leftOrder = typeof left.order === 'number' ? left.order : Number.MAX_SAFE_INTEGER;
+          const rightOrder = typeof right.order === 'number' ? right.order : Number.MAX_SAFE_INTEGER;
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+          return String(left.idShort ?? '').localeCompare(String(right.idShort ?? ''));
+        })
+        .map((node, index) => {
         const nodeId = node.idShort ?? `Item${index + 1}`;
         const fieldPath = basePath ? `${basePath}.${nodeId}` : nodeId;
         const pathSegments = fieldPath.split('.');
@@ -154,7 +178,7 @@ export function AASRendererList({
             editorContext={editorContext}
           />
         );
-      })}
+        })}
     </div>
   );
 }

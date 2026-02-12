@@ -43,4 +43,5 @@ export type UISchema = {
   'x-unresolved-definition'?: boolean;
   'x-unresolved-reason'?: string;
   'x-resolution'?: Record<string, unknown>;
+  'x-order'?: number;
 };

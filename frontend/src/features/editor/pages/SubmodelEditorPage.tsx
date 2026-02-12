@@ -39,7 +39,12 @@ import type {
   DefinitionNode,
 } from '../types/definition';
 import type { UISchema } from '../types/uiSchema';
-import { extractSemanticId, getNodeLabel, isEmptyValue, isNodeRequired } from '../utils/pathUtils';
+import {
+  extractSemanticIds,
+  getNodeLabel,
+  isEmptyValue,
+  isNodeRequired,
+} from '../utils/pathUtils';
 import { validateSchema, validateReadOnly } from '../utils/validation';
 import { useSubmodelForm } from '../hooks/useSubmodelForm';
 import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
@@ -58,6 +63,14 @@ class AmbiguousBindingError extends Error {
     this.candidates = candidates;
   }
 }
+
+type UnsupportedContractNode = {
+  path?: string | null;
+  idShort?: string | null;
+  modelType?: string | null;
+  semanticId?: string | null;
+  reasons?: string[];
+};
 
 function flattenFormErrors(
   errors: Record<string, unknown>,
@@ -328,7 +341,9 @@ export default function SubmodelEditorPage() {
 
     const semanticId = selectedBinding?.semantic_id ?? contract?.semantic_id ?? template?.semantic_id;
     if (semanticId) {
-      const bySemantic = submodels.find((sm: Record<string, unknown>) => extractSemanticId(sm) === semanticId);
+      const bySemantic = submodels.find((sm: Record<string, unknown>) =>
+        extractSemanticIds(sm).includes(semanticId),
+      );
       if (bySemantic) return bySemantic;
     }
 
@@ -383,6 +398,13 @@ export default function SubmodelEditorPage() {
 
   const uiSchema = contract?.schema as UISchema | undefined;
   const templateDefinition = contract?.definition as TemplateDefinition | undefined;
+  const unsupportedNodes = useMemo<UnsupportedContractNode[]>(() => {
+    const raw = contract?.unsupported_nodes;
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((entry): entry is UnsupportedContractNode => typeof entry === 'object' && entry !== null);
+  }, [contract?.unsupported_nodes]);
+  const hasUnsupportedNodes = unsupportedNodes.length > 0;
+  const saveDisabledReason = null;
 
   // ── React Hook Form ──
 
@@ -568,7 +590,6 @@ export default function SubmodelEditorPage() {
       });
       return;
     }
-
     if (activeView === 'json') {
       try {
         const parsed = JSON.parse(rawJson) as Record<string, unknown>;
@@ -691,7 +712,6 @@ export default function SubmodelEditorPage() {
   const hasDefinitionElements = Boolean(
     templateDefinition?.submodel?.elements?.length,
   );
-  const hasSchemaForm = uiSchema?.type === 'object';
   const showErrorSummary = saveAttempted && (fieldErrors.length > 0 || Boolean(error));
 
   return (
@@ -749,6 +769,14 @@ export default function SubmodelEditorPage() {
             <Alert>
               <AlertDescription className="text-xs">
                 Read-only access. You can inspect this submodel but cannot save or rebuild.
+              </AlertDescription>
+            </Alert>
+          )}
+          {hasUnsupportedNodes && (
+            <Alert>
+              <AlertDescription className="text-xs">
+                Unsupported template nodes detected ({unsupportedNodes.length}). Save and publish
+                are blocked until renderer support is added for these nodes.
               </AlertDescription>
             </Alert>
           )}
@@ -846,18 +874,6 @@ export default function SubmodelEditorPage() {
                       control={form.control}
                       editorContext={editorContext}
                     />
-                  ) : hasSchemaForm ? (
-                    <AASRendererList
-                      nodes={Object.entries(uiSchema!.properties ?? {}).map(([key]) => ({
-                        modelType: 'Property',
-                        idShort: key,
-                      }))}
-                      basePath=""
-                      depth={0}
-                      rootSchema={uiSchema}
-                      control={form.control}
-                      editorContext={editorContext}
-                    />
                   ) : (
                     <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
                       Form view is unavailable for this template. Switch to JSON.
@@ -898,6 +914,7 @@ export default function SubmodelEditorPage() {
             canUpdate={actionState.canUpdate}
             canReset={hasEdited || form.formState.isDirty}
             canSave={canSave}
+            saveDisabledReason={saveDisabledReason}
           />
 
           {rollout.surfaces.editor && (

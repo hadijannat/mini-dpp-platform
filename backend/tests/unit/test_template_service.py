@@ -11,7 +11,10 @@ from app.modules.templates.catalog import (
     get_template_descriptor,
     list_template_keys,
 )
-from app.modules.templates.service import TemplateRegistryService
+from app.modules.templates.service import (
+    TemplateCandidateResolution,
+    TemplateRegistryService,
+)
 
 
 class TestTemplateRegistryService:
@@ -114,6 +117,42 @@ class TestTemplateRegistryService:
         assert selected is not None
         assert selected["download_url"] == "https://example.test/template.json"
 
+    def test_select_ranked_candidate_prefers_expected_filename(self):
+        service = TemplateRegistryService(MagicMock())
+        descriptor = get_template_descriptor("technical-data")
+        assert descriptor is not None
+
+        selected = service._select_ranked_candidate_resolution(
+            [
+                TemplateCandidateResolution(
+                    asset={
+                        "name": "IDTA 02003_2-0-1_Template_TechnicalData_forAASMetamodelV3.1.json"
+                    },
+                    kind="json",
+                    aas_env_json={"submodels": []},
+                    aasx_bytes=None,
+                    source_url="https://example.test/for-metamodel.json",
+                    selected_submodel_semantic_id="0173-1#01-AHX837#002",
+                    selection_strategy="semantic",
+                ),
+                TemplateCandidateResolution(
+                    asset={"name": "IDTA 02003_2-0-1_Template_TechnicalData.json"},
+                    kind="json",
+                    aas_env_json={"submodels": []},
+                    aasx_bytes=None,
+                    source_url="https://example.test/template.json",
+                    selected_submodel_semantic_id="0173-1#01-AHX837#002",
+                    selection_strategy="semantic",
+                ),
+            ],
+            descriptor=descriptor,
+            version="2.0.1",
+            file_kind="json",
+        )
+
+        assert selected is not None
+        assert selected.source_url == "https://example.test/template.json"
+
     @pytest.mark.asyncio
     async def test_resolve_template_version_uses_latest_patch_within_baseline(self):
         service = TemplateRegistryService(MagicMock())
@@ -190,6 +229,10 @@ class TestTemplateRegistryService:
         assert meta["source_kind"] == "json"
         assert meta["selection_strategy"] == "deterministic_v2"
         assert "source_url" in meta
+        assert "dropin_resolution_report" in contract
+        assert isinstance(contract["dropin_resolution_report"], list)
+        assert "unsupported_nodes" in contract
+        assert isinstance(contract["unsupported_nodes"], list)
 
     def test_generate_template_contract_definition_and_schema_are_consistent(self):
         """The schema in the contract must be derivable from the definition in the same contract."""

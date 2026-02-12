@@ -36,6 +36,7 @@ class TemplateResponse(BaseModel):
     selection_strategy: str | None = None
     support_status: str = "supported"
     refresh_enabled: bool = True
+    selection_diagnostics: dict[str, Any] | None = None
     fetched_at: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -91,6 +92,7 @@ class TemplateRefreshResultResponse(BaseModel):
     idta_version: str | None = None
     resolved_version: str | None = None
     source_metadata: TemplateSourceMetadataResponse | None = None
+    selection_diagnostics: dict[str, Any] | None = None
 
 
 TemplateListResponse.model_rebuild()
@@ -105,6 +107,8 @@ class TemplateContractResponse(BaseModel):
     definition: dict[str, Any]
     schema_: dict[str, Any] = Field(alias="schema")
     source_metadata: TemplateSourceMetadataResponse
+    dropin_resolution_report: list[dict[str, Any]] = Field(default_factory=list)
+    unsupported_nodes: list[dict[str, Any]] = Field(default_factory=list)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -128,6 +132,7 @@ def _build_template_response(template: Any) -> TemplateResponse:
         selection_strategy=template.selection_strategy,
         support_status=support_status,
         refresh_enabled=refresh_enabled,
+        selection_diagnostics=getattr(template, "_selection_diagnostics", None),
         fetched_at=template.fetched_at.isoformat(),
     )
 
@@ -201,6 +206,8 @@ async def get_template_contract(
         definition=contract["definition"],
         schema_=contract["schema"],
         source_metadata=TemplateSourceMetadataResponse(**contract["source_metadata"]),
+        dropin_resolution_report=contract.get("dropin_resolution_report", []),
+        unsupported_nodes=contract.get("unsupported_nodes", []),
     )
 
 
@@ -319,6 +326,7 @@ async def refresh_templates(
                     if result.source_metadata
                     else None
                 ),
+                selection_diagnostics=result.selection_diagnostics,
             )
             for result in refresh_results
         ],

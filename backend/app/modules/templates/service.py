@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db.models import Template
+from app.modules.aas.references import reference_to_str
 from app.modules.templates.basyx_parser import BasyxTemplateParser
 from app.modules.templates.catalog import (
     TemplateDescriptor,
@@ -71,6 +72,20 @@ class TemplateRefreshResult:
     idta_version: str | None = None
     resolved_version: str | None = None
     source_metadata: dict[str, Any] | None = None
+    selection_diagnostics: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class TemplateCandidateResolution:
+    """Resolved upstream candidate with parsed AAS environment."""
+
+    asset: dict[str, Any] | None
+    kind: Literal["json", "aasx"]
+    aas_env_json: dict[str, Any]
+    aasx_bytes: bytes | None
+    source_url: str
+    selected_submodel_semantic_id: str | None
+    selection_strategy: str
 
 
 class TemplateRegistryService:
@@ -172,7 +187,12 @@ class TemplateRegistryService:
         version = await self._resolve_template_version(descriptor)
 
         # Resolve source URLs based on IDTA repo structure
-        json_asset, aasx_asset = await self._resolve_template_assets(descriptor, version)
+        (
+            json_asset,
+            aasx_asset,
+            json_candidates,
+            aasx_candidates,
+        ) = await self._resolve_template_assets(descriptor, version)
         json_url = cast(str | None, json_asset.get("download_url")) if json_asset else None
         aasx_url = cast(str | None, aasx_asset.get("download_url")) if aasx_asset else None
 
@@ -188,92 +208,59 @@ class TemplateRegistryService:
             aasx_url=aasx_url,
         )
 
-        aas_env_json: dict[str, Any] | None = None
-        template_aasx: bytes | None = None
-        source_url: str | None = None
-        source_kind: str | None = None
-        source_file_path: str | None = None
-        source_file_sha: str | None = None
-        selection_strategy = "fallback_url"
+        candidate_resolution: TemplateCandidateResolution | None = None
+        selection_diagnostics: dict[str, Any] = {
+            "candidate_files": {
+                "json": self._candidate_snapshot(json_candidates),
+                "aasx": self._candidate_snapshot(aasx_candidates),
+            },
+            "selection_strategy": None,
+            "selected_file": None,
+            "selected_submodel_semantic_id": None,
+        }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
-            if json_url:
-                try:
-                    response = await client.get(json_url)
-                    response.raise_for_status()
-                    payload = response.json()
-                    aas_env_json = self._normalize_template_json(payload, template_key)
-                    source_url = json_url
-                    source_kind = "json"
-                    source_file_path = (
-                        cast(str | None, json_asset.get("path")) if json_asset else None
-                    )
-                    source_file_sha = (
-                        cast(str | None, json_asset.get("sha")) if json_asset else None
-                    )
-                    if json_asset:
-                        selection_strategy = SELECTION_STRATEGY
-                    if not aas_env_json.get("submodels"):
-                        logger.warning(
-                            "template_empty_submodels",
-                            template_key=template_key,
-                            version=version,
-                            source_url=json_url,
-                        )
-                        aas_env_json = None
-                except Exception as e:
-                    logger.warning(
-                        "template_json_fetch_failed",
-                        template_key=template_key,
-                        version=version,
-                        source_url=json_url,
-                        error=str(e),
-                    )
+            if json_candidates:
+                candidate_resolution = await self._resolve_candidate_by_semantic(
+                    client=client,
+                    template_key=template_key,
+                    descriptor=descriptor,
+                    version=version,
+                    file_kind="json",
+                    candidates=json_candidates,
+                )
 
-            if aas_env_json is None and aasx_url:
-                try:
-                    response = await client.get(aasx_url)
-                    response.raise_for_status()
-                    template_aasx = response.content
-                    if not self._is_valid_aasx(template_aasx):
-                        logger.warning(
-                            "template_aasx_invalid_format",
-                            template_key=template_key,
-                            version=version,
-                            source_url=aasx_url,
-                            content_length=len(template_aasx),
-                        )
-                        template_aasx = None
-                    else:
-                        aas_env_json = self._extract_aas_environment(template_aasx)
-                        source_url = aasx_url
-                        source_kind = "aasx"
-                        source_file_path = (
-                            cast(str | None, aasx_asset.get("path")) if aasx_asset else None
-                        )
-                        source_file_sha = (
-                            cast(str | None, aasx_asset.get("sha")) if aasx_asset else None
-                        )
-                        if aasx_asset:
-                            selection_strategy = SELECTION_STRATEGY
-                        if not aas_env_json.get("submodels"):
-                            logger.warning(
-                                "template_empty_submodels",
-                                template_key=template_key,
-                                version=version,
-                                source_url=aasx_url,
-                            )
-                            aas_env_json = None
-                except Exception as e:
-                    logger.warning(
-                        "template_aasx_fetch_failed",
-                        template_key=template_key,
-                        version=version,
-                        source_url=aasx_url,
-                        error=str(e),
-                    )
+            if candidate_resolution is None and aasx_candidates:
+                candidate_resolution = await self._resolve_candidate_by_semantic(
+                    client=client,
+                    template_key=template_key,
+                    descriptor=descriptor,
+                    version=version,
+                    file_kind="aasx",
+                    candidates=aasx_candidates,
+                )
 
-        if aas_env_json is None:
+            if candidate_resolution is None and json_url:
+                candidate_resolution = await self._resolve_direct_url_candidate(
+                    client=client,
+                    template_key=template_key,
+                    descriptor=descriptor,
+                    version=version,
+                    file_kind="json",
+                    url=json_url,
+                )
+
+            if candidate_resolution is None and aasx_url:
+                candidate_resolution = await self._resolve_direct_url_candidate(
+                    client=client,
+                    template_key=template_key,
+                    descriptor=descriptor,
+                    version=version,
+                    file_kind="aasx",
+                    url=aasx_url,
+                )
+
+        if candidate_resolution is None:
             logger.error(
                 "template_fetch_failed",
                 template_key=template_key,
@@ -286,6 +273,37 @@ class TemplateRegistryService:
                 version,
                 "Template fetch/parse failed; no valid AAS environment found.",
             )
+
+        aas_env_json = candidate_resolution.aas_env_json
+        template_aasx = candidate_resolution.aasx_bytes
+        source_url = candidate_resolution.source_url
+        source_kind = candidate_resolution.kind
+        source_file_path = (
+            cast(str | None, candidate_resolution.asset.get("path"))
+            if candidate_resolution.asset
+            else None
+        )
+        source_file_sha = (
+            cast(str | None, candidate_resolution.asset.get("sha"))
+            if candidate_resolution.asset
+            else None
+        )
+        selection_strategy = candidate_resolution.selection_strategy
+        selection_diagnostics["selection_strategy"] = selection_strategy
+        selection_diagnostics["selected_submodel_semantic_id"] = (
+            candidate_resolution.selected_submodel_semantic_id
+        )
+        selection_diagnostics["selected_file"] = {
+            "kind": source_kind,
+            "url": source_url,
+            "path": source_file_path,
+            "sha": source_file_sha,
+            "name": (
+                cast(str | None, candidate_resolution.asset.get("name"))
+                if candidate_resolution.asset
+                else None
+            ),
+        }
 
         semantic_id = descriptor.semantic_id
 
@@ -335,6 +353,7 @@ class TemplateRegistryService:
             version=version,
             submodel_count=len(aas_env_json.get("submodels", [])),
         )
+        template._selection_diagnostics = selection_diagnostics  # type: ignore[attr-defined]
 
         return template
 
@@ -494,6 +513,7 @@ class TemplateRegistryService:
                         idta_version=template.idta_version,
                         resolved_version=template.resolved_version or template.idta_version,
                         source_metadata=self._source_metadata(template),
+                        selection_diagnostics=getattr(template, "_selection_diagnostics", None),
                     )
                 )
             except Exception as e:
@@ -655,7 +675,12 @@ class TemplateRegistryService:
 
     async def _resolve_template_assets(
         self, descriptor: TemplateDescriptor, version: str
-    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    ) -> tuple[
+        dict[str, Any] | None,
+        dict[str, Any] | None,
+        list[dict[str, Any]],
+        list[dict[str, Any]],
+    ]:
         """
         Resolve template JSON and AASX URLs using the GitHub contents API.
 
@@ -681,7 +706,7 @@ class TemplateRegistryService:
                 version=version,
                 error=str(e),
             )
-            return None, None
+            return None, None, [], []
 
         if not isinstance(payload, list):
             logger.warning(
@@ -689,7 +714,7 @@ class TemplateRegistryService:
                 template_key=descriptor.key,
                 version=version,
             )
-            return None, None
+            return None, None, [], []
 
         json_files = [
             item for item in payload if str(item.get("name", "")).lower().endswith(".json")
@@ -701,12 +726,14 @@ class TemplateRegistryService:
         expected_json = self._expected_template_filename(descriptor, version, file_kind="json")
         expected_aasx = self._expected_template_filename(descriptor, version, file_kind="aasx")
 
-        json_asset = self._select_template_file(
+        ranked_json = self._rank_template_files(
             json_files, prefer_kind="json", expected_name=expected_json
         )
-        aasx_asset = self._select_template_file(
+        ranked_aasx = self._rank_template_files(
             aasx_files, prefer_kind="aasx", expected_name=expected_aasx
         )
+        json_asset = ranked_json[0] if ranked_json else None
+        aasx_asset = ranked_aasx[0] if ranked_aasx else None
 
         if not json_asset and not aasx_asset:
             logger.warning(
@@ -715,7 +742,7 @@ class TemplateRegistryService:
                 version=version,
             )
 
-        return json_asset, aasx_asset
+        return json_asset, aasx_asset, ranked_json, ranked_aasx
 
     def _select_template_file(
         self,
@@ -723,22 +750,30 @@ class TemplateRegistryService:
         prefer_kind: str,
         expected_name: str | None = None,
     ) -> dict[str, Any] | None:
+        ranked = self._rank_template_files(
+            files,
+            prefer_kind=prefer_kind,
+            expected_name=expected_name,
+        )
+        return ranked[0] if ranked else None
+
+    def _rank_template_files(
+        self,
+        files: list[dict[str, Any]],
+        *,
+        prefer_kind: str,
+        expected_name: str | None = None,
+    ) -> list[dict[str, Any]]:
         if not files:
-            return None
+            return []
 
         expected = expected_name.lower() if expected_name else None
-        if expected:
-            exact = next(
-                (item for item in files if str(item.get("name", "")).lower() == expected),
-                None,
-            )
-            if exact:
-                return exact
 
         def score(file_item: dict[str, Any]) -> tuple[int, int, int, str]:
             name = str(file_item.get("name", ""))
             lowered = name.lower()
 
+            exact_match = 1 if expected and lowered == expected else 0
             template_points = 1 if "template" in lowered else 0
             kind_points = 1 if prefer_kind in lowered else 0
             penalty = 0
@@ -746,17 +781,286 @@ class TemplateRegistryService:
                 penalty += 3
             if "schema" in lowered:
                 penalty += 3
-            if "template" in lowered:
-                penalty += 0
             if "foraasmetamodel" in lowered:
                 penalty += 1
             if prefer_kind == "json" and "submodel" in lowered:
                 template_points += 1
 
             # Higher is better except penalty; lexicographic tie-break keeps deterministic output.
-            return (template_points, kind_points, -penalty, lowered)
+            return (exact_match, template_points, kind_points - penalty, lowered)
 
-        return sorted(files, key=score, reverse=True)[0]
+        return sorted(files, key=score, reverse=True)
+
+    def _candidate_snapshot(self, files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        snapshot = [
+            {
+                "name": str(item.get("name") or ""),
+                "path": str(item.get("path") or ""),
+                "sha": str(item.get("sha") or ""),
+            }
+            for item in files
+        ]
+        snapshot.sort(key=lambda item: (item["name"], item["path"], item["sha"]))
+        return snapshot
+
+    async def _resolve_candidate_by_semantic(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        template_key: str,
+        descriptor: TemplateDescriptor,
+        version: str,
+        file_kind: Literal["json", "aasx"],
+        candidates: list[dict[str, Any]],
+    ) -> TemplateCandidateResolution | None:
+        parser = BasyxTemplateParser()
+        matches: list[TemplateCandidateResolution] = []
+        parseable_fallbacks: list[TemplateCandidateResolution] = []
+
+        for asset in candidates:
+            url = cast(str | None, asset.get("download_url"))
+            if not url:
+                continue
+
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+            except Exception as exc:
+                logger.warning(
+                    "template_candidate_fetch_failed",
+                    template_key=template_key,
+                    version=version,
+                    file_kind=file_kind,
+                    source_url=url,
+                    error=str(exc),
+                )
+                continue
+
+            if file_kind == "json":
+                try:
+                    payload = response.json()
+                    aas_env_json = self._normalize_template_json(payload, template_key)
+                    if not aas_env_json.get("submodels"):
+                        continue
+                    parsed = parser.parse_json(
+                        json.dumps(aas_env_json).encode("utf-8"),
+                        expected_semantic_id=descriptor.semantic_id,
+                    )
+                    matches.append(
+                        TemplateCandidateResolution(
+                            asset=asset,
+                            kind="json",
+                            aas_env_json=aas_env_json,
+                            aasx_bytes=None,
+                            source_url=url,
+                            selected_submodel_semantic_id=reference_to_str(
+                                parsed.submodel.semantic_id
+                            ),
+                            selection_strategy=SELECTION_STRATEGY,
+                        )
+                    )
+                    continue
+                except Exception:
+                    pass
+
+                try:
+                    # Fallback path for unique-candidate selection when semantic matching fails.
+                    payload = response.json()
+                    aas_env_json = self._normalize_template_json(payload, template_key)
+                    parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
+                    parseable_fallbacks.append(
+                        TemplateCandidateResolution(
+                            asset=asset,
+                            kind="json",
+                            aas_env_json=aas_env_json,
+                            aasx_bytes=None,
+                            source_url=url,
+                            selected_submodel_semantic_id=reference_to_str(
+                                parsed.submodel.semantic_id
+                            ),
+                            selection_strategy="fallback_filename_unique",
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "template_candidate_parse_failed",
+                        template_key=template_key,
+                        version=version,
+                        file_kind=file_kind,
+                        source_url=url,
+                        error=str(exc),
+                    )
+                continue
+
+            candidate_aasx = response.content
+            if not self._is_valid_aasx(candidate_aasx):
+                continue
+
+            try:
+                aas_env_json = self._extract_aas_environment(candidate_aasx)
+                if not aas_env_json.get("submodels"):
+                    continue
+                parsed = parser.parse_aasx(
+                    candidate_aasx,
+                    expected_semantic_id=descriptor.semantic_id,
+                )
+                matches.append(
+                    TemplateCandidateResolution(
+                        asset=asset,
+                        kind="aasx",
+                        aas_env_json=aas_env_json,
+                        aasx_bytes=candidate_aasx,
+                        source_url=url,
+                        selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
+                        selection_strategy=SELECTION_STRATEGY,
+                    )
+                )
+                continue
+            except Exception:
+                pass
+
+            try:
+                parsed = parser.parse_aasx(candidate_aasx)
+                parseable_fallbacks.append(
+                    TemplateCandidateResolution(
+                        asset=asset,
+                        kind="aasx",
+                        aas_env_json=self._extract_aas_environment(candidate_aasx),
+                        aasx_bytes=candidate_aasx,
+                        source_url=url,
+                        selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
+                        selection_strategy="fallback_filename_unique",
+                    )
+                )
+            except Exception as exc:
+                logger.warning(
+                    "template_candidate_parse_failed",
+                    template_key=template_key,
+                    version=version,
+                    file_kind=file_kind,
+                    source_url=url,
+                    error=str(exc),
+                )
+
+        selected_match = self._select_ranked_candidate_resolution(
+            matches,
+            descriptor=descriptor,
+            version=version,
+            file_kind=file_kind,
+        )
+        if selected_match is not None:
+            return selected_match
+
+        selected_fallback = self._select_ranked_candidate_resolution(
+            parseable_fallbacks,
+            descriptor=descriptor,
+            version=version,
+            file_kind=file_kind,
+        )
+        if selected_fallback is not None:
+            return selected_fallback
+        return None
+
+    def _select_ranked_candidate_resolution(
+        self,
+        candidates: list[TemplateCandidateResolution],
+        *,
+        descriptor: TemplateDescriptor,
+        version: str,
+        file_kind: Literal["json", "aasx"],
+    ) -> TemplateCandidateResolution | None:
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+
+        expected_name = self._expected_template_filename(descriptor, version, file_kind).lower()
+        exact_name_matches = [
+            candidate
+            for candidate in candidates
+            if str((candidate.asset or {}).get("name", "")).strip().lower() == expected_name
+        ]
+        if len(exact_name_matches) == 1:
+            return exact_name_matches[0]
+
+        non_metamodel = [
+            candidate
+            for candidate in candidates
+            if "foraasmetamodel" not in str((candidate.asset or {}).get("name", "")).strip().lower()
+        ]
+        if len(non_metamodel) == 1:
+            return non_metamodel[0]
+
+        names = sorted(
+            str(candidate.asset.get("name", "")) for candidate in candidates if candidate.asset
+        )
+        raise TemplateFetchError(
+            descriptor.key,
+            version,
+            f"Ambiguous {file_kind} candidates: multiple files match semantic ID ({names}).",
+        )
+
+    async def _resolve_direct_url_candidate(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        template_key: str,
+        descriptor: TemplateDescriptor,
+        version: str,
+        file_kind: Literal["json", "aasx"],
+        url: str,
+    ) -> TemplateCandidateResolution | None:
+        parser = BasyxTemplateParser()
+        try:
+            response = await client.get(url)
+            response.raise_for_status()
+        except Exception as exc:
+            logger.warning(
+                "template_direct_fetch_failed",
+                template_key=template_key,
+                version=version,
+                file_kind=file_kind,
+                source_url=url,
+                error=str(exc),
+            )
+            return None
+
+        if file_kind == "json":
+            try:
+                payload = response.json()
+                aas_env_json = self._normalize_template_json(payload, template_key)
+                parsed = parser.parse_json(
+                    json.dumps(aas_env_json).encode("utf-8"),
+                    expected_semantic_id=descriptor.semantic_id,
+                )
+            except Exception:
+                return None
+            return TemplateCandidateResolution(
+                asset=None,
+                kind="json",
+                aas_env_json=aas_env_json,
+                aasx_bytes=None,
+                source_url=url,
+                selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
+                selection_strategy="fallback_url",
+            )
+
+        candidate_aasx = response.content
+        if not self._is_valid_aasx(candidate_aasx):
+            return None
+        try:
+            parsed = parser.parse_aasx(candidate_aasx, expected_semantic_id=descriptor.semantic_id)
+        except Exception:
+            return None
+        return TemplateCandidateResolution(
+            asset=None,
+            kind="aasx",
+            aas_env_json=self._extract_aas_environment(candidate_aasx),
+            aasx_bytes=candidate_aasx,
+            source_url=url,
+            selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
+            selection_strategy="fallback_url",
+        )
 
     def _expected_template_filename(
         self, descriptor: TemplateDescriptor, version: str, file_kind: str
@@ -953,6 +1257,8 @@ class TemplateRegistryService:
     ) -> dict[str, Any]:
         definition = self._generate_template_definition(template, template_lookup=template_lookup)
         schema = DefinitionToSchemaConverter().convert(definition)
+        dropin_resolution_report = self._collect_dropin_resolution_report(definition)
+        unsupported_nodes = self._collect_unsupported_nodes(definition, schema)
         return {
             "template_key": template.template_key,
             "idta_version": template.idta_version,
@@ -960,6 +1266,8 @@ class TemplateRegistryService:
             "definition": definition,
             "schema": schema,
             "source_metadata": self._source_metadata(template),
+            "dropin_resolution_report": dropin_resolution_report,
+            "unsupported_nodes": unsupported_nodes,
         }
 
     def _source_metadata(self, template: Template) -> dict[str, Any]:
@@ -972,3 +1280,166 @@ class TemplateRegistryService:
             "selection_strategy": template.selection_strategy,
             "source_url": template.source_url,
         }
+
+    def _collect_dropin_resolution_report(self, definition: dict[str, Any]) -> list[dict[str, Any]]:
+        report: list[dict[str, Any]] = []
+        for node in self._iter_definition_nodes(definition):
+            resolution = node.get("x_resolution")
+            if isinstance(resolution, dict) and resolution:
+                payload = dict(resolution)
+                payload.setdefault("path", node.get("path"))
+                payload.setdefault("idShort", node.get("idShort"))
+                payload.setdefault("modelType", node.get("modelType"))
+                report.append(payload)
+        report.sort(
+            key=lambda item: (
+                str(item.get("path") or ""),
+                str(item.get("binding_id") or ""),
+                str(item.get("status") or ""),
+            )
+        )
+        return report
+
+    def _collect_unsupported_nodes(
+        self,
+        definition: dict[str, Any],
+        schema: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        unsupported_model_types = {"Blob", "Operation", "Capability", "BasicEventElement"}
+        root_id_short = str((definition.get("submodel") or {}).get("idShort") or "").strip() or None
+        unsupported: list[dict[str, Any]] = []
+        seen: set[tuple[str | None, str | None, str]] = set()
+
+        for node in self._iter_definition_nodes(definition):
+            reasons: list[str] = []
+            model_type = str(node.get("modelType") or "")
+            path = str(node.get("path") or "") or None
+            if model_type in unsupported_model_types:
+                reasons.append(f"unsupported_model_type:{model_type}")
+
+            resolution = node.get("x_resolution")
+            if isinstance(resolution, dict):
+                status = str(resolution.get("status") or "").strip().lower()
+                if status and status not in {"resolved", "skipped"}:
+                    reasons.append(
+                        f"dropin_{str(resolution.get('reason') or status).strip().lower()}"
+                    )
+
+            schema_node = self._schema_node_for_definition_path(
+                schema=schema,
+                definition_path=path,
+                root_id_short=root_id_short,
+            )
+            if isinstance(schema_node, dict) and schema_node.get("x-unresolved-definition"):
+                unresolved_reason = str(schema_node.get("x-unresolved-reason") or "unresolved")
+                reasons.append(f"schema_{unresolved_reason}")
+
+            if not reasons:
+                continue
+
+            deduped_reasons = sorted({reason for reason in reasons if reason})
+            key = (path, str(node.get("idShort") or ""), "|".join(deduped_reasons))
+            if key in seen:
+                continue
+            seen.add(key)
+            unsupported.append(
+                {
+                    "path": path,
+                    "idShort": node.get("idShort"),
+                    "modelType": node.get("modelType"),
+                    "semanticId": node.get("semanticId"),
+                    "reasons": deduped_reasons,
+                }
+            )
+
+        unsupported.sort(
+            key=lambda item: (
+                str(item.get("path") or ""),
+                str(item.get("idShort") or ""),
+                str(item.get("modelType") or ""),
+            )
+        )
+        return unsupported
+
+    def _iter_definition_nodes(self, definition: dict[str, Any]) -> list[dict[str, Any]]:
+        nodes: list[dict[str, Any]] = []
+
+        def walk(node: dict[str, Any]) -> None:
+            nodes.append(node)
+            for key in (
+                "children",
+                "statements",
+                "annotations",
+                "input_variable",
+                "output_variable",
+                "in_output_variable",
+            ):
+                value = node.get(key)
+                if isinstance(value, list):
+                    for child in value:
+                        if isinstance(child, dict):
+                            walk(child)
+            items = node.get("items")
+            if isinstance(items, dict):
+                walk(items)
+
+        elements = (definition.get("submodel") or {}).get("elements") or []
+        if isinstance(elements, list):
+            for element in elements:
+                if isinstance(element, dict):
+                    walk(element)
+        return nodes
+
+    def _schema_node_for_definition_path(
+        self,
+        *,
+        schema: dict[str, Any],
+        definition_path: str | None,
+        root_id_short: str | None,
+    ) -> dict[str, Any] | None:
+        if not definition_path:
+            return None
+        parts = [part for part in definition_path.split("/") if part]
+        if root_id_short and parts and parts[0] == root_id_short:
+            parts = parts[1:]
+
+        current: dict[str, Any] | None = schema
+        for part in parts:
+            if current is None:
+                return None
+            is_list_part = part.endswith("[]")
+            key = part[:-2] if is_list_part else part
+
+            current_type = str(current.get("type") or "")
+            if key:
+                if current_type == "object":
+                    properties = current.get("properties")
+                    if not isinstance(properties, dict):
+                        return None
+                    child = properties.get(key)
+                    if not isinstance(child, dict):
+                        return None
+                    current = child
+                elif current_type == "array":
+                    child = current.get("items")
+                    if not isinstance(child, dict):
+                        return None
+                    current = child
+                    if key:
+                        properties = current.get("properties")
+                        if not isinstance(properties, dict):
+                            return None
+                        nested = properties.get(key)
+                        if not isinstance(nested, dict):
+                            return None
+                        current = nested
+                else:
+                    return None
+
+            if is_list_part:
+                items = current.get("items")
+                if not isinstance(items, dict):
+                    return None
+                current = items
+
+        return current

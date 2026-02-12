@@ -10,10 +10,7 @@ from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
 
-from app.core.logging import get_logger
-from app.modules.aas.references import reference_to_str
-
-logger = get_logger(__name__)
+from app.modules.aas.semantic_ids import normalize_semantic_id, reference_key_values
 
 
 @dataclass(frozen=True)
@@ -89,37 +86,43 @@ class BasyxTemplateParser:
         if not submodels:
             raise ValueError("No Submodel found in template payload")
 
-        if expected_semantic_id:
-            matching = [
-                sm
-                for sm in submodels
-                if expected_semantic_id in (reference_to_str(sm.semantic_id) or "")
-            ]
+        normalized_expected = normalize_semantic_id(expected_semantic_id)
+        if normalized_expected:
+            matching = []
+            for submodel in submodels:
+                normalized_values = {
+                    value
+                    for value in (
+                        normalize_semantic_id(candidate)
+                        for candidate in reference_key_values(submodel.semantic_id)
+                    )
+                    if value
+                }
+                if normalized_expected in normalized_values:
+                    matching.append(submodel)
             if len(matching) == 1:
                 return matching[0]
             if not matching:
-                logger.warning(
-                    "template_semantic_id_mismatch",
-                    expected=expected_semantic_id,
-                    available=[reference_to_str(sm.semantic_id) for sm in submodels],
+                raise ValueError(
+                    "Template payload does not contain expected semantic ID "
+                    f"'{expected_semantic_id}'."
                 )
-            # No match or multiple matches - fall through to other selection
+            raise ValueError(
+                "Ambiguous template payload: expected semantic ID matched "
+                f"{len(matching)} submodels."
+            )
 
         template_kind = [
             sm for sm in submodels if getattr(sm, "kind", None) == model.ModellingKind.TEMPLATE
         ]
-        if len(template_kind) == 1:
-            return template_kind[0]
-
         if len(submodels) == 1:
             return submodels[0]
-
-        if template_kind:
-            logger.warning(
-                "template_ambiguous_submodel_selection",
-                count=len(template_kind),
-                selected=template_kind[0].id_short,
-            )
+        if len(template_kind) == 1:
             return template_kind[0]
+        if len(template_kind) > 1:
+            raise ValueError(
+                "Ambiguous template payload: multiple TEMPLATE-kind submodels found "
+                f"({len(template_kind)})."
+            )
 
         raise ValueError(f"Ambiguous template payload: {len(submodels)} submodels found")

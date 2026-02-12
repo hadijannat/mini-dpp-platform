@@ -88,11 +88,23 @@ export function isNodeRequired(node: DefinitionNode): boolean {
 }
 
 export function extractSemanticId(submodel: Record<string, unknown>): string | null {
+  const values = extractSemanticIds(submodel);
+  return values.length > 0 ? values[0] : null;
+}
+
+export function extractSemanticIds(submodel: Record<string, unknown>): string[] {
   const semanticId = submodel?.semanticId as { keys?: Array<{ value?: unknown }> } | undefined;
-  if (semanticId && Array.isArray(semanticId.keys) && semanticId.keys[0]?.value) {
-    return String(semanticId.keys[0].value);
+  if (!semanticId || !Array.isArray(semanticId.keys)) {
+    return [];
   }
-  return null;
+  const values: string[] = [];
+  for (const key of semanticId.keys) {
+    if (!key?.value) continue;
+    const value = String(key.value).trim();
+    if (!value) continue;
+    values.push(value);
+  }
+  return values;
 }
 
 export function getSchemaAtPath(

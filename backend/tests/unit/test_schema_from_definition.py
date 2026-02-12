@@ -217,6 +217,21 @@ class TestSubmodelElementCollection:
         schema = converter._node_to_schema(node)
         assert list(schema["properties"].keys()) == ["Valid"]
 
+    def test_arbitrary_collection_without_children_is_not_unresolved(
+        self, converter: DefinitionToSchemaConverter
+    ) -> None:
+        node = {
+            "idShort": "ArbitrarySMC",
+            "modelType": "SubmodelElementCollection",
+            "semanticId": "https://admin-shell.io/SMT/General/Arbitrary",
+            "children": [],
+            "smt": {},
+        }
+        schema = converter._node_to_schema(node)
+        assert schema["type"] == "object"
+        assert schema["properties"] == {}
+        assert "x-unresolved-definition" not in schema
+
 
 class TestSubmodelElementList:
     def test_list_with_item_template(self, converter: DefinitionToSchemaConverter) -> None:
@@ -262,7 +277,8 @@ class TestSubmodelElementList:
             "smt": {},
         }
         schema = converter._node_to_schema(node)
-        assert schema["items"] == {"type": "string"}
+        assert schema["items"]["type"] == "object"
+        assert schema["items"]["x-unresolved-definition"] is True
 
     def test_list_collection_without_item_definition_is_annotated_as_unresolved(
         self, converter: DefinitionToSchemaConverter
@@ -277,7 +293,27 @@ class TestSubmodelElementList:
         assert schema["type"] == "array"
         assert schema["x-unresolved-definition"] is True
         assert schema["items"]["x-unresolved-definition"] is True
-        assert schema["items"]["x-unresolved-reason"] == "list_item_collection_definition_missing"
+        assert schema["items"]["x-unresolved-reason"] == "list_item_definition_missing"
+
+    def test_list_arbitrary_collection_item_without_children_is_not_unresolved(
+        self, converter: DefinitionToSchemaConverter
+    ) -> None:
+        node = {
+            "idShort": "ArbitraryItems",
+            "modelType": "SubmodelElementList",
+            "items": {
+                "idShort": "ArbitrarySMC",
+                "modelType": "SubmodelElementCollection",
+                "semanticId": "https://admin-shell.io/SMT/General/Arbitrary",
+                "children": [],
+                "smt": {},
+            },
+            "smt": {},
+        }
+        schema = converter._node_to_schema(node)
+        assert schema["type"] == "array"
+        assert "x-unresolved-definition" not in schema
+        assert "x-unresolved-definition" not in schema["items"]
 
 
 class TestMultiLanguageProperty:

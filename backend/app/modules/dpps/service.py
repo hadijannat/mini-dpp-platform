@@ -7,11 +7,13 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
+from typing import cast as typing_cast
 from uuid import UUID
 
 from jwt import api_jws
 from jwt.exceptions import PyJWTError
-from sqlalchemy import String, cast, false, func, or_, select
+from sqlalchemy import String, false, func, or_, select
+from sqlalchemy import cast as sql_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,6 +42,10 @@ from app.modules.aas.conformance import validate_aas_environment
 from app.modules.aas.sanitization import (
     SanitizationStats,
     sanitize_submodel_list_item_id_shorts,
+)
+from app.modules.aas.semantic_ids import (
+    extract_normalized_semantic_ids,
+    normalize_semantic_id,
 )
 from app.modules.compliance.service import ComplianceService
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
@@ -126,6 +132,72 @@ class DPPService:
 
         return user
 
+    def resolve_required_specific_asset_ids(
+        self,
+        *,
+        selected_templates: list[str] | None = None,
+        profile_required_specific_asset_ids: list[str] | None = None,
+    ) -> list[str]:
+        """Resolve required specificAssetIds for DPP validation."""
+        if profile_required_specific_asset_ids is not None:
+            return self._normalize_required_asset_ids(profile_required_specific_asset_ids)
+
+        resolved: list[str] = []
+        seen: set[str] = set()
+        default_required = getattr(
+            self._settings,
+            "dpp_required_specific_asset_ids_default",
+            ["manufacturerPartId"],
+        )
+        if not isinstance(default_required, list):
+            default_required = ["manufacturerPartId"]
+        for name in default_required:
+            normalized = str(name).strip()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            resolved.append(normalized)
+
+        by_template = (
+            getattr(self._settings, "dpp_required_specific_asset_ids_by_template", {}) or {}
+        )
+        for template_key in selected_templates or []:
+            required_for_template = by_template.get(template_key, [])
+            if not isinstance(required_for_template, list):
+                continue
+            for name in required_for_template:
+                normalized = str(name).strip()
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                resolved.append(normalized)
+
+        return resolved
+
+    def _normalize_required_asset_ids(self, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            key = str(value).strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            normalized.append(key)
+        return normalized
+
+    def _validate_required_specific_asset_ids(
+        self,
+        *,
+        asset_ids: dict[str, Any],
+        required_specific_asset_ids: list[str],
+    ) -> None:
+        missing = [
+            key for key in required_specific_asset_ids if str(asset_ids.get(key, "")).strip() == ""
+        ]
+        if missing:
+            joined = ", ".join(missing)
+            raise IdentifierValidationError(f"Missing required specificAssetIds: {joined}")
+
     async def create_dpp(
         self,
         tenant_id: UUID,
@@ -134,6 +206,7 @@ class DPPService:
         asset_ids: dict[str, Any],
         selected_templates: list[str],
         initial_data: dict[str, Any] | None = None,
+        required_specific_asset_ids: list[str] | None = None,
     ) -> DPP:
         """
         Create a new DPP with initial draft revision.
@@ -150,6 +223,15 @@ class DPPService:
         # Ensure user exists (auto-provision if needed)
         await self._ensure_user_exists(owner_subject)
 
+        required_asset_ids = self.resolve_required_specific_asset_ids(
+            selected_templates=selected_templates,
+            profile_required_specific_asset_ids=required_specific_asset_ids,
+        )
+        self._validate_required_specific_asset_ids(
+            asset_ids=asset_ids,
+            required_specific_asset_ids=required_asset_ids,
+        )
+
         # Resolve globalAssetId if not provided (admin-managed base URI)
         settings_service = SettingsService(self._session)
         base_uri = await settings_service.get_setting("global_asset_id_base_uri")
@@ -164,7 +246,9 @@ class DPPService:
                         "globalAssetId must start with the configured base URI."
                     )
             else:
-                asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
+                manufacturer_part_id = str(asset_ids.get("manufacturerPartId", "")).strip()
+                if manufacturer_part_id:
+                    asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
 
         # Build initial AAS Environment from selected templates
         aas_env = await self._build_initial_environment(
@@ -227,6 +311,7 @@ class DPPService:
         owner_subject: str,
         asset_ids: dict[str, Any],
         aas_env: dict[str, Any],
+        required_specific_asset_ids: list[str] | None = None,
     ) -> DPP:
         """
         Create a new DPP from a fully populated AAS environment.
@@ -234,6 +319,14 @@ class DPPService:
         Used by import flows where the DPP JSON is provided externally.
         """
         await self._ensure_user_exists(owner_subject)
+
+        required_asset_ids = self.resolve_required_specific_asset_ids(
+            profile_required_specific_asset_ids=required_specific_asset_ids,
+        )
+        self._validate_required_specific_asset_ids(
+            asset_ids=asset_ids,
+            required_specific_asset_ids=required_asset_ids,
+        )
 
         # Ensure globalAssetId if missing (same rules as regular create)
         settings_service = SettingsService(self._session)
@@ -249,7 +342,9 @@ class DPPService:
                         "globalAssetId must start with the configured base URI."
                     )
             else:
-                asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
+                manufacturer_part_id = str(asset_ids.get("manufacturerPartId", "")).strip()
+                if manufacturer_part_id:
+                    asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
 
         digest = self._calculate_digest(aas_env)
 
@@ -350,7 +445,7 @@ class DPPService:
         query = (
             select(DPP)
             .where(
-                cast(DPP.id, String).like(f"{slug[:8]}%"),
+                sql_cast(DPP.id, String).like(f"{slug[:8]}%"),
                 DPP.tenant_id == tenant_id,
             )
             .limit(2)
@@ -843,6 +938,223 @@ class DPPService:
             template_provenance=revision.template_provenance or {},
         )
 
+    async def get_revision_publish_constraints(
+        self,
+        *,
+        revision: DPPRevision | None,
+    ) -> dict[str, Any]:
+        """Compute required asset IDs and publish blockers for a revision."""
+        if revision is None:
+            required = self.resolve_required_specific_asset_ids(selected_templates=None)
+            return {
+                "required_specific_asset_ids": required,
+                "missing_required_specific_asset_ids": [],
+                "publish_blockers": [],
+            }
+
+        templates = await self._template_service.get_all_templates()
+        bindings = resolve_submodel_bindings(
+            aas_env_json=revision.aas_env_json,
+            templates=templates,
+            template_provenance=revision.template_provenance or {},
+        )
+        selected_templates = sorted(
+            {binding.template_key for binding in bindings if binding.template_key}
+        )
+        required = self.resolve_required_specific_asset_ids(selected_templates=selected_templates)
+
+        asset_ids: dict[str, Any] = {}
+        try:
+            # Parse specificAssetIds without re-applying required validation here.
+            asset_ids = self.extract_asset_ids_from_environment(
+                revision.aas_env_json,
+                required_specific_asset_ids=[],
+            )
+        except Exception:
+            asset_ids = {}
+
+        missing_required = [key for key in required if str(asset_ids.get(key, "")).strip() == ""]
+
+        publish_blockers: list[str] = []
+        try:
+            self._assert_revision_binding_compatibility(
+                revision=revision,
+                templates=templates,
+                operation="publish",
+                dpp_id=revision.dpp_id,
+            )
+        except ValueError as exc:
+            publish_blockers.append(str(exc))
+
+        try:
+            await self._assert_publish_supported_nodes(revision=revision, templates=templates)
+        except ValueError as exc:
+            publish_blockers.append(str(exc))
+
+        if missing_required:
+            publish_blockers.append(
+                "Missing required specificAssetIds: " + ", ".join(missing_required)
+            )
+
+        return {
+            "required_specific_asset_ids": required,
+            "missing_required_specific_asset_ids": missing_required,
+            "publish_blockers": publish_blockers,
+        }
+
+    def audit_revision_binding_compatibility(
+        self,
+        *,
+        revision: DPPRevision | None,
+        templates: list[Template],
+    ) -> dict[str, Any]:
+        """Audit revision bindings for strict semantic matching safety."""
+        if revision is None:
+            return {"ok": True, "issues": []}
+
+        aas_env = revision.aas_env_json if isinstance(revision.aas_env_json, dict) else {}
+        submodels = aas_env.get("submodels", [])
+        if not isinstance(submodels, list):
+            return {
+                "ok": False,
+                "issues": [{"code": "invalid_aas_environment", "detail": "submodels_not_list"}],
+            }
+
+        semantic_to_templates: dict[str, set[str]] = {}
+        for template in templates:
+            normalized = normalize_semantic_id(getattr(template, "semantic_id", None))
+            if not normalized:
+                continue
+            semantic_to_templates.setdefault(normalized, set()).add(template.template_key)
+
+        issues: list[dict[str, Any]] = []
+        for submodel in submodels:
+            if not isinstance(submodel, dict):
+                continue
+            submodel_id = str(submodel.get("id", "")).strip() or None
+            id_short = str(submodel.get("idShort", "")).strip() or None
+            normalized_semantics = extract_normalized_semantic_ids(submodel)
+            if not normalized_semantics:
+                issues.append(
+                    {
+                        "code": "missing_semantic_id",
+                        "submodel_id": submodel_id,
+                        "id_short": id_short,
+                    }
+                )
+                continue
+
+            matched_templates = sorted(
+                {
+                    template_key
+                    for semantic in normalized_semantics
+                    for template_key in semantic_to_templates.get(semantic, set())
+                }
+            )
+            if len(matched_templates) == 0:
+                issues.append(
+                    {
+                        "code": "unmatched_semantic_id",
+                        "submodel_id": submodel_id,
+                        "id_short": id_short,
+                        "semantic_ids": normalized_semantics,
+                    }
+                )
+            elif len(matched_templates) > 1:
+                issues.append(
+                    {
+                        "code": "ambiguous_semantic_id",
+                        "submodel_id": submodel_id,
+                        "id_short": id_short,
+                        "semantic_ids": normalized_semantics,
+                        "candidate_templates": matched_templates,
+                    }
+                )
+
+        bindings = resolve_submodel_bindings(
+            aas_env_json=aas_env,
+            templates=templates,
+            template_provenance=revision.template_provenance or {},
+        )
+        for binding in bindings:
+            if binding.binding_source == "semantic_exact":
+                continue
+            issues.append(
+                {
+                    "code": "non_strict_binding_source",
+                    "submodel_id": binding.submodel_id,
+                    "id_short": binding.id_short,
+                    "template_key": binding.template_key,
+                    "binding_source": binding.binding_source,
+                }
+            )
+
+        return {"ok": len(issues) == 0, "issues": issues}
+
+    def _assert_revision_binding_compatibility(
+        self,
+        *,
+        revision: DPPRevision | None,
+        templates: list[Template],
+        operation: str,
+        dpp_id: UUID,
+    ) -> None:
+        audit = self.audit_revision_binding_compatibility(revision=revision, templates=templates)
+        if audit["ok"]:
+            return
+        issues = typing_cast(list[dict[str, Any]], audit["issues"])
+        preview = "; ".join(
+            f"{issue.get('code')}:{issue.get('submodel_id') or issue.get('id_short') or 'unknown'}"
+            for issue in issues[:5]
+        )
+        raise ValueError(
+            f"{operation} blocked for DPP {dpp_id}: strict binding audit failed ({preview})"
+        )
+
+    async def _assert_publish_supported_nodes(
+        self,
+        *,
+        revision: DPPRevision,
+        templates: list[Template],
+    ) -> None:
+        template_lookup = {template.template_key: template for template in templates}
+        bindings = resolve_submodel_bindings(
+            aas_env_json=revision.aas_env_json,
+            templates=templates,
+            template_provenance=revision.template_provenance or {},
+        )
+        blocked: list[dict[str, Any]] = []
+        seen_template_keys: set[str] = set()
+        for binding in bindings:
+            template_key = binding.template_key
+            if not template_key or template_key in seen_template_keys:
+                continue
+            seen_template_keys.add(template_key)
+            template = template_lookup.get(template_key)
+            if template is None:
+                continue
+            contract = self._template_service.generate_template_contract(
+                template,
+                template_lookup=template_lookup,
+            )
+            unsupported_nodes = contract.get("unsupported_nodes", [])
+            if isinstance(unsupported_nodes, list) and unsupported_nodes:
+                blocked.append(
+                    {
+                        "template_key": template_key,
+                        "unsupported_count": len(unsupported_nodes),
+                    }
+                )
+
+        if blocked:
+            summary = ", ".join(
+                f"{item['template_key']}({item['unsupported_count']})" for item in blocked
+            )
+            raise ValueError(
+                "Publish blocked: unsupported template nodes detected for "
+                f"{summary}. Save draft is allowed, publish is blocked until support is added."
+            )
+
     async def update_submodel(
         self,
         dpp_id: UUID,
@@ -1077,6 +1389,12 @@ class DPPService:
             raise ValueError("Cannot rebuild an archived DPP")
 
         refreshed_templates, _ = await self._template_service.refresh_all_templates()
+        self._assert_revision_binding_compatibility(
+            revision=current_revision,
+            templates=refreshed_templates,
+            operation="refresh_rebuild",
+            dpp_id=dpp_id,
+        )
         bindings = resolve_submodel_bindings(
             aas_env_json=current_revision.aas_env_json,
             templates=refreshed_templates,
@@ -1358,6 +1676,23 @@ class DPPService:
         latest_revision = await self.get_latest_revision(dpp_id, tenant_id)
         if not latest_revision:
             raise ValueError(f"No revision found for DPP {dpp_id}")
+        has_submodels = (
+            isinstance(latest_revision.aas_env_json, dict)
+            and isinstance(latest_revision.aas_env_json.get("submodels"), list)
+            and len(latest_revision.aas_env_json.get("submodels", [])) > 0
+        )
+        if has_submodels:
+            current_templates = await self._template_service.get_all_templates()
+            self._assert_revision_binding_compatibility(
+                revision=latest_revision,
+                templates=current_templates,
+                operation="publish",
+                dpp_id=dpp_id,
+            )
+            await self._assert_publish_supported_nodes(
+                revision=latest_revision,
+                templates=current_templates,
+            )
 
         # Sign the digest on publish for tamper-evidence
         signed_jws = self._sign_digest(latest_revision.digest_sha256)
@@ -1412,6 +1747,12 @@ class DPPService:
             raise ValueError(
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
             )
+        self._assert_revision_binding_compatibility(
+            revision=current_revision,
+            templates=templates,
+            operation="bulk_rebuild",
+            dpp_id=dpp.id,
+        )
 
         base_env = current_revision.aas_env_json
         applied_autofix = False
@@ -1688,7 +2029,12 @@ class DPPService:
 
         return aas_env
 
-    def extract_asset_ids_from_environment(self, aas_env: dict[str, Any]) -> dict[str, Any]:
+    def extract_asset_ids_from_environment(
+        self,
+        aas_env: dict[str, Any],
+        *,
+        required_specific_asset_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
         """
         Extract asset identifiers from an AAS environment.
 
@@ -1723,8 +2069,13 @@ class DPPService:
                 value = entry.get("value")
                 asset_ids[name] = "" if value is None else str(value)
 
-        if not asset_ids.get("manufacturerPartId"):
-            raise ValueError("manufacturerPartId is required in specificAssetIds")
+        required = self.resolve_required_specific_asset_ids(
+            profile_required_specific_asset_ids=required_specific_asset_ids,
+        )
+        self._validate_required_specific_asset_ids(
+            asset_ids=asset_ids,
+            required_specific_asset_ids=required,
+        )
 
         return asset_ids
 
@@ -1733,11 +2084,22 @@ class DPPService:
         submodel: dict[str, Any],
         templates: list[Template],
     ) -> Template | None:
-        sm_semantic_id = submodel.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
+        normalized_submodel_semantics = set(extract_normalized_semantic_ids(submodel))
+        if not normalized_submodel_semantics:
+            return None
+
+        matches: list[Template] = []
         for template in templates:
-            if template.semantic_id and template.semantic_id in sm_semantic_id:
-                return template
-        return None
+            template_semantic = normalize_semantic_id(template.semantic_id)
+            if template_semantic and template_semantic in normalized_submodel_semantics:
+                matches.append(template)
+
+        if len(matches) > 1:
+            raise ValueError(
+                "Ambiguous template match for submodel semantics: "
+                f"{sorted(normalized_submodel_semantics)}"
+            )
+        return matches[0] if matches else None
 
     def _select_template_submodel(
         self,
@@ -1745,13 +2107,17 @@ class DPPService:
     ) -> dict[str, Any] | None:
         template_submodels = template.template_json.get("submodels", [])
         candidates: list[dict[str, Any]] = []
+        target_semantic = normalize_semantic_id(template.semantic_id)
         for candidate in template_submodels:
-            candidate_semantic_id = (
-                candidate.get("semanticId", {}).get("keys", [{}])[0].get("value", "")
-            )
-            if template.semantic_id in candidate_semantic_id:
+            candidate_semantics = set(extract_normalized_semantic_ids(candidate))
+            if target_semantic and target_semantic in candidate_semantics:
                 candidates.append(candidate)
-        if candidates:
+        if len(candidates) > 1:
+            raise ValueError(
+                f"Ambiguous template payload for '{template.template_key}': multiple semantic "
+                "matches found"
+            )
+        if len(candidates) == 1:
             return candidates[0]
         return template_submodels[0] if template_submodels else None
 

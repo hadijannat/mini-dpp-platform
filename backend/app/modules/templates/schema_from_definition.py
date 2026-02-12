@@ -26,6 +26,8 @@ MIME_TYPE_PATTERN = (
 
 
 class DefinitionToSchemaConverter:
+    _ARBITRARY_COLLECTION_SEMANTIC_ID = "https://admin-shell.io/smt/general/arbitrary"
+
     """Derive JSON schema from the canonical template definition AST."""
 
     def convert(self, definition: dict[str, Any]) -> dict[str, Any]:
@@ -83,6 +85,9 @@ class DefinitionToSchemaConverter:
             }
 
         schema = self._apply_smt(schema, node.get("smt") or {})
+        order = node.get("order")
+        if isinstance(order, int):
+            schema["x-order"] = order
         return self._apply_resolution_hints(schema, node)
 
     def _collection_schema(self, node: dict[str, Any]) -> dict[str, Any]:
@@ -100,7 +105,11 @@ class DefinitionToSchemaConverter:
             schema["properties"][child_key] = self._node_to_schema(child)
             if self._is_required(child):
                 schema["required"].append(child_key)
-        if not schema["properties"] and node.get("semanticId"):
+        if (
+            not schema["properties"]
+            and node.get("semanticId")
+            and not self._is_arbitrary_collection(node)
+        ):
             schema["x-unresolved-definition"] = True
             schema["x-unresolved-reason"] = "collection_children_missing"
         return schema
@@ -111,41 +120,22 @@ class DefinitionToSchemaConverter:
         unresolved_reason: str | None = None
         if isinstance(item, dict):
             items_schema = self._node_to_schema(item)
-            if item.get("modelType") == "SubmodelElementCollection" and not self._sorted_nodes(
-                item.get("children") or []
+            if (
+                item.get("modelType") == "SubmodelElementCollection"
+                and not self._sorted_nodes(item.get("children") or [])
+                and not self._is_arbitrary_collection(item)
             ):
                 items_schema["x-unresolved-definition"] = True
                 items_schema["x-unresolved-reason"] = "list_item_collection_children_missing"
                 unresolved_reason = "list_item_collection_children_missing"
         else:
-            # Synthesize item schema from list's type hints when no sample item exists
-            type_hint = node.get("typeValueListElement")
-            if type_hint == "SubmodelElementCollection":
-                items_schema = {
-                    "type": "object",
-                    "properties": {},
-                    "x-unresolved-definition": True,
-                    "x-unresolved-reason": "list_item_collection_definition_missing",
-                }
-                unresolved_reason = "list_item_collection_definition_missing"
-            elif type_hint in {
-                "Property",
-                "MultiLanguageProperty",
-                "Range",
-                "File",
-                "Blob",
-                "ReferenceElement",
-                "Entity",
-                "RelationshipElement",
-                "AnnotatedRelationshipElement",
-            }:
-                synthetic_node: dict[str, Any] = {
-                    "modelType": type_hint,
-                    "valueType": node.get("valueTypeListElement") or "xs:string",
-                }
-                items_schema = self._node_to_schema(synthetic_node)
-            else:
-                items_schema = {"type": "string"}
+            items_schema = {
+                "type": "object",
+                "properties": {},
+                "x-unresolved-definition": True,
+                "x-unresolved-reason": "list_item_definition_missing",
+            }
+            unresolved_reason = "list_item_definition_missing"
         schema: dict[str, Any] = {
             "type": "array",
             "title": node.get("idShort") or "",
@@ -161,6 +151,10 @@ class DefinitionToSchemaConverter:
         elif cardinality == "ZeroToMany":
             schema["minItems"] = 0
         return schema
+
+    def _is_arbitrary_collection(self, node: dict[str, Any]) -> bool:
+        semantic_id = str(node.get("semanticId") or "").strip().rstrip("/").lower()
+        return semantic_id == self._ARBITRARY_COLLECTION_SEMANTIC_ID
 
     def _property_schema(self, node: dict[str, Any]) -> dict[str, Any]:
         value_type = node.get("valueType") or "xs:string"
@@ -413,8 +407,11 @@ class DefinitionToSchemaConverter:
         return cardinality in {"One", "OneToMany"}
 
     def _sorted_nodes(self, nodes: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-        def key(node: dict[str, Any]) -> tuple[str, str, str]:
+        def key(node: dict[str, Any]) -> tuple[int, str, str, str]:
+            order = node.get("order")
+            sort_order = order if isinstance(order, int) else 2**31 - 1
             return (
+                sort_order,
                 str(node.get("idShort") or ""),
                 str(node.get("path") or ""),
                 str(node.get("modelType") or ""),
