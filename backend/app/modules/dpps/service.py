@@ -192,9 +192,7 @@ class DPPService:
         required_specific_asset_ids: list[str],
     ) -> None:
         missing = [
-            key
-            for key in required_specific_asset_ids
-            if str(asset_ids.get(key, "")).strip() == ""
+            key for key in required_specific_asset_ids if str(asset_ids.get(key, "")).strip() == ""
         ]
         if missing:
             joined = ", ".join(missing)
@@ -975,9 +973,7 @@ class DPPService:
         except Exception:
             asset_ids = {}
 
-        missing_required = [
-            key for key in required if str(asset_ids.get(key, "")).strip() == ""
-        ]
+        missing_required = [key for key in required if str(asset_ids.get(key, "")).strip() == ""]
 
         publish_blockers: list[str] = []
         try:

@@ -68,7 +68,9 @@ class TemplateDefinitionBuilder:
 
     def _submodel_definition(self, submodel: model.Submodel) -> dict[str, Any]:
         qualifiers = self._qualifiers_to_dicts(submodel)
-        elements = self._ordered_elements(iterable_attr(submodel, "submodel_element", "submodel_elements"))
+        elements = self._ordered_elements(
+            iterable_attr(submodel, "submodel_element", "submodel_elements")
+        )
         node = {
             "id": submodel.id,
             "idShort": submodel.id_short,
@@ -155,7 +157,9 @@ class TemplateDefinitionBuilder:
             # Must check before RelationshipElement (subclass of it)
             node["first"] = reference_to_str(getattr(element, "first", None))
             node["second"] = reference_to_str(getattr(element, "second", None))
-            annotations = self._ordered_elements(iterable_attr(element, "annotation", "annotations"))
+            annotations = self._ordered_elements(
+                iterable_attr(element, "annotation", "annotations")
+            )
             annotation_path = f"{path}/annotations" if path else "annotations"
             node["annotations"] = [
                 self._element_definition(child, parent_path=annotation_path, order=index)

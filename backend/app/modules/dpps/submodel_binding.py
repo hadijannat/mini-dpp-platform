@@ -41,6 +41,7 @@ class ResolvedSubmodelBinding:
     support_status: str | None
     refresh_enabled: bool | None
 
+
 def extract_semantic_id(item: dict[str, Any]) -> str | None:
     values = extract_semantic_ids(item)
     return values[0] if values else None

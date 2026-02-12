@@ -187,9 +187,12 @@ class TemplateRegistryService:
         version = await self._resolve_template_version(descriptor)
 
         # Resolve source URLs based on IDTA repo structure
-        json_asset, aasx_asset, json_candidates, aasx_candidates = await self._resolve_template_assets(
-            descriptor, version
-        )
+        (
+            json_asset,
+            aasx_asset,
+            json_candidates,
+            aasx_candidates,
+        ) = await self._resolve_template_assets(descriptor, version)
         json_url = cast(str | None, json_asset.get("download_url")) if json_asset else None
         aasx_url = cast(str | None, aasx_asset.get("download_url")) if aasx_asset else None
 
@@ -939,29 +942,64 @@ class TemplateRegistryService:
                     error=str(exc),
                 )
 
-        if len(matches) > 1:
-            names = sorted(str(match.asset.get("name", "")) for match in matches if match.asset)
-            raise TemplateFetchError(
-                template_key,
-                version,
-                f"Ambiguous {file_kind} candidates: multiple files match semantic ID ({names}).",
-            )
-        if len(matches) == 1:
-            return matches[0]
+        selected_match = self._select_ranked_candidate_resolution(
+            matches,
+            descriptor=descriptor,
+            version=version,
+            file_kind=file_kind,
+        )
+        if selected_match is not None:
+            return selected_match
 
-        if len(parseable_fallbacks) == 1:
-            return parseable_fallbacks[0]
-        if len(parseable_fallbacks) > 1:
-            names = sorted(
-                str(match.asset.get("name", "")) for match in parseable_fallbacks if match.asset
-            )
-            raise TemplateFetchError(
-                template_key,
-                version,
-                "No semantic match found and multiple parseable candidates exist "
-                f"for {file_kind}: {names}",
-            )
+        selected_fallback = self._select_ranked_candidate_resolution(
+            parseable_fallbacks,
+            descriptor=descriptor,
+            version=version,
+            file_kind=file_kind,
+        )
+        if selected_fallback is not None:
+            selected_fallback.selection_strategy = "fallback_filename_unique"
+            return selected_fallback
         return None
+
+    def _select_ranked_candidate_resolution(
+        self,
+        candidates: list[TemplateCandidateResolution],
+        *,
+        descriptor: TemplateDescriptor,
+        version: str,
+        file_kind: Literal["json", "aasx"],
+    ) -> TemplateCandidateResolution | None:
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+
+        expected_name = self._expected_template_filename(descriptor, version, file_kind).lower()
+        exact_name_matches = [
+            candidate
+            for candidate in candidates
+            if str((candidate.asset or {}).get("name", "")).strip().lower() == expected_name
+        ]
+        if len(exact_name_matches) == 1:
+            return exact_name_matches[0]
+
+        non_metamodel = [
+            candidate
+            for candidate in candidates
+            if "foraasmetamodel" not in str((candidate.asset or {}).get("name", "")).strip().lower()
+        ]
+        if len(non_metamodel) == 1:
+            return non_metamodel[0]
+
+        names = sorted(
+            str(candidate.asset.get("name", "")) for candidate in candidates if candidate.asset
+        )
+        raise TemplateFetchError(
+            descriptor.key,
+            version,
+            f"Ambiguous {file_kind} candidates: multiple files match semantic ID ({names}).",
+        )
 
     async def _resolve_direct_url_candidate(
         self,
@@ -1269,9 +1307,7 @@ class TemplateRegistryService:
         schema: dict[str, Any],
     ) -> list[dict[str, Any]]:
         unsupported_model_types = {"Blob", "Operation", "Capability", "BasicEventElement"}
-        root_id_short = (
-            str((definition.get("submodel") or {}).get("idShort") or "").strip() or None
-        )
+        root_id_short = str((definition.get("submodel") or {}).get("idShort") or "").strip() or None
         unsupported: list[dict[str, Any]] = []
         seen: set[tuple[str | None, str | None, str]] = set()
 
