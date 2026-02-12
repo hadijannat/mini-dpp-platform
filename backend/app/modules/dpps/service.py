@@ -220,7 +220,9 @@ class DPPService:
             DATA_CARRIER_PUBLISH_GATE_ENABLED_KEY,
             default=default_flag,
         )
-        stored_profile = await settings_service.get_setting_json(DATA_CARRIER_COMPLIANCE_PROFILE_KEY)
+        stored_profile = await settings_service.get_setting_json(
+            DATA_CARRIER_COMPLIANCE_PROFILE_KEY
+        )
         profile = parse_data_carrier_compliance_profile(stored_profile)
         return gate_enabled, profile
 
@@ -254,7 +256,10 @@ class DPPService:
 
         for carrier in carriers:
             status_value = carrier.status.value
-            if profile.publish_require_active_carrier and carrier.status != DataCarrierStatus.ACTIVE:
+            if (
+                profile.publish_require_active_carrier
+                and carrier.status != DataCarrierStatus.ACTIVE
+            ):
                 continue
             if status_value not in allowed_statuses:
                 continue
@@ -264,10 +269,7 @@ class DPPService:
                 continue
             if carrier.identifier_scheme.value not in allowed_schemes:
                 continue
-            if (
-                profile.publish_require_pre_sale_enabled
-                and not carrier.pre_sale_enabled
-            ):
+            if profile.publish_require_pre_sale_enabled and not carrier.pre_sale_enabled:
                 continue
             if (
                 profile.enforce_gtin_verified

@@ -69,7 +69,9 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column(
             "identity_level",
             postgresql.ENUM(
@@ -135,7 +137,9 @@ def upgrade() -> None:
         sa.Column("layout_profile", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("placement_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("pre_sale_enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
-        sa.Column("is_gtin_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column(
+            "is_gtin_verified", sa.Boolean(), nullable=False, server_default=sa.text("false")
+        ),
         sa.Column(
             "replaced_by_carrier_id",
             sa.UUID(),
@@ -144,7 +148,9 @@ def upgrade() -> None:
         ),
         sa.Column("withdrawn_reason", sa.Text(), nullable=True),
         sa.Column("created_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -204,7 +210,9 @@ def upgrade() -> None:
         ),
         sa.Column("storage_uri", sa.Text(), nullable=False),
         sa.Column("sha256", sa.String(length=64), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

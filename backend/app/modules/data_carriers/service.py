@@ -11,6 +11,7 @@ from urllib.parse import quote, urlparse
 from uuid import UUID
 
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -143,7 +144,9 @@ class DataCarrierService:
         limit: int = 100,
         offset: int = 0,
     ) -> list[DataCarrier]:
-        stmt: Select[tuple[DataCarrier]] = select(DataCarrier).where(DataCarrier.tenant_id == tenant_id)
+        stmt: Select[tuple[DataCarrier]] = select(DataCarrier).where(
+            DataCarrier.tenant_id == tenant_id
+        )
         if dpp_id is not None:
             stmt = stmt.where(DataCarrier.dpp_id == dpp_id)
         if status is not None:
@@ -191,10 +194,10 @@ class DataCarrierService:
                 and request.resolver_strategy.value
                 != DataCarrierResolverStrategy.DYNAMIC_LINKSET.value
             ):
-                raise DataCarrierError(
-                    "GS1 carriers require resolver_strategy='dynamic_linkset'"
-                )
-            carrier.resolver_strategy = DataCarrierResolverStrategyDB(request.resolver_strategy.value)
+                raise DataCarrierError("GS1 carriers require resolver_strategy='dynamic_linkset'")
+            carrier.resolver_strategy = DataCarrierResolverStrategyDB(
+                request.resolver_strategy.value
+            )
         if request.layout_profile is not None:
             carrier.layout_profile = request.layout_profile.model_dump(exclude_none=True)
         if request.placement_metadata is not None:
@@ -428,7 +431,9 @@ class DataCarrierService:
         if carrier is None:
             raise DataCarrierError("Carrier not found")
 
-        consumer_url = self._qr.build_dpp_url(str(carrier.dpp_id), tenant_slug=tenant_slug, short_link=False)
+        consumer_url = self._qr.build_dpp_url(
+            str(carrier.dpp_id), tenant_slug=tenant_slug, short_link=False
+        )
         widget_html = (
             '<div class="dpp-widget">'
             f'<a href="{consumer_url}" target="_blank" rel="noopener noreferrer">'
@@ -520,10 +525,10 @@ class DataCarrierService:
     ) -> tuple[str, str, dict[str, str], bool]:
         if identifier_scheme == DataCarrierIdentifierScheme.GS1_GTIN:
             if resolver_strategy != DataCarrierResolverStrategy.DYNAMIC_LINKSET:
-                raise DataCarrierError(
-                    "GS1 carriers require resolver_strategy='dynamic_linkset'"
-                )
-            return self._build_gs1_identifier(identity_level=identity_level, identifier_data=identifier_data)
+                raise DataCarrierError("GS1 carriers require resolver_strategy='dynamic_linkset'")
+            return self._build_gs1_identifier(
+                identity_level=identity_level, identifier_data=identifier_data
+            )
 
         if identifier_scheme == DataCarrierIdentifierScheme.IEC61406:
             return self._build_iec61406_identifier(
@@ -590,7 +595,9 @@ class DataCarrierService:
             identifier_data.manufacturer_part_id
             or str((dpp.asset_ids or {}).get("manufacturerPartId", ""))
         ).strip()
-        serial = (identifier_data.serial or str((dpp.asset_ids or {}).get("serialNumber", ""))).strip()
+        serial = (
+            identifier_data.serial or str((dpp.asset_ids or {}).get("serialNumber", ""))
+        ).strip()
         batch = (identifier_data.batch or "").strip()
 
         if not manufacturer_part_id:
@@ -746,7 +753,9 @@ class DataCarrierService:
             recall.active = False
             recall.dpp_id = dpp.id
 
-    async def _deactivate_managed_links_for_carrier(self, carrier_id: UUID, tenant_id: UUID) -> None:
+    async def _deactivate_managed_links_for_carrier(
+        self, carrier_id: UUID, tenant_id: UUID
+    ) -> None:
         result = await self._session.execute(
             select(ResolverLink).where(
                 ResolverLink.tenant_id == tenant_id,
@@ -781,6 +790,21 @@ class DataCarrierService:
             existing.source_data_carrier_id = carrier_id
             return existing
 
+        # Reuse an existing link for the same canonical identifier tuple when present.
+        # This avoids creating duplicate rows during reissue/identifier hand-off flows.
+        result = await self._session.execute(
+            select(ResolverLink).where(
+                ResolverLink.tenant_id == tenant_id,
+                ResolverLink.identifier == identifier,
+                ResolverLink.link_type == link_type,
+            )
+        )
+        existing_for_identifier = result.scalar_one_or_none()
+        if existing_for_identifier is not None:
+            existing_for_identifier.managed_by_system = True
+            existing_for_identifier.source_data_carrier_id = carrier_id
+            return existing_for_identifier
+
         link = ResolverLink(
             tenant_id=tenant_id,
             identifier=identifier,
@@ -796,6 +820,23 @@ class DataCarrierService:
             source_data_carrier_id=carrier_id,
             created_by_subject=created_by,
         )
-        self._session.add(link)
-        await self._session.flush()
-        return link
+        try:
+            # Savepoint protects outer transaction from concurrent insert conflicts.
+            async with self._session.begin_nested():
+                self._session.add(link)
+                await self._session.flush()
+            return link
+        except IntegrityError:
+            result = await self._session.execute(
+                select(ResolverLink).where(
+                    ResolverLink.tenant_id == tenant_id,
+                    ResolverLink.identifier == identifier,
+                    ResolverLink.link_type == link_type,
+                )
+            )
+            recovered = result.scalar_one_or_none()
+            if recovered is None:
+                raise
+            recovered.managed_by_system = True
+            recovered.source_data_carrier_id = carrier_id
+            return recovered

@@ -81,4 +81,3 @@ def parse_data_carrier_compliance_profile(
         return DataCarrierComplianceProfile.model_validate(raw)
     except Exception:
         return default_data_carrier_compliance_profile()
-

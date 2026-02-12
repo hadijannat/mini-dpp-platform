@@ -29,4 +29,3 @@ async def test_get_setting_json_parses_dict_only() -> None:
     assert await service.get_setting_json("k2") is None
     assert await service.get_setting_json("k3") is None
     assert await service.get_setting_json("k4") is None
-

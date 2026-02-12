@@ -47,11 +47,14 @@ async def test_gate_blocks_when_enabled_and_no_carriers() -> None:
     result.scalars.return_value.all.return_value = []
     session.execute = AsyncMock(return_value=result)
 
-    with patch.object(
-        service,
-        "_load_data_carrier_publish_gate",
-        AsyncMock(return_value=(True, DataCarrierComplianceProfile())),
-    ), pytest.raises(ValueError, match="requires at least one managed carrier"):
+    with (
+        patch.object(
+            service,
+            "_load_data_carrier_publish_gate",
+            AsyncMock(return_value=(True, DataCarrierComplianceProfile())),
+        ),
+        pytest.raises(ValueError, match="requires at least one managed carrier"),
+    ):
         await service._assert_data_carrier_publish_gate(dpp_id=dpp_id, tenant_id=tenant_id)
 
 
@@ -96,10 +99,12 @@ async def test_gate_blocks_when_only_withdrawn_carriers_exist() -> None:
     ]
     session.execute = AsyncMock(return_value=result)
 
-    with patch.object(
-        service,
-        "_load_data_carrier_publish_gate",
-        AsyncMock(return_value=(True, DataCarrierComplianceProfile())),
-    ), pytest.raises(ValueError, match="no data carrier satisfies"):
+    with (
+        patch.object(
+            service,
+            "_load_data_carrier_publish_gate",
+            AsyncMock(return_value=(True, DataCarrierComplianceProfile())),
+        ),
+        pytest.raises(ValueError, match="no data carrier satisfies"),
+    ):
         await service._assert_data_carrier_publish_gate(dpp_id=dpp_id, tenant_id=tenant_id)
-

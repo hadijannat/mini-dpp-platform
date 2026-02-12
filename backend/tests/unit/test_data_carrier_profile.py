@@ -35,4 +35,3 @@ def test_profile_dedupes_list_values() -> None:
         "direct_url",
     ]
     assert [item.value for item in profile.publish_allowed_statuses] == ["active"]
-

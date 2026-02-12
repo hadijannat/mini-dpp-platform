@@ -103,6 +103,7 @@ describe('DataCarriersPage', () => {
       </MemoryRouter>,
     );
 
+    await screen.findByRole('option', { name: /PART-1 - SER-1/i });
     const select = await screen.findByLabelText('Select Published DPP');
     fireEvent.change(select, { target: { value: 'dpp-1' } });
 
@@ -119,14 +120,20 @@ describe('DataCarriersPage', () => {
 
     fireEvent.click(screen.getByText('Next')); // Resolver
 
+    await waitFor(() => {
+      expect((screen.getByText('Create Managed Carrier') as HTMLButtonElement).disabled).toBe(false);
+    });
     fireEvent.click(screen.getByText('Create Managed Carrier'));
 
     await waitFor(() => {
-      expect(mockTenantApiFetch).toHaveBeenCalledWith(
-        '/data-carriers',
-        expect.objectContaining({ method: 'POST' }),
-        'fake-token',
-      );
+      expect(
+        mockTenantApiFetch.mock.calls.some(
+          ([path, options, token]) =>
+            path === '/data-carriers' &&
+            (options as RequestInit | undefined)?.method === 'POST' &&
+            token === 'fake-token',
+        ),
+      ).toBe(true);
     });
 
     expect(await screen.findByText('Active carrier')).toBeTruthy();

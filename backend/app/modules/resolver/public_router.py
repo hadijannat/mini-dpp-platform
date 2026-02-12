@@ -128,11 +128,7 @@ async def _resolve(
         )
     settings = get_settings()
     raw_allowlist = getattr(settings, "carrier_resolver_allowed_hosts_all", [])
-    allowed_hosts = (
-        list(raw_allowlist)
-        if isinstance(raw_allowlist, (list, tuple, set))
-        else []
-    )
+    allowed_hosts = list(raw_allowlist) if isinstance(raw_allowlist, (list, tuple, set)) else []
     if (
         getattr(redirect_link, "managed_by_system", False)
         and allowed_hosts

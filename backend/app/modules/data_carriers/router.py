@@ -96,6 +96,19 @@ async def _require_dpp_update_access(db: DbSession, tenant: TenantPublisher, dpp
     )
 
 
+async def _can_read_dpp(db: DbSession, tenant: TenantPublisher, dpp_id: UUID) -> bool:
+    try:
+        await _require_dpp_read_access(db, tenant, dpp_id)
+    except HTTPException as exc:
+        if exc.status_code in {
+            status.HTTP_403_FORBIDDEN,
+            status.HTTP_404_NOT_FOUND,
+        }:
+            return False
+        raise
+    return True
+
+
 @router.post("", response_model=DataCarrierResponse, status_code=status.HTTP_201_CREATED)
 async def create_data_carrier(
     body: DataCarrierCreateRequest,
@@ -112,7 +125,9 @@ async def create_data_carrier(
             request=body,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(carrier)
     return _carrier_to_response(carrier)
@@ -142,7 +157,22 @@ async def list_data_carriers(
         limit=limit,
         offset=offset,
     )
-    return DataCarrierListResponse(items=[_carrier_to_response(item) for item in items], count=len(items))
+
+    if dpp_id is None:
+        read_access_cache: dict[UUID, bool] = {}
+        filtered: list[DataCarrier] = []
+        for item in items:
+            can_read = read_access_cache.get(item.dpp_id)
+            if can_read is None:
+                can_read = await _can_read_dpp(db, tenant, item.dpp_id)
+                read_access_cache[item.dpp_id] = can_read
+            if can_read:
+                filtered.append(item)
+        items = filtered
+
+    return DataCarrierListResponse(
+        items=[_carrier_to_response(item) for item in items], count=len(items)
+    )
 
 
 @router.get("/{carrier_id:uuid}", response_model=DataCarrierResponse)
@@ -180,7 +210,9 @@ async def update_data_carrier(
             updated_by=tenant.user.sub,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(carrier)
     return _carrier_to_response(carrier)
@@ -205,7 +237,9 @@ async def render_data_carrier(
             request=body,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     return Response(
         content=rendered.payload,
@@ -239,7 +273,9 @@ async def deprecate_data_carrier(
             updated_by=tenant.user.sub,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(carrier)
     return _carrier_to_response(carrier)
@@ -266,7 +302,9 @@ async def withdraw_data_carrier(
             updated_by=tenant.user.sub,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(carrier)
     return _carrier_to_response(carrier)
@@ -293,7 +331,9 @@ async def reissue_data_carrier(
             updated_by=tenant.user.sub,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(carrier)
     return _carrier_to_response(carrier)
@@ -317,7 +357,9 @@ async def get_pre_sale_pack(
             tenant_slug=tenant.tenant_slug,
         )
     except DataCarrierError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
 
 @router.get("/registry-export", response_model=DataCarrierRegistryExportResponse)
@@ -328,6 +370,18 @@ async def export_registry(
 ) -> DataCarrierRegistryExportResponse | Response:
     service = DataCarrierService(db)
     payload = await service.export_registry_payload(tenant_id=tenant.tenant_id)
+
+    read_access_cache: dict[UUID, bool] = {}
+    filtered_items = []
+    for item in payload.items:
+        can_read = read_access_cache.get(item.dpp_id)
+        if can_read is None:
+            can_read = await _can_read_dpp(db, tenant, item.dpp_id)
+            read_access_cache[item.dpp_id] = can_read
+        if can_read:
+            filtered_items.append(item)
+    payload = DataCarrierRegistryExportResponse(items=filtered_items, count=len(filtered_items))
+
     if format == RegistryExportFormat.CSV:
         csv_content = service.registry_payload_to_csv(payload)
         return Response(

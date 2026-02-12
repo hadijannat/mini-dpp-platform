@@ -49,7 +49,9 @@ class TestGS1IdentityValidation:
                 identifier_data=DataCarrierIdentifierData(gtin="10614141000410", serial="SN1"),
             )
 
-    def test_valid_item_level_identifier_builds_expected_key(self, service: DataCarrierService) -> None:
+    def test_valid_item_level_identifier_builds_expected_key(
+        self, service: DataCarrierService
+    ) -> None:
         key, uri, data, verified = service._build_gs1_identifier(
             identity_level=DataCarrierIdentityLevel.ITEM,
             identifier_data=DataCarrierIdentifierData(gtin="10614141000415", serial="SN1"),
