@@ -1020,64 +1020,25 @@ class DPPService:
                 "issues": [{"code": "invalid_aas_environment", "detail": "submodels_not_list"}],
             }
 
-        semantic_to_templates: dict[str, set[str]] = {}
-        for template in templates:
-            normalized = normalize_semantic_id(getattr(template, "semantic_id", None))
-            if not normalized:
-                continue
-            semantic_to_templates.setdefault(normalized, set()).add(template.template_key)
-
         issues: list[dict[str, Any]] = []
-        for submodel in submodels:
-            if not isinstance(submodel, dict):
-                continue
-            submodel_id = str(submodel.get("id", "")).strip() or None
-            id_short = str(submodel.get("idShort", "")).strip() or None
-            normalized_semantics = extract_normalized_semantic_ids(submodel)
-            if not normalized_semantics:
-                issues.append(
-                    {
-                        "code": "missing_semantic_id",
-                        "submodel_id": submodel_id,
-                        "id_short": id_short,
-                    }
-                )
-                continue
-
-            matched_templates = sorted(
-                {
-                    template_key
-                    for semantic in normalized_semantics
-                    for template_key in semantic_to_templates.get(semantic, set())
-                }
-            )
-            if len(matched_templates) == 0:
-                issues.append(
-                    {
-                        "code": "unmatched_semantic_id",
-                        "submodel_id": submodel_id,
-                        "id_short": id_short,
-                        "semantic_ids": normalized_semantics,
-                    }
-                )
-            elif len(matched_templates) > 1:
-                issues.append(
-                    {
-                        "code": "ambiguous_semantic_id",
-                        "submodel_id": submodel_id,
-                        "id_short": id_short,
-                        "semantic_ids": normalized_semantics,
-                        "candidate_templates": matched_templates,
-                    }
-                )
-
         bindings = resolve_submodel_bindings(
             aas_env_json=aas_env,
             templates=templates,
             template_provenance=revision.template_provenance or {},
         )
+        strict_sources = {"semantic_exact", "semantic_alias", "provenance", "submodel_id"}
         for binding in bindings:
-            if binding.binding_source == "semantic_exact":
+            if binding.template_key is None:
+                issues.append(
+                    {
+                        "code": "unresolved_binding",
+                        "submodel_id": binding.submodel_id,
+                        "id_short": binding.id_short,
+                        "binding_source": binding.binding_source,
+                    }
+                )
+                continue
+            if binding.binding_source in strict_sources:
                 continue
             issues.append(
                 {
