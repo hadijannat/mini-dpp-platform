@@ -3,7 +3,7 @@
   "idta_version": "2.0.1",
   "semantic_id": "0173-1#01-AHF578#003",
   "expected": {
-    "definition_sha256": "4d5981db228f2d6972077123f5f6cfc8a555ddec3067b13e53c38380f8e7315f",
-    "schema_sha256": "2094356460b06cddf432459d045eeb8f8c5e891abf2c33603a4e59e1529c8dd7"
+    "definition_sha256": "68f0c30fd9e3e30b4c20560f4a19907ba9509d83df8832b543cf36faf108fd89",
+    "schema_sha256": "d3623ee55123281a02e46443480e21e1d5f0ac3bf7c27f72f169a2f65a26c4af"
   }
 }

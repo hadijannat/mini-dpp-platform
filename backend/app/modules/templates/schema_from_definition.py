@@ -26,6 +26,8 @@ MIME_TYPE_PATTERN = (
 
 
 class DefinitionToSchemaConverter:
+    _ARBITRARY_COLLECTION_SEMANTIC_ID = "https://admin-shell.io/smt/general/arbitrary"
+
     """Derive JSON schema from the canonical template definition AST."""
 
     def convert(self, definition: dict[str, Any]) -> dict[str, Any]:
@@ -103,7 +105,11 @@ class DefinitionToSchemaConverter:
             schema["properties"][child_key] = self._node_to_schema(child)
             if self._is_required(child):
                 schema["required"].append(child_key)
-        if not schema["properties"] and node.get("semanticId"):
+        if (
+            not schema["properties"]
+            and node.get("semanticId")
+            and not self._is_arbitrary_collection(node)
+        ):
             schema["x-unresolved-definition"] = True
             schema["x-unresolved-reason"] = "collection_children_missing"
         return schema
@@ -114,8 +120,10 @@ class DefinitionToSchemaConverter:
         unresolved_reason: str | None = None
         if isinstance(item, dict):
             items_schema = self._node_to_schema(item)
-            if item.get("modelType") == "SubmodelElementCollection" and not self._sorted_nodes(
-                item.get("children") or []
+            if (
+                item.get("modelType") == "SubmodelElementCollection"
+                and not self._sorted_nodes(item.get("children") or [])
+                and not self._is_arbitrary_collection(item)
             ):
                 items_schema["x-unresolved-definition"] = True
                 items_schema["x-unresolved-reason"] = "list_item_collection_children_missing"
@@ -143,6 +151,10 @@ class DefinitionToSchemaConverter:
         elif cardinality == "ZeroToMany":
             schema["minItems"] = 0
         return schema
+
+    def _is_arbitrary_collection(self, node: dict[str, Any]) -> bool:
+        semantic_id = str(node.get("semanticId") or "").strip().rstrip("/").lower()
+        return semantic_id == self._ARBITRARY_COLLECTION_SEMANTIC_ID
 
     def _property_schema(self, node: dict[str, Any]) -> dict[str, Any]:
         value_type = node.get("valueType") or "xs:string"
