@@ -68,9 +68,7 @@ class TemplateDefinitionBuilder:
 
     def _submodel_definition(self, submodel: model.Submodel) -> dict[str, Any]:
         qualifiers = self._qualifiers_to_dicts(submodel)
-        elements = self._sorted_elements(
-            iterable_attr(submodel, "submodel_element", "submodel_elements")
-        )
+        elements = self._ordered_elements(iterable_attr(submodel, "submodel_element", "submodel_elements"))
         node = {
             "id": submodel.id,
             "idShort": submodel.id_short,
@@ -81,8 +79,8 @@ class TemplateDefinitionBuilder:
             "qualifiers": qualifiers,
             "smt": asdict(parse_smt_qualifiers(qualifiers)),
             "elements": [
-                self._element_definition(element, parent_path=submodel.id_short)
-                for element in elements
+                self._element_definition(element, parent_path=submodel.id_short, order=index)
+                for index, element in enumerate(elements)
             ],
         }
         supplemental_ids = self._supplemental_semantic_ids(submodel)
@@ -94,6 +92,7 @@ class TemplateDefinitionBuilder:
         self,
         element: model.SubmodelElement,
         parent_path: str,
+        order: int | None = None,
     ) -> dict[str, Any]:
         model_type = element.__class__.__name__
         raw_id_short = getattr(element, "id_short", None)
@@ -114,6 +113,8 @@ class TemplateDefinitionBuilder:
             "qualifiers": qualifiers,
             "smt": asdict(parse_smt_qualifiers(qualifiers)),
         }
+        if order is not None:
+            node["order"] = order
 
         supplemental_ids = self._supplemental_semantic_ids(element)
         if supplemental_ids:
@@ -128,11 +129,12 @@ class TemplateDefinitionBuilder:
         elif isinstance(element, (model.File, model.Blob)):
             node["contentType"] = element.content_type
         elif isinstance(element, model.SubmodelElementCollection):
-            children = self._sorted_elements(
+            children = self._ordered_elements(
                 iterable_attr(element, "value", "submodel_element", "submodel_elements")
             )
             node["children"] = [
-                self._element_definition(child, parent_path=path) for child in children
+                self._element_definition(child, parent_path=path, order=index)
+                for index, child in enumerate(children)
             ]
         elif isinstance(element, model.SubmodelElementList):
             node["orderRelevant"] = element.order_relevant
@@ -141,10 +143,11 @@ class TemplateDefinitionBuilder:
             node["items"] = self._list_item_definition(element, path)
         elif isinstance(element, model.Entity):
             node["entityType"] = enum_to_str(element.entity_type)
-            statements = self._sorted_elements(iterable_attr(element, "statement", "statements"))
+            statements = self._ordered_elements(iterable_attr(element, "statement", "statements"))
             statement_path = f"{path}/statements" if path else "statements"
             node["statements"] = [
-                self._element_definition(child, parent_path=statement_path) for child in statements
+                self._element_definition(child, parent_path=statement_path, order=index)
+                for index, child in enumerate(statements)
             ]
         elif isinstance(element, model.ReferenceElement):
             node["valueType"] = "reference"
@@ -152,11 +155,11 @@ class TemplateDefinitionBuilder:
             # Must check before RelationshipElement (subclass of it)
             node["first"] = reference_to_str(getattr(element, "first", None))
             node["second"] = reference_to_str(getattr(element, "second", None))
-            annotations = self._sorted_elements(iterable_attr(element, "annotation", "annotations"))
+            annotations = self._ordered_elements(iterable_attr(element, "annotation", "annotations"))
             annotation_path = f"{path}/annotations" if path else "annotations"
             node["annotations"] = [
-                self._element_definition(child, parent_path=annotation_path)
-                for child in annotations
+                self._element_definition(child, parent_path=annotation_path, order=index)
+                for index, child in enumerate(annotations)
             ]
         elif isinstance(element, model.RelationshipElement):
             node["first"] = reference_to_str(getattr(element, "first", None))
@@ -167,8 +170,8 @@ class TemplateDefinitionBuilder:
                 if variables:
                     var_path = f"{path}/{var_kind}" if path else var_kind
                     node[var_kind] = [
-                        self._element_definition(v, parent_path=var_path)
-                        for v in self._sorted_elements(variables)
+                        self._element_definition(v, parent_path=var_path, order=index)
+                        for index, v in enumerate(self._ordered_elements(variables))
                     ]
         elif isinstance(element, model.Capability):
             pass  # Capability has no additional structural fields
@@ -184,14 +187,17 @@ class TemplateDefinitionBuilder:
         return node
 
     def _list_item_definition(self, element: Any, parent_path: str) -> dict[str, Any] | None:
-        items = iterable_attr(element, "value", "submodel_element", "submodel_elements")
+        items = self._ordered_elements(
+            iterable_attr(element, "value", "submodel_element", "submodel_elements")
+        )
         if items:
-            return self._element_definition(items[0], parent_path=f"{parent_path}[]")
+            return self._element_definition(items[0], parent_path=f"{parent_path}[]", order=0)
         if element.type_value_list_element:
             return {
                 "path": f"{parent_path}[]",
                 "modelType": enum_to_str(element.type_value_list_element),
                 "valueType": enum_to_str(element.value_type_list_element),
+                "order": 0,
             }
         return None
 
@@ -280,16 +286,8 @@ class TemplateDefinitionBuilder:
             "semanticId": reference_to_dict(getattr(qualifier, "semantic_id", None)),
         }
 
-    def _sorted_elements(self, elements: Any) -> list[Any]:
-        sequence = list(elements or [])
-        sequence.sort(
-            key=lambda element: (
-                str(getattr(element, "id_short", "") or ""),
-                element.__class__.__name__,
-                reference_to_str(getattr(element, "semantic_id", None)) or "",
-            )
-        )
-        return sequence
+    def _ordered_elements(self, elements: Any) -> list[Any]:
+        return list(elements or [])
 
     def _supplemental_semantic_ids(self, referable: Any) -> list[str]:
         refs = iterable_attr(referable, "supplemental_semantic_id", "supplemental_semantic_ids")

@@ -47,6 +47,14 @@ export function ListField({
   const allowedIdShort = schema?.['x-allowed-id-short'] ?? [];
   const editIdShort = schema?.['x-edit-id-short'] ?? false;
   const namingRule = schema?.['x-naming'];
+  const listUnsupported =
+    !itemDefinition ||
+    Boolean(schema?.['x-unresolved-definition']) ||
+    Boolean(itemsSchema?.['x-unresolved-definition']);
+  const unsupportedReason =
+    schema?.['x-unresolved-reason'] ??
+    itemsSchema?.['x-unresolved-reason'] ??
+    'missing list item definition';
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -74,7 +82,9 @@ export function ListField({
                 type="button"
                 className="text-sm text-primary hover:text-primary/80 disabled:cursor-not-allowed disabled:text-muted-foreground"
                 aria-label={`Add item to ${label}`}
-                disabled={allowedIdShort.length > 0 && list.length >= allowedIdShort.length}
+                disabled={
+                  listUnsupported || (allowedIdShort.length > 0 && list.length >= allowedIdShort.length)
+                }
                 onClick={() => {
                   const nextItem = defaultValueForSchema(itemsSchema);
                   const suggestedIdShort = allowedIdShort[list.length];
@@ -93,6 +103,11 @@ export function ListField({
                 Add item
               </button>
             </div>
+            {listUnsupported && (
+              <p className="mb-2 text-xs text-amber-700">
+                Unsupported list rendering: {unsupportedReason}.
+              </p>
+            )}
             {(allowedIdShort.length > 0 || namingRule) && (
               <p className="mb-2 text-xs text-muted-foreground">
                 {allowedIdShort.length > 0 && (
@@ -132,6 +147,8 @@ export function ListField({
                   field.onChange(next);
                 }}
                 orderRelevant={orderRelevant}
+                listUnsupported={listUnsupported}
+                unsupportedReason={unsupportedReason}
               />
             ) : (
               <div className="space-y-3">
@@ -159,6 +176,8 @@ export function ListField({
                     }}
                     listLength={list.length}
                     orderRelevant={orderRelevant}
+                    listUnsupported={listUnsupported}
+                    unsupportedReason={unsupportedReason}
                   />
                 ))}
               </div>
@@ -183,6 +202,8 @@ function ListItem({
   onMove,
   orderRelevant,
   listLength,
+  listUnsupported,
+  unsupportedReason,
 }: {
   name: string;
   index: number;
@@ -196,6 +217,8 @@ function ListItem({
   onMove: (toIndex: number) => void;
   orderRelevant: boolean;
   listLength: number;
+  listUnsupported: boolean;
+  unsupportedReason: string;
 }) {
   const itemPath = `${name}.${index}`;
   return (
@@ -233,7 +256,11 @@ function ListItem({
         </button>
       </div>
       <div className="mt-2">
-        {itemDefinition
+        {listUnsupported ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+            Unsupported list item renderer: {unsupportedReason}.
+          </p>
+        ) : itemDefinition
           ? renderNode({
               node: itemDefinition,
               basePath: itemPath,
@@ -242,14 +269,7 @@ function ListItem({
               control,
               editorContext,
             })
-          : renderNode({
-              node: { modelType: 'Property', idShort: `Item ${index + 1}` },
-              basePath: itemPath,
-              depth: depth + 1,
-              schema: itemsSchema ?? { type: 'string' },
-              control,
-              editorContext,
-            })}
+          : null}
       </div>
     </div>
   );
@@ -268,6 +288,8 @@ function VirtualizedList({
   onRemove,
   onMove,
   orderRelevant,
+  listUnsupported,
+  unsupportedReason,
 }: {
   list: unknown[];
   name: string;
@@ -281,6 +303,8 @@ function VirtualizedList({
   onRemove: (index: number) => void;
   onMove: (fromIndex: number, toIndex: number) => void;
   orderRelevant: boolean;
+  listUnsupported: boolean;
+  unsupportedReason: string;
 }) {
   const virtualizer = useVirtualizer({
     count: list.length,
@@ -317,6 +341,8 @@ function VirtualizedList({
               onMove={(to) => onMove(virtualItem.index, to)}
               listLength={list.length}
               orderRelevant={orderRelevant}
+              listUnsupported={listUnsupported}
+              unsupportedReason={unsupportedReason}
             />
           </div>
         ))}

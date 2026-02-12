@@ -190,6 +190,10 @@ class TestTemplateRegistryService:
         assert meta["source_kind"] == "json"
         assert meta["selection_strategy"] == "deterministic_v2"
         assert "source_url" in meta
+        assert "dropin_resolution_report" in contract
+        assert isinstance(contract["dropin_resolution_report"], list)
+        assert "unsupported_nodes" in contract
+        assert isinstance(contract["unsupported_nodes"], list)
 
     def test_generate_template_contract_definition_and_schema_are_consistent(self):
         """The schema in the contract must be derivable from the definition in the same contract."""

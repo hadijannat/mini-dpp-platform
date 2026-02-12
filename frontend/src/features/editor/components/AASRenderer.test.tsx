@@ -97,7 +97,7 @@ describe('AASRenderer', () => {
     expect((select as HTMLSelectElement).value).toBe('active');
   });
 
-  it('renders a ReadOnlyField for Blob type', () => {
+  it('renders an unsupported node banner for Blob type', () => {
     const node: DefinitionNode = {
       modelType: 'Blob',
       idShort: 'data',
@@ -118,8 +118,7 @@ describe('AASRenderer', () => {
     );
 
     expect(screen.getByText('Binary Data')).toBeTruthy();
-    // ReadOnlyField shows "Read-only" when value is null/empty
-    expect(screen.getByText('Read-only')).toBeTruthy();
+    expect(screen.getByText(/Unsupported field/i)).toBeTruthy();
   });
 
   it('renders ReadOnlyField when access_mode is readonly', () => {

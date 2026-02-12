@@ -94,3 +94,37 @@ def test_resolve_submodel_bindings_id_short_fallback() -> None:
     assert len(bindings) == 1
     assert bindings[0].template_key == "technical-data"
     assert bindings[0].binding_source == "id_short"
+
+
+def test_resolve_submodel_bindings_matches_any_semantic_key_with_normalization() -> None:
+    templates = [
+        SimpleNamespace(
+            template_key="digital-nameplate",
+            semantic_id="https://admin-shell.io/idta/nameplate/3/0/nameplate/",
+            idta_version="3.0.1",
+            resolved_version="3.0.1",
+        )
+    ]
+    aas_env = {
+        "submodels": [
+            {
+                "id": "urn:dpp:sm:nameplate",
+                "idShort": "Nameplate",
+                "semanticId": {
+                    "keys": [
+                        {"type": "GlobalReference", "value": "urn:semantic:alias"},
+                        {
+                            "type": "GlobalReference",
+                            "value": "https://admin-shell.io/idta/Nameplate/3/0/Nameplate",
+                        },
+                    ]
+                },
+            }
+        ]
+    }
+
+    bindings = resolve_submodel_bindings(aas_env_json=aas_env, templates=templates)
+
+    assert len(bindings) == 1
+    assert bindings[0].template_key == "digital-nameplate"
+    assert bindings[0].binding_source == "semantic_exact"

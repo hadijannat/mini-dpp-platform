@@ -83,6 +83,9 @@ class DefinitionToSchemaConverter:
             }
 
         schema = self._apply_smt(schema, node.get("smt") or {})
+        order = node.get("order")
+        if isinstance(order, int):
+            schema["x-order"] = order
         return self._apply_resolution_hints(schema, node)
 
     def _collection_schema(self, node: dict[str, Any]) -> dict[str, Any]:
@@ -118,34 +121,13 @@ class DefinitionToSchemaConverter:
                 items_schema["x-unresolved-reason"] = "list_item_collection_children_missing"
                 unresolved_reason = "list_item_collection_children_missing"
         else:
-            # Synthesize item schema from list's type hints when no sample item exists
-            type_hint = node.get("typeValueListElement")
-            if type_hint == "SubmodelElementCollection":
-                items_schema = {
-                    "type": "object",
-                    "properties": {},
-                    "x-unresolved-definition": True,
-                    "x-unresolved-reason": "list_item_collection_definition_missing",
-                }
-                unresolved_reason = "list_item_collection_definition_missing"
-            elif type_hint in {
-                "Property",
-                "MultiLanguageProperty",
-                "Range",
-                "File",
-                "Blob",
-                "ReferenceElement",
-                "Entity",
-                "RelationshipElement",
-                "AnnotatedRelationshipElement",
-            }:
-                synthetic_node: dict[str, Any] = {
-                    "modelType": type_hint,
-                    "valueType": node.get("valueTypeListElement") or "xs:string",
-                }
-                items_schema = self._node_to_schema(synthetic_node)
-            else:
-                items_schema = {"type": "string"}
+            items_schema = {
+                "type": "object",
+                "properties": {},
+                "x-unresolved-definition": True,
+                "x-unresolved-reason": "list_item_definition_missing",
+            }
+            unresolved_reason = "list_item_definition_missing"
         schema: dict[str, Any] = {
             "type": "array",
             "title": node.get("idShort") or "",
@@ -413,8 +395,11 @@ class DefinitionToSchemaConverter:
         return cardinality in {"One", "OneToMany"}
 
     def _sorted_nodes(self, nodes: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-        def key(node: dict[str, Any]) -> tuple[str, str, str]:
+        def key(node: dict[str, Any]) -> tuple[int, str, str, str]:
+            order = node.get("order")
+            sort_order = order if isinstance(order, int) else 2**31 - 1
             return (
+                sort_order,
                 str(node.get("idShort") or ""),
                 str(node.get("path") or ""),
                 str(node.get("modelType") or ""),

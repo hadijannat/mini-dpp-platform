@@ -84,6 +84,10 @@ class TestTemplateRouterResponses:
                 support_status="supported",
                 idta_version="3.0.1",
                 resolved_version="3.0.1",
+                selection_diagnostics={
+                    "selection_strategy": "deterministic_v2",
+                    "selected_submodel_semantic_id": "urn:semantic:nameplate",
+                },
                 source_metadata={
                     "resolved_version": "3.0.1",
                     "source_repo_ref": "main",
@@ -126,3 +130,4 @@ class TestTemplateRouterResponses:
         assert response.count == 1
         assert response.refresh_results is not None
         assert len(response.refresh_results) == 3
+        assert response.refresh_results[0].selection_diagnostics is not None

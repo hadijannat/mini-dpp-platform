@@ -66,19 +66,10 @@ export function CollectionField({
           </div>
         );
       })}
-      {children.length === 0 && schema?.properties && (
-        Object.entries(schema.properties).map(([key, childSchema]) => (
-          <div key={name ? `${name}.${key}` : key}>
-            {renderNode({
-              node: { modelType: 'Property', idShort: key },
-              basePath: name ? `${name}.${key}` : key,
-              depth: depth + 1,
-              schema: childSchema,
-              control,
-              editorContext,
-            })}
-          </div>
-        ))
+      {children.length === 0 && (
+        <p className="text-xs text-amber-700">
+          No renderable child nodes are available for this collection.
+        </p>
       )}
     </CollapsibleSection>
   );

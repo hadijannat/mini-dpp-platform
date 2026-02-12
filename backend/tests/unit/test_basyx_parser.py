@@ -61,3 +61,79 @@ class TestBasyxParserStrictMode:
         payload = json.dumps(env).encode("utf-8")
         with pytest.raises(ValueError, match="No Submodel found"):
             self.parser.parse_json(payload)
+
+    def test_expected_semantic_id_matches_any_reference_key(self) -> None:
+        env = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "idShort": "Target",
+                    "id": "urn:example:submodel:target",
+                    "modelType": "Submodel",
+                    "semanticId": {
+                        "type": "ExternalReference",
+                        "keys": [
+                            {"type": "GlobalReference", "value": "urn:semantic:alias"},
+                            {"type": "GlobalReference", "value": "urn:semantic:exact"},
+                        ],
+                    },
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        payload = json.dumps(env).encode("utf-8")
+        parsed = self.parser.parse_json(payload, expected_semantic_id="urn:semantic:exact")
+        assert parsed.submodel.id_short == "Target"
+
+    def test_expected_semantic_id_mismatch_raises(self) -> None:
+        env = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "idShort": "OnlySubmodel",
+                    "id": "urn:example:submodel:1",
+                    "modelType": "Submodel",
+                    "semanticId": {
+                        "type": "ExternalReference",
+                        "keys": [{"type": "GlobalReference", "value": "urn:semantic:known"}],
+                    },
+                    "submodelElements": [],
+                }
+            ],
+            "conceptDescriptions": [],
+        }
+        payload = json.dumps(env).encode("utf-8")
+        with pytest.raises(ValueError, match="does not contain expected semantic ID"):
+            self.parser.parse_json(payload, expected_semantic_id="urn:semantic:missing")
+
+    def test_expected_semantic_id_ambiguous_raises(self) -> None:
+        env = {
+            "assetAdministrationShells": [],
+            "submodels": [
+                {
+                    "idShort": "A",
+                    "id": "urn:example:submodel:a",
+                    "modelType": "Submodel",
+                    "semanticId": {
+                        "type": "ExternalReference",
+                        "keys": [{"type": "GlobalReference", "value": "urn:semantic:shared"}],
+                    },
+                    "submodelElements": [],
+                },
+                {
+                    "idShort": "B",
+                    "id": "urn:example:submodel:b",
+                    "modelType": "Submodel",
+                    "semanticId": {
+                        "type": "ExternalReference",
+                        "keys": [{"type": "GlobalReference", "value": "urn:semantic:shared"}],
+                    },
+                    "submodelElements": [],
+                },
+            ],
+            "conceptDescriptions": [],
+        }
+        payload = json.dumps(env).encode("utf-8")
+        with pytest.raises(ValueError, match="expected semantic ID matched 2 submodels"):
+            self.parser.parse_json(payload, expected_semantic_id="urn:semantic:shared")

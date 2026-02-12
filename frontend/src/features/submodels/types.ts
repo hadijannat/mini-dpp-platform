@@ -57,9 +57,9 @@ export type DppActionState = {
   canUpdate: boolean;
   canExport: boolean;
   canPublish: boolean;
+  publishBlocked: boolean;
   canRefreshRebuild: boolean;
   canGenerateQr: boolean;
   canCaptureEvent: boolean;
   canViewEvents: boolean;
 };
-

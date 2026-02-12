@@ -12,6 +12,11 @@ import functools
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from app.modules.aas.semantic_ids import (
+    extract_normalized_semantic_ids,
+    extract_semantic_ids,
+    normalize_semantic_id,
+)
 from app.modules.semantic_registry import (
     get_template_support_status,
     is_template_refresh_enabled,
@@ -36,26 +41,9 @@ class ResolvedSubmodelBinding:
     support_status: str | None
     refresh_enabled: bool | None
 
-
-def normalize_semantic_id(value: str | None) -> str | None:
-    if not value:
-        return None
-    normalized = value.strip().rstrip("/").lower()
-    return normalized or None
-
-
 def extract_semantic_id(item: dict[str, Any]) -> str | None:
-    semantic_id = item.get("semanticId")
-    if not isinstance(semantic_id, dict):
-        return None
-    keys = semantic_id.get("keys")
-    if not isinstance(keys, list) or not keys:
-        return None
-    first = keys[0] if isinstance(keys[0], dict) else {}
-    value = first.get("value")
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    values = extract_semantic_ids(item)
+    return values[0] if values else None
 
 
 def resolve_submodel_bindings(
@@ -70,7 +58,7 @@ def resolve_submodel_bindings(
         return []
 
     template_by_key: dict[str, Any] = {}
-    semantic_to_template: dict[str, str] = {}
+    semantic_to_templates: dict[str, set[str]] = {}
     for template in templates:
         template_key = _template_attr(template, "template_key")
         if not template_key:
@@ -78,7 +66,7 @@ def resolve_submodel_bindings(
         template_by_key[template_key] = template
         normalized_semantic = normalize_semantic_id(_template_attr(template, "semantic_id"))
         if normalized_semantic:
-            semantic_to_template[normalized_semantic] = template_key
+            semantic_to_templates.setdefault(normalized_semantic, set()).add(template_key)
 
     provenance_semantic_to_template: dict[str, str] = {}
     provenance = template_provenance if isinstance(template_provenance, dict) else {}
@@ -96,30 +84,63 @@ def resolve_submodel_bindings(
     for submodel in submodels:
         if not isinstance(submodel, dict):
             continue
-        semantic_id = extract_semantic_id(submodel)
-        normalized_semantic = normalize_semantic_id(semantic_id)
+        semantic_values = extract_semantic_ids(submodel)
+        semantic_id = semantic_values[0] if semantic_values else None
+        normalized_semantics = extract_normalized_semantic_ids(submodel)
+        normalized_semantic = normalized_semantics[0] if normalized_semantics else None
         id_short = _dict_str(submodel, "idShort")
         submodel_id = _dict_str(submodel, "id")
 
         bound_template_key: str | None = None
         binding_source: BindingSource = "unresolved"
 
-        if normalized_semantic and normalized_semantic in semantic_to_template:
-            bound_template_key = semantic_to_template[normalized_semantic]
+        exact_candidates = sorted(
+            {
+                template_key
+                for semantic in normalized_semantics
+                for template_key in semantic_to_templates.get(semantic, set())
+            }
+        )
+        if len(exact_candidates) == 1:
+            bound_template_key = exact_candidates[0]
             binding_source = "semantic_exact"
-        elif normalized_semantic and normalized_semantic in alias_to_template:
-            candidate = alias_to_template[normalized_semantic]
-            if candidate in available_template_keys:
-                bound_template_key = candidate
+        elif len(exact_candidates) > 1:
+            bound_template_key = None
+            binding_source = "unresolved"
+        else:
+            alias_candidates = sorted(
+                {
+                    alias_to_template[semantic]
+                    for semantic in normalized_semantics
+                    if semantic in alias_to_template
+                    and alias_to_template[semantic] in available_template_keys
+                }
+            )
+            if len(alias_candidates) == 1:
+                bound_template_key = alias_candidates[0]
                 binding_source = "semantic_alias"
-        elif normalized_semantic and normalized_semantic in provenance_semantic_to_template:
-            bound_template_key = provenance_semantic_to_template[normalized_semantic]
-            binding_source = "provenance"
-        elif id_short:
-            fallback_key = _kebab_case(id_short)
-            if fallback_key in available_template_keys:
-                bound_template_key = fallback_key
-                binding_source = "id_short"
+            elif len(alias_candidates) > 1:
+                bound_template_key = None
+                binding_source = "unresolved"
+            else:
+                provenance_candidates = sorted(
+                    {
+                        provenance_semantic_to_template[semantic]
+                        for semantic in normalized_semantics
+                        if semantic in provenance_semantic_to_template
+                    }
+                )
+                if len(provenance_candidates) == 1:
+                    bound_template_key = provenance_candidates[0]
+                    binding_source = "provenance"
+                elif len(provenance_candidates) > 1:
+                    bound_template_key = None
+                    binding_source = "unresolved"
+                elif id_short:
+                    fallback_key = _kebab_case(id_short)
+                    if fallback_key in available_template_keys:
+                        bound_template_key = fallback_key
+                        binding_source = "id_short"
 
         template_obj = template_by_key.get(bound_template_key) if bound_template_key else None
         provenance_meta = provenance.get(bound_template_key, {}) if bound_template_key else {}

@@ -123,7 +123,7 @@ async def _acquire_refresh_rebuild_guard(db: DbSession, dpp_id: UUID) -> AsyncIt
 class AssetIdsInput(BaseModel):
     """Input model for asset identifiers."""
 
-    manufacturerPartId: str
+    manufacturerPartId: str | None = None
     serialNumber: str | None = None
     batchId: str | None = None
     globalAssetId: str | None = None
@@ -138,6 +138,7 @@ class CreateDPPRequest(BaseModel):
         description="List of template keys to include",
     )
     initial_data: dict[str, Any] | None = None
+    required_specific_asset_ids: list[str] | None = None
 
 
 class ImportDPPRequest(RootModel[dict[str, Any]]):
@@ -220,6 +221,9 @@ class DPPDetailResponse(DPPResponse):
     aas_environment: dict[str, Any] | None
     digest_sha256: str | None
     submodel_bindings: list[SubmodelBindingResponse] = Field(default_factory=list)
+    required_specific_asset_ids: list[str] = Field(default_factory=list)
+    missing_required_specific_asset_ids: list[str] = Field(default_factory=list)
+    publish_blockers: list[str] = Field(default_factory=list)
 
 
 class DPPListResponse(BaseModel):
@@ -345,6 +349,7 @@ class BatchImportItem(BaseModel):
     asset_ids: AssetIdsInput
     selected_templates: list[str] = Field(default=["digital-nameplate"])
     initial_data: dict[str, Any] | None = None
+    required_specific_asset_ids: list[str] | None = None
 
 
 class BatchImportRequest(BaseModel):
@@ -491,6 +496,7 @@ async def create_dpp(
             asset_ids=asset_ids_dict,
             selected_templates=body.selected_templates,
             initial_data=body.initial_data,
+            required_specific_asset_ids=body.required_specific_asset_ids,
         )
     except IdentifierValidationError as exc:
         raise HTTPException(
@@ -606,6 +612,7 @@ async def batch_import_dpps(
                     asset_ids=item.asset_ids.model_dump(exclude_none=True),
                     selected_templates=item.selected_templates,
                     initial_data=item.initial_data,
+                    required_specific_asset_ids=item.required_specific_asset_ids,
                 )
             result_item = BatchImportResultItem(index=idx, dpp_id=dpp.id, status="ok")
             results.append(result_item)
@@ -1048,6 +1055,7 @@ async def get_dpp_by_slug(
         shared_with_current_user=shared_with_current_user,
     )
     submodel_bindings = await service.get_submodel_bindings(revision=revision)
+    constraints = await service.get_revision_publish_constraints(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
@@ -1060,6 +1068,9 @@ async def get_dpp_by_slug(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
+        required_specific_asset_ids=constraints["required_specific_asset_ids"],
+        missing_required_specific_asset_ids=constraints["missing_required_specific_asset_ids"],
+        publish_blockers=constraints["publish_blockers"],
         submodel_bindings=[
             SubmodelBindingResponse(
                 submodel_id=binding.submodel_id,
@@ -1120,6 +1131,7 @@ async def get_dpp(
         shared_with_current_user=shared_with_current_user,
     )
     submodel_bindings = await service.get_submodel_bindings(revision=revision)
+    constraints = await service.get_revision_publish_constraints(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
 
     return DPPDetailResponse(
@@ -1132,6 +1144,9 @@ async def get_dpp(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=revision.aas_env_json if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
+        required_specific_asset_ids=constraints["required_specific_asset_ids"],
+        missing_required_specific_asset_ids=constraints["missing_required_specific_asset_ids"],
+        publish_blockers=constraints["publish_blockers"],
         submodel_bindings=[
             SubmodelBindingResponse(
                 submodel_id=binding.submodel_id,

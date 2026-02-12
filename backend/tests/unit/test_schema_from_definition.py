@@ -262,7 +262,8 @@ class TestSubmodelElementList:
             "smt": {},
         }
         schema = converter._node_to_schema(node)
-        assert schema["items"] == {"type": "string"}
+        assert schema["items"]["type"] == "object"
+        assert schema["items"]["x-unresolved-definition"] is True
 
     def test_list_collection_without_item_definition_is_annotated_as_unresolved(
         self, converter: DefinitionToSchemaConverter
@@ -277,7 +278,7 @@ class TestSubmodelElementList:
         assert schema["type"] == "array"
         assert schema["x-unresolved-definition"] is True
         assert schema["items"]["x-unresolved-definition"] is True
-        assert schema["items"]["x-unresolved-reason"] == "list_item_collection_definition_missing"
+        assert schema["items"]["x-unresolved-reason"] == "list_item_definition_missing"
 
 
 class TestMultiLanguageProperty:

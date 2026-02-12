@@ -303,6 +303,20 @@ class Settings(BaseSettings):
         default=10,
         description="Maximum number of draft revisions to keep per DPP. Published revisions are always kept.",
     )
+    dpp_required_specific_asset_ids_default: list[str] = Field(
+        default=["manufacturerPartId"],
+        description=(
+            "Default required specificAssetIds for DPP create/import validation. "
+            "Can be overridden per request profile."
+        ),
+    )
+    dpp_required_specific_asset_ids_by_template: dict[str, list[str]] = Field(
+        default={},
+        description=(
+            "Optional per-template required specificAssetIds merged with defaults "
+            "for profile-aware validation."
+        ),
+    )
 
     # ==========================================================================
     # Eclipse Dataspace Connector (EDC)

@@ -206,13 +206,24 @@ class TestProvenancePropagation:
         dpp = SimpleNamespace(
             id=uuid4(), tenant_id=uuid4(), asset_ids={"manufacturerPartId": "P-3"}
         )
+        template = SimpleNamespace(
+            template_key="digital-nameplate",
+            semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+            idta_version="3.0",
+            resolved_version="3.0.1",
+            source_file_sha=None,
+            source_file_path=None,
+            source_kind="json",
+            selection_strategy="semantic",
+        )
         updated = await service._rebuild_dpp_from_templates(
-            dpp=dpp, templates=[], updated_by_subject="owner"
+            dpp=dpp, templates=[template], updated_by_subject="owner"
         )
 
         assert updated is True
         added_revision = session.add.call_args_list[-1].args[0]
-        assert added_revision.template_provenance == {}
+        assert isinstance(added_revision.template_provenance, dict)
+        assert "digital-nameplate" in added_revision.template_provenance
 
     @pytest.mark.asyncio()
     async def test_publish_new_revision_defaults_provenance_to_empty_dict(self) -> None:

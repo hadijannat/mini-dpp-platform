@@ -48,6 +48,9 @@ type DppDetail = {
   id: string;
   status: string;
   asset_ids?: Record<string, unknown>;
+  required_specific_asset_ids?: string[];
+  missing_required_specific_asset_ids?: string[];
+  publish_blockers?: string[];
   owner_subject?: string;
   current_revision_no?: number | null;
   digest_sha256?: string | null;
@@ -250,7 +253,9 @@ export default function DPPEditorPage() {
   });
 
   const publishError = publishMutation.isError ? (publishMutation.error as Error) : null;
-  const bannerMessage = actionError ?? publishError?.message ?? null;
+  const publishBlockers = Array.isArray(dpp?.publish_blockers) ? dpp.publish_blockers : [];
+  const publishBlocked = publishBlockers.length > 0;
+  const bannerMessage = actionError ?? publishError?.message ?? (publishBlocked ? publishBlockers[0] : null);
   const sessionExpired = Boolean(bannerMessage?.includes('Session expired'));
 
   const refreshRebuildMutation = useMutation({
@@ -310,17 +315,36 @@ export default function DPPEditorPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const submodels: AASSubmodel[] = dpp?.aas_environment?.submodels || [];
-  const availableTemplates: TemplateResponse[] = templatesData?.templates || [];
-  const submodelBindings: SubmodelBinding[] = Array.isArray(dpp?.submodel_bindings)
-    ? dpp.submodel_bindings
-    : [];
-  const bindingBySubmodelId = new Map(
-    submodelBindings
-      .filter((binding) => binding.submodel_id)
-      .map((binding) => [String(binding.submodel_id), binding]),
+  const submodels = useMemo<AASSubmodel[]>(
+    () => (Array.isArray(dpp?.aas_environment?.submodels) ? dpp.aas_environment.submodels : []),
+    [dpp?.aas_environment?.submodels],
   );
-  const actionState = buildDppActionState(dpp?.access, dpp?.status ?? '');
+  const availableTemplates = useMemo<TemplateResponse[]>(
+    () => (Array.isArray(templatesData?.templates) ? templatesData.templates : []),
+    [templatesData?.templates],
+  );
+  const submodelBindings = useMemo<SubmodelBinding[]>(
+    () => (Array.isArray(dpp?.submodel_bindings) ? dpp.submodel_bindings : []),
+    [dpp?.submodel_bindings],
+  );
+  const bindingBySubmodelId = useMemo(
+    () =>
+      new Map(
+        submodelBindings
+          .filter((binding) => binding.submodel_id)
+          .map((binding) => [String(binding.submodel_id), binding]),
+      ),
+    [submodelBindings],
+  );
+  const actionState = buildDppActionState(dpp?.access, dpp?.status ?? '', {
+    publishBlocked,
+  });
+  const missingRequiredAssetIds = Array.isArray(dpp?.missing_required_specific_asset_ids)
+    ? dpp.missing_required_specific_asset_ids
+    : [];
+  const requiredAssetIds = Array.isArray(dpp?.required_specific_asset_ids)
+    ? dpp.required_specific_asset_ids
+    : [];
   const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
   const manufacturerPartId =
     typeof dpp?.asset_ids?.manufacturerPartId === 'string'
@@ -406,7 +430,7 @@ export default function DPPEditorPage() {
   const visibleSubmodelCards = rollout.surfaces.publisher ? filteredSubmodelCards : submodelCards;
 
   useEffect(() => {
-    if (!dppId || !dpp || submodels.length === 0) return;
+    if (!dppId || submodels.length === 0) return;
     const roots = submodels.map((submodel) => buildSubmodelNodeTree(submodel));
     const maxDepth = Math.max(...roots.map((root) => maxTreeDepth(root, 0)));
     const totalNodes = roots.reduce((sum, root) => sum + flattenSubmodelNodes(root).length, 0);
@@ -416,19 +440,28 @@ export default function DPPEditorPage() {
       max_depth: maxDepth,
       node_count: totalNodes,
     });
-  }, [dppId, dpp, submodels]);
+  }, [dppId, submodels]);
 
   useEffect(() => {
-    if (!dppId || !dpp) return;
+    const dppStatus = dpp?.status;
+    if (!dppId || !dppStatus) return;
     const reasons: string[] = [];
     if (!actionState.canExport) reasons.push('export:requires-read');
-    if (!actionState.canPublish && dpp.status === 'draft') reasons.push('publish:requires-can_publish');
+    if (!actionState.canPublish && dppStatus === 'draft') {
+      reasons.push(
+        actionState.publishBlocked
+          ? 'publish:blocked-by-contract'
+          : 'publish:requires-can_publish',
+      );
+    }
     if (!actionState.canRefreshRebuild) reasons.push('refresh-rebuild:requires-update-non-archived');
-    if (!actionState.canCaptureEvent && dpp.status === 'draft') reasons.push('capture-event:requires-update');
+    if (!actionState.canCaptureEvent && dppStatus === 'draft') {
+      reasons.push('capture-event:requires-update');
+    }
     if (reasons.length > 0) {
       emitSubmodelUxMetric('action_disabled_reason', {
         dpp_id: dppId,
-        status: dpp.status,
+        status: dppStatus,
         reasons,
       });
     }
@@ -507,6 +540,7 @@ export default function DPPEditorPage() {
                 onClick={() => publishMutation.mutate()}
                 disabled={publishMutation.isPending || !actionState.canPublish}
                 className="bg-green-600 hover:bg-green-700"
+                title={publishBlocked ? publishBlockers[0] : undefined}
               >
                 <Send className="h-4 w-4 mr-2" />
                 {publishMutation.isPending ? 'Publishing...' : 'Publish'}
@@ -544,6 +578,16 @@ export default function DPPEditorPage() {
           <CardTitle className="text-lg">Asset Information</CardTitle>
         </CardHeader>
         <CardContent>
+          {requiredAssetIds.length > 0 && (
+            <p className="mb-3 text-xs text-muted-foreground">
+              Required specificAssetIds: {requiredAssetIds.join(', ')}
+            </p>
+          )}
+          {missingRequiredAssetIds.length > 0 && (
+            <p className="mb-3 text-xs text-destructive">
+              Missing required specificAssetIds: {missingRequiredAssetIds.join(', ')}
+            </p>
+          )}
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {(Object.entries(dpp.asset_ids || {}) as Array<[string, unknown]>).map(([key, value]) => (
               <div key={key}>
