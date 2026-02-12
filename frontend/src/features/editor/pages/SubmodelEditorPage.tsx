@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -52,6 +52,10 @@ import { AASRendererList } from '../components/AASRenderer';
 import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
 import { cn } from '@/lib/utils';
+import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
+import { buildSubmodelEditorOutline } from '@/features/dpp-outline/builders/buildSubmodelEditorOutline';
+import { useOutlineScrollSync } from '@/features/dpp-outline/hooks/useOutlineScrollSync';
+import type { DppOutlineNode } from '@/features/dpp-outline/types';
 
 class AmbiguousBindingError extends Error {
   candidates: string[];
@@ -190,6 +194,29 @@ function focusFieldPath(path: string): boolean {
   return false;
 }
 
+function focusFieldPathFallback(idShort: string): boolean {
+  const normalized = idShort.trim();
+  if (!normalized) return false;
+
+  const candidates = Array.from(document.querySelectorAll<HTMLElement>('[data-field-path]'));
+  const exact = candidates.find((element) => element.dataset.fieldPath === normalized);
+  if (exact) {
+    exact.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
+
+  const suffixMatch = candidates.find((element) => {
+    const path = element.dataset.fieldPath ?? '';
+    return path.endsWith(`.${normalized}`);
+  });
+  if (suffixMatch) {
+    suffixMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return true;
+  }
+
+  return false;
+}
+
 // ── API functions (unchanged) ───────────────────────────────────
 
 async function fetchDpp(dppId: string, token?: string) {
@@ -296,6 +323,8 @@ export default function SubmodelEditorPage() {
   const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
   const queryClient = useQueryClient();
   const requestedSubmodelId = searchParams.get('submodel_id');
+  const requestedFocusPath = searchParams.get('focus_path');
+  const requestedFocusIdShort = searchParams.get('focus_id_short');
 
   // ── Data fetching ──
 
@@ -415,11 +444,13 @@ export default function SubmodelEditorPage() {
 
   const [rawJson, setRawJson] = useState('');
   const [activeView, setActiveView] = useState<'form' | 'json'>('form');
+  const [selectedOutlineNodeId, setSelectedOutlineNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasEdited, setHasEdited] = useState(false);
   const [pendingAction, setPendingAction] = useState<'save' | 'rebuild' | null>(null);
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
+  const [hasAppliedInitialFocus, setHasAppliedInitialFocus] = useState(false);
 
   // Sync RHF defaults when initial data loads
   useEffect(() => {
@@ -433,6 +464,7 @@ export default function SubmodelEditorPage() {
     setHasEdited(false);
     setSaveAttempted(false);
     setRebuildConfirmOpen(false);
+    setHasAppliedInitialFocus(false);
   }, [dppId, templateKey]);
 
   // ── Mutation ──
@@ -507,6 +539,89 @@ export default function SubmodelEditorPage() {
     totalRequiredAcrossSections === 0
       ? 100
       : Math.round((completedRequiredAcrossSections / totalRequiredAcrossSections) * 100);
+  const outlineNodes = useMemo(
+    () =>
+      buildSubmodelEditorOutline({
+        templateDefinition,
+        formData: liveFormValues,
+        fieldErrors,
+      }),
+    [fieldErrors, liveFormValues, templateDefinition],
+  );
+
+  const findOutlineNodeByPath = useCallback(
+    (path: string): DppOutlineNode | null => {
+      let best: DppOutlineNode | null = null;
+      const stack = [...outlineNodes];
+
+      while (stack.length > 0) {
+        const current = stack.pop()!;
+        if (
+          current.path === path ||
+          path.startsWith(`${current.path}.`) ||
+          current.path.startsWith(`${path}.`)
+        ) {
+          if (!best || current.path.length > best.path.length) {
+            best = current;
+          }
+        }
+        for (const child of current.children) {
+          stack.push(child);
+        }
+      }
+
+      return best;
+    },
+    [outlineNodes],
+  );
+
+  const handleOutlineNodeSelect = useCallback(
+    (node: DppOutlineNode) => {
+      setSelectedOutlineNodeId(node.id);
+      if (node.target?.type === 'dom') {
+        focusFieldPath(node.target.path);
+      }
+    },
+    [],
+  );
+
+  useOutlineScrollSync({
+    enabled: activeView === 'form' && outlineNodes.length > 0,
+    attribute: 'data-field-path',
+    onActivePathChange: (path) => {
+      const target = findOutlineNodeByPath(path);
+      if (target) {
+        setSelectedOutlineNodeId(target.id);
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (hasAppliedInitialFocus || activeView !== 'form') return;
+    if (!requestedFocusPath && !requestedFocusIdShort) return;
+
+    let focused = false;
+    if (requestedFocusPath) {
+      focused = focusFieldPath(requestedFocusPath);
+    }
+    if (!focused && requestedFocusIdShort) {
+      focused = focusFieldPathFallback(requestedFocusIdShort);
+    }
+
+    if (!focused && requestedFocusPath) {
+      setError((previous) =>
+        previous ?? `Could not focus requested field: ${requestedFocusPath}`,
+      );
+    }
+    setHasAppliedInitialFocus(true);
+  }, [
+    activeView,
+    hasAppliedInitialFocus,
+    requestedFocusIdShort,
+    requestedFocusPath,
+    templateDefinition,
+  ]);
+
   const canSave = useMemo(() => {
     if (!actionState.canUpdate || updateMutation.isPending) return false;
     if (hasAmbiguousTemplateBindings) return false;
@@ -715,7 +830,26 @@ export default function SubmodelEditorPage() {
   const showErrorSummary = saveAttempted && (fieldErrors.length > 0 || Boolean(error));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <DppOutlinePane
+        context="submodel"
+        mobile
+        className="xl:hidden"
+        nodes={outlineNodes}
+        selectedId={selectedOutlineNodeId}
+        onSelectNode={handleOutlineNodeSelect}
+      />
+
+      <div className="xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6">
+        <DppOutlinePane
+          context="submodel"
+          className="hidden xl:block"
+          nodes={outlineNodes}
+          selectedId={selectedOutlineNodeId}
+          onSelectNode={handleOutlineNodeSelect}
+        />
+
+        <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="Edit Submodel"
@@ -811,6 +945,10 @@ export default function SubmodelEditorPage() {
                     type="button"
                     className="rounded-md border bg-background px-3 py-2 text-left text-xs hover:bg-accent/40"
                     onClick={() => {
+                      const outlineNode = findOutlineNodeByPath(section.id);
+                      if (outlineNode) {
+                        setSelectedOutlineNodeId(outlineNode.id);
+                      }
                       const focused = focusFieldPath(section.id);
                       if (!focused) {
                         const target = document.querySelector<HTMLElement>(`[data-field-path^="${section.id}."]`);
@@ -845,6 +983,10 @@ export default function SubmodelEditorPage() {
                         type="button"
                         className="text-left underline hover:no-underline"
                         onClick={() => {
+                          const outlineNode = findOutlineNodeByPath(entry.path);
+                          if (outlineNode) {
+                            setSelectedOutlineNodeId(outlineNode.id);
+                          }
                           void focusFieldPath(entry.path);
                         }}
                       >
@@ -968,6 +1110,8 @@ export default function SubmodelEditorPage() {
           </Collapsible>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

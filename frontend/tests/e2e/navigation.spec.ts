@@ -71,11 +71,23 @@ test('publisher navigation and action buttons work', async ({ page }) => {
     await expect(partialFailure).toContainText(/templates:/i);
   }
 
-  const submodelEdit = page.locator('[data-testid^="submodel-edit-"]').first();
-  if (await submodelEdit.count()) {
-    await submodelEdit.click();
+  const outlineTreeItems = page.locator(
+    '[data-testid="dpp-outline-editor-desktop"] [role="treeitem"]',
+  );
+  const outlineNodeCount = await outlineTreeItems.count();
+  if (outlineNodeCount > 1) {
+    const targetIndex = outlineNodeCount > 2 ? 2 : 1;
+    await outlineTreeItems.nth(targetIndex).click();
+    if (targetIndex > 1) {
+      await expect(page).toHaveURL(/focus_path=/);
+    }
   } else {
-    await page.locator('[data-testid^="submodel-add-"]').first().click();
+    const submodelEdit = page.locator('[data-testid^="submodel-edit-"]').first();
+    if (await submodelEdit.count()) {
+      await submodelEdit.click();
+    } else {
+      await page.locator('[data-testid^="submodel-add-"]').first().click();
+    }
   }
 
   await expect(page.getByRole('heading', { name: /edit submodel/i })).toBeVisible();

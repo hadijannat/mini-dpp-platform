@@ -202,16 +202,40 @@ test.describe('Submodel Matrix', () => {
 
     await assertDraftOwnerGating(page);
 
-    const submodelEdit = page.locator('[data-testid^="submodel-edit-"]').first();
-    if (await submodelEdit.count()) {
-      await submodelEdit.click();
+    const outlineTreeItems = page.locator(
+      '[data-testid="dpp-outline-editor-desktop"] [role="treeitem"]',
+    );
+    const outlineNodeCount = await outlineTreeItems.count();
+    if (outlineNodeCount > 1) {
+      await outlineTreeItems.nth(Math.min(2, outlineNodeCount - 1)).click();
     } else {
-      await page.locator('[data-testid^="submodel-add-"]').first().click();
+      const submodelEdit = page.locator('[data-testid^="submodel-edit-"]').first();
+      if (await submodelEdit.count()) {
+        await submodelEdit.click();
+      } else {
+        await page.locator('[data-testid^="submodel-add-"]').first().click();
+      }
     }
 
     await expect(page).toHaveURL(/\/console\/dpps\/[0-9a-f-]+\/edit\//, { timeout: 30000 });
     await expect(page.getByRole('heading', { name: /edit submodel/i })).toBeVisible({ timeout: 30000 });
-    await page.getByTestId('submodel-back').click();
+    await expect(page.getByTestId('dpp-outline-submodel-desktop')).toBeVisible();
+
+    const editableInput = page.locator(
+      'input:not([disabled]):not([type="hidden"]), textarea:not([disabled])',
+    ).first();
+    if (await editableInput.count()) {
+      await editableInput.fill(`matrix-${Date.now()}`);
+    }
+
+    const saveButton = page.getByRole('button', { name: /^Save$/i });
+    if (await saveButton.isVisible() && await saveButton.isEnabled()) {
+      await saveButton.click();
+      await expect(page).toHaveURL(new RegExp(`/console/dpps/${dppId}$`), { timeout: 30000 });
+    } else {
+      await page.getByTestId('submodel-back').click();
+    }
+
     await expect(page).toHaveURL(new RegExp(`/console/dpps/${dppId}$`));
 
     await page.getByTestId('dpp-refresh-rebuild').click();
@@ -222,6 +246,13 @@ test.describe('Submodel Matrix', () => {
 
     await page.goto(`/t/default/dpp/${dppId}`);
     await expect(page.getByText(/Product Information/i)).toBeVisible({ timeout: 30000 });
+    const viewerOutlineItems = page.locator(
+      '[data-testid="dpp-outline-viewer-desktop"] [role="treeitem"]',
+    );
+    if (await viewerOutlineItems.count()) {
+      await viewerOutlineItems.nth(Math.min(2, (await viewerOutlineItems.count()) - 1)).click();
+      await expect(page.locator('[role="tab"][data-state="active"]').first()).toBeVisible();
+    }
   });
 
   test('shared and admin matrix for button gating', async ({ page, browser, request }) => {

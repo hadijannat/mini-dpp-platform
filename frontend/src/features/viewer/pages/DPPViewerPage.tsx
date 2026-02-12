@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -16,7 +16,11 @@ import { DPPHeader } from '../components/DPPHeader';
 import { ESPRTabs } from '../components/ESPRTabs';
 import { RawSubmodelTree } from '../components/RawSubmodelTree';
 import { IntegrityCard } from '../components/IntegrityCard';
-import { classifySubmodelElements } from '../utils/esprCategories';
+import { classifySubmodelElements, ESPR_CATEGORIES } from '../utils/esprCategories';
+import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
+import { buildViewerOutline } from '@/features/dpp-outline/builders/buildViewerOutline';
+import { useOutlineScrollSync } from '@/features/dpp-outline/hooks/useOutlineScrollSync';
+import type { DppOutlineNode } from '@/features/dpp-outline/types';
 import type { PublicDPPResponse } from '@/api/types';
 import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
 import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
@@ -73,9 +77,94 @@ export default function DPPViewerPage() {
 
   const submodels = (dpp?.aas_environment?.submodels || []) as Array<Record<string, unknown>>;
   const classified = classifySubmodelElements(submodels);
+  const defaultCategory = useMemo(
+    () => ESPR_CATEGORIES.find((category) => (classified[category.id]?.length ?? 0) > 0)?.id ?? 'identity',
+    [classified],
+  );
+  const [activeCategory, setActiveCategory] = useState(defaultCategory);
+  const [selectedOutlineNodeId, setSelectedOutlineNodeId] = useState<string | null>(null);
+  const [pendingScrollOutlineKey, setPendingScrollOutlineKey] = useState<string | null>(null);
+  const outlineNodes = useMemo(
+    () =>
+      buildViewerOutline({
+        categories: ESPR_CATEGORIES,
+        classified,
+      }),
+    [classified],
+  );
+  const outlinePathToNodeId = useMemo(() => {
+    const map = new Map<string, string>();
+    const stack = [...outlineNodes];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current.target?.type === 'dom') {
+        map.set(current.target.path, current.id);
+      }
+      for (const child of current.children) {
+        stack.push(child);
+      }
+    }
+    return map;
+  }, [outlineNodes]);
   const productName =
     (dpp?.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
   const epcisEvents = epcisData?.eventList ?? [];
+
+  useEffect(() => {
+    setActiveCategory(defaultCategory);
+  }, [defaultCategory]);
+
+  useEffect(() => {
+    if (!pendingScrollOutlineKey) return;
+
+    let timeoutId: number | undefined;
+    let attempts = 0;
+
+    const scrollToPending = () => {
+      attempts += 1;
+      const target = Array.from(document.querySelectorAll<HTMLElement>('[data-outline-key]')).find(
+        (element) => element.dataset.outlineKey === pendingScrollOutlineKey,
+      );
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setPendingScrollOutlineKey(null);
+        return;
+      }
+      if (attempts < 8) {
+        timeoutId = window.setTimeout(scrollToPending, 60);
+      } else {
+        setPendingScrollOutlineKey(null);
+      }
+    };
+
+    scrollToPending();
+
+    return () => {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [activeCategory, pendingScrollOutlineKey]);
+
+  const handleOutlineNodeSelect = (node: DppOutlineNode) => {
+    setSelectedOutlineNodeId(node.id);
+    const categoryId =
+      typeof node.meta?.categoryId === 'string' ? node.meta.categoryId : null;
+    if (categoryId) {
+      setActiveCategory(categoryId);
+    }
+    if (node.target?.type !== 'dom' || node.kind !== 'field') return;
+    setPendingScrollOutlineKey(node.target.path);
+  };
+
+  useOutlineScrollSync({
+    enabled: submodels.length > 0,
+    attribute: 'data-outline-key',
+    onActivePathChange: (path) => {
+      const outlineNodeId = outlinePathToNodeId.get(path);
+      if (outlineNodeId) {
+        setSelectedOutlineNodeId(outlineNodeId);
+      }
+    },
+  });
 
   useEffect(() => {
     if (!dpp?.id || submodels.length === 0) return;
@@ -111,7 +200,32 @@ export default function DPPViewerPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {submodels.length > 0 && (
+        <DppOutlinePane
+          context="viewer"
+          mobile
+          className="xl:hidden"
+          nodes={outlineNodes}
+          selectedId={selectedOutlineNodeId}
+          onSelectNode={handleOutlineNodeSelect}
+        />
+      )}
+
+      <div className="xl:grid xl:grid-cols-[minmax(250px,320px)_1fr] xl:gap-6">
+        {submodels.length > 0 ? (
+          <DppOutlinePane
+            context="viewer"
+            className="hidden xl:block"
+            nodes={outlineNodes}
+            selectedId={selectedOutlineNodeId}
+            onSelectNode={handleOutlineNodeSelect}
+          />
+        ) : (
+          <div className="hidden xl:block" />
+        )}
+
+        <div className="space-y-6">
       <DPPHeader
         productName={productName}
         dppId={dpp.id}
@@ -129,7 +243,11 @@ export default function DPPViewerPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <ESPRTabs classified={classified} />
+            <ESPRTabs
+              classified={classified}
+              value={activeCategory}
+              onValueChange={setActiveCategory}
+            />
           </CardContent>
         </Card>
       )}
@@ -173,6 +291,8 @@ export default function DPPViewerPage() {
 
       {/* Integrity */}
       {dpp.digest_sha256 && <IntegrityCard digest={dpp.digest_sha256} />}
+        </div>
+      </div>
     </div>
   );
 }

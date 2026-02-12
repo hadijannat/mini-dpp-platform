@@ -5,14 +5,21 @@ import { Badge } from '@/components/ui/badge';
 
 interface ESPRTabsProps {
   classified: Record<string, ClassifiedNode[]>;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
-export function ESPRTabs({ classified }: ESPRTabsProps) {
+export function ESPRTabs({ classified, value, onValueChange }: ESPRTabsProps) {
   // Find first non-empty category for default tab
   const defaultTab = ESPR_CATEGORIES.find(c => (classified[c.id]?.length ?? 0) > 0)?.id ?? 'identity';
+  const controlled = typeof value === 'string';
 
   return (
-    <Tabs defaultValue={defaultTab}>
+    <Tabs
+      value={controlled ? value : undefined}
+      defaultValue={controlled ? undefined : defaultTab}
+      onValueChange={onValueChange}
+    >
       <TabsList className="w-full flex-wrap h-auto gap-1 bg-muted/50 p-1">
         {ESPR_CATEGORIES.map(category => {
           const count = classified[category.id]?.length ?? 0;

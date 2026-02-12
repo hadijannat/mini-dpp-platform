@@ -13,6 +13,7 @@ type CollapsibleSectionProps = {
   required?: boolean;
   description?: string;
   depth: number;
+  fieldPath?: string;
   childCount?: number;
   children: React.ReactNode;
 };
@@ -34,13 +35,19 @@ export function CollapsibleSection({
   required,
   description,
   depth,
+  fieldPath,
   childCount,
   children,
 }: CollapsibleSectionProps) {
   const [open, setOpen] = useState(depth <= 1);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className={cn(getDepthClass(depth))}>
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={cn(getDepthClass(depth))}
+      data-field-path={fieldPath}
+    >
       <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left hover:bg-accent/50 rounded-t-md">
         <ChevronRight
           className={cn(

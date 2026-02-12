@@ -42,6 +42,7 @@ export function CollectionField({
       required={required}
       description={description}
       depth={depth}
+      fieldPath={name}
       childCount={children.length}
     >
       {schema?.['x-unresolved-definition'] && (

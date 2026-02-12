@@ -9,13 +9,15 @@ import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
 import { CaptureDialog } from '@/features/epcis/components/CaptureDialog';
 import { RevisionHistory } from '../components/RevisionHistory';
 import { useTenantSlug } from '@/lib/tenant';
-import { SubmodelNodeTree } from '@/features/submodels/components/SubmodelNodeTree';
 import { buildDppActionState } from '@/features/submodels/policy/actionPolicy';
 import { buildSubmodelNodeTree, computeSubmodelHealth, flattenSubmodelNodes } from '@/features/submodels/utils/treeBuilder';
 import type { DppAccessSummary, SubmodelBinding, SubmodelNode } from '@/features/submodels/types';
 import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
 import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
 import { classifyElement, ESPR_CATEGORIES } from '@/features/viewer/utils/esprCategories';
+import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
+import { buildEditorOutline } from '@/features/dpp-outline/builders/buildEditorOutline';
+import type { DppOutlineNode } from '@/features/dpp-outline/types';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
@@ -222,6 +224,7 @@ export default function DPPEditorPage() {
   );
   const [copied, setCopied] = useState(false);
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [selectedOutlineNodeId, setSelectedOutlineNodeId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
@@ -429,6 +432,45 @@ export default function DPPEditorPage() {
   }, [categoryFilter, completionFilter, riskFilter, submodelCards, submodelSort]);
   const visibleSubmodelCards = rollout.surfaces.publisher ? filteredSubmodelCards : submodelCards;
 
+  const outlineNodes = useMemo(
+    () =>
+      buildEditorOutline({
+        dppId: dpp?.id ?? dppId ?? '',
+        submodels: visibleSubmodelCards.map((entry) => ({
+          submodelId: entry.submodelId,
+          templateKey: entry.templateKey,
+          submodelLabel: String(entry.submodel.idShort ?? 'Submodel'),
+          categoryId: entry.categoryId,
+          categoryLabel: entry.categoryLabel,
+          completionPercent: entry.completionPercent,
+          risk: entry.risk,
+          health: entry.health,
+          rootNode: entry.rootNode,
+          editHref: entry.editHref,
+          semanticId: entry.binding?.semantic_id ?? extractSemanticId(entry.submodel),
+        })),
+      }),
+    [dpp?.id, dppId, visibleSubmodelCards],
+  );
+
+  const handleOutlineNodeSelect = (node: DppOutlineNode) => {
+    setSelectedOutlineNodeId(node.id);
+    if (node.target?.type !== 'route') return;
+
+    try {
+      const url = new URL(node.target.href, window.location.origin);
+      const params = new URLSearchParams(url.search);
+      for (const [key, value] of Object.entries(node.target.query ?? {})) {
+        if (!value) continue;
+        params.set(key, value);
+      }
+      const query = params.toString();
+      navigate(`${url.pathname}${query ? `?${query}` : ''}`);
+    } catch {
+      navigate(node.target.href);
+    }
+  };
+
   useEffect(() => {
     if (!dppId || submodels.length === 0) return;
     const roots = submodels.map((submodel) => buildSubmodelNodeTree(submodel));
@@ -480,7 +522,26 @@ export default function DPPEditorPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <DppOutlinePane
+        context="editor"
+        mobile
+        className="xl:hidden"
+        nodes={outlineNodes}
+        selectedId={selectedOutlineNodeId}
+        onSelectNode={handleOutlineNodeSelect}
+      />
+
+      <div className="xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6">
+        <DppOutlinePane
+          context="editor"
+          className="hidden xl:block"
+          nodes={outlineNodes}
+          selectedId={selectedOutlineNodeId}
+          onSelectNode={handleOutlineNodeSelect}
+        />
+
+        <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title={manufacturerPartId || 'DPP Editor'}
@@ -801,8 +862,21 @@ export default function DPPEditorPage() {
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent>
-                      <SubmodelNodeTree root={entry.rootNode} showSemanticMeta />
+                    <CardContent className="pt-0">
+                      <dl className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+                        <div className="rounded-md border bg-muted/20 px-2 py-1">
+                          <dt className="font-medium text-foreground">Sections</dt>
+                          <dd>{entry.rootNode.children.length}</dd>
+                        </div>
+                        <div className="rounded-md border bg-muted/20 px-2 py-1">
+                          <dt className="font-medium text-foreground">Leaf Fields</dt>
+                          <dd>{entry.health.leafCount}</dd>
+                        </div>
+                        <div className="rounded-md border bg-muted/20 px-2 py-1">
+                          <dt className="font-medium text-foreground">Validation Signals</dt>
+                          <dd>{entry.health.validationSignals}</dd>
+                        </div>
+                      </dl>
                     </CardContent>
                   </Card>
                 );
@@ -962,6 +1036,8 @@ export default function DPPEditorPage() {
           dppId={dppId}
         />
       )}
+        </div>
+      </div>
     </div>
   );
 }

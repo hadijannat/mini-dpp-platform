@@ -2,6 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { DataField } from './DataField';
 import { Badge } from '@/components/ui/badge';
 import type { ClassifiedNode, ESPRCategory } from '../utils/esprCategories';
+import { buildViewerOutlineKey } from '../utils/outlineKey';
 
 interface CategorySectionProps {
   category: ESPRCategory;
@@ -22,7 +23,11 @@ export function CategorySection({ category, elements }: CategorySectionProps) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {elements.map((element, idx) => (
-          <Card key={`${element.submodelIdShort}-${element.path}-${idx}`} className="shadow-sm">
+          <Card
+            key={`${element.submodelIdShort}-${element.path}-${idx}`}
+            className="shadow-sm"
+            data-outline-key={buildViewerOutlineKey(element, idx)}
+          >
             <CardContent className="p-4">
               <DataField
                 label={element.label}
