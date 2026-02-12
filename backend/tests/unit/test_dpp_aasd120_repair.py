@@ -13,12 +13,39 @@ from app.db.models import DPPStatus
 from app.modules.aas.sanitization import SanitizationStats
 from app.modules.dpps.service import DPPService
 
+CARBON_FOOTPRINT_SEMANTIC_ID = "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0"
+DIGITAL_NAMEPLATE_SEMANTIC_ID = "https://admin-shell.io/idta/DigitalNameplate/Nameplate/3/0"
+
 
 def _session_mock() -> AsyncMock:
     session = AsyncMock()
     session.add = MagicMock()
     session.flush = AsyncMock()
     return session
+
+
+def _minimal_env_with_semantic(semantic_id: str) -> dict[str, object]:
+    return {
+        "assetAdministrationShells": [],
+        "submodels": [
+            {
+                "id": "urn:sm:test:1",
+                "idShort": "SM1",
+                "modelType": "Submodel",
+                "semanticId": {
+                    "type": "ExternalReference",
+                    "keys": [
+                        {
+                            "type": "GlobalReference",
+                            "value": semantic_id,
+                        }
+                    ],
+                },
+                "submodelElements": [],
+            }
+        ],
+        "conceptDescriptions": [],
+    }
 
 
 class TestAASd120Autofix:
@@ -30,11 +57,7 @@ class TestAASd120Autofix:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=4,
-                aas_env_json={
-                    "assetAdministrationShells": [],
-                    "submodels": [],
-                    "conceptDescriptions": [],
-                },
+                aas_env_json=_minimal_env_with_semantic(CARBON_FOOTPRINT_SEMANTIC_ID),
                 template_provenance={"carbon-footprint": {"idta_version": "1.0.1"}},
             )
         )
@@ -45,7 +68,12 @@ class TestAASd120Autofix:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="carbon-footprint"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="carbon-footprint",
+                    semantic_id=CARBON_FOOTPRINT_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -58,11 +86,7 @@ class TestAASd120Autofix:
         service._calculate_digest = MagicMock(return_value="digest")
         service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
 
-        sanitized_env = {
-            "assetAdministrationShells": [],
-            "submodels": [],
-            "conceptDescriptions": [],
-        }
+        sanitized_env = _minimal_env_with_semantic(CARBON_FOOTPRINT_SEMANTIC_ID)
         with patch(
             "app.modules.dpps.service.sanitize_submodel_list_item_id_shorts",
             return_value=(
@@ -97,11 +121,7 @@ class TestAASd120Autofix:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=1,
-                aas_env_json={
-                    "assetAdministrationShells": [],
-                    "submodels": [],
-                    "conceptDescriptions": [],
-                },
+                aas_env_json=_minimal_env_with_semantic(DIGITAL_NAMEPLATE_SEMANTIC_ID),
                 template_provenance={},
             )
         )
@@ -112,7 +132,12 @@ class TestAASd120Autofix:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(side_effect=RuntimeError("connection reset"))

@@ -27,6 +27,8 @@ from app.modules.templates.service import (
     _definition_cache,
 )
 
+DIGITAL_NAMEPLATE_SEMANTIC_ID = "https://admin-shell.io/idta/DigitalNameplate/Nameplate/3/0"
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -74,6 +76,15 @@ def _minimal_conformant_env() -> dict[str, Any]:
                 "id": "urn:sm:test:1",
                 "idShort": "SM1",
                 "modelType": "Submodel",
+                "semanticId": {
+                    "type": "ExternalReference",
+                    "keys": [
+                        {
+                            "type": "GlobalReference",
+                            "value": DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                        }
+                    ],
+                },
                 "submodelElements": [],
             }
         ],
@@ -286,7 +297,7 @@ class TestUpdateProvenance:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=3,
-                aas_env_json={"assetAdministrationShells": [], "submodels": []},
+                aas_env_json=_minimal_conformant_env(),
                 template_provenance=existing_provenance,
             )
         )
@@ -298,7 +309,12 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -329,7 +345,7 @@ class TestUpdateProvenance:
         service.get_latest_revision = AsyncMock(
             return_value=SimpleNamespace(
                 revision_no=1,
-                aas_env_json={"assetAdministrationShells": [], "submodels": []},
+                aas_env_json=_minimal_conformant_env(),
                 template_provenance=None,  # Legacy revision — no provenance
             )
         )
@@ -341,7 +357,12 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -369,7 +390,7 @@ class TestUpdateProvenance:
 
         prev_revision = SimpleNamespace(
             revision_no=2,
-            aas_env_json={"assetAdministrationShells": [], "submodels": []},
+            aas_env_json=_minimal_conformant_env(),
             template_provenance=original_provenance,
         )
         service.get_latest_revision = AsyncMock(return_value=prev_revision)
@@ -381,7 +402,12 @@ class TestUpdateProvenance:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(
@@ -785,7 +811,12 @@ class TestProvenanceNullSafety:
         )
         service._is_legacy_environment = MagicMock(return_value=False)
         service._template_service = SimpleNamespace(
-            get_template=AsyncMock(return_value=SimpleNamespace(template_key="digital-nameplate"))
+            get_template=AsyncMock(
+                return_value=SimpleNamespace(
+                    template_key="digital-nameplate",
+                    semantic_id=DIGITAL_NAMEPLATE_SEMANTIC_ID,
+                )
+            )
         )
         service._basyx_builder = SimpleNamespace(
             update_submodel_environment=MagicMock(return_value=env)
