@@ -135,3 +135,11 @@ class IssuedCredentialResponse(BaseModel):
     revoked: bool = False
     credential: dict[str, Any]
     created_at: datetime
+
+
+class CredentialRevocationResponse(BaseModel):
+    """Response when revoking a credential."""
+
+    dpp_id: UUID
+    revoked: bool
+    revoked_at: datetime

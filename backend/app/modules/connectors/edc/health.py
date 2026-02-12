@@ -30,6 +30,23 @@ async def check_edc_health(client: EDCManagementClient) -> dict[str, Any]:
         result = await client.check_health()
 
         if "error_message" in result:
+            # Some EDC distributions expose `/api/check/health` on a different port
+            # than the management API. If health probing returns 404, validate basic
+            # management reachability via a benign asset read call instead.
+            if result.get("error_code") == 404:
+                try:
+                    await client.get_asset("__healthcheck_missing_asset__")
+                    logger.info("edc_health_check_fallback_ok")
+                    return {
+                        "status": "ok",
+                        "edc_version": "unknown",
+                        "components": [],
+                    }
+                except Exception as fallback_exc:  # pragma: no cover - defensive
+                    logger.warning(
+                        "edc_health_check_fallback_failed",
+                        error=str(fallback_exc),
+                    )
             logger.warning(
                 "edc_health_check_failed",
                 error=result.get("error_message"),
