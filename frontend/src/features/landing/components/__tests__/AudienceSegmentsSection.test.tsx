@@ -22,10 +22,10 @@ describe('AudienceSegmentsSection', () => {
       .map((heading) => heading.textContent?.trim());
 
     expect(headings).toEqual([
-      'Manufacturers',
-      'Regulators & Auditors',
-      'Recyclers & Repair Networks',
-      'Consumers',
+      'IDTA / AAS Builders',
+      'DPP Implementers (EU ESPR Context)',
+      'Dataspace Architects',
+      'Platform Teams',
     ]);
   });
 });

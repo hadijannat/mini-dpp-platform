@@ -16,8 +16,8 @@ export default function LandingFooter() {
             <span className="font-display text-xl font-semibold text-landing-ink">DPP Platform</span>
           </div>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-landing-muted">
-            A multi-audience digital product passport platform focused on trustworthy communication,
-            standards-linked claims, and privacy-preserving public summaries.
+            Open-source reference implementation for standards-linked Digital Product Passport
+            workflows with conservative claims and evidence-first messaging.
           </p>
           <button
             type="button"

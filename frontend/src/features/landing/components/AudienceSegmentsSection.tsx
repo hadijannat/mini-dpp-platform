@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 import { Factory, ScanLine, Scale, Wrench } from 'lucide-react';
-import { motion, useReducedMotion } from 'framer-motion';
 import type { LandingIconKey } from '../content/landingContent';
 import { landingContent } from '../content/landingContent';
 
@@ -16,19 +15,6 @@ const iconByKey: Record<LandingIconKey, ComponentType<{ className?: string }>> =
 };
 
 export default function AudienceSegmentsSection() {
-  const shouldReduceMotion = useReducedMotion();
-
-  const cardVariants = shouldReduceMotion
-    ? undefined
-    : ({
-        hidden: { opacity: 0, y: 24 },
-        show: {
-          opacity: 1,
-          y: 0,
-          transition: { duration: 0.5, ease: 'easeOut' as const },
-        },
-      } as const);
-
   return (
     <section id="audiences" className="scroll-mt-24 px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -37,28 +23,21 @@ export default function AudienceSegmentsSection() {
             Audience-first information architecture
           </p>
           <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
-            Communicate clearly to every stakeholder group
+            Speak each implementation dialect natively
           </h2>
           <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
-            The first page is designed to guide each audience through exactly the information they need,
-            while preserving strong privacy defaults for sensitive record-level data.
+            The first screen is tuned for AAS builders, DPP implementers, and dataspace teams while
+            preserving strict public-data boundaries.
           </p>
         </div>
 
-        <motion.div
-          className="grid gap-5 sm:grid-cols-2"
-          initial={shouldReduceMotion ? undefined : 'hidden'}
-          whileInView={shouldReduceMotion ? undefined : 'show'}
-          viewport={{ once: true, amount: 0.2 }}
-          transition={{ staggerChildren: shouldReduceMotion ? 0 : 0.08 }}
-        >
+        <div className="grid gap-5 sm:grid-cols-2">
           {landingContent.audienceCards.map((segment) => {
             const Icon = iconByKey[segment.icon] ?? Factory;
             return (
-              <motion.article
+              <article
                 key={segment.id}
-                variants={cardVariants}
-                className="landing-panel rounded-3xl border border-landing-ink/12 bg-white/75 p-6 shadow-[0_20px_52px_-40px_rgba(10,37,50,0.6)] backdrop-blur"
+                className="landing-panel rounded-3xl border border-landing-ink/12 bg-white/75 p-6 shadow-[0_20px_52px_-40px_rgba(10,37,50,0.6)] backdrop-blur transition-transform duration-200 hover:-translate-y-0.5"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -89,10 +68,10 @@ export default function AudienceSegmentsSection() {
                     </li>
                   ))}
                 </ul>
-              </motion.article>
+              </article>
             );
           })}
-        </motion.div>
+        </div>
       </div>
     </section>
   );

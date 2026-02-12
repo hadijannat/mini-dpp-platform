@@ -60,6 +60,7 @@ COPY frontend/ .
 COPY shared/ ./shared/
 RUN ln -s /repo/frontend/shared /repo/shared
 ENV SHARED_DIR=/repo/frontend/shared
+ENV SKIP_LANDING_PRERENDER=1
 
 # Build the application (VITE_ ARGs are automatically available as env vars)
 RUN npm run build

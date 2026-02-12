@@ -57,10 +57,12 @@ describe('useLandingSummary query options', () => {
       staleTime: number;
       refetchInterval: number;
       refetchIntervalInBackground: boolean;
+      enabled: boolean;
       queryFn: () => Promise<Record<string, unknown>>;
     };
 
     expect(queryConfig.queryKey).toEqual(['landing-summary', 'all']);
+    expect(queryConfig.enabled).toBe(true);
     expect(queryConfig.staleTime).toBe(0);
     expect(queryConfig.refetchInterval).toBe(LANDING_SUMMARY_REFRESH_SLA_MS);
     expect(queryConfig.refetchIntervalInBackground).toBe(true);
@@ -93,5 +95,18 @@ describe('useLandingSummary query options', () => {
     expect(queryConfig.queryKey).toEqual(['landing-summary', 'default']);
     await queryConfig.queryFn();
     expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/public/default/landing/summary');
+  });
+
+  it('can disable polling and fetching when section is deferred', () => {
+    useLandingSummary('default', 'default', false);
+    const queryConfig = useQueryMock.mock.calls[0]?.[0] as {
+      enabled: boolean;
+      refetchInterval: number | false;
+      refetchIntervalInBackground: boolean;
+    };
+
+    expect(queryConfig.enabled).toBe(false);
+    expect(queryConfig.refetchInterval).toBe(false);
+    expect(queryConfig.refetchIntervalInBackground).toBe(false);
   });
 });

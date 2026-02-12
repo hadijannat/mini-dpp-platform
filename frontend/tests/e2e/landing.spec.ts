@@ -14,7 +14,7 @@ test.describe('Landing page', () => {
 
       await expect(
         page.getByRole('heading', {
-          name: /Digital Product Passport publishing for cross-functional teams/i,
+          name: /Open-source Digital Product Passports built on AAS and IDTA DPP4.0/i,
         }),
       ).toBeVisible();
 
@@ -28,7 +28,7 @@ test.describe('Landing page', () => {
   }
 
   test('shows aggregate metrics only even when API payload contains blocked fields', async ({ page }) => {
-    await page.route('**/api/v1/public/**/landing/summary', async (route) => {
+    await page.route(/\/api\/v1\/public(?:\/[^/]+)?\/landing\/summary(?:\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -47,6 +47,10 @@ test.describe('Landing page', () => {
 
     await page.goto('/');
 
+    await page
+      .getByRole('heading', { name: /What is public vs what stays protected/i })
+      .scrollIntoViewIfNeeded();
+
     const metrics = page.getByTestId('landing-metrics-success');
     await expect(metrics).toBeVisible();
     await expect(metrics.getByText('SN-LEAK')).toHaveCount(0);
@@ -59,8 +63,37 @@ test.describe('Landing page', () => {
 
     await page.getByRole('button', { name: /open menu/i }).click();
 
-    await expect(page.getByRole('link', { name: 'Audiences' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Workflow' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Sample' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Standards' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  });
+
+  test('header anchor links reach deferred standards section', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Standards' }).click();
+    await expect(page).toHaveURL(/#standards$/);
+    await expect(page.getByRole('heading', { name: 'Capability claims with explicit evidence' })).toBeVisible();
+  });
+
+  test('hero CTAs navigate to sample section and quickstart link', async ({ page }) => {
+    await page.goto('/');
+
+    await page.getByTestId('landing-hero-primary-cta').click();
+    await expect(page.getByRole('heading', { name: 'Sample Passport Flow' })).toBeVisible();
+
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByTestId('landing-hero-secondary-cta').click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState('domcontentloaded');
+    expect(popup.url()).toContain('github.com/hadijannat/mini-dpp-platform');
+    await popup.close();
+  });
+
+  test('includes software JSON-LD blocks in page source', async ({ page }) => {
+    const response = await page.goto('/');
+    const html = await response?.text();
+    expect(html).toContain('"@type":"SoftwareApplication"');
+    expect(html).toContain('"@type":"Organization"');
+    expect(html).toContain('"@type":"WebSite"');
   });
 });

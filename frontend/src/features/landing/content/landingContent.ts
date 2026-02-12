@@ -1,4 +1,4 @@
-export type AudienceType = 'manufacturer' | 'regulator' | 'recycler' | 'consumer';
+export type AudienceType = 'aas-builders' | 'dpp-implementers' | 'dataspace-architects' | 'platform-teams';
 
 export type LandingIconKey =
   | 'factory'
@@ -10,7 +10,15 @@ export type LandingIconKey =
   | 'globe'
   | 'api';
 
+export type ClaimLevel = 'implements' | 'aligned' | 'roadmap';
+
 export interface NavigationLink {
+  label: string;
+  href: string;
+  external?: boolean;
+}
+
+export interface EvidenceLink {
   label: string;
   href: string;
 }
@@ -18,11 +26,12 @@ export interface NavigationLink {
 export interface HeroContent {
   eyebrow: string;
   title: string;
-  emphasis: string;
   subtitle: string;
   primaryCta: string;
   secondaryCta: string;
+  proofPills: string[];
   highlights: string[];
+  evidenceLinks: EvidenceLink[];
 }
 
 export interface AudienceCardContent {
@@ -33,26 +42,34 @@ export interface AudienceCardContent {
   outcomes: string[];
 }
 
-export interface CapabilityStep {
+export interface HowItWorksStep {
   title: string;
   description: string;
 }
 
-export interface CapabilityCard {
-  icon: LandingIconKey;
+export interface StandardsMapRow {
   title: string;
-  body: string;
-}
-
-export interface EvidenceLink {
-  label: string;
-  href: string;
-}
-
-export interface StandardsClaim {
-  title: string;
+  claimLevel: ClaimLevel;
+  outcome: string;
   qualifier: string;
-  evidence: EvidenceLink[];
+  evidence: EvidenceLink;
+}
+
+export interface DataspaceCard {
+  title: string;
+  claimLevel: ClaimLevel;
+  body: string;
+  evidence: EvidenceLink;
+}
+
+export interface DeveloperSignal {
+  title: string;
+  detail: string;
+}
+
+export interface DemoNode {
+  label: string;
+  value: string;
 }
 
 export interface FallbackMetric {
@@ -75,163 +92,252 @@ export interface FooterLink {
 
 export const landingContent = {
   navigation: [
-    { label: 'Audiences', href: '#audiences' },
-    { label: 'Workflow', href: '#workflow' },
+    { label: 'Sample', href: '#sample-passport' },
     { label: 'Standards', href: '#standards' },
-    { label: 'Data Policy', href: '#data-policy' },
+    { label: 'Dataspaces', href: '#dataspaces' },
+    { label: 'Developers', href: '#developers' },
+    {
+      label: 'Docs',
+      href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
+      external: true,
+    },
   ] satisfies NavigationLink[],
 
   hero: {
-    eyebrow: 'ESPR-aligned workflows for supported categories',
-    title: 'Digital Product Passport publishing for cross-functional teams',
-    emphasis: 'without exposing sensitive product records.',
+    eyebrow: 'AAS + DPP4.0 reference implementation',
+    title: 'Open-source Digital Product Passports built on AAS and IDTA DPP4.0',
     subtitle:
-      'Launch public-facing transparency with aggregate trust signals, keep record-level data protected, and route stakeholders to the right compliance context.',
-    primaryCta: 'Start Secure Sign-In',
-    secondaryCta: 'Explore Audience Journeys',
+      'Create, publish, and share DPPs with AAS APIs, AASX export, and dataspace-ready connector flows for European interoperability.',
+    primaryCta: 'View Sample Passport',
+    secondaryCta: 'Deploy in 5 minutes',
+    proofPills: [
+      'AAS Repository API (IDTA Part 2)',
+      'DPP4.0 Template Ingestion',
+      'EDC Publish + Policy Setup',
+      'MIT Licensed',
+    ],
     highlights: [
-      'Aggregate-only trust metrics on the first page',
-      'AAS and IDTA-aligned modeling workflows',
-      'Role-based publishing, viewing, and governance paths',
+      'ESPR entered into force on 18 July 2024; product-specific obligations are delegated-act driven.',
+      'Public landing views stay aggregate-only by policy.',
+      'Production stack: FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, MinIO.',
+    ],
+    evidenceLinks: [
+      { label: 'API docs', href: '/api/v1/docs' },
+      { label: 'OpenAPI', href: '/api/v1/openapi.json' },
+      {
+        label: 'Public data policy',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md',
+      },
+      {
+        label: 'MIT License',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/LICENSE',
+      },
     ],
   } satisfies HeroContent,
 
+  samplePassport: {
+    title: 'Sample Passport Flow',
+    description:
+      'A compact view of how AAS identifiers resolve into public DPP content, with protected operational details kept out of the landing contract.',
+    nodes: [
+      { label: 'AAS ID', value: 'urn:uuid:dpp-shell-2f4e5a9a' },
+      { label: 'Asset ID', value: 'manufacturerPartId=MP-2400' },
+      { label: 'Resolver', value: '/api/v1/resolve/01/{gtin}/21/{serial}' },
+      { label: 'Viewer', value: '/t/default/p/{slug}' },
+    ] satisfies DemoNode[],
+    aasSnippet: [
+      '{',
+      '  "modelType": "AssetAdministrationShell",',
+      '  "idShort": "dpp-shell",',
+      '  "submodels": ["digital-nameplate", "carbon-footprint", "traceability"]',
+      '}',
+    ].join('\n'),
+  },
+
   audienceCards: [
     {
-      id: 'manufacturer',
+      id: 'aas-builders',
       icon: 'factory',
-      title: 'Manufacturers',
+      title: 'IDTA / AAS Builders',
       description:
-        'Coordinate authoring, quality checks, and publication pipelines with clear ownership boundaries.',
+        'Validate shell and submodel interoperability using AAS repository style APIs and AASX exchange outputs.',
       outcomes: [
-        'Publish consistent passport snapshots for approved products',
-        'Track readiness across templates and product families',
+        'Map against IDTA Part 1/2 patterns with explicit endpoint evidence.',
+        'Inspect AASX export behavior in practical flows.',
       ],
     },
     {
-      id: 'regulator',
+      id: 'dpp-implementers',
       icon: 'scale',
-      title: 'Regulators & Auditors',
+      title: 'DPP Implementers (EU ESPR Context)',
       description:
-        'Review structured disclosures and evidence-linked claims without requesting internal operational payloads.',
+        'Build DPP lifecycles with conservative regulatory language and delegated-act-aware claim discipline.',
       outcomes: [
-        'Validate public summaries against policy language',
-        'Inspect standards-aligned references and scope qualifiers',
+        'Trace implementation evidence to API and docs links.',
+        'Keep compliance messaging scoped to supported capabilities.',
       ],
     },
     {
-      id: 'recycler',
-      icon: 'wrench',
-      title: 'Recyclers & Repair Networks',
+      id: 'dataspace-architects',
+      icon: 'globe',
+      title: 'Dataspace Architects',
       description:
-        'Use public-facing lifecycle context while keeping sensitive identifiers restricted to authorized channels.',
+        'Connect DPP publication to EDC dataspace operations with policy and contract definition support.',
       outcomes: [
-        'Access broad availability and traceability coverage signals',
-        'Escalate to protected views only when operationally required',
+        'Publish assets with usage/access policy setup paths.',
+        'Track registry, resolver, and credential-oriented integration surfaces.',
       ],
     },
     {
-      id: 'consumer',
-      icon: 'scan',
-      title: 'Consumers',
+      id: 'platform-teams',
+      icon: 'api',
+      title: 'Platform Teams',
       description:
-        'See transparent, high-level platform activity and standards context before interacting with product views.',
+        'Operate the platform as a composable stack with IAM, policy controls, and API-first contracts.',
       outcomes: [
-        'Understand what data is public and why',
-        'Follow trusted links to standards and policy references',
+        'Run locally via Docker Compose with known service endpoints.',
+        'Integrate with CI checks and OpenAPI-driven client workflows.',
       ],
     },
   ] satisfies AudienceCardContent[],
 
-  capabilitySteps: [
+  howItWorksSteps: [
     {
-      title: 'Model and validate passport data',
-      description:
-        'Teams prepare template-driven records with governance checks before any public publication step.',
+      title: 'Model',
+      description: 'Author DPP records with AAS structures and DPP4.0 template contracts.',
     },
     {
-      title: 'Publish approved DPPs',
-      description:
-        'Only published records contribute to first-page trust metrics and public summary timelines.',
+      title: 'Publish',
+      description: 'Release approved passports as JSON/AASX with resolver-ready identifiers.',
     },
     {
-      title: 'Expose aggregate trust signals',
+      title: 'Share',
       description:
-        'Landing-page summaries show counts and recency only, with no per-record identifiers.',
+        'Expose public viewer paths and aggregate trust metrics while routing protected exchanges through connector policies.',
     },
-    {
-      title: 'Route authorized users deeper',
-      description:
-        'Detailed record views and event payloads remain in authenticated or scoped endpoints.',
-    },
-  ] satisfies CapabilityStep[],
+  ] satisfies HowItWorksStep[],
 
-  capabilityCards: [
+  standardsMap: [
     {
-      icon: 'workflow',
-      title: 'Workflow orchestration',
-      body: 'Connect authoring, review, and publishing milestones in one operational path.',
+      title: 'IDTA AAS Part 2 service-description + shell APIs',
+      claimLevel: 'implements',
+      outcome: 'Provides tenant-scoped service-description and shell retrieval routes for published shells.',
+      qualifier: 'Implementation evidence comes from current backend public routes.',
+      evidence: {
+        label: 'AAS public router evidence',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/dpps/public_router.py',
+      },
     },
     {
-      icon: 'shield',
-      title: 'Privacy-first defaults',
-      body: 'Protect identifiers and raw event payloads while still presenting transparent public summaries.',
+      title: 'AASX export pipeline',
+      claimLevel: 'implements',
+      outcome: 'Exports AASX packages with explicit writer and validation flow in the export service.',
+      qualifier: 'Framed as implemented export capability, not external certification.',
+      evidence: {
+        label: 'Export service evidence',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/export/service.py',
+      },
     },
     {
-      icon: 'globe',
-      title: 'Cross-audience communication',
-      body: 'Give each audience role-specific context without forcing a technical deep dive up front.',
+      title: 'DPP4.0 template ingestion and refresh',
+      claimLevel: 'implements',
+      outcome: 'Supports listing and refreshing fetched template contracts and schemas.',
+      qualifier: 'Availability depends on upstream template publication status.',
+      evidence: {
+        label: 'Template router evidence',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/templates/router.py',
+      },
     },
     {
-      icon: 'api',
-      title: 'Public API contract clarity',
-      body: 'Use a dedicated landing summary endpoint with strict aggregate-only response fields.',
+      title: 'GS1 Digital Link and IEC 61406 link generation',
+      claimLevel: 'implements',
+      outcome: 'Generates identifier links for published passports and carrier workflows.',
+      qualifier: 'Positioned as implemented endpoint behavior in this platform.',
+      evidence: {
+        label: 'QR/router evidence',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/qr/router.py',
+      },
     },
-  ] satisfies CapabilityCard[],
+    {
+      title: 'EDC dataspace publish and health surfaces',
+      claimLevel: 'implements',
+      outcome: 'Creates EDC assets, policies, and contract definitions with status/health checks.',
+      qualifier: 'Interoperability outcomes depend on external connector configuration and partner environment.',
+      evidence: {
+        label: 'Connector router evidence',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/connectors/router.py',
+      },
+    },
+    {
+      title: 'EU ESPR framing',
+      claimLevel: 'aligned',
+      outcome: 'Uses conservative language aligned with ESPR and delegated-act rollout realities.',
+      qualifier: 'No universal product-category compliance claim is made on landing pages.',
+      evidence: {
+        label: 'ESPR legal text',
+        href: 'https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng',
+      },
+    },
+    {
+      title: 'Conformance test harness publication',
+      claimLevel: 'roadmap',
+      outcome: 'Planned publication of machine-verifiable conformance evidence artifacts.',
+      qualifier: 'Not yet shipped as a public, versioned evidence bundle.',
+      evidence: {
+        label: 'Architecture docs',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public/architecture',
+      },
+    },
+  ] satisfies StandardsMapRow[],
 
-  standardsClaims: [
+  dataspaceCards: [
     {
-      title: 'Supports ESPR-aligned workflows for supported categories',
-      qualifier:
-        'Scope depends on configured templates, enabled modules, and delegated-act timelines by product group.',
-      evidence: [
-        {
-          label: 'EU ESPR regulation overview',
-          href: 'https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/sustainable-products/ecodesign-sustainable-products-regulation_en',
-        },
-        {
-          label: 'EU 2024/1781 text',
-          href: 'https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng',
-        },
-      ],
+      title: 'Sovereign Sharing Path',
+      claimLevel: 'implements',
+      body: 'Connector flows expose EDC publication and policy primitives for controlled partner sharing.',
+      evidence: {
+        label: 'EDC connector endpoints',
+        href: '/api/v1/docs',
+      },
     },
     {
-      title: 'Uses AAS and IDTA-oriented data modeling patterns',
-      qualifier:
-        'Interoperability quality depends on the downstream systems and profile constraints selected per deployment.',
-      evidence: [
-        {
-          label: 'IDTA submodel resources',
-          href: 'https://industrialdigitaltwin.org/en/content-hub/submodels',
-        },
-        {
-          label: 'AAS specifications',
-          href: 'https://industrialdigitaltwin.org/en/content-hub/aasspecifications',
-        },
-      ],
+      title: 'Registry + Resolver Surfaces',
+      claimLevel: 'implements',
+      body: 'Built-in registry and GS1 resolver routes support discoverability and pointer resolution.',
+      evidence: {
+        label: 'Resolver + registry docs',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public/architecture',
+      },
     },
     {
-      title: 'Enables traceability storytelling with protected operational details',
-      qualifier:
-        'Public pages communicate aggregate readiness while detailed event payloads stay in purpose-specific routes.',
-      evidence: [
-        {
-          label: 'Platform API docs',
-          href: '/api/v1/docs',
-        },
-      ],
+      title: 'Trust and Policy Controls',
+      claimLevel: 'aligned',
+      body: 'Keycloak + OPA + connector policy builders align platform flows with controlled access patterns.',
+      evidence: {
+        label: 'Operations docs',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public/operations',
+      },
     },
-  ] satisfies StandardsClaim[],
+  ] satisfies DataspaceCard[],
+
+  developerSignals: [
+    {
+      title: 'API-first contract',
+      detail: 'OpenAPI JSON and interactive docs are published at /api/v1/openapi.json and /api/v1/docs.',
+    },
+    {
+      title: 'Identity and policy',
+      detail: 'Keycloak (OIDC) and OPA policy checks are first-class platform services.',
+    },
+    {
+      title: 'Composable runtime',
+      detail: 'Docker Compose profiles include base stack plus optional EDC and DTR overlays.',
+    },
+    {
+      title: 'Open-source posture',
+      detail: 'MIT licensing and public documentation support reference implementation usage.',
+    },
+  ] satisfies DeveloperSignal[],
 
   fallbackMetrics: [
     {
@@ -304,6 +410,11 @@ export const landingContent = {
       { label: 'API docs', href: '/api/v1/docs' },
       { label: 'OpenAPI schema', href: '/api/v1/openapi.json' },
       {
+        label: 'Quickstart (README)',
+        href: 'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
+        external: true,
+      },
+      {
         label: 'GitHub repository',
         href: 'https://github.com/hadijannat/mini-dpp-platform',
         external: true,
@@ -317,8 +428,14 @@ export const landingContent = {
         external: true,
       },
       {
-        label: 'ESPR source references',
-        href: '#standards',
+        label: 'ESPR overview',
+        href: 'https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/ecodesign-sustainable-products-regulation_en',
+        external: true,
+      },
+      {
+        label: 'MIT License',
+        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/LICENSE',
+        external: true,
       },
     ] satisfies FooterLink[],
   },

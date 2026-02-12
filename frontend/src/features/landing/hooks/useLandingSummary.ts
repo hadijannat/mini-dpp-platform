@@ -91,7 +91,11 @@ async function fetchLandingSummary(
   return sanitizeLandingSummary((await response.json()) as unknown, fallbackTenant);
 }
 
-export function useLandingSummary(tenantSlug?: string, scope: LandingSummaryScope = 'all') {
+export function useLandingSummary(
+  tenantSlug?: string,
+  scope: LandingSummaryScope = 'all',
+  enabled = true,
+) {
   const normalizedTenant = tenantSlug?.trim().toLowerCase() ?? '';
   const useTenantScopedSummary = normalizedTenant.length > 0;
   const normalizedScope = scope === 'default' ? 'default' : 'all';
@@ -103,10 +107,11 @@ export function useLandingSummary(tenantSlug?: string, scope: LandingSummaryScop
         useTenantScopedSummary ? normalizedTenant : null,
         normalizedScope,
       ),
+    enabled,
     staleTime: 0,
     gcTime: LANDING_SUMMARY_GC_MS,
     retry: 1,
-    refetchInterval: LANDING_SUMMARY_REFRESH_SLA_MS,
-    refetchIntervalInBackground: true,
+    refetchInterval: enabled ? LANDING_SUMMARY_REFRESH_SLA_MS : false,
+    refetchIntervalInBackground: enabled,
   });
 }
