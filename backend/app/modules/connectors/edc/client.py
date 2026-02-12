@@ -227,6 +227,32 @@ class EDCManagementClient:
         )
 
     # ------------------------------------------------------------------
+    # Catalog
+    # ------------------------------------------------------------------
+
+    async def query_catalog(
+        self,
+        *,
+        connector_address: str,
+        protocol: str = "dataspace-protocol-http",
+        query_spec: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Query a remote participant catalog via management API."""
+        client = await self._get_client()
+
+        body: dict[str, Any] = {
+            "@context": {"edc": "https://w3id.org/edc/v0.0.1/ns/"},
+            "counterPartyAddress": connector_address,
+            "connectorAddress": connector_address,
+            "protocol": protocol,
+            "querySpec": query_spec or {"offset": 0, "limit": 50},
+        }
+
+        response = await client.post("/management/v3/catalog/request", json=body)
+        response.raise_for_status()
+        return cast(dict[str, Any], response.json())
+
+    # ------------------------------------------------------------------
     # Transfer Processes
     # ------------------------------------------------------------------
 
@@ -260,6 +286,20 @@ class EDCManagementClient:
             transfer_id=str(data.get("@id", "")),
             state=str(data.get("state", "INITIAL")),
             data_destination=data_destination,
+        )
+
+    async def get_transfer(self, transfer_id: str) -> TransferProcess:
+        """Poll the state of a transfer process."""
+        client = await self._get_client()
+
+        response = await client.get(f"/management/v3/transferprocesses/{transfer_id}")
+        response.raise_for_status()
+
+        data = cast(dict[str, Any], response.json())
+        return TransferProcess(
+            transfer_id=str(data.get("@id", transfer_id)),
+            state=str(data.get("state", "")),
+            data_destination=data.get("dataDestination"),
         )
 
     # ------------------------------------------------------------------

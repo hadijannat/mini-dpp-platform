@@ -311,6 +311,27 @@ class Settings(BaseSettings):
     edc_management_api_key: str = Field(default="", description="EDC Management API key")
     edc_dsp_endpoint: str = Field(default="", description="EDC DSP protocol endpoint")
     edc_participant_id: str = Field(default="", description="EDC participant BPN")
+    dataspace_legacy_connector_write_enabled: bool = Field(
+        default=True,
+        description="Allow write operations on legacy /connectors create/publish endpoints",
+    )
+    dataspace_tck_command: str = Field(
+        default="",
+        description=(
+            "Optional shell command used to run DSP-TCK conformance jobs. "
+            "If empty, runs are recorded in simulation mode."
+        ),
+    )
+    dataspace_tck_timeout_seconds: int = Field(
+        default=900,
+        ge=30,
+        le=7200,
+        description="Timeout for DSP-TCK command execution",
+    )
+    dataspace_tck_artifact_dir: str = Field(
+        default="artifacts/dataspace-tck",
+        description="Filesystem directory for conformance run artifacts",
+    )
 
     # ==========================================================================
     # Audit Cryptographic Integrity

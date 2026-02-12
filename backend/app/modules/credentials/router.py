@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -12,6 +13,7 @@ from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.credentials.did import DIDService
 from app.modules.credentials.schemas import (
+    CredentialRevocationResponse,
     IssuedCredentialResponse,
     VCIssueRequest,
     VCVerifyRequest,
@@ -157,3 +159,56 @@ async def list_credentials(
     svc = _get_vc_service()
     records = await svc.list_credentials(tenant.tenant_id, db, limit=limit, offset=offset)
     return [_record_to_response(r) for r in records]
+
+
+@router.post(
+    "/{dpp_id}/revoke",
+    response_model=CredentialRevocationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def revoke_credential(
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> CredentialRevocationResponse:
+    """Revoke the issued credential for a DPP."""
+    from sqlalchemy import select
+
+    from app.db.models import IssuedCredential
+
+    result = await db.execute(
+        select(IssuedCredential).where(
+            IssuedCredential.dpp_id == dpp_id,
+            IssuedCredential.tenant_id == tenant.tenant_id,
+        )
+    )
+    record = result.scalar_one_or_none()
+    if not record:
+        raise HTTPException(status_code=404, detail="No credential found for this DPP")
+    if not record.revoked:
+        record.revoked = True
+    record.updated_at = datetime.now(UTC)
+    await db.commit()
+
+    return CredentialRevocationResponse(
+        dpp_id=dpp_id,
+        revoked=True,
+        revoked_at=record.updated_at,
+    )
+
+
+@router.get(
+    "/{dpp_id}/status",
+    response_model=IssuedCredentialResponse,
+)
+async def get_credential_status(
+    dpp_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> IssuedCredentialResponse:
+    """Read VC status for a DPP, including revocation flag."""
+    svc = _get_vc_service()
+    record = await svc.get_credential_for_dpp(dpp_id, tenant.tenant_id, db)
+    if not record:
+        raise HTTPException(status_code=404, detail="No credential found for this DPP")
+    return _record_to_response(record)

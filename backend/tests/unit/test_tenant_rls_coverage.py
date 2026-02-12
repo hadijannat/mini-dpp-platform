@@ -52,7 +52,20 @@ _RLS_0027 = {
     "dpp_attachments",
 }
 
-TABLES_WITH_RLS = _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024 | _RLS_0025 | _RLS_0027
+# Tables with RLS from migration 0028
+_RLS_0028 = {
+    "dataspace_connectors",
+    "dataspace_connector_secrets",
+    "dataspace_policy_templates",
+    "dataspace_asset_publications",
+    "dataspace_negotiations",
+    "dataspace_transfers",
+    "dataspace_conformance_runs",
+}
+
+TABLES_WITH_RLS = (
+    _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024 | _RLS_0025 | _RLS_0027 | _RLS_0028
+)
 
 
 def _tenant_scoped_tables() -> set[str]:

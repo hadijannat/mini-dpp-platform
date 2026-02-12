@@ -10,6 +10,8 @@ from uuid import UUID
 from sqlalchemy import false, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.encryption import ConnectorConfigEncryptor, EncryptionError
 from app.core.logging import get_logger
 from app.db.models import (
     Connector,
@@ -36,6 +38,10 @@ class CatenaXConnectorService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._dpp_service = DPPService(session)
+        self._encryptor: ConnectorConfigEncryptor | None = None
+        settings = get_settings()
+        if settings.encryption_master_key:
+            self._encryptor = ConnectorConfigEncryptor(settings.encryption_master_key)
 
     async def get_connector(self, connector_id: UUID, tenant_id: UUID) -> Connector | None:
         """Get a connector by ID."""
@@ -188,11 +194,12 @@ class CatenaXConnectorService:
         - submodel_base_url: URL where submodels are exposed
         - edc_dsp_endpoint: Optional EDC DSP endpoint
         """
+        encrypted_config = self._encrypt_config(config)
         connector = Connector(
             tenant_id=tenant_id,
             name=name,
             connector_type=ConnectorType.CATENA_X,
-            config=config,
+            config=encrypted_config,
             status=ConnectorStatus.DISABLED,
             created_by_subject=created_by_subject,
         )
@@ -219,7 +226,7 @@ class CatenaXConnectorService:
         if not connector:
             return {"status": "error", "error_message": "Connector not found"}
 
-        config = connector.config
+        config = self._decrypt_config(connector.config)
 
         # Build DTR config
         dtr_config = DTRConfig(
@@ -280,7 +287,7 @@ class CatenaXConnectorService:
         if not revision:
             raise ValueError(f"DPP {dpp_id} has no published revision")
 
-        config = connector.config
+        config = self._decrypt_config(connector.config)
 
         # Build shell descriptor
         descriptor = build_shell_descriptor(
@@ -332,3 +339,23 @@ class CatenaXConnectorService:
 
         finally:
             await client.close()
+
+    def _encrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        if self._encryptor is None:
+            if config.get("token") or config.get("client_secret"):
+                raise ValueError(
+                    "encryption_master_key must be configured before storing connector secrets"
+                )
+            return config
+        try:
+            return self._encryptor.encrypt_config(config)
+        except EncryptionError as exc:
+            raise ValueError(str(exc)) from exc
+
+    def _decrypt_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        if self._encryptor is None:
+            return config
+        try:
+            return self._encryptor.decrypt_config(config)
+        except EncryptionError as exc:
+            raise ValueError(str(exc)) from exc

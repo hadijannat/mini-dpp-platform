@@ -5,10 +5,12 @@ API Router for Connector management endpoints.
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel
 
 from app.core.audit import emit_audit_event
+from app.core.config import get_settings
+from app.core.encryption import ConnectorConfigEncryptor, EncryptionError
 from app.core.security import require_access
 from app.core.security.actor_metadata import actor_payload, load_users_by_subject
 from app.core.security.resource_context import (
@@ -123,6 +125,30 @@ class EDCHealthResponse(BaseModel):
     error_message: str | None = None
 
 
+_LEGACY_SUNSET = "Sat, 31 Jan 2027 23:59:59 GMT"
+
+
+def _add_legacy_deprecation_headers(response: Response) -> None:
+    response.headers["Deprecation"] = "true"
+    response.headers["Sunset"] = _LEGACY_SUNSET
+    response.headers["Link"] = (
+        '</api/v1/tenants/{tenant_slug}/dataspace/connectors>; rel="successor-version"'
+    )
+
+
+def _decrypt_connector_config(config: dict[str, Any]) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.encryption_master_key:
+        return config
+    try:
+        return ConnectorConfigEncryptor(settings.encryption_master_key).decrypt_config(config)
+    except EncryptionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to decrypt connector config: {exc}",
+        ) from exc
+
+
 def _connector_access_source(
     *,
     tenant: TenantPublisher,
@@ -229,6 +255,7 @@ async def list_connectors(
 @router.post("", response_model=ConnectorResponse, status_code=status.HTTP_201_CREATED)
 async def create_connector(
     body: ConnectorCreateRequest,
+    response: Response,
     http_request: Request,
     db: DbSession,
     tenant: TenantPublisher,
@@ -245,8 +272,19 @@ async def create_connector(
     - submodel_base_url: URL where submodels are exposed
     - edc_dsp_endpoint: Optional EDC DSP endpoint
     """
+    settings = get_settings()
+    if not settings.dataspace_legacy_connector_write_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Legacy connector write endpoint is disabled. "
+                "Use /api/v1/tenants/{tenant_slug}/dataspace/connectors."
+            ),
+        )
+
     await require_access(tenant.user, "create", {"type": "connector"}, tenant=tenant)
     service = CatenaXConnectorService(db)
+    _add_legacy_deprecation_headers(response)
 
     connector = await service.create_connector(
         tenant_id=tenant.tenant_id,
@@ -385,6 +423,7 @@ async def test_connector(
 async def publish_dpp_to_connector(
     connector_id: UUID,
     dpp_id: UUID,
+    response: Response,
     request: Request,
     db: DbSession,
     tenant: TenantPublisher,
@@ -395,7 +434,18 @@ async def publish_dpp_to_connector(
     The DPP must be published first. Creates or updates
     the shell descriptor in the DTR.
     """
+    settings = get_settings()
+    if not settings.dataspace_legacy_connector_write_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Legacy connector publish endpoint is disabled. "
+                "Use /api/v1/tenants/{tenant_slug}/dataspace/assets/publish."
+            ),
+        )
+
     service = CatenaXConnectorService(db)
+    _add_legacy_deprecation_headers(response)
     connector = await service.get_connector(connector_id, tenant.tenant_id)
     if not connector:
         return PublishResultResponse(
@@ -481,6 +531,7 @@ async def publish_dpp_to_connector(
 async def publish_dpp_to_dataspace(
     connector_id: UUID,
     dpp_id: UUID,
+    response: Response,
     request: Request,
     db: DbSession,
     tenant: TenantPublisher,
@@ -492,7 +543,18 @@ async def publish_dpp_to_dataspace(
     definition so data consumers can discover and negotiate access.
     The DPP must be published first.
     """
+    settings = get_settings()
+    if not settings.dataspace_legacy_connector_write_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Legacy dataspace publish endpoint is disabled. "
+                "Use /api/v1/tenants/{tenant_slug}/dataspace/assets/publish."
+            ),
+        )
+
     dpp_service = DPPService(db)
+    _add_legacy_deprecation_headers(response)
     dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
     if not dpp:
         return EDCPublishResultResponse(
@@ -649,7 +711,7 @@ async def check_connector_edc_health(
         tenant=tenant,
     )
 
-    config = connector.config
+    config = _decrypt_connector_config(connector.config)
     edc_config = EDCConfig(
         management_url=config.get("edc_management_url", ""),
         api_key=config.get("edc_management_api_key", ""),

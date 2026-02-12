@@ -1,0 +1,172 @@
+name: Dataspace Conformance
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  dsp-tck:
+    name: DSP-TCK Conformance Run
+    runs-on: ubuntu-latest
+    env:
+      ENCRYPTION_MASTER_KEY: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
+      DATASPACE_TCK_COMMAND: "true"
+      DATASPACE_TCK_TIMEOUT_SECONDS: "120"
+      DPP_BASE_URL: "http://localhost:8000"
+      KEYCLOAK_BASE_URL: "http://localhost:8080"
+      KEYCLOAK_REALM: "dpp-platform"
+      KEYCLOAK_CLIENT_ID: "dpp-backend"
+      KEYCLOAK_CLIENT_SECRET: "backend-secret-dev"
+      DPP_USERNAME: "publisher"
+      DPP_PASSWORD: "publisher123"
+      DPP_TENANT: "default"
+      E2E_EDC_MANAGEMENT_URL: "http://edc-controlplane:19193/management"
+      E2E_EDC_DSP_ENDPOINT: "http://edc-controlplane:19194/protocol"
+      E2E_PROVIDER_CONNECTOR_ADDRESS: "http://edc-controlplane:19193/management"
+      E2E_EDC_API_KEY: "password"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack with EDC
+        run: docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build
+
+      - name: Wait for backend health
+        run: |
+          curl --retry 40 --retry-all-errors --retry-delay 2 \
+            --fail --silent --show-error "${DPP_BASE_URL}/health"
+
+      - name: Wait for EDC controlplane health
+        run: |
+          curl --retry 40 --retry-all-errors --retry-delay 2 \
+            --fail --silent --show-error http://localhost:19191/api/check/health
+
+      - name: Wait for Keycloak token endpoint
+        run: |
+          for i in $(seq 1 60); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST "${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token" \
+              -d "client_id=${KEYCLOAK_CLIENT_ID}" \
+              -d "client_secret=${KEYCLOAK_CLIENT_SECRET}" \
+              -d "username=${DPP_USERNAME}" \
+              -d "password=${DPP_PASSWORD}" \
+              -d "grant_type=password" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Keycloak token endpoint not ready"
+          exit 1
+
+      - name: Run dataspace conformance via API
+        run: |
+          mkdir -p test-results/dataspace-conformance
+
+          TOKEN=$(
+            curl -sS -X POST "${KEYCLOAK_BASE_URL}/realms/${KEYCLOAK_REALM}/protocol/openid-connect/token" \
+              -d "client_id=${KEYCLOAK_CLIENT_ID}" \
+              -d "client_secret=${KEYCLOAK_CLIENT_SECRET}" \
+              -d "username=${DPP_USERNAME}" \
+              -d "password=${DPP_PASSWORD}" \
+              -d "grant_type=password" \
+              | python -c "import json,sys; print(json.load(sys.stdin)['access_token'])"
+          )
+
+          CREATE_PAYLOAD='{
+            "name": "ci-dataspace-edc",
+            "runtime": "edc",
+            "participant_id": "BPNL000000000000",
+            "runtime_config": {
+              "management_url": "'"${E2E_EDC_MANAGEMENT_URL}"'",
+              "dsp_endpoint": "'"${E2E_EDC_DSP_ENDPOINT}"'",
+              "provider_connector_address": "'"${E2E_PROVIDER_CONNECTOR_ADDRESS}"'",
+              "management_api_key_secret_ref": "edc-mgmt-api-key",
+              "protocol": "dataspace-protocol-http"
+            },
+            "secrets": [
+              {
+                "secret_ref": "edc-mgmt-api-key",
+                "value": "'"${E2E_EDC_API_KEY}"'"
+              }
+            ]
+          }'
+
+          CREATE_BODY="test-results/dataspace-conformance/create-connector.json"
+          CREATE_CODE=$(curl -sS -o "${CREATE_BODY}" -w "%{http_code}" \
+            -X POST "${DPP_BASE_URL}/api/v1/tenants/${DPP_TENANT}/dataspace/connectors" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${CREATE_PAYLOAD}")
+
+          if [ "${CREATE_CODE}" = "200" ] || [ "${CREATE_CODE}" = "201" ]; then
+            CONNECTOR_ID=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" "${CREATE_BODY}")
+          elif [ "${CREATE_CODE}" = "400" ] && grep -qi "already exists" "${CREATE_BODY}"; then
+            curl -sS \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "${DPP_BASE_URL}/api/v1/tenants/${DPP_TENANT}/dataspace/connectors" \
+              > test-results/dataspace-conformance/connectors.json
+            CONNECTOR_ID=$(python -c "import json,sys; data=json.load(open(sys.argv[1])); print(next((item['id'] for item in data.get('connectors', []) if item.get('name') == 'ci-dataspace-edc'), ''))" test-results/dataspace-conformance/connectors.json)
+          else
+            echo "Connector create failed (${CREATE_CODE})"
+            cat "${CREATE_BODY}"
+            exit 1
+          fi
+
+          if [ -z "${CONNECTOR_ID}" ]; then
+            echo "Unable to resolve connector id"
+            exit 1
+          fi
+
+          curl -sS \
+            -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "${DPP_BASE_URL}/api/v1/tenants/${DPP_TENANT}/dataspace/connectors/${CONNECTOR_ID}/validate" \
+            > test-results/dataspace-conformance/validate.json
+
+          python -c "import json,sys; payload=json.load(open(sys.argv[1])); assert payload.get('status') == 'ok', f'Connector validation failed: {payload}'" test-results/dataspace-conformance/validate.json
+
+          RUN_PAYLOAD='{
+            "connector_id": "'"${CONNECTOR_ID}"'",
+            "profile": "dsp-tck",
+            "metadata": {
+              "source": "github-actions",
+              "workflow": "dataspace-conformance"
+            }
+          }'
+
+          curl -sS \
+            -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "${RUN_PAYLOAD}" \
+            "${DPP_BASE_URL}/api/v1/tenants/${DPP_TENANT}/dataspace/conformance/dsp-tck/runs" \
+            > test-results/dataspace-conformance/create-run.json
+
+          RUN_ID=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['id'])" test-results/dataspace-conformance/create-run.json)
+
+          curl -sS \
+            -H "Authorization: Bearer ${TOKEN}" \
+            "${DPP_BASE_URL}/api/v1/tenants/${DPP_TENANT}/dataspace/conformance/dsp-tck/runs/${RUN_ID}" \
+            > test-results/dataspace-conformance/run-status.json
+
+          python -c "import json,sys; payload=json.load(open(sys.argv[1])); assert payload.get('status') == 'passed', f'DSP conformance run failed: {payload}'" test-results/dataspace-conformance/run-status.json
+
+      - name: Upload conformance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataspace-conformance
+          path: test-results/dataspace-conformance/
+
+      - name: Dump stack logs on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.edc.yml logs backend | tail -150
+          docker compose -f docker-compose.yml -f docker-compose.edc.yml logs edc-controlplane | tail -150
+          docker compose -f docker-compose.yml -f docker-compose.edc.yml logs edc-dataplane | tail -150
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.edc.yml down -v
