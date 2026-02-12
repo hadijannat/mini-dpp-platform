@@ -9,6 +9,7 @@ Produces deterministic bindings for submodels in a DPP revision by combining:
 from __future__ import annotations
 
 import functools
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -23,7 +24,16 @@ from app.modules.semantic_registry import (
     load_semantic_registry,
 )
 
-BindingSource = Literal["semantic_exact", "semantic_alias", "provenance", "id_short", "unresolved"]
+BindingSource = Literal[
+    "semantic_exact",
+    "semantic_alias",
+    "provenance",
+    "submodel_id",
+    "id_short",
+    "unresolved",
+]
+
+_SUBMODEL_ID_TEMPLATE_PATTERN = re.compile(r"^urn:dpp:sm:([^:]+):", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -137,11 +147,16 @@ def resolve_submodel_bindings(
                 elif len(provenance_candidates) > 1:
                     bound_template_key = None
                     binding_source = "unresolved"
-                elif id_short:
-                    fallback_key = _kebab_case(id_short)
-                    if fallback_key in available_template_keys:
-                        bound_template_key = fallback_key
-                        binding_source = "id_short"
+                else:
+                    submodel_id_template = _template_key_from_submodel_id(submodel_id)
+                    if submodel_id_template and submodel_id_template in available_template_keys:
+                        bound_template_key = submodel_id_template
+                        binding_source = "submodel_id"
+                    elif id_short:
+                        fallback_key = _kebab_case(id_short)
+                        if fallback_key in available_template_keys:
+                            bound_template_key = fallback_key
+                            binding_source = "id_short"
 
         template_obj = template_by_key.get(bound_template_key) if bound_template_key else None
         provenance_meta = provenance.get(bound_template_key, {}) if bound_template_key else {}
@@ -232,3 +247,13 @@ def _load_alias_map() -> dict[str, str]:
         if normalized_semantic:
             normalized[normalized_semantic] = template_key
     return normalized
+
+
+def _template_key_from_submodel_id(submodel_id: str | None) -> str | None:
+    if not submodel_id:
+        return None
+    match = _SUBMODEL_ID_TEMPLATE_PATTERN.match(submodel_id.strip())
+    if match is None:
+        return None
+    template_key = match.group(1).strip().lower()
+    return template_key or None
