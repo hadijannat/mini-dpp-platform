@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 type OutlineScrollSyncOptions = {
   enabled: boolean;
@@ -13,6 +13,8 @@ export function useOutlineScrollSync({
   onActivePathChange,
   root = null,
 }: OutlineScrollSyncOptions) {
+  const lastPathRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (
       !enabled ||
@@ -42,7 +44,8 @@ export function useOutlineScrollSync({
       })[0];
 
       const value = topAligned.target.getAttribute(attribute);
-      if (value) {
+      if (value && value !== lastPathRef.current) {
+        lastPathRef.current = value;
         onActivePathChange(value);
       }
     };

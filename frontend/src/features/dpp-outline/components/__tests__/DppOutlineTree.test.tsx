@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { DppOutlineTree } from '../DppOutlineTree';
 import type { DppOutlineNode } from '../../types';
 
@@ -49,6 +49,10 @@ function buildTreeNodes(): DppOutlineNode[] {
 }
 
 describe('DppOutlineTree', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
   it('supports keyboard expand/collapse and selection', () => {
     const onSelectNode = vi.fn();
     render(<DppOutlineTree nodes={buildTreeNodes()} onSelectNode={onSelectNode} />);
@@ -75,5 +79,56 @@ describe('DppOutlineTree', () => {
 
     fireEvent.keyDown(nestedSection, { key: 'ArrowLeft' });
     expect(screen.queryByRole('treeitem', { name: /ManufacturerName/i })).toBeNull();
+  });
+
+  it('keeps user collapse state when nodes are rebuilt with stable ids', () => {
+    const { rerender } = render(<DppOutlineTree nodes={buildTreeNodes()} />);
+
+    const category = screen.getByRole('treeitem', { name: /Product Identity/i });
+    category.focus();
+    fireEvent.keyDown(category, { key: 'ArrowLeft' });
+
+    expect(screen.queryByRole('treeitem', { name: /Nameplate/i })).toBeNull();
+
+    rerender(<DppOutlineTree nodes={buildTreeNodes()} selectedId="category:identity" />);
+    expect(screen.queryByRole('treeitem', { name: /Nameplate/i })).toBeNull();
+  });
+
+  it('expands selected node ancestors so active selection stays visible', () => {
+    const { rerender } = render(<DppOutlineTree nodes={buildTreeNodes()} />);
+
+    const category = screen.getByRole('treeitem', { name: /Product Identity/i });
+    category.focus();
+    fireEvent.keyDown(category, { key: 'ArrowLeft' });
+    expect(screen.queryByRole('treeitem', { name: /Nameplate/i })).toBeNull();
+
+    rerender(
+      <DppOutlineTree
+        nodes={buildTreeNodes()}
+        selectedId="field:leaf"
+      />,
+    );
+
+    expect(screen.getByRole('treeitem', { name: /ManufacturerName/i })).toBeTruthy();
+  });
+
+  it('renders virtualization branch when node count exceeds threshold', () => {
+    const nodes: DppOutlineNode[] = Array.from({ length: 260 }, (_, index) => ({
+      id: `field:${index}`,
+      kind: 'field',
+      label: `Node ${index + 1}`,
+      path: `Node.${index + 1}`,
+      children: [],
+    }));
+
+    const { container } = render(
+      <DppOutlineTree
+        nodes={nodes}
+        virtualizeThreshold={10}
+      />,
+    );
+
+    expect(screen.getByRole('tree')).toBeTruthy();
+    expect(container.querySelector('div.relative[style*="height"]')).toBeTruthy();
   });
 });

@@ -40,7 +40,7 @@ describe('buildViewerOutline', () => {
     expect(identityField?.status?.completion).toBe('complete');
     expect(identityField?.target).toEqual({
       type: 'dom',
-      path: buildViewerOutlineKey(identityNode, 0),
+      path: buildViewerOutlineKey(identityNode),
     });
 
     const environmental = nodes.find((node) => node.path === 'environmental');

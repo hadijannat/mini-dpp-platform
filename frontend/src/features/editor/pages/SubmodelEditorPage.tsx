@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -451,6 +451,7 @@ export default function SubmodelEditorPage() {
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
   const [hasAppliedInitialFocus, setHasAppliedInitialFocus] = useState(false);
+  const suppressScrollSyncUntilRef = useRef(0);
 
   // Sync RHF defaults when initial data loads
   useEffect(() => {
@@ -577,7 +578,8 @@ export default function SubmodelEditorPage() {
 
   const handleOutlineNodeSelect = useCallback(
     (node: DppOutlineNode) => {
-      setSelectedOutlineNodeId(node.id);
+      suppressScrollSyncUntilRef.current = Date.now() + 900;
+      setSelectedOutlineNodeId((previous) => (previous === node.id ? previous : node.id));
       if (node.target?.type === 'dom') {
         focusFieldPath(node.target.path);
       }
@@ -585,21 +587,30 @@ export default function SubmodelEditorPage() {
     [],
   );
 
+  const handleActiveOutlinePathChange = useCallback(
+    (path: string) => {
+      if (Date.now() < suppressScrollSyncUntilRef.current) return;
+      const target = findOutlineNodeByPath(path);
+      if (target) {
+        setSelectedOutlineNodeId((previous) =>
+          previous === target.id ? previous : target.id,
+        );
+      }
+    },
+    [findOutlineNodeByPath],
+  );
+
   useOutlineScrollSync({
     enabled: activeView === 'form' && outlineNodes.length > 0,
     attribute: 'data-field-path',
-    onActivePathChange: (path) => {
-      const target = findOutlineNodeByPath(path);
-      if (target) {
-        setSelectedOutlineNodeId(target.id);
-      }
-    },
+    onActivePathChange: handleActiveOutlinePathChange,
   });
 
   useEffect(() => {
     if (hasAppliedInitialFocus || activeView !== 'form') return;
     if (!requestedFocusPath && !requestedFocusIdShort) return;
 
+    suppressScrollSyncUntilRef.current = Date.now() + 900;
     let focused = false;
     if (requestedFocusPath) {
       focused = focusFieldPath(requestedFocusPath);

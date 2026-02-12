@@ -27,7 +27,7 @@ export function buildViewerOutline({
 
     const submodelMap = new Map<string, DppOutlineNode>();
 
-    elements.forEach((element, index) => {
+    elements.forEach((element) => {
       const submodelKey = element.submodelIdShort;
       if (!submodelMap.has(submodelKey)) {
         submodelMap.set(submodelKey, {
@@ -48,7 +48,7 @@ export function buildViewerOutline({
         });
       }
 
-      const key = buildViewerOutlineKey(element, index);
+      const key = buildViewerOutlineKey(element);
       const fieldNode: DppOutlineNode = {
         id: createOutlineNodeId('field', `viewer.${category.id}.${key}`),
         kind: 'field',

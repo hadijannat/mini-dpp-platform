@@ -118,13 +118,12 @@ export function DppOutlinePane({
           />
         </div>
 
-        <div className="max-h-[65vh] overflow-auto">
-          <DppOutlineTree
-            nodes={filteredNodes}
-            selectedId={selectedId}
-            onSelectNode={onSelectNode}
-          />
-        </div>
+        <DppOutlineTree
+          nodes={filteredNodes}
+          selectedId={selectedId}
+          onSelectNode={onSelectNode}
+          scrollClassName="max-h-[65vh]"
+        />
       </div>
     </div>
   );
