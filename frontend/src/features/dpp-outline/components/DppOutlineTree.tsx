@@ -26,6 +26,7 @@ export type DppOutlineTreeProps = {
   onSelectNode?: (node: DppOutlineNode) => void;
   ariaLabel?: string;
   virtualizeThreshold?: number;
+  scrollClassName?: string;
 };
 
 function collectExpandedDefaults(nodes: DppOutlineNode[]): Set<string> {
@@ -44,6 +45,39 @@ function collectExpandedDefaults(nodes: DppOutlineNode[]): Set<string> {
     visit(node, 0);
   }
   return expanded;
+}
+
+function collectExpandableIds(nodes: DppOutlineNode[]): Set<string> {
+  const ids = new Set<string>();
+  const stack = [...nodes];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.children.length > 0) {
+      ids.add(current.id);
+      for (const child of current.children) {
+        stack.push(child);
+      }
+    }
+  }
+  return ids;
+}
+
+function buildParentById(nodes: DppOutlineNode[]): Map<string, string | null> {
+  const parentById = new Map<string, string | null>();
+  const stack: Array<{ node: DppOutlineNode; parentId: string | null }> = nodes.map((node) => ({
+    node,
+    parentId: null,
+  }));
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    parentById.set(current.node.id, current.parentId);
+    for (const child of current.node.children) {
+      stack.push({ node: child, parentId: current.node.id });
+    }
+  }
+
+  return parentById;
 }
 
 function flattenVisibleRows(
@@ -98,8 +132,14 @@ export function DppOutlineTree({
   onSelectNode,
   ariaLabel = 'DPP structure outline',
   virtualizeThreshold = 180,
+  scrollClassName = 'max-h-[65vh]',
 }: DppOutlineTreeProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => collectExpandedDefaults(nodes));
+  const defaults = useMemo(() => collectExpandedDefaults(nodes), [nodes]);
+  const expandableIds = useMemo(() => collectExpandableIds(nodes), [nodes]);
+  const parentById = useMemo(() => buildParentById(nodes), [nodes]);
+  const knownExpandableIdsRef = useRef<Set<string>>(new Set(expandableIds));
+
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(defaults));
   const [activeId, setActiveId] = useState<string | null>(selectedId ?? null);
 
   const rowRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -107,25 +147,63 @@ export function DppOutlineTree({
 
   useEffect(() => {
     setExpanded((previous) => {
-      const next = new Set(previous);
-      const defaults = collectExpandedDefaults(nodes);
+      // Keep user-managed state for nodes that still exist.
+      const next = new Set<string>();
+      for (const id of previous) {
+        if (expandableIds.has(id)) {
+          next.add(id);
+        }
+      }
+
+      // Auto-expand only newly introduced top-level/default nodes.
       for (const id of defaults) {
-        next.add(id);
+        if (!knownExpandableIdsRef.current.has(id)) {
+          next.add(id);
+        }
+      }
+
+      knownExpandableIdsRef.current = new Set(expandableIds);
+      return next;
+    });
+  }, [defaults, expandableIds]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!parentById.has(selectedId)) return;
+
+    setExpanded((previous) => {
+      const next = new Set(previous);
+      let parentId = parentById.get(selectedId) ?? null;
+      while (parentId) {
+        if (expandableIds.has(parentId)) {
+          next.add(parentId);
+        }
+        parentId = parentById.get(parentId) ?? null;
       }
       return next;
     });
-  }, [nodes]);
+  }, [expandableIds, parentById, selectedId]);
 
   const rows = useMemo(() => flattenVisibleRows(nodes, expanded), [expanded, nodes]);
 
   useEffect(() => {
-    if (selectedId) {
+    const rowIds = new Set(rows.map((row) => row.node.id));
+
+    if (selectedId && rowIds.has(selectedId)) {
       setActiveId(selectedId);
       return;
     }
-    if (!activeId && rows.length > 0) {
-      setActiveId(rows[0].node.id);
+
+    if (activeId && rowIds.has(activeId)) {
+      return;
     }
+
+    if (rows.length > 0) {
+      setActiveId(rows[0].node.id);
+      return;
+    }
+
+    setActiveId(null);
   }, [activeId, rows, selectedId]);
 
   const focusRow = useCallback((id: string) => {
@@ -224,9 +302,15 @@ export function DppOutlineTree({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 34,
-    overscan: 10,
+    overscan: 14,
     enabled: virtualize,
   });
+
+  useEffect(() => {
+    if (virtualize) {
+      virtualizer.measure();
+    }
+  }, [virtualize, virtualizer, rows.length]);
 
   const renderRow = (row: VisibleOutlineRow, style?: CSSProperties) => {
     const isExpanded = expanded.has(row.node.id);
@@ -323,33 +407,29 @@ export function DppOutlineTree({
     );
   }
 
-  if (!virtualize) {
-    return (
-      <div role="tree" aria-label={ariaLabel} className="space-y-1">
-        {rows.map((row) => renderRow(row))}
-      </div>
-    );
-  }
-
   return (
     <div
       ref={scrollRef}
       role="tree"
       aria-label={ariaLabel}
-      className="max-h-[60vh] overflow-auto"
+      className={cn(scrollClassName, 'overflow-auto pr-1')}
     >
-      <div
-        className="relative"
-        style={{ height: `${virtualizer.getTotalSize()}px` }}
-      >
-        {virtualizer.getVirtualItems().map((item) => {
-          const row = rows[item.index];
-          return renderRow(row, {
-            transform: `translateY(${item.start}px)`,
-            height: `${item.size}px`,
-          });
-        })}
-      </div>
+      {!virtualize ? (
+        <div className="space-y-1">{rows.map((row) => renderRow(row))}</div>
+      ) : (
+        <div
+          className="relative"
+          style={{ height: `${virtualizer.getTotalSize()}px` }}
+        >
+          {virtualizer.getVirtualItems().map((item) => {
+            const row = rows[item.index];
+            return renderRow(row, {
+              transform: `translateY(${item.start}px)`,
+              height: `${item.size}px`,
+            });
+          })}
+        </div>
+      )}
     </div>
   );
 }

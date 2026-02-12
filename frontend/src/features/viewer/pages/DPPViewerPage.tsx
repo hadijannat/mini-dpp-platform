@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
@@ -75,8 +75,11 @@ export default function DPPViewerPage() {
     enabled: !!dppUuid && !!resolvedTenant,
   });
 
-  const submodels = (dpp?.aas_environment?.submodels || []) as Array<Record<string, unknown>>;
-  const classified = classifySubmodelElements(submodels);
+  const submodels = useMemo(
+    () => (dpp?.aas_environment?.submodels || []) as Array<Record<string, unknown>>,
+    [dpp?.aas_environment?.submodels],
+  );
+  const classified = useMemo(() => classifySubmodelElements(submodels), [submodels]);
   const defaultCategory = useMemo(
     () => ESPR_CATEGORIES.find((category) => (classified[category.id]?.length ?? 0) > 0)?.id ?? 'identity',
     [classified],
@@ -84,6 +87,7 @@ export default function DPPViewerPage() {
   const [activeCategory, setActiveCategory] = useState(defaultCategory);
   const [selectedOutlineNodeId, setSelectedOutlineNodeId] = useState<string | null>(null);
   const [pendingScrollOutlineKey, setPendingScrollOutlineKey] = useState<string | null>(null);
+  const suppressScrollSyncUntilRef = useRef(0);
   const outlineNodes = useMemo(
     () =>
       buildViewerOutline({
@@ -144,8 +148,9 @@ export default function DPPViewerPage() {
     };
   }, [activeCategory, pendingScrollOutlineKey]);
 
-  const handleOutlineNodeSelect = (node: DppOutlineNode) => {
-    setSelectedOutlineNodeId(node.id);
+  const handleOutlineNodeSelect = useCallback((node: DppOutlineNode) => {
+    suppressScrollSyncUntilRef.current = Date.now() + 900;
+    setSelectedOutlineNodeId((previous) => (previous === node.id ? previous : node.id));
     const categoryId =
       typeof node.meta?.categoryId === 'string' ? node.meta.categoryId : null;
     if (categoryId) {
@@ -153,17 +158,25 @@ export default function DPPViewerPage() {
     }
     if (node.target?.type !== 'dom' || node.kind !== 'field') return;
     setPendingScrollOutlineKey(node.target.path);
-  };
+  }, []);
+
+  const handleActiveOutlinePathChange = useCallback(
+    (path: string) => {
+      if (Date.now() < suppressScrollSyncUntilRef.current) return;
+      const outlineNodeId = outlinePathToNodeId.get(path);
+      if (outlineNodeId) {
+        setSelectedOutlineNodeId((previous) =>
+          previous === outlineNodeId ? previous : outlineNodeId,
+        );
+      }
+    },
+    [outlinePathToNodeId],
+  );
 
   useOutlineScrollSync({
     enabled: submodels.length > 0,
     attribute: 'data-outline-key',
-    onActivePathChange: (path) => {
-      const outlineNodeId = outlinePathToNodeId.get(path);
-      if (outlineNodeId) {
-        setSelectedOutlineNodeId(outlineNodeId);
-      }
-    },
+    onActivePathChange: handleActiveOutlinePathChange,
   });
 
   useEffect(() => {

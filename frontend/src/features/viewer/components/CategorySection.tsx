@@ -22,11 +22,11 @@ export function CategorySection({ category, elements }: CategorySectionProps) {
         <span className="text-xs text-muted-foreground">({elements.length} fields)</span>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        {elements.map((element, idx) => (
+        {elements.map((element) => (
           <Card
-            key={`${element.submodelIdShort}-${element.path}-${idx}`}
+            key={buildViewerOutlineKey(element)}
             className="shadow-sm"
-            data-outline-key={buildViewerOutlineKey(element, idx)}
+            data-outline-key={buildViewerOutlineKey(element)}
           >
             <CardContent className="p-4">
               <DataField

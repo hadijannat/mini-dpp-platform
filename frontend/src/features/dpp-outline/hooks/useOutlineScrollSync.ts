@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 type OutlineScrollSyncOptions = {
   enabled: boolean;
@@ -13,12 +13,15 @@ export function useOutlineScrollSync({
   onActivePathChange,
   root = null,
 }: OutlineScrollSyncOptions) {
+  const lastPathRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (
       !enabled ||
       typeof window === 'undefined' ||
       typeof IntersectionObserver === 'undefined'
     ) {
+      lastPathRef.current = null;
       return;
     }
 
@@ -27,7 +30,10 @@ export function useOutlineScrollSync({
       document.querySelectorAll<HTMLElement>(selector),
     );
 
-    if (elements.length === 0) return;
+    if (elements.length === 0) {
+      lastPathRef.current = null;
+      return;
+    }
 
     const visible = new Map<Element, IntersectionObserverEntry>();
 
@@ -42,7 +48,8 @@ export function useOutlineScrollSync({
       })[0];
 
       const value = topAligned.target.getAttribute(attribute);
-      if (value) {
+      if (value && value !== lastPathRef.current) {
+        lastPathRef.current = value;
         onActivePathChange(value);
       }
     };
@@ -72,6 +79,7 @@ export function useOutlineScrollSync({
     return () => {
       observer.disconnect();
       visible.clear();
+      lastPathRef.current = null;
     };
   }, [attribute, enabled, onActivePathChange, root]);
 }
