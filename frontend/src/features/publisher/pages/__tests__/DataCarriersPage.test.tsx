@@ -4,6 +4,8 @@ import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 
 const mockTenantApiFetch = vi.fn();
+const originalCreateObjectURL = URL.createObjectURL;
+const originalRevokeObjectURL = URL.revokeObjectURL;
 
 vi.mock('react-oidc-context', () => ({
   useAuth: () => ({
@@ -28,6 +30,15 @@ function jsonResponse(data: unknown) {
 
 describe('DataCarriersPage', () => {
   beforeEach(() => {
+    Object.defineProperty(URL, 'createObjectURL', {
+      writable: true,
+      value: vi.fn(() => 'blob:preview'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      writable: true,
+      value: vi.fn(),
+    });
+
     mockTenantApiFetch.mockImplementation((path: string, options?: RequestInit) => {
       if (path === '/dpps') {
         return Promise.resolve(
@@ -72,6 +83,12 @@ describe('DataCarriersPage', () => {
           blob: () => Promise.resolve(new Blob(['rendered'])),
         });
       }
+      if (path === '/qr/dpp-1/carrier' && options?.method === 'POST') {
+        return Promise.resolve({
+          ok: true,
+          blob: () => Promise.resolve(new Blob(['legacy'])),
+        });
+      }
       return Promise.resolve(jsonResponse({}));
     });
   });
@@ -79,6 +96,14 @@ describe('DataCarriersPage', () => {
   afterEach(() => {
     cleanup();
     mockTenantApiFetch.mockReset();
+    Object.defineProperty(URL, 'createObjectURL', {
+      writable: true,
+      value: originalCreateObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      writable: true,
+      value: originalRevokeObjectURL,
+    });
   });
 
   it('renders wizard and legacy compatibility section', async () => {
@@ -137,5 +162,42 @@ describe('DataCarriersPage', () => {
     });
 
     expect(await screen.findByText('Active carrier')).toBeTruthy();
+  });
+
+  it('triggers legacy preview through compatibility endpoint', async () => {
+    const { default: DataCarriersPage } = await import('../DataCarriersPage');
+
+    render(
+      <MemoryRouter>
+        <DataCarriersPage />
+      </MemoryRouter>,
+    );
+
+    const select = await screen.findByLabelText('Select Published DPP');
+    fireEvent.change(select, { target: { value: 'dpp-1' } });
+
+    fireEvent.click(screen.getByLabelText('Show legacy quick QR section'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Preview Legacy' }));
+
+    await waitFor(() => {
+      expect(
+        mockTenantApiFetch.mock.calls.some(
+          ([path, options]) =>
+            path === '/qr/dpp-1/carrier' &&
+            (options as RequestInit | undefined)?.method === 'POST',
+        ),
+      ).toBe(true);
+    });
+
+    const legacyCall = mockTenantApiFetch.mock.calls.find(
+      ([path]) => path === '/qr/dpp-1/carrier',
+    );
+    expect(legacyCall).toBeTruthy();
+
+    const legacyBody = JSON.parse(
+      String((legacyCall?.[1] as RequestInit | undefined)?.body ?? '{}'),
+    );
+    expect(legacyBody.format).toBe('qr');
+    expect(legacyBody.output_type).toBe('png');
   });
 });

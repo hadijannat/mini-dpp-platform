@@ -143,6 +143,9 @@ export default function DataCarriersPage() {
   const [showLegacy, setShowLegacy] = useState(false);
   const [legacyFormat, setLegacyFormat] = useState<LegacyCarrierFormat>('qr');
   const [legacyOutputType, setLegacyOutputType] = useState<OutputType>('png');
+  const [legacyAction, setLegacyAction] = useState<'preview' | 'download' | null>(null);
+  const [legacyError, setLegacyError] = useState<string | null>(null);
+  const [legacyNotice, setLegacyNotice] = useState<string | null>(null);
 
   const loadDPPs = useCallback(async () => {
     if (!token) return;
@@ -378,67 +381,87 @@ export default function DataCarriersPage() {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const generateLegacyPreview = async () => {
-    if (!token || !selectedDpp) return;
-    setGenerating(true);
-    try {
-      const response = await tenantApiFetch(
-        `/qr/${selectedDpp}/carrier`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            format: legacyFormat,
-            output_type: 'png',
-            size: Math.min(size, 600),
-            foreground_color: foregroundColor,
-            background_color: backgroundColor,
-            include_text: includeText,
-          }),
-        },
-        token
-      );
-      if (!response.ok) {
-        const message = await getApiErrorMessage(response, 'Failed to generate legacy preview');
+  const requestLegacyCarrier = async (
+    requestedOutputType: OutputType,
+    errorFallbackMessage: string,
+  ): Promise<Blob | null> => {
+    if (!token || !selectedDpp) {
+      const message = 'Select a published DPP first.';
+      setLegacyError(message);
+      setError(message);
+      return null;
+    }
+
+    setLegacyError(null);
+    setLegacyNotice(null);
+    setError(null);
+
+    const payload = {
+      format: legacyFormat,
+      output_type: requestedOutputType,
+      size: requestedOutputType === 'png' ? Math.min(size, 600) : size,
+      foreground_color: foregroundColor,
+      background_color: backgroundColor,
+      include_text: includeText,
+    };
+
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const response = await tenantApiFetch(
+          `/qr/${selectedDpp}/carrier`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          },
+          token,
+        );
+        if (response.ok) {
+          return await response.blob();
+        }
+
+        const message = await getApiErrorMessage(response, errorFallbackMessage);
+        setLegacyError(message);
         setError(message);
-        return;
+        return null;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(errorFallbackMessage);
+        if (attempt === 0) {
+          await new Promise((resolve) => {
+            setTimeout(resolve, 250);
+          });
+        }
       }
-      const blob = await response.blob();
+    }
+
+    const message = lastError?.message || errorFallbackMessage;
+    setLegacyError(message);
+    setError(message);
+    return null;
+  };
+
+  const generateLegacyPreview = async () => {
+    setLegacyAction('preview');
+    try {
+      const blob = await requestLegacyCarrier('png', 'Failed to generate legacy preview');
+      if (!blob) return;
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(blob));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate legacy preview');
+      setLegacyNotice('Legacy preview generated.');
     } finally {
-      setGenerating(false);
+      setLegacyAction(null);
     }
   };
 
   const downloadLegacyCarrier = async () => {
-    if (!token || !selectedDpp) return;
-    setGenerating(true);
+    setLegacyAction('download');
     try {
-      const response = await tenantApiFetch(
-        `/qr/${selectedDpp}/carrier`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            format: legacyFormat,
-            output_type: legacyOutputType,
-            size,
-            foreground_color: foregroundColor,
-            background_color: backgroundColor,
-            include_text: includeText,
-          }),
-        },
-        token
+      const blob = await requestLegacyCarrier(
+        legacyOutputType,
+        'Failed to download legacy carrier',
       );
-      if (!response.ok) {
-        const message = await getApiErrorMessage(response, 'Failed to download legacy carrier');
-        setError(message);
-        return;
-      }
-      const blob = await response.blob();
+      if (!blob || !selectedDpp) return;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -447,10 +470,9 @@ export default function DataCarriersPage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to download legacy carrier');
+      setLegacyNotice(`Legacy ${legacyOutputType.toUpperCase()} download started.`);
     } finally {
-      setGenerating(false);
+      setLegacyAction(null);
     }
   };
 
@@ -502,6 +524,8 @@ export default function DataCarriersPage() {
                     setSelectedDpp(e.target.value);
                     setActiveCarrier(null);
                     setPreSalePack(null);
+                    setLegacyError(null);
+                    setLegacyNotice(null);
                   }}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                 >
@@ -871,7 +895,12 @@ export default function DataCarriersPage() {
               <AlertTriangle className="h-4 w-4" />
               Legacy Quick QR (Compatibility)
             </span>
-            <Button variant="ghost" size="sm" onClick={() => setShowLegacy((v) => !v)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={showLegacy ? 'Hide legacy quick QR section' : 'Show legacy quick QR section'}
+              onClick={() => setShowLegacy((v) => !v)}
+            >
               {showLegacy ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
           </CardTitle>
@@ -906,15 +935,34 @@ export default function DataCarriersPage() {
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => void generateLegacyPreview()} disabled={!selectedDpp || generating}>
+              <Button
+                variant="outline"
+                onClick={() => void generateLegacyPreview()}
+                disabled={!selectedDpp || generating || legacyAction !== null}
+              >
                 <QrCode className="h-4 w-4 mr-2" />
-                Preview Legacy
+                {legacyAction === 'preview' ? 'Generating...' : 'Preview Legacy'}
               </Button>
-              <Button onClick={() => void downloadLegacyCarrier()} disabled={!selectedDpp || generating}>
+              <Button
+                onClick={() => void downloadLegacyCarrier()}
+                disabled={!selectedDpp || generating || legacyAction !== null}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Download Legacy
+                {legacyAction === 'download' ? 'Downloading...' : 'Download Legacy'}
               </Button>
             </div>
+
+            {legacyError && (
+              <Alert className="border-red-300 bg-red-50">
+                <AlertDescription>{legacyError}</AlertDescription>
+              </Alert>
+            )}
+
+            {!legacyError && legacyNotice && (
+              <Alert className="border-emerald-300 bg-emerald-50">
+                <AlertDescription>{legacyNotice}</AlertDescription>
+              </Alert>
+            )}
           </CardContent>
         )}
       </Card>
