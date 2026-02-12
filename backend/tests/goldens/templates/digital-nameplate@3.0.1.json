@@ -3,7 +3,7 @@
   "idta_version": "3.0.1",
   "semantic_id": "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
   "expected": {
-    "definition_sha256": "4d9372cbb0d93f9f7ea04f5cb715a6706b41cb725fcc52872b0ee2a64465da33",
-    "schema_sha256": "8acbbbb844a508f8882d360d9b7046640d759f6b17b92120a7e1acffb3d90c84"
+    "definition_sha256": "50b803900a8e822f2b303b70d1947c305b4e4411bf615203cf7c1769e08670a3",
+    "schema_sha256": "da96be6ef0352d971a5e184f1576f8b044bb15518157ba22f6b9e7cf0604d13c"
   }
 }
