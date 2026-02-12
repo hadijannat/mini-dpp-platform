@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -179,6 +180,55 @@ class DataspaceRunStatus(str, PyEnum):
     RUNNING = "running"
     PASSED = "passed"
     FAILED = "failed"
+
+
+class DataCarrierIdentityLevel(str, PyEnum):
+    """Identity granularity for a data carrier."""
+
+    MODEL = "model"
+    BATCH = "batch"
+    ITEM = "item"
+
+
+class DataCarrierIdentifierScheme(str, PyEnum):
+    """Identifier scheme encoded by a data carrier."""
+
+    GS1_GTIN = "gs1_gtin"
+    IEC61406 = "iec61406"
+    DIRECT_URL = "direct_url"
+
+
+class DataCarrierType(str, PyEnum):
+    """Carrier technology."""
+
+    QR = "qr"
+    DATAMATRIX = "datamatrix"
+    NFC = "nfc"
+
+
+class DataCarrierResolverStrategy(str, PyEnum):
+    """Resolution behavior for carrier URIs."""
+
+    DYNAMIC_LINKSET = "dynamic_linkset"
+    DIRECT_PUBLIC_DPP = "direct_public_dpp"
+
+
+class DataCarrierStatus(str, PyEnum):
+    """Lifecycle state for data carriers."""
+
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+    WITHDRAWN = "withdrawn"
+
+
+class DataCarrierArtifactType(str, PyEnum):
+    """Persisted carrier artifact format."""
+
+    PNG = "png"
+    SVG = "svg"
+    PDF = "pdf"
+    ZPL = "zpl"
+    CSV = "csv"
 
 
 # =============================================================================
@@ -2092,6 +2142,16 @@ class ResolverLink(TenantScopedMixin, Base):
         comment="Associated DPP (optional)",
     )
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    managed_by_system: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        comment="True when this link is managed by platform workflows",
+    )
+    source_data_carrier_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("data_carriers.id", ondelete="SET NULL"),
+        comment="Owning data carrier when managed_by_system=true",
+    )
     created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -2115,6 +2175,151 @@ class ResolverLink(TenantScopedMixin, Base):
         Index("ix_resolver_links_dpp_id", "dpp_id"),
         Index("ix_resolver_links_link_type", "link_type"),
         Index("ix_resolver_links_active", "active"),
+        Index("ix_resolver_links_source_data_carrier_id", "source_data_carrier_id"),
+    )
+
+
+# =============================================================================
+# Data Carrier Models
+# =============================================================================
+
+
+class DataCarrier(TenantScopedMixin, Base):
+    """Lifecycle-managed data carrier record for DPP resolution and rendering."""
+
+    __tablename__ = "data_carriers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    identity_level: Mapped[DataCarrierIdentityLevel] = mapped_column(
+        Enum(DataCarrierIdentityLevel, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=DataCarrierIdentityLevel.ITEM,
+    )
+    identifier_scheme: Mapped[DataCarrierIdentifierScheme] = mapped_column(
+        Enum(DataCarrierIdentifierScheme, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=DataCarrierIdentifierScheme.GS1_GTIN,
+    )
+    carrier_type: Mapped[DataCarrierType] = mapped_column(
+        Enum(DataCarrierType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=DataCarrierType.QR,
+    )
+    resolver_strategy: Mapped[DataCarrierResolverStrategy] = mapped_column(
+        Enum(DataCarrierResolverStrategy, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=DataCarrierResolverStrategy.DYNAMIC_LINKSET,
+    )
+    status: Mapped[DataCarrierStatus] = mapped_column(
+        Enum(DataCarrierStatus, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=DataCarrierStatus.ACTIVE,
+    )
+    identifier_key: Mapped[str] = mapped_column(
+        String(512),
+        nullable=False,
+        comment="Canonical identifier key used for uniqueness and resolver sync",
+    )
+    identifier_data: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Identifier components such as gtin, serial, batch, manufacturer part id",
+    )
+    encoded_uri: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="URI encoded in the carrier",
+    )
+    layout_profile: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Rendering profile metadata",
+    )
+    placement_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Placement metadata for product/packaging/docs",
+    )
+    pre_sale_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+    is_gtin_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    replaced_by_carrier_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("data_carriers.id", ondelete="SET NULL"),
+    )
+    withdrawn_reason: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_data_carriers_dpp_id", "dpp_id"),
+        Index("ix_data_carriers_status", "status"),
+        Index("ix_data_carriers_identifier_scheme", "identifier_scheme"),
+        Index("ix_data_carriers_identifier_key", "identifier_key"),
+        Index(
+            "uq_data_carriers_tenant_identifier_active_like",
+            "tenant_id",
+            "identifier_key",
+            unique=True,
+            postgresql_where=text("status IN ('active','deprecated')"),
+        ),
+    )
+
+
+class DataCarrierArtifact(TenantScopedMixin, Base):
+    """Stored artifact metadata generated from a data carrier."""
+
+    __tablename__ = "data_carrier_artifacts"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    carrier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("data_carriers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    artifact_type: Mapped[DataCarrierArtifactType] = mapped_column(
+        Enum(DataCarrierArtifactType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    storage_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_data_carrier_artifacts_carrier_id", "carrier_id"),
+        Index("ix_data_carrier_artifacts_artifact_type", "artifact_type"),
     )
 
 

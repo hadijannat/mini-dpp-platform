@@ -40,3 +40,17 @@ export interface LandingSummary {
   scope?: string | null;
   refresh_sla_seconds?: number | null;
 }
+
+// Data carrier types
+export type DataCarrierCreateRequest = components['schemas']['DataCarrierCreateRequest'];
+export type DataCarrierUpdateRequest = components['schemas']['DataCarrierUpdateRequest'];
+export type DataCarrierRenderRequest = components['schemas']['DataCarrierRenderRequest'];
+export type DataCarrierDeprecateRequest = components['schemas']['DataCarrierDeprecateRequest'];
+export type DataCarrierWithdrawRequest = components['schemas']['DataCarrierWithdrawRequest'];
+export type DataCarrierReissueRequest = components['schemas']['DataCarrierReissueRequest'];
+
+export type DataCarrierResponse = components['schemas']['DataCarrierResponse'];
+export type DataCarrierListResponse = components['schemas']['DataCarrierListResponse'];
+export type DataCarrierPreSalePackResponse = components['schemas']['DataCarrierPreSalePackResponse'];
+export type DataCarrierRegistryExportResponse =
+  components['schemas']['DataCarrierRegistryExportResponse'];

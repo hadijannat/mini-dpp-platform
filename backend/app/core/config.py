@@ -561,6 +561,39 @@ class Settings(BaseSettings):
         default="https://id.gs1.org",
         description="GS1 Digital Link resolver URL for QR code generation",
     )
+    carrier_resolver_allowed_hosts: str | None = Field(
+        default=None,
+        description=(
+            "Optional allowlist for resolver redirect hosts managed by data carriers. "
+            "Supports comma-separated values or a JSON array string."
+        ),
+    )
+    data_carrier_publish_gate_enabled_default: bool = Field(
+        default=False,
+        description=(
+            "Default feature flag for requiring compliant managed data carriers before publish. "
+            "Can be overridden via admin settings."
+        ),
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def carrier_resolver_allowed_hosts_all(self) -> list[str]:
+        """Parsed hostname allowlist for managed resolver targets."""
+        raw = self.carrier_resolver_allowed_hosts
+        if raw is None:
+            return []
+        raw = raw.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = None
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        return [item.strip() for item in raw.split(",") if item.strip()]
 
     # ==========================================================================
     # Identifier Configuration

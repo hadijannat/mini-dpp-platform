@@ -79,6 +79,10 @@ class TestPlatformMetrics:
         mock_row.total_revisions = 10
         mock_row.total_members = 3
         mock_row.total_epcis_events = 7
+        mock_row.total_data_carriers = 4
+        mock_row.active_data_carriers = 3
+        mock_row.withdrawn_data_carriers = 1
+        mock_row.system_managed_resolver_links = 6
         mock_row.total_audit_events = 20
 
         mock_result = MagicMock()
@@ -92,6 +96,8 @@ class TestPlatformMetrics:
         assert rows[0]["total_dpps"] == 5
         assert rows[0]["published_dpps"] == 2
         assert rows[0]["total_members"] == 3
+        assert rows[0]["total_data_carriers"] == 4
+        assert rows[0]["active_data_carriers"] == 3
 
     @pytest.mark.asyncio()
     async def test_metrics_empty_tenants(self, service: TenantService) -> None:
@@ -119,6 +125,10 @@ class TestPlatformMetrics:
         mock_row.total_revisions = 0
         mock_row.total_members = 0
         mock_row.total_epcis_events = 0
+        mock_row.total_data_carriers = 0
+        mock_row.active_data_carriers = 0
+        mock_row.withdrawn_data_carriers = 0
+        mock_row.system_managed_resolver_links = 0
         mock_row.total_audit_events = 0
 
         mock_result = MagicMock()
@@ -148,6 +158,10 @@ class TestMetricsResponseSchema:
             total_revisions=5,
             total_members=2,
             total_epcis_events=4,
+            total_data_carriers=3,
+            active_data_carriers=3,
+            withdrawn_data_carriers=0,
+            system_managed_resolver_links=5,
             total_audit_events=10,
         )
         t2 = TenantMetrics(
@@ -162,6 +176,10 @@ class TestMetricsResponseSchema:
             total_revisions=15,
             total_members=5,
             total_epcis_events=12,
+            total_data_carriers=4,
+            active_data_carriers=3,
+            withdrawn_data_carriers=1,
+            system_managed_resolver_links=7,
             total_audit_events=30,
         )
 
@@ -173,6 +191,10 @@ class TestMetricsResponseSchema:
                 "total_published": 5,
                 "total_members": 7,
                 "total_epcis_events": 16,
+                "total_data_carriers": 7,
+                "total_active_data_carriers": 6,
+                "total_withdrawn_data_carriers": 1,
+                "total_system_managed_resolver_links": 12,
                 "total_audit_events": 40,
             },
         )

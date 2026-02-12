@@ -63,8 +63,21 @@ _RLS_0028 = {
     "dataspace_conformance_runs",
 }
 
+# Tables with RLS from migration 0029
+_RLS_0029 = {
+    "data_carriers",
+    "data_carrier_artifacts",
+}
+
 TABLES_WITH_RLS = (
-    _RLS_0005 | _RLS_0008_0009 | _RLS_0022 | _RLS_0024 | _RLS_0025 | _RLS_0027 | _RLS_0028
+    _RLS_0005
+    | _RLS_0008_0009
+    | _RLS_0022
+    | _RLS_0024
+    | _RLS_0025
+    | _RLS_0027
+    | _RLS_0028
+    | _RLS_0029
 )
 
 
@@ -90,7 +103,7 @@ class TestTenantRLSCoverage:
         missing = tenant_tables - TABLES_WITH_RLS
         assert not missing, (
             f"TenantScopedMixin models missing RLS policies: {sorted(missing)}. "
-            "Add them to migration 0022 and update TABLES_WITH_RLS in this test."
+            "Add them to the relevant migration and update TABLES_WITH_RLS in this test."
         )
 
     def test_no_stale_rls_entries(self) -> None:

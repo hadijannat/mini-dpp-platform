@@ -35,6 +35,8 @@ def _link_to_response(link: object) -> ResolverLinkResponse:
         priority=link.priority,
         dpp_id=link.dpp_id,
         active=link.active,
+        managed_by_system=link.managed_by_system,
+        source_data_carrier_id=link.source_data_carrier_id,
         created_by_subject=link.created_by_subject,
         created_at=link.created_at,
         updated_at=link.updated_at,
@@ -100,7 +102,13 @@ async def update_resolver_link(
 ) -> ResolverLinkResponse:
     """Update a resolver link."""
     service = ResolverService(db)
-    link = await service.update_link(link_id, tenant.tenant_id, body)
+    try:
+        link = await service.update_link(link_id, tenant.tenant_id, body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     if not link:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -118,7 +126,13 @@ async def delete_resolver_link(
 ) -> None:
     """Delete a resolver link."""
     service = ResolverService(db)
-    deleted = await service.delete_link(link_id, tenant.tenant_id)
+    try:
+        deleted = await service.delete_link(link_id, tenant.tenant_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

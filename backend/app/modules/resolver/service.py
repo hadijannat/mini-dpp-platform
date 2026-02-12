@@ -95,6 +95,8 @@ class ResolverService:
         link = await self.get_link(link_id, tenant_id)
         if not link:
             return None
+        if link.managed_by_system:
+            raise ValueError("System-managed resolver links cannot be updated directly")
         update_data = link_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
             setattr(link, field, value)
@@ -110,6 +112,8 @@ class ResolverService:
         link = await self.get_link(link_id, tenant_id)
         if not link:
             return False
+        if link.managed_by_system:
+            raise ValueError("System-managed resolver links cannot be deleted directly")
         await self._session.delete(link)
         await self._session.flush()
         return True

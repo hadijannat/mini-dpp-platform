@@ -29,6 +29,9 @@ from app.db.models import (
     DPP,
     BatchImportJob,
     BatchImportJobItem,
+    DataCarrier,
+    DataCarrierIdentifierScheme,
+    DataCarrierStatus,
     DPPRevision,
     DPPStatus,
     ResourceShare,
@@ -48,6 +51,12 @@ from app.modules.aas.semantic_ids import (
     normalize_semantic_id,
 )
 from app.modules.compliance.service import ComplianceService
+from app.modules.data_carriers.profile import (
+    DATA_CARRIER_COMPLIANCE_PROFILE_KEY,
+    DATA_CARRIER_PUBLISH_GATE_ENABLED_KEY,
+    DataCarrierComplianceProfile,
+    parse_data_carrier_compliance_profile,
+)
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
 from app.modules.dpps.submodel_binding import (
     ResolvedSubmodelBinding,
@@ -197,6 +206,81 @@ class DPPService:
         if missing:
             joined = ", ".join(missing)
             raise IdentifierValidationError(f"Missing required specificAssetIds: {joined}")
+
+    async def _load_data_carrier_publish_gate(
+        self,
+    ) -> tuple[bool, DataCarrierComplianceProfile]:
+        """Load publish gate feature flag and compliance profile from settings."""
+        settings_service = SettingsService(self._session)
+        default_flag_raw = getattr(
+            self._settings, "data_carrier_publish_gate_enabled_default", False
+        )
+        default_flag = default_flag_raw if isinstance(default_flag_raw, bool) else False
+        gate_enabled = await settings_service.get_setting_bool(
+            DATA_CARRIER_PUBLISH_GATE_ENABLED_KEY,
+            default=default_flag,
+        )
+        stored_profile = await settings_service.get_setting_json(DATA_CARRIER_COMPLIANCE_PROFILE_KEY)
+        profile = parse_data_carrier_compliance_profile(stored_profile)
+        return gate_enabled, profile
+
+    async def _assert_data_carrier_publish_gate(
+        self,
+        *,
+        dpp_id: UUID,
+        tenant_id: UUID,
+    ) -> None:
+        """Enforce optional data carrier gate before publish."""
+        gate_enabled, profile = await self._load_data_carrier_publish_gate()
+        if not gate_enabled:
+            return
+
+        result = await self._session.execute(
+            select(DataCarrier).where(
+                DataCarrier.tenant_id == tenant_id,
+                DataCarrier.dpp_id == dpp_id,
+            )
+        )
+        carriers = list(result.scalars().all())
+        if not carriers:
+            raise ValueError(
+                "Publish blocked: data carrier gate requires at least one managed carrier"
+            )
+
+        allowed_types = {item.value for item in profile.allowed_carrier_types}
+        allowed_levels = {item.value for item in profile.allowed_identity_levels}
+        allowed_schemes = {item.value for item in profile.allowed_identifier_schemes}
+        allowed_statuses = {item.value for item in profile.publish_allowed_statuses}
+
+        for carrier in carriers:
+            status_value = carrier.status.value
+            if profile.publish_require_active_carrier and carrier.status != DataCarrierStatus.ACTIVE:
+                continue
+            if status_value not in allowed_statuses:
+                continue
+            if carrier.carrier_type.value not in allowed_types:
+                continue
+            if carrier.identity_level.value not in allowed_levels:
+                continue
+            if carrier.identifier_scheme.value not in allowed_schemes:
+                continue
+            if (
+                profile.publish_require_pre_sale_enabled
+                and not carrier.pre_sale_enabled
+            ):
+                continue
+            if (
+                profile.enforce_gtin_verified
+                and carrier.identifier_scheme == DataCarrierIdentifierScheme.GS1_GTIN
+                and not carrier.is_gtin_verified
+            ):
+                continue
+            return
+
+        raise ValueError(
+            "Publish blocked: no data carrier satisfies the active compliance profile "
+            f"('{profile.name}')"
+        )
 
     async def create_dpp(
         self,
@@ -1621,6 +1705,9 @@ class DPPService:
 
         if dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot publish an archived DPP")
+
+        # Optional data carrier pre-publish gate (Phase 3)
+        await self._assert_data_carrier_publish_gate(dpp_id=dpp_id, tenant_id=tenant_id)
 
         # Compliance pre-publish gate (Contract C)
         if self._settings.compliance_check_on_publish:

@@ -14,10 +14,21 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.db.models import DPP, DPPRevision, DPPStatus, EPCISEvent, Tenant, TenantStatus
+from app.core.config import get_settings
+from app.db.models import (
+    DPP,
+    DataCarrier,
+    DataCarrierStatus,
+    DPPRevision,
+    DPPStatus,
+    EPCISEvent,
+    Tenant,
+    TenantStatus,
+)
 from app.db.session import DbSession
 from app.modules.dpps.idta_schemas import (
     PagedResult,
@@ -168,6 +179,70 @@ async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
             detail="Not found",
         )
     return tenant
+
+
+@router.get(
+    "/{tenant_slug}/carriers/{carrier_id}/withdrawn",
+    response_class=HTMLResponse,
+)
+async def get_withdrawn_carrier_notice(
+    tenant_slug: str,
+    carrier_id: UUID,
+    db: DbSession,
+) -> HTMLResponse:
+    """Public recall/withdrawal notice for a withdrawn managed carrier."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    result = await db.execute(
+        select(DataCarrier).where(
+            DataCarrier.id == carrier_id,
+            DataCarrier.tenant_id == tenant.id,
+            DataCarrier.status == DataCarrierStatus.WITHDRAWN,
+        )
+    )
+    carrier = result.scalar_one_or_none()
+    if carrier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    settings = get_settings()
+    base_url = settings.resolver_base_url.split(settings.api_v1_prefix, 1)[0]
+    dpp_url = (
+        f"{base_url}{settings.api_v1_prefix}/public/{tenant.slug}/dpps/{carrier.dpp_id}"
+        if base_url
+        else f"{settings.api_v1_prefix}/public/{tenant.slug}/dpps/{carrier.dpp_id}"
+    )
+    reason = carrier.withdrawn_reason or "This data carrier has been withdrawn."
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Data Carrier Withdrawn</title>
+    <style>
+      body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }}
+      .panel {{ max-width: 720px; border: 1px solid #ddd; border-radius: 12px; padding: 1rem 1.25rem; }}
+      .label {{ color: #666; font-size: 0.875rem; }}
+      .value {{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+      a {{ color: #0b57d0; }}
+    </style>
+  </head>
+  <body>
+    <div class="panel">
+      <h1>Data Carrier Withdrawn</h1>
+      <p>This product data carrier has been withdrawn from normal resolution.</p>
+      <p><strong>Reason:</strong> {reason}</p>
+      <p class="label">Carrier ID</p>
+      <p class="value">{carrier.id}</p>
+      <p><a href="{dpp_url}">View public DPP record</a></p>
+    </div>
+  </body>
+</html>"""
+
+    return HTMLResponse(
+        content=html,
+        status_code=status.HTTP_200_OK,
+        headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=300"},
+    )
 
 
 async def _load_public_landing_summary(
