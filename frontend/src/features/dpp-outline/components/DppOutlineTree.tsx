@@ -131,7 +131,7 @@ export function DppOutlineTree({
   selectedId,
   onSelectNode,
   ariaLabel = 'DPP structure outline',
-  virtualizeThreshold = 320,
+  virtualizeThreshold = 180,
   scrollClassName = 'max-h-[65vh]',
 }: DppOutlineTreeProps) {
   const defaults = useMemo(() => collectExpandedDefaults(nodes), [nodes]);

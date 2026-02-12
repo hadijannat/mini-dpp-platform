@@ -21,6 +21,7 @@ export function useOutlineScrollSync({
       typeof window === 'undefined' ||
       typeof IntersectionObserver === 'undefined'
     ) {
+      lastPathRef.current = null;
       return;
     }
 
@@ -29,7 +30,10 @@ export function useOutlineScrollSync({
       document.querySelectorAll<HTMLElement>(selector),
     );
 
-    if (elements.length === 0) return;
+    if (elements.length === 0) {
+      lastPathRef.current = null;
+      return;
+    }
 
     const visible = new Map<Element, IntersectionObserverEntry>();
 
@@ -75,6 +79,7 @@ export function useOutlineScrollSync({
     return () => {
       observer.disconnect();
       visible.clear();
+      lastPathRef.current = null;
     };
   }, [attribute, enabled, onActivePathChange, root]);
 }
