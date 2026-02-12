@@ -33,14 +33,16 @@ function okJson(data: unknown) {
   };
 }
 
-function renderEditor() {
+function renderEditor(
+  initialEntry = '/console/dpps/dpp-1/edit/digital-nameplate',
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/console/dpps/dpp-1/edit/digital-nameplate']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/console/dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
         </Routes>
@@ -124,6 +126,14 @@ const templateContract = {
 describe('SubmodelEditorPage progress and rebuild strategy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    if (!('scrollIntoView' in HTMLElement.prototype)) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+        configurable: true,
+        value: vi.fn(),
+      });
+    } else {
+      vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    }
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates/digital-nameplate') {
@@ -197,6 +207,32 @@ describe('SubmodelEditorPage progress and rebuild strategy', () => {
         const payload = JSON.parse(body) as Record<string, unknown>;
         expect(payload.submodel_id).toBe('urn:submodel:nameplate');
       });
+    },
+    15000,
+  );
+
+  it(
+    'renders outline pane and applies focus from focus_path query params',
+    async () => {
+      renderEditor(
+        '/console/dpps/dpp-1/edit/digital-nameplate?focus_path=ManufacturerData.ManufacturerName',
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('dpp-outline-submodel-desktop')).toBeTruthy();
+      });
+
+      const target = document.querySelector<HTMLElement>(
+        '[data-field-path="ManufacturerData.ManufacturerName"]',
+      );
+      expect(target).toBeTruthy();
+
+      await waitFor(() => {
+        const scrolled = (HTMLElement.prototype.scrollIntoView as unknown as ReturnType<typeof vi.fn>);
+        expect(scrolled).toHaveBeenCalled();
+      });
+
+      expect(screen.queryByText(/Could not focus requested field/i)).toBeNull();
     },
     15000,
   );
