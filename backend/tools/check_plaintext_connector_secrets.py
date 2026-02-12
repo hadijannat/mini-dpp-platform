@@ -23,10 +23,10 @@ async def scan_plaintext_connector_secrets(session: AsyncSession) -> list[dict[s
     findings: list[dict[str, Any]] = []
 
     legacy_connectors = (
-        await session.execute(
-            select(Connector).order_by(Connector.created_at.desc())
-        )
-    ).scalars().all()
+        (await session.execute(select(Connector).order_by(Connector.created_at.desc())))
+        .scalars()
+        .all()
+    )
     for connector in legacy_connectors:
         config = connector.config or {}
         for finding in find_plaintext_secret_fields(config):
@@ -43,10 +43,14 @@ async def scan_plaintext_connector_secrets(session: AsyncSession) -> list[dict[s
             )
 
     dataspace_connectors = (
-        await session.execute(
-            select(DataspaceConnector).order_by(DataspaceConnector.created_at.desc())
+        (
+            await session.execute(
+                select(DataspaceConnector).order_by(DataspaceConnector.created_at.desc())
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for connector in dataspace_connectors:
         runtime_config = connector.runtime_config or {}
         for finding in find_plaintext_secret_fields(runtime_config):
@@ -64,10 +68,16 @@ async def scan_plaintext_connector_secrets(session: AsyncSession) -> list[dict[s
             )
 
     dataspace_secrets = (
-        await session.execute(
-            select(DataspaceConnectorSecret).order_by(DataspaceConnectorSecret.created_at.desc())
+        (
+            await session.execute(
+                select(DataspaceConnectorSecret).order_by(
+                    DataspaceConnectorSecret.created_at.desc()
+                )
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     for secret in dataspace_secrets:
         if is_encrypted_secret_value(secret.encrypted_value):
             continue
@@ -80,9 +90,7 @@ async def scan_plaintext_connector_secrets(session: AsyncSession) -> list[dict[s
                 "secret_id": str(secret.id),
                 "issue": "encrypted_value is not prefixed with enc:v1:",
                 "value_preview": (
-                    f"{secret.encrypted_value[:12]}..."
-                    if secret.encrypted_value
-                    else "<empty>"
+                    f"{secret.encrypted_value[:12]}..." if secret.encrypted_value else "<empty>"
                 ),
             }
         )

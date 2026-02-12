@@ -17,25 +17,21 @@ services:
       - "19193:19193"   # Management API
       - "19194:19194"   # DSP protocol
     volumes:
-      - ./infra/edc/config.properties:/app/config.properties:ro
+      - ./infra/edc/config.properties:/app/configuration.properties:ro
       - ./infra/edc/logging.properties:/app/logging.properties:ro
     environment:
-      EDC_FS_CONFIG: /app/config.properties
+      EDC_FS_CONFIG: /app/configuration.properties
       JAVA_TOOL_OPTIONS: -Djava.util.logging.config.file=/app/logging.properties
-      EDC_PARTICIPANT_ID: ${EDC_PARTICIPANT_ID:-BPNL000000000000}
-      EDC_API_KEY: ${EDC_API_KEY:-password}
-      EDC_DATASOURCE_URL: jdbc:postgresql://edc-postgres:5432/edc
-      EDC_DATASOURCE_USER: edc
-      EDC_DATASOURCE_PASSWORD: ${EDC_DB_PASSWORD:-edc_password}
-      VAULT_URL: http://vault:8200
-      VAULT_DEV_ROOT_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
+      EDC_API_AUTH_KEY: ${EDC_API_KEY:-password}
+      EDC_VAULT_HASHICORP_URL: http://vault:8200
+      EDC_VAULT_HASHICORP_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
     depends_on:
       edc-postgres:
         condition: service_healthy
       vault:
         condition: service_started
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:19191/api/check/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:19191/api/check/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -48,18 +44,17 @@ services:
     ports:
       - "19291:19291"   # Public API (data transfers)
     environment:
-      EDC_FS_CONFIG: /app/config.properties
+      EDC_FS_CONFIG: /app/configuration.properties
       JAVA_TOOL_OPTIONS: -Djava.util.logging.config.file=/app/logging.properties
-      EDC_PARTICIPANT_ID: ${EDC_PARTICIPANT_ID:-BPNL000000000000}
-      VAULT_URL: http://vault:8200
-      VAULT_DEV_ROOT_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
+      EDC_VAULT_HASHICORP_URL: http://vault:8200
+      EDC_VAULT_HASHICORP_TOKEN: ${VAULT_DEV_ROOT_TOKEN:-dev-root-token}
       # Dataplane-specific
       web.http.public.port: "19291"
       web.http.public.path: "/public"
       web.http.control.port: "19192"
       web.http.control.path: "/control"
     volumes:
-      - ./infra/edc/config.properties:/app/config.properties:ro
+      - ./infra/edc/config.properties:/app/configuration.properties:ro
       - ./infra/edc/logging.properties:/app/logging.properties:ro
     depends_on:
       edc-controlplane:

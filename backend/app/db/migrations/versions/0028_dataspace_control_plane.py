@@ -213,7 +213,9 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column(
             "connector_id",
             sa.UUID(),

@@ -300,11 +300,7 @@ class CatenaXDTRAdapter:
                 context=context,
                 secret_ref=runtime_config.get("token_secret_ref"),
             ),
-            bpn=(
-                str(runtime_config.get("bpn"))
-                if runtime_config.get("bpn") is not None
-                else None
-            ),
+            bpn=(str(runtime_config.get("bpn")) if runtime_config.get("bpn") is not None else None),
         )
 
     async def validate(self, context: RuntimeConnectorContext) -> dict[str, Any]:

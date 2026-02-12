@@ -18,6 +18,8 @@ from app.modules.dataspace.router import (
     create_dsp_tck_run,
     get_dpp_regulatory_evidence,
     get_dsp_tck_run,
+    get_negotiation,
+    get_transfer,
     list_connector_assets,
     list_connector_conformance_runs,
     list_connector_negotiations,
@@ -386,6 +388,84 @@ async def test_create_dsp_tck_run_without_connector_uses_create_permission() -> 
 
 
 @pytest.mark.asyncio
+async def test_get_negotiation_requires_read_connector_access() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    negotiation_id = uuid4()
+    connector_id = uuid4()
+    negotiation = SimpleNamespace(
+        id=negotiation_id,
+        connector_id=connector_id,
+        publication_id=uuid4(),
+        negotiation_id="neg-runtime-1",
+        state="FINALIZED",
+        contract_agreement_id="agreement-1",
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    connector = SimpleNamespace(id=connector_id)
+    service = SimpleNamespace(
+        get_negotiation=AsyncMock(return_value=negotiation),
+        get_connector=AsyncMock(return_value=connector),
+        refresh_negotiation=AsyncMock(return_value=negotiation),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+    ):
+        response = await get_negotiation(
+            negotiation_id=negotiation_id,
+            db=db,
+            tenant=tenant,
+        )
+
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "read"
+    service.refresh_negotiation.assert_awaited_once()
+    assert response.id == negotiation_id
+
+
+@pytest.mark.asyncio
+async def test_get_transfer_requires_read_connector_access() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    transfer_id = uuid4()
+    connector_id = uuid4()
+    transfer = SimpleNamespace(
+        id=transfer_id,
+        connector_id=connector_id,
+        negotiation_id=uuid4(),
+        transfer_id="transfer-runtime-1",
+        state="COMPLETED",
+        data_destination={"type": "HttpProxy"},
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    connector = SimpleNamespace(id=connector_id)
+    service = SimpleNamespace(
+        get_transfer=AsyncMock(return_value=transfer),
+        get_connector=AsyncMock(return_value=connector),
+        refresh_transfer=AsyncMock(return_value=transfer),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+    ):
+        response = await get_transfer(
+            transfer_id=transfer_id,
+            db=db,
+            tenant=tenant,
+        )
+
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "read"
+    service.refresh_transfer.assert_awaited_once()
+    assert response.id == transfer_id
+
+
+@pytest.mark.asyncio
 async def test_get_dsp_tck_run_returns_404_when_missing() -> None:
     tenant = _tenant()
     db = AsyncMock()
@@ -403,6 +483,83 @@ async def test_get_dsp_tck_run_returns_404_when_missing() -> None:
         )
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_get_dsp_tck_run_requires_connector_read_access() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    connector_id = uuid4()
+    run_id = uuid4()
+    run = SimpleNamespace(
+        id=run_id,
+        connector_id=connector_id,
+        run_type="dsp-tck",
+        status=DataspaceRunStatus.PASSED,
+        request_payload={"profile": "dsp-tck"},
+        result_payload={"status": "passed"},
+        artifact_url="/tmp/dsp-tck.json",
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    service = SimpleNamespace(
+        get_conformance_run=AsyncMock(return_value=run),
+        get_connector=AsyncMock(return_value=SimpleNamespace(id=connector_id)),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+    ):
+        response = await get_dsp_tck_run(
+            run_id=run_id,
+            db=db,
+            tenant=tenant,
+        )
+
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "read"
+    service.get_connector.assert_awaited_once()
+    assert response.id == run_id
+
+
+@pytest.mark.asyncio
+async def test_get_dsp_tck_run_without_connector_uses_connector_read_permission() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    run_id = uuid4()
+    run = SimpleNamespace(
+        id=run_id,
+        connector_id=None,
+        run_type="dsp-tck",
+        status=DataspaceRunStatus.PASSED,
+        request_payload={"profile": "dsp-tck"},
+        result_payload={"status": "passed"},
+        artifact_url="/tmp/dsp-tck.json",
+        started_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+    service = SimpleNamespace(
+        get_conformance_run=AsyncMock(return_value=run),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+    ):
+        response = await get_dsp_tck_run(
+            run_id=run_id,
+            db=db,
+            tenant=tenant,
+        )
+
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "read"
+    assert response.id == run_id
 
 
 @pytest.mark.asyncio
@@ -432,9 +589,7 @@ async def test_get_dpp_regulatory_evidence_returns_service_payload() -> None:
         dataspace_transfers=[],
         dataspace_conformance_runs=[],
     )
-    dataspace_service = SimpleNamespace(
-        build_regulatory_evidence=AsyncMock(return_value=evidence)
-    )
+    dataspace_service = SimpleNamespace(build_regulatory_evidence=AsyncMock(return_value=evidence))
 
     with (
         patch("app.modules.dataspace.router.DPPService", return_value=dpp_service),

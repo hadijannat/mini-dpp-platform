@@ -103,8 +103,7 @@ class DataspaceService:
             tenant_id=tenant_id,
             connector_id=connector.id,
             secrets=[
-                {"secret_ref": secret.secret_ref, "value": secret.value}
-                for secret in body.secrets
+                {"secret_ref": secret.secret_ref, "value": secret.value} for secret in body.secrets
             ],
         )
         await self._session.flush()
@@ -259,9 +258,7 @@ class DataspaceService:
                 policy_template_id=body.policy_template_id,
             )
             if policy_template is None:
-                raise DataspaceServiceError(
-                    f"Policy template {body.policy_template_id} not found"
-                )
+                raise DataspaceServiceError(f"Policy template {body.policy_template_id} not found")
 
         adapter = get_runtime_adapter(connector.runtime.value)
         runtime_context = await self._build_runtime_context(connector=connector)
@@ -409,9 +406,7 @@ class DataspaceService:
             connector_id=negotiation.connector_id,
         )
         if connector is None:
-            raise DataspaceServiceError(
-                f"Dataspace connector {negotiation.connector_id} not found"
-            )
+            raise DataspaceServiceError(f"Dataspace connector {negotiation.connector_id} not found")
         self._ensure_dsp_runtime_supported(
             runtime=connector.runtime.value,
             operation="contract negotiation refresh",
@@ -571,7 +566,9 @@ class DataspaceService:
             metadata=metadata,
         )
         run.status = (
-            DataspaceRunStatus.PASSED if execution.get("status") == "passed" else DataspaceRunStatus.FAILED
+            DataspaceRunStatus.PASSED
+            if execution.get("status") == "passed"
+            else DataspaceRunStatus.FAILED
         )
         run.result_payload = execution
         run.artifact_url = execution.get("artifact_path")
@@ -608,7 +605,9 @@ class DataspaceService:
                         ComplianceReportRecord.dpp_id == dpp_id,
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
         credential = (
@@ -628,7 +627,9 @@ class DataspaceService:
                         ResolverLink.dpp_id == dpp_id,
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
         shell_rows = list(
@@ -639,7 +640,9 @@ class DataspaceService:
                         ShellDescriptorRecord.dpp_id == dpp_id,
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
         publication_rows = list(
@@ -650,7 +653,9 @@ class DataspaceService:
                         DataspaceAssetPublication.dpp_id == dpp_id,
                     )
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
         publication_ids = [row.id for row in publication_rows]
 
@@ -664,7 +669,9 @@ class DataspaceService:
                             DataspaceNegotiation.publication_id.in_(publication_ids),
                         )
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
 
         negotiation_ids = [row.id for row in negotiations]
@@ -678,7 +685,9 @@ class DataspaceService:
                             DataspaceTransfer.negotiation_id.in_(negotiation_ids),
                         )
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
 
         conformance_rows = list(
@@ -689,7 +698,9 @@ class DataspaceService:
                     .order_by(DataspaceConformanceRun.created_at.desc())
                     .limit(20)
                 )
-            ).scalars().all()
+            )
+            .scalars()
+            .all()
         )
 
         credential_status = CredentialStatusResponse(
@@ -815,7 +826,9 @@ class DataspaceService:
                         new_value=manifest.connector.participant_id,
                     )
                 )
-            if connector.runtime_config != manifest.connector.runtime_config.model_dump(mode="python"):
+            if connector.runtime_config != manifest.connector.runtime_config.model_dump(
+                mode="python"
+            ):
                 changes.append(
                     ManifestChange(
                         resource="dataspace_connector",
@@ -1195,9 +1208,7 @@ class DataspaceService:
         )
         revision = result.scalar_one_or_none()
         if revision is None:
-            raise DataspaceServiceError(
-                f"Revision {revision_id} not found for DPP {dpp_id}"
-            )
+            raise DataspaceServiceError(f"Revision {revision_id} not found for DPP {dpp_id}")
         return revision
 
     async def _upsert_connector_secrets(
@@ -1216,9 +1227,7 @@ class DataspaceService:
                 DataspaceConnectorSecret.connector_id == connector_id,
             )
         )
-        existing_by_ref = {
-            record.secret_ref: record for record in existing_result.scalars().all()
-        }
+        existing_by_ref = {record.secret_ref: record for record in existing_result.scalars().all()}
 
         for secret in secrets:
             secret_ref = secret["secret_ref"]
@@ -1340,9 +1349,7 @@ class DataspaceService:
         runtime_config: object,
     ) -> None:
         if runtime == "edc" and not isinstance(runtime_config, EDCRuntimeConfig):
-            raise DataspaceServiceError(
-                "runtime_config must be EDCRuntimeConfig for runtime=edc"
-            )
+            raise DataspaceServiceError("runtime_config must be EDCRuntimeConfig for runtime=edc")
         if runtime == "catena_x_dtr" and not isinstance(runtime_config, CatenaXDTRRuntimeConfig):
             raise DataspaceServiceError(
                 "runtime_config must be CatenaXDTRRuntimeConfig for runtime=catena_x_dtr"

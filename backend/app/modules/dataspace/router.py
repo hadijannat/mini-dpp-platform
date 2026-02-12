@@ -571,7 +571,9 @@ async def update_policy_template(
     return _policy_template_response(template)
 
 
-@router.post("/policy-templates/{policy_template_id}/approve", response_model=PolicyTemplateResponse)
+@router.post(
+    "/policy-templates/{policy_template_id}/approve", response_model=PolicyTemplateResponse
+)
 async def approve_policy_template(
     policy_template_id: UUID,
     request: Request,
@@ -604,7 +606,9 @@ async def approve_policy_template(
     return _policy_template_response(template)
 
 
-@router.post("/policy-templates/{policy_template_id}/activate", response_model=PolicyTemplateResponse)
+@router.post(
+    "/policy-templates/{policy_template_id}/activate", response_model=PolicyTemplateResponse
+)
 async def activate_policy_template(
     policy_template_id: UUID,
     request: Request,
@@ -833,6 +837,32 @@ async def get_negotiation(
 ) -> NegotiationResponse:
     """Get and refresh negotiation state from runtime."""
     service = DataspaceService(db)
+    negotiation = await service.get_negotiation(
+        tenant_id=tenant.tenant_id,
+        negotiation_id=negotiation_id,
+    )
+    if negotiation is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Negotiation {negotiation_id} not found",
+        )
+
+    connector = await service.get_connector(
+        tenant_id=tenant.tenant_id,
+        connector_id=negotiation.connector_id,
+    )
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dataspace connector {negotiation.connector_id} not found",
+        )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(connector),
+        tenant=tenant,
+    )
+
     try:
         negotiation = await service.refresh_negotiation(
             tenant_id=tenant.tenant_id,
@@ -913,6 +943,31 @@ async def get_transfer(
 ) -> TransferResponse:
     """Get and refresh transfer process state from runtime."""
     service = DataspaceService(db)
+    transfer = await service.get_transfer(
+        tenant_id=tenant.tenant_id,
+        transfer_id=transfer_id,
+    )
+    if transfer is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Transfer {transfer_id} not found",
+        )
+    connector = await service.get_connector(
+        tenant_id=tenant.tenant_id,
+        connector_id=transfer.connector_id,
+    )
+    if connector is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Dataspace connector {transfer.connector_id} not found",
+        )
+    await require_access(
+        tenant.user,
+        "read",
+        build_connector_resource_context(connector),
+        tenant=tenant,
+    )
+
     try:
         transfer = await service.refresh_transfer(
             tenant_id=tenant.tenant_id,
@@ -988,6 +1043,24 @@ async def get_dsp_tck_run(
     run = await service.get_conformance_run(tenant_id=tenant.tenant_id, run_id=run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run {run_id} not found")
+    if run.connector_id is None:
+        await require_access(tenant.user, "read", {"type": "connector"}, tenant=tenant)
+    else:
+        connector = await service.get_connector(
+            tenant_id=tenant.tenant_id,
+            connector_id=run.connector_id,
+        )
+        if connector is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Dataspace connector {run.connector_id} not found",
+            )
+        await require_access(
+            tenant.user,
+            "read",
+            build_connector_resource_context(connector),
+            tenant=tenant,
+        )
     return ConformanceRunResponse.model_validate(run)
 
 
