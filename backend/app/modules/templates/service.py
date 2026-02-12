@@ -958,7 +958,6 @@ class TemplateRegistryService:
             file_kind=file_kind,
         )
         if selected_fallback is not None:
-            selected_fallback.selection_strategy = "fallback_filename_unique"
             return selected_fallback
         return None
 
