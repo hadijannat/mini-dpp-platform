@@ -48,6 +48,17 @@ import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
 import { cn } from '@/lib/utils';
 
+class AmbiguousBindingError extends Error {
+  candidates: string[];
+  templateKey: string;
+  constructor(message: string, templateKey: string, candidates: string[]) {
+    super(message);
+    this.name = 'AmbiguousBindingError';
+    this.templateKey = templateKey;
+    this.candidates = candidates;
+  }
+}
+
 function flattenFormErrors(
   errors: Record<string, unknown>,
   basePath = '',
@@ -221,6 +232,40 @@ async function updateSubmodel(
     token,
   );
   if (!response.ok) {
+    if (response.status === 409) {
+      const contentType = response.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        try {
+          const body = (await response.json()) as {
+            detail?: {
+              message?: string;
+              template_key?: string;
+              candidates?: string[];
+            };
+          };
+          const detail = body?.detail;
+          if (
+            detail &&
+            typeof detail === 'object' &&
+            Array.isArray(detail.candidates) &&
+            detail.candidates.length > 0
+          ) {
+            throw new AmbiguousBindingError(
+              typeof detail.message === 'string'
+                ? detail.message
+                : 'Ambiguous template binding',
+              typeof detail.template_key === 'string'
+                ? detail.template_key
+                : templateKey,
+              detail.candidates,
+            );
+          }
+        } catch (e) {
+          if (e instanceof AmbiguousBindingError) throw e;
+          // Fall through to generic error
+        }
+      }
+    }
     throw new Error(await getApiErrorMessage(response, 'Failed to update submodel'));
   }
   return response.json();
@@ -262,6 +307,10 @@ export default function SubmodelEditorPage() {
 
   // ── Derived state ──
 
+  // Locate the submodel object in the AAS environment using backend-resolved
+  // binding metadata. Priority: submodel_id (from binding) → semantic_id → idShort.
+  // This does NOT re-resolve bindings; fallbacks only activate when the binding
+  // lacks a submodel_id (rare for well-formed AAS submodels).
   const submodel = useMemo(() => {
     if (!dpp) return null;
     const submodels = dpp.aas_environment?.submodels || [];
@@ -384,13 +433,21 @@ export default function SubmodelEditorPage() {
     },
     onError: (mutationError) => {
       const message = mutationError instanceof Error ? mutationError.message : 'unknown-error';
+      if (mutationError instanceof AmbiguousBindingError) {
+        const candidateList = mutationError.candidates.join(', ');
+        setError(
+          `Multiple submodels match this template. Candidates: ${candidateList}. Navigate to the DPP page to select a specific submodel.`,
+        );
+      }
       emitSubmodelUxMetric(
         pendingAction === 'rebuild' ? 'rebuild_failure_class' : 'save_failure_class',
         {
           dpp_id: dppId,
           template_key: templateKey,
           reason:
-            message.includes('409') || message.toLowerCase().includes('ambiguous')
+            mutationError instanceof AmbiguousBindingError ||
+            message.includes('409') ||
+            message.toLowerCase().includes('ambiguous')
               ? 'ambiguous-binding'
               : message.includes('403')
                 ? 'forbidden'

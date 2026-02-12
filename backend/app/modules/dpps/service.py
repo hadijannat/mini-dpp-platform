@@ -952,6 +952,10 @@ class DPPService:
             raise AmbiguousSubmodelBindingError(template_key=template_key, submodel_ids=candidates)
         elif len(matching_bindings) == 1:
             target_submodel_id = matching_bindings[0].submodel_id
+        else:
+            raise ValueError(
+                f"No submodel in this DPP is bound to template '{template_key}'"
+            )
 
         applied_autofix = False
         autofix_stats = SanitizationStats()

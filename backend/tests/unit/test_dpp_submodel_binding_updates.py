@@ -145,3 +145,86 @@ async def test_update_submodel_rejects_unknown_explicit_submodel_id() -> None:
         )
 
     service._basyx_builder.update_submodel_environment.assert_not_called()
+
+
+@pytest.mark.asyncio()
+async def test_update_submodel_disambiguates_with_explicit_submodel_id() -> None:
+    """Happy path: explicit submodel_id resolves ambiguity and update proceeds."""
+    service = DPPService.__new__(DPPService)
+    service._session = SimpleNamespace(add=MagicMock(), flush=AsyncMock())
+    service._is_legacy_environment = MagicMock(return_value=False)
+    service._calculate_digest = MagicMock(return_value="digest")
+    service._cleanup_old_draft_revisions = AsyncMock(return_value=0)
+    service._assert_conformant_environment = MagicMock(return_value=None)
+
+    aas_env = {
+        "assetAdministrationShells": [],
+        "conceptDescriptions": [],
+        "submodels": [
+            {
+                "id": "urn:dpp:sm:1",
+                "idShort": "CarbonFootprintA",
+                "semanticId": {
+                    "keys": [
+                        {
+                            "type": "GlobalReference",
+                            "value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+                        }
+                    ]
+                },
+            },
+            {
+                "id": "urn:dpp:sm:2",
+                "idShort": "CarbonFootprintB",
+                "semanticId": {
+                    "keys": [
+                        {
+                            "type": "GlobalReference",
+                            "value": "https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+                        }
+                    ]
+                },
+            },
+        ],
+    }
+
+    current_revision = SimpleNamespace(
+        revision_no=2,
+        aas_env_json=aas_env,
+        template_provenance={},
+    )
+    service.get_latest_revision = AsyncMock(return_value=current_revision)
+    service.get_dpp = AsyncMock(
+        return_value=SimpleNamespace(
+            status=DPPStatus.DRAFT,
+            asset_ids={"manufacturerPartId": "P-100"},
+        )
+    )
+    service._template_service = SimpleNamespace(
+        get_template=AsyncMock(return_value=SimpleNamespace(template_key="carbon-footprint")),
+        get_all_templates=AsyncMock(
+            return_value=[
+                SimpleNamespace(
+                    template_key="carbon-footprint",
+                    semantic_id="https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0",
+                )
+            ]
+        ),
+    )
+    # Return the same env dict — content doesn't matter, just needs to be a valid dict
+    service._basyx_builder = SimpleNamespace(
+        update_submodel_environment=MagicMock(return_value=aas_env)
+    )
+
+    await service.update_submodel(
+        dpp_id=uuid4(),
+        tenant_id=uuid4(),
+        template_key="carbon-footprint",
+        submodel_data={},
+        updated_by_subject="publisher-sub",
+        submodel_id="urn:dpp:sm:1",
+    )
+
+    service._basyx_builder.update_submodel_environment.assert_called_once()
+    call_kwargs = service._basyx_builder.update_submodel_environment.call_args
+    assert call_kwargs.kwargs["submodel_id"] == "urn:dpp:sm:1"

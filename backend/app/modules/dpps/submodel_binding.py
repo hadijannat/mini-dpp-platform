@@ -8,6 +8,7 @@ Produces deterministic bindings for submodels in a DPP revision by combining:
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -195,6 +196,7 @@ def _kebab_case(value: str) -> str:
     return normalized.strip("-")
 
 
+@functools.lru_cache(maxsize=1)
 def _load_alias_map() -> dict[str, str]:
     registry = load_semantic_registry()
     aliases = registry.get("legacy_semantic_id_aliases", {})
