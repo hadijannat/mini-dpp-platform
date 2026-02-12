@@ -49,7 +49,7 @@ def _create_dataspace_connector(api_client: httpx.Client, tenant_slug: str) -> s
         "runtime_config": {
             "management_url": os.getenv(
                 "E2E_EDC_MANAGEMENT_URL",
-                "http://edc-controlplane:19193/management",
+                "http://edc-controlplane:19193",
             ),
             "dsp_endpoint": os.getenv(
                 "E2E_EDC_DSP_ENDPOINT",
@@ -57,7 +57,7 @@ def _create_dataspace_connector(api_client: httpx.Client, tenant_slug: str) -> s
             ),
             "provider_connector_address": os.getenv(
                 "E2E_PROVIDER_CONNECTOR_ADDRESS",
-                "http://edc-controlplane:19193/management",
+                "http://edc-controlplane:19194/protocol",
             ),
             "management_api_key_secret_ref": "edc-mgmt-api-key",
             "protocol": "dataspace-protocol-http",
