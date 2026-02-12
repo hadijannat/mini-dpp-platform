@@ -11,9 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.models import (
     DPP,
     AuditEvent,
+    DataCarrier,
+    DataCarrierStatus,
     DPPRevision,
     DPPStatus,
     EPCISEvent,
+    ResolverLink,
     Tenant,
     TenantMember,
     TenantRole,
@@ -174,6 +177,43 @@ class TenantService:
                 0,
             ).label("total_epcis_events"),
             func.coalesce(
+                select(func.count(DataCarrier.id))
+                .where(DataCarrier.tenant_id == Tenant.id)
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("total_data_carriers"),
+            func.coalesce(
+                select(func.count(DataCarrier.id))
+                .where(
+                    DataCarrier.tenant_id == Tenant.id,
+                    DataCarrier.status == DataCarrierStatus.ACTIVE.value,
+                )
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("active_data_carriers"),
+            func.coalesce(
+                select(func.count(DataCarrier.id))
+                .where(
+                    DataCarrier.tenant_id == Tenant.id,
+                    DataCarrier.status == DataCarrierStatus.WITHDRAWN.value,
+                )
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("withdrawn_data_carriers"),
+            func.coalesce(
+                select(func.count(ResolverLink.id))
+                .where(
+                    ResolverLink.tenant_id == Tenant.id,
+                    ResolverLink.managed_by_system.is_(True),
+                )
+                .correlate(Tenant)
+                .scalar_subquery(),
+                0,
+            ).label("system_managed_resolver_links"),
+            func.coalesce(
                 select(func.count(AuditEvent.id))
                 .where(AuditEvent.tenant_id == Tenant.id)
                 .correlate(Tenant)
@@ -197,6 +237,10 @@ class TenantService:
                 "total_revisions": row.total_revisions,
                 "total_members": row.total_members,
                 "total_epcis_events": row.total_epcis_events,
+                "total_data_carriers": row.total_data_carriers,
+                "active_data_carriers": row.active_data_carriers,
+                "withdrawn_data_carriers": row.withdrawn_data_carriers,
+                "system_managed_resolver_links": row.system_managed_resolver_links,
                 "total_audit_events": row.total_audit_events,
             }
             for row in rows

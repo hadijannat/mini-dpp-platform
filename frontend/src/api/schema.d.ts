@@ -9,6 +9,13 @@ export interface paths {
     /** Health Check */
     get: operations["health_check_health_get"];
   };
+  "/api/v1/public/{tenant_slug}/carriers/{carrier_id}/withdrawn": {
+    /**
+     * Get Withdrawn Carrier Notice
+     * @description Public recall/withdrawal notice for a withdrawn managed carrier.
+     */
+    get: operations["get_withdrawn_carrier_notice_api_v1_public__tenant_slug__carriers__carrier_id__withdrawn_get"];
+  };
   "/api/v1/public/landing/summary": {
     /**
      * Get Public Scoped Landing Summary
@@ -408,6 +415,20 @@ export interface paths {
      */
     put: operations["update_submodel_api_v1_tenants__tenant_slug__dpps__dpp_id__submodel_put"];
   };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/attachments": {
+    /**
+     * Upload Attachment
+     * @description Upload a tenant-private attachment linked to a DPP.
+     */
+    post: operations["upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/attachments/{attachment_id}": {
+    /**
+     * Download Attachment
+     * @description Download a tenant-private attachment (requires authenticated tenant access).
+     */
+    get: operations["download_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments__attachment_id__get"];
+  };
   "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/submodels/refresh-rebuild": {
     /**
      * Refresh Rebuild Submodels
@@ -594,6 +615,177 @@ export interface paths {
      */
     get: operations["check_connector_edc_health_api_v1_tenants__tenant_slug__connectors__connector_id__dataspace_health_get"];
   };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors": {
+    /**
+     * List Dataspace Connectors
+     * @description List dataspace connectors for the active tenant.
+     */
+    get: operations["list_dataspace_connectors_api_v1_tenants__tenant_slug__dataspace_connectors_get"];
+    /**
+     * Create Dataspace Connector
+     * @description Create a dataspace connector instance using strict v2 schemas.
+     */
+    post: operations["create_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}": {
+    /**
+     * Update Dataspace Connector
+     * @description Patch a dataspace connector.
+     */
+    patch: operations["update_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}/validate": {
+    /**
+     * Validate Dataspace Connector
+     * @description Validate dataspace connector runtime readiness.
+     */
+    post: operations["validate_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__validate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}/assets": {
+    /**
+     * List Connector Assets
+     * @description List published dataspace assets for a connector.
+     */
+    get: operations["list_connector_assets_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__assets_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}/negotiations": {
+    /**
+     * List Connector Negotiations
+     * @description List dataspace negotiations for a connector.
+     */
+    get: operations["list_connector_negotiations_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__negotiations_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}/transfers": {
+    /**
+     * List Connector Transfers
+     * @description List dataspace transfers for a connector.
+     */
+    get: operations["list_connector_transfers_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__transfers_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/connectors/{connector_id}/conformance-runs": {
+    /**
+     * List Connector Conformance Runs
+     * @description List conformance run history for a connector.
+     */
+    get: operations["list_connector_conformance_runs_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__conformance_runs_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/policy-templates": {
+    /**
+     * List Policy Templates
+     * @description List dataspace policy templates for this tenant.
+     */
+    get: operations["list_policy_templates_api_v1_tenants__tenant_slug__dataspace_policy_templates_get"];
+    /**
+     * Create Policy Template
+     * @description Create a draft dataspace policy template.
+     */
+    post: operations["create_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/policy-templates/{policy_template_id}": {
+    /**
+     * Update Policy Template
+     * @description Update a draft dataspace policy template.
+     */
+    patch: operations["update_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/policy-templates/{policy_template_id}/approve": {
+    /**
+     * Approve Policy Template
+     * @description Approve a draft policy template.
+     */
+    post: operations["approve_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__approve_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/policy-templates/{policy_template_id}/activate": {
+    /**
+     * Activate Policy Template
+     * @description Activate an approved policy template.
+     */
+    post: operations["activate_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__activate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/policy-templates/{policy_template_id}/supersede": {
+    /**
+     * Supersede Policy Template
+     * @description Supersede an approved or active policy template.
+     */
+    post: operations["supersede_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__supersede_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/assets/publish": {
+    /**
+     * Publish Dataspace Asset
+     * @description Publish a DPP as a dataspace asset.
+     */
+    post: operations["publish_dataspace_asset_api_v1_tenants__tenant_slug__dataspace_assets_publish_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/catalog/query": {
+    /**
+     * Query Dataspace Catalog
+     * @description Query a remote dataspace catalog through the configured connector runtime.
+     */
+    post: operations["query_dataspace_catalog_api_v1_tenants__tenant_slug__dataspace_catalog_query_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/negotiations": {
+    /**
+     * Create Negotiation
+     * @description Start a dataspace contract negotiation.
+     */
+    post: operations["create_negotiation_api_v1_tenants__tenant_slug__dataspace_negotiations_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/negotiations/{negotiation_id}": {
+    /**
+     * Get Negotiation
+     * @description Get and refresh negotiation state from runtime.
+     */
+    get: operations["get_negotiation_api_v1_tenants__tenant_slug__dataspace_negotiations__negotiation_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/transfers": {
+    /**
+     * Create Transfer
+     * @description Start a dataspace transfer process.
+     */
+    post: operations["create_transfer_api_v1_tenants__tenant_slug__dataspace_transfers_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/transfers/{transfer_id}": {
+    /**
+     * Get Transfer
+     * @description Get and refresh transfer process state from runtime.
+     */
+    get: operations["get_transfer_api_v1_tenants__tenant_slug__dataspace_transfers__transfer_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/conformance/dsp-tck/runs": {
+    /**
+     * Create Dsp Tck Run
+     * @description Run and persist DSP-TCK conformance metadata.
+     */
+    post: operations["create_dsp_tck_run_api_v1_tenants__tenant_slug__dataspace_conformance_dsp_tck_runs_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/conformance/dsp-tck/runs/{run_id}": {
+    /**
+     * Get Dsp Tck Run
+     * @description Read a persisted DSP-TCK conformance run result.
+     */
+    get: operations["get_dsp_tck_run_api_v1_tenants__tenant_slug__dataspace_conformance_dsp_tck_runs__run_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/evidence/dpps/{dpp_id}": {
+    /**
+     * Get Dpp Regulatory Evidence
+     * @description Return aggregated regulatory and dataspace evidence for a DPP.
+     */
+    get: operations["get_dpp_regulatory_evidence_api_v1_tenants__tenant_slug__dataspace_evidence_dpps__dpp_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/manifests:diff": {
+    /**
+     * Diff Manifest
+     * @description Preview config-as-code changes for connector manifests.
+     */
+    post: operations["diff_manifest_api_v1_tenants__tenant_slug__dataspace_manifests_diff_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dataspace/manifests:apply": {
+    /**
+     * Apply Manifest
+     * @description Apply config-as-code manifest to connector and policy-template resources.
+     */
+    post: operations["apply_manifest_api_v1_tenants__tenant_slug__dataspace_manifests_apply_post"];
+  };
   "/api/v1/tenants/{tenant_slug}/shares/{resource_type}/{resource_id}": {
     /**
      * List Resource Shares
@@ -649,6 +841,7 @@ export interface paths {
   "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}": {
     /**
      * Generate Qr Code
+     * @deprecated
      * @description Generate a QR code for a DPP.
      *
      * The QR code contains the DPP viewer URL for product identification.
@@ -658,6 +851,7 @@ export interface paths {
   "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}/carrier": {
     /**
      * Generate Carrier
+     * @deprecated
      * @description Generate a customized data carrier for a DPP.
      *
      * Supports QR codes and GS1 Digital Link format with configurable
@@ -668,6 +862,7 @@ export interface paths {
   "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}/gs1": {
     /**
      * Get Gs1 Digital Link
+     * @deprecated
      * @description Get the GS1 Digital Link URL for a DPP.
      *
      * Returns the GS1 Digital Link format URL that can be encoded
@@ -678,12 +873,49 @@ export interface paths {
   "/api/v1/tenants/{tenant_slug}/qr/{dpp_id}/iec61406": {
     /**
      * Get Iec61406 Link
+     * @deprecated
      * @description Get the IEC 61406 identification link for a DPP.
      *
      * Returns a URL-based identification link per IEC 61406 that encodes
      * the manufacturer part ID and serial number as query parameters.
      */
     get: operations["get_iec61406_link_api_v1_tenants__tenant_slug__qr__dpp_id__iec61406_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers": {
+    /** List Data Carriers */
+    get: operations["list_data_carriers_api_v1_tenants__tenant_slug__data_carriers_get"];
+    /** Create Data Carrier */
+    post: operations["create_data_carrier_api_v1_tenants__tenant_slug__data_carriers_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}": {
+    /** Get Data Carrier */
+    get: operations["get_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__get"];
+    /** Update Data Carrier */
+    patch: operations["update_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/render": {
+    /** Render Data Carrier */
+    post: operations["render_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__render_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/lifecycle/deprecate": {
+    /** Deprecate Data Carrier */
+    post: operations["deprecate_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_deprecate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/lifecycle/withdraw": {
+    /** Withdraw Data Carrier */
+    post: operations["withdraw_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_withdraw_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/lifecycle/reissue": {
+    /** Reissue Data Carrier */
+    post: operations["reissue_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_reissue_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/pre-sale-pack": {
+    /** Get Pre Sale Pack */
+    get: operations["get_pre_sale_pack_api_v1_tenants__tenant_slug__data_carriers__carrier_id__pre_sale_pack_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/registry-export": {
+    /** Export Registry */
+    get: operations["export_registry_api_v1_tenants__tenant_slug__data_carriers_registry_export_get"];
   };
   "/api/v1/admin/settings/global-asset-id-base-uri": {
     /**
@@ -700,6 +932,18 @@ export interface paths {
      * Requires admin role.
      */
     put: operations["update_global_asset_id_base_uri_api_v1_admin_settings_global_asset_id_base_uri_put"];
+  };
+  "/api/v1/admin/settings/data-carrier-compliance": {
+    /**
+     * Get Data Carrier Compliance Settings
+     * @description Get data carrier compliance profile and publish gate setting.
+     */
+    get: operations["get_data_carrier_compliance_settings_api_v1_admin_settings_data_carrier_compliance_get"];
+    /**
+     * Update Data Carrier Compliance Settings
+     * @description Update data carrier compliance profile and publish gate setting.
+     */
+    put: operations["update_data_carrier_compliance_settings_api_v1_admin_settings_data_carrier_compliance_put"];
   };
   "/api/v1/tenants/{tenant_slug}/compliance/check/{dpp_id}": {
     /**
@@ -1012,6 +1256,20 @@ export interface paths {
      */
     get: operations["list_credentials_api_v1_tenants__tenant_slug__credentials_get"];
   };
+  "/api/v1/tenants/{tenant_slug}/credentials/{dpp_id}/revoke": {
+    /**
+     * Revoke Credential
+     * @description Revoke the issued credential for a DPP.
+     */
+    post: operations["revoke_credential_api_v1_tenants__tenant_slug__credentials__dpp_id__revoke_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/credentials/{dpp_id}/status": {
+    /**
+     * Get Credential Status
+     * @description Read VC status for a DPP, including revocation flag.
+     */
+    get: operations["get_credential_status_api_v1_tenants__tenant_slug__credentials__dpp_id__status_get"];
+  };
   "/api/v1/tenants/{tenant_slug}/role-requests": {
     /**
      * List All Requests
@@ -1095,7 +1353,7 @@ export interface components {
       id: string;
       /** Subject */
       subject?: string | null;
-      actor?: components["schemas"]["ActorSummary"] | null;
+      actor?: components["schemas"]["app__modules__activity__router__ActorSummary"] | null;
       /** Action */
       action: string;
       /** Resource Type */
@@ -1113,7 +1371,7 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor metadata for activity responses.
+     * @description Actor identity summary for ownership metadata.
      */
     ActorSummary: {
       /** Subject */
@@ -1235,13 +1493,86 @@ export interface components {
      */
     AssetIdsInput: {
       /** Manufacturerpartid */
-      manufacturerPartId: string;
+      manufacturerPartId?: string | null;
       /** Serialnumber */
       serialNumber?: string | null;
       /** Batchid */
       batchId?: string | null;
       /** Globalassetid */
       globalAssetId?: string | null;
+    };
+    /**
+     * AssetPublicationListResponse
+     * @description List response for asset publications.
+     */
+    AssetPublicationListResponse: {
+      /** Items */
+      items: components["schemas"]["AssetPublicationResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * AssetPublicationResponse
+     * @description Response payload for published dataspace assets.
+     */
+    AssetPublicationResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Status */
+      status: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Asset Id */
+      asset_id: string;
+      /** Access Policy Id */
+      access_policy_id?: string | null;
+      /** Usage Policy Id */
+      usage_policy_id?: string | null;
+      /** Contract Definition Id */
+      contract_definition_id?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * AssetPublishRequest
+     * @description Request payload for dataspace asset publication.
+     */
+    AssetPublishRequest: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Policy Template Id */
+      policy_template_id?: string | null;
+      /** Revision Id */
+      revision_id?: string | null;
+      /** Idempotency Key */
+      idempotency_key?: string | null;
     };
     /**
      * AssociationEventCreate
@@ -1286,6 +1617,23 @@ export interface components {
        * @enum {string}
        */
       action: "ADD" | "OBSERVE" | "DELETE";
+    };
+    /**
+     * AttachmentUploadResponse
+     * @description Response payload for uploaded DPP attachments.
+     */
+    AttachmentUploadResponse: {
+      /**
+       * Attachment Id
+       * Format: uuid
+       */
+      attachment_id: string;
+      /** Content Type */
+      content_type: string;
+      /** Size Bytes */
+      size_bytes: number;
+      /** Url */
+      url: string;
     };
     /**
      * AuditEventListResponse
@@ -1371,6 +1719,8 @@ export interface components {
       initial_data?: {
         [key: string]: unknown;
       } | null;
+      /** Required Specific Asset Ids */
+      required_specific_asset_ids?: string[] | null;
     };
     /**
      * BatchImportJobDetailResponse
@@ -1501,6 +1851,16 @@ export interface components {
       /** Biztransaction */
       bizTransaction: string;
     };
+    /** Body_upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post */
+    Body_upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post: {
+      /**
+       * File
+       * Format: binary
+       */
+      file: string;
+      /** Content Type */
+      content_type?: string | null;
+    };
     /**
      * BulkRebuildError
      * @description Response model for rebuild errors.
@@ -1591,6 +1951,69 @@ export interface components {
       include_text?: boolean;
     };
     /**
+     * CatalogEntry
+     * @description Catalog entry item returned from runtime adapters.
+     */
+    CatalogEntry: {
+      /** Id */
+      id: string;
+      /** Title */
+      title?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Asset Id */
+      asset_id?: string | null;
+      /** Policy */
+      policy?: {
+        [key: string]: unknown;
+      } | null;
+      /** Raw */
+      raw?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * CatalogQueryRequest
+     * @description Request payload for connector catalog queries.
+     */
+    CatalogQueryRequest: {
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Connector Address */
+      connector_address: string;
+      /**
+       * Protocol
+       * @default dataspace-protocol-http
+       */
+      protocol?: string;
+      /** Query Spec */
+      query_spec?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * CatalogQueryResponse
+     * @description Response payload for catalog query operations.
+     */
+    CatalogQueryResponse: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "ok" | "error";
+      /** Entries */
+      entries?: components["schemas"]["CatalogEntry"][];
+      /** Raw */
+      raw?: {
+        [key: string]: unknown;
+      } | null;
+      /** Error Message */
+      error_message?: string | null;
+    };
+    /**
      * CategoryRuleset
      * @description All rules for a product category.
      */
@@ -1603,6 +2026,32 @@ export interface components {
       description: string;
       /** Rules */
       rules: components["schemas"]["RuleCatalogEntry"][];
+    };
+    /**
+     * CatenaXDTRRuntimeConfig
+     * @description Strict Catena-X DTR runtime config for registry-oriented flows.
+     */
+    CatenaXDTRRuntimeConfig: {
+      /** Dtr Base Url */
+      dtr_base_url: string;
+      /** Submodel Base Url */
+      submodel_base_url: string;
+      /**
+       * Auth Type
+       * @default token
+       * @enum {string}
+       */
+      auth_type?: "token" | "oidc";
+      /** Bpn */
+      bpn?: string | null;
+      /** Token Secret Ref */
+      token_secret_ref?: string | null;
+      /** Client Id */
+      client_id?: string | null;
+      /** Client Secret Secret Ref */
+      client_secret_secret_ref?: string | null;
+      /** Edc Dsp Endpoint */
+      edc_dsp_endpoint?: string | null;
     };
     /**
      * ChainVerificationResponse
@@ -1718,6 +2167,74 @@ export interface components {
       actual_value?: unknown;
     };
     /**
+     * ConformanceRunListResponse
+     * @description List response for conformance runs.
+     */
+    ConformanceRunListResponse: {
+      /** Items */
+      items: components["schemas"]["ConformanceRunResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * ConformanceRunRequest
+     * @description Request payload for starting a conformance run.
+     */
+    ConformanceRunRequest: {
+      /** Connector Id */
+      connector_id?: string | null;
+      /**
+       * Profile
+       * @default dsp-tck
+       */
+      profile?: string;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * ConformanceRunResponse
+     * @description Response payload for conformance run metadata.
+     */
+    ConformanceRunResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Connector Id */
+      connector_id?: string | null;
+      /** Run Type */
+      run_type: string;
+      /** Status */
+      status: string;
+      /** Request Payload */
+      request_payload: {
+        [key: string]: unknown;
+      };
+      /** Result Payload */
+      result_payload?: {
+        [key: string]: unknown;
+      } | null;
+      /** Artifact Url */
+      artifact_url?: string | null;
+      /** Started At */
+      started_at?: string | null;
+      /** Completed At */
+      completed_at?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * ConnectorCreateRequest
      * @description Request model for creating a connector.
      */
@@ -1740,6 +2257,15 @@ export interface components {
       count: number;
     };
     /**
+     * ConnectorManifest
+     * @description Config-as-code manifest for connector and policy provisioning.
+     */
+    ConnectorManifest: {
+      connector: components["schemas"]["DataspaceConnectorCreateRequest"];
+      /** Policy Templates */
+      policy_templates?: components["schemas"]["PolicyTemplateManifest"][];
+    };
+    /**
      * ConnectorResponse
      * @description Response model for connector data.
      */
@@ -1757,7 +2283,7 @@ export interface components {
       status: string;
       /** Created By Subject */
       created_by_subject: string;
-      created_by: components["schemas"]["app__modules__connectors__router__ActorSummary"];
+      created_by: components["schemas"]["ActorSummary"];
       /** Visibility Scope */
       visibility_scope: string;
       access: components["schemas"]["AccessSummary"];
@@ -1777,6 +2303,23 @@ export interface components {
      */
     ConnectorType: "catena_x" | "rest" | "file" | "edc";
     /**
+     * ConnectorValidationResponse
+     * @description Connector validation outcome.
+     */
+    ConnectorValidationResponse: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "ok" | "error";
+      /** Details */
+      details?: {
+        [key: string]: unknown;
+      } | null;
+      /** Errors */
+      errors?: string[];
+    };
+    /**
      * CreateDPPRequest
      * @description Request model for creating a new DPP.
      */
@@ -1794,6 +2337,42 @@ export interface components {
       initial_data?: {
         [key: string]: unknown;
       } | null;
+      /** Required Specific Asset Ids */
+      required_specific_asset_ids?: string[] | null;
+    };
+    /**
+     * CredentialRevocationResponse
+     * @description Response when revoking a credential.
+     */
+    CredentialRevocationResponse: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Revoked */
+      revoked: boolean;
+      /**
+       * Revoked At
+       * Format: date-time
+       */
+      revoked_at: string;
+    };
+    /**
+     * CredentialStatusResponse
+     * @description Credential status in evidence reports.
+     */
+    CredentialStatusResponse: {
+      /** Exists */
+      exists: boolean;
+      /** Revoked */
+      revoked?: boolean | null;
+      /** Issuer Did */
+      issuer_did?: string | null;
+      /** Issuance Date */
+      issuance_date?: string | null;
+      /** Expiration Date */
+      expiration_date?: string | null;
     };
     /**
      * DPPDetailResponse
@@ -1836,6 +2415,12 @@ export interface components {
       digest_sha256: string | null;
       /** Submodel Bindings */
       submodel_bindings?: components["schemas"]["SubmodelBindingResponse"][];
+      /** Required Specific Asset Ids */
+      required_specific_asset_ids?: string[];
+      /** Missing Required Specific Asset Ids */
+      missing_required_specific_asset_ids?: string[];
+      /** Publish Blockers */
+      publish_blockers?: string[];
     };
     /**
      * DPPDiffResult
@@ -1907,6 +2492,470 @@ export interface components {
      * @enum {string}
      */
     DPPStatus: "draft" | "published" | "archived";
+    /**
+     * DataCarrierComplianceProfile
+     * @description Admin-configurable profile used by data carrier publish checks.
+     */
+    DataCarrierComplianceProfile: {
+      /**
+       * Name
+       * @default generic_espr_v1
+       */
+      name?: string;
+      /** Allowed Carrier Types */
+      allowed_carrier_types?: components["schemas"]["DataCarrierType"][];
+      /** @default item */
+      default_identity_level?: components["schemas"]["DataCarrierIdentityLevel"];
+      /** Allowed Identity Levels */
+      allowed_identity_levels?: components["schemas"]["DataCarrierIdentityLevel"][];
+      /** Allowed Identifier Schemes */
+      allowed_identifier_schemes?: components["schemas"]["DataCarrierIdentifierScheme"][];
+      /** Publish Allowed Statuses */
+      publish_allowed_statuses?: components["schemas"]["DataCarrierStatus"][];
+      /**
+       * Publish Require Active Carrier
+       * @default true
+       */
+      publish_require_active_carrier?: boolean;
+      /**
+       * Publish Require Pre Sale Enabled
+       * @default false
+       */
+      publish_require_pre_sale_enabled?: boolean;
+      /**
+       * Enforce Gtin Verified
+       * @default true
+       */
+      enforce_gtin_verified?: boolean;
+    };
+    /**
+     * DataCarrierComplianceSettingsResponse
+     * @description Response model for admin-configured data carrier compliance settings.
+     */
+    DataCarrierComplianceSettingsResponse: {
+      /** Publish Gate Enabled */
+      publish_gate_enabled: boolean;
+      profile: components["schemas"]["DataCarrierComplianceProfile"];
+    };
+    /**
+     * DataCarrierComplianceSettingsUpdateRequest
+     * @description Request model for data carrier compliance settings updates.
+     */
+    DataCarrierComplianceSettingsUpdateRequest: {
+      /**
+       * Publish Gate Enabled
+       * @default false
+       */
+      publish_gate_enabled?: boolean;
+      profile?: components["schemas"]["DataCarrierComplianceProfile"];
+    };
+    /**
+     * DataCarrierCreateRequest
+     * @description Request payload to create a managed data carrier.
+     */
+    DataCarrierCreateRequest: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** @default item */
+      identity_level?: components["schemas"]["DataCarrierIdentityLevel"];
+      /** @default gs1_gtin */
+      identifier_scheme?: components["schemas"]["DataCarrierIdentifierScheme"];
+      /** @default qr */
+      carrier_type?: components["schemas"]["DataCarrierType"];
+      /** @default dynamic_linkset */
+      resolver_strategy?: components["schemas"]["DataCarrierResolverStrategy"];
+      identifier_data?: components["schemas"]["DataCarrierIdentifierData"];
+      layout_profile?: components["schemas"]["DataCarrierLayoutProfile"];
+      placement_metadata?: components["schemas"]["DataCarrierPlacementMetadata"];
+      /**
+       * Pre Sale Enabled
+       * @default true
+       */
+      pre_sale_enabled?: boolean;
+    };
+    /**
+     * DataCarrierDeprecateRequest
+     * @description Deprecate a carrier, optionally linking a replacement.
+     */
+    DataCarrierDeprecateRequest: {
+      /** Replaced By Carrier Id */
+      replaced_by_carrier_id?: string | null;
+    };
+    /**
+     * DataCarrierIdentifierData
+     * @description Identifier components for creating a data carrier.
+     */
+    DataCarrierIdentifierData: {
+      /** Gtin */
+      gtin?: string | null;
+      /** Serial */
+      serial?: string | null;
+      /** Batch */
+      batch?: string | null;
+      /** Manufacturer Part Id */
+      manufacturer_part_id?: string | null;
+      /** Direct Url */
+      direct_url?: string | null;
+    };
+    /**
+     * DataCarrierIdentifierScheme
+     * @description Identifier scheme encoded in the carrier.
+     * @enum {string}
+     */
+    DataCarrierIdentifierScheme: "gs1_gtin" | "iec61406" | "direct_url";
+    /**
+     * DataCarrierIdentityLevel
+     * @description Identity granularity for a data carrier.
+     * @enum {string}
+     */
+    DataCarrierIdentityLevel: "model" | "batch" | "item";
+    /**
+     * DataCarrierLayoutProfile
+     * @description Rendering profile for the carrier visual asset.
+     */
+    DataCarrierLayoutProfile: {
+      /**
+       * Size
+       * @default 400
+       */
+      size?: number;
+      /**
+       * Foreground Color
+       * @default #000000
+       */
+      foreground_color?: string;
+      /**
+       * Background Color
+       * @default #FFFFFF
+       */
+      background_color?: string;
+      /**
+       * Include Text
+       * @default true
+       */
+      include_text?: boolean;
+      /** Text Label */
+      text_label?: string | null;
+      /**
+       * Error Correction
+       * @default H
+       */
+      error_correction?: string;
+      /**
+       * Quiet Zone Modules
+       * @default 4
+       */
+      quiet_zone_modules?: number;
+    };
+    /**
+     * DataCarrierListResponse
+     * @description Paginated list response for carriers.
+     */
+    DataCarrierListResponse: {
+      /** Items */
+      items: components["schemas"]["DataCarrierResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * DataCarrierPlacementMetadata
+     * @description Placement and print metadata for a carrier.
+     */
+    DataCarrierPlacementMetadata: {
+      /**
+       * Target
+       * @default product
+       */
+      target?: string;
+      /** Zone */
+      zone?: string | null;
+      /** Instructions */
+      instructions?: string | null;
+      /** Human Readable Fallback */
+      human_readable_fallback?: string | null;
+    };
+    /**
+     * DataCarrierPreSalePackResponse
+     * @description Pre-sale link package generated from a data carrier.
+     */
+    DataCarrierPreSalePackResponse: {
+      /**
+       * Carrier Id
+       * Format: uuid
+       */
+      carrier_id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Consumer Url */
+      consumer_url: string;
+      /** Encoded Uri */
+      encoded_uri: string;
+      /** Widget Html */
+      widget_html: string;
+    };
+    /**
+     * DataCarrierRegistryExportItem
+     * @description Registry export line item.
+     */
+    DataCarrierRegistryExportItem: {
+      /**
+       * Carrier Id
+       * Format: uuid
+       */
+      carrier_id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Identifier Key */
+      identifier_key: string;
+      identifier_scheme: components["schemas"]["DataCarrierIdentifierScheme"];
+      /** Encoded Uri */
+      encoded_uri: string;
+      status: components["schemas"]["DataCarrierStatus"];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
+    /**
+     * DataCarrierRegistryExportResponse
+     * @description JSON response for registry export.
+     */
+    DataCarrierRegistryExportResponse: {
+      /** Items */
+      items: components["schemas"]["DataCarrierRegistryExportItem"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * DataCarrierReissueRequest
+     * @description Reissue a carrier with same identity but fresh metadata.
+     */
+    DataCarrierReissueRequest: {
+      carrier_type?: components["schemas"]["DataCarrierType"] | null;
+      resolver_strategy?: components["schemas"]["DataCarrierResolverStrategy"] | null;
+      layout_profile?: components["schemas"]["DataCarrierLayoutProfile"] | null;
+      placement_metadata?: components["schemas"]["DataCarrierPlacementMetadata"] | null;
+      /** Pre Sale Enabled */
+      pre_sale_enabled?: boolean | null;
+    };
+    /**
+     * DataCarrierRenderRequest
+     * @description Render request for an existing carrier.
+     */
+    DataCarrierRenderRequest: {
+      /** @default png */
+      output_type?: components["schemas"]["RenderOutputType"];
+      /**
+       * Persist Artifact
+       * @default false
+       */
+      persist_artifact?: boolean;
+    };
+    /**
+     * DataCarrierResolverStrategy
+     * @description Resolver behavior for a carrier.
+     * @enum {string}
+     */
+    DataCarrierResolverStrategy: "dynamic_linkset" | "direct_public_dpp";
+    /**
+     * DataCarrierResponse
+     * @description API response for a managed data carrier.
+     */
+    DataCarrierResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      identity_level: components["schemas"]["DataCarrierIdentityLevel"];
+      identifier_scheme: components["schemas"]["DataCarrierIdentifierScheme"];
+      carrier_type: components["schemas"]["DataCarrierType"];
+      resolver_strategy: components["schemas"]["DataCarrierResolverStrategy"];
+      status: components["schemas"]["DataCarrierStatus"];
+      /** Identifier Key */
+      identifier_key: string;
+      /** Identifier Data */
+      identifier_data: {
+        [key: string]: string;
+      };
+      /** Encoded Uri */
+      encoded_uri: string;
+      /** Layout Profile */
+      layout_profile: {
+        [key: string]: unknown;
+      };
+      /** Placement Metadata */
+      placement_metadata: {
+        [key: string]: unknown;
+      };
+      /** Pre Sale Enabled */
+      pre_sale_enabled: boolean;
+      /** Is Gtin Verified */
+      is_gtin_verified: boolean;
+      /** Replaced By Carrier Id */
+      replaced_by_carrier_id: string | null;
+      /** Withdrawn Reason */
+      withdrawn_reason: string | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * DataCarrierStatus
+     * @description Carrier lifecycle state.
+     * @enum {string}
+     */
+    DataCarrierStatus: "active" | "deprecated" | "withdrawn";
+    /**
+     * DataCarrierType
+     * @description Carrier technology.
+     * @enum {string}
+     */
+    DataCarrierType: "qr" | "datamatrix" | "nfc";
+    /**
+     * DataCarrierUpdateRequest
+     * @description Patch payload for mutable carrier fields only.
+     */
+    DataCarrierUpdateRequest: {
+      carrier_type?: components["schemas"]["DataCarrierType"] | null;
+      resolver_strategy?: components["schemas"]["DataCarrierResolverStrategy"] | null;
+      layout_profile?: components["schemas"]["DataCarrierLayoutProfile"] | null;
+      placement_metadata?: components["schemas"]["DataCarrierPlacementMetadata"] | null;
+      /** Pre Sale Enabled */
+      pre_sale_enabled?: boolean | null;
+    };
+    /**
+     * DataCarrierWithdrawRequest
+     * @description Withdraw a carrier from normal resolution.
+     */
+    DataCarrierWithdrawRequest: {
+      /** Reason */
+      reason: string;
+      /** Withdrawal Url */
+      withdrawal_url?: string | null;
+    };
+    /**
+     * DataspaceConnectorCreateRequest
+     * @description Create request for a dataspace connector instance.
+     */
+    DataspaceConnectorCreateRequest: {
+      /** Name */
+      name: string;
+      /**
+       * Runtime
+       * @default edc
+       * @enum {string}
+       */
+      runtime?: "edc" | "catena_x_dtr";
+      /** Participant Id */
+      participant_id: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Runtime Config */
+      runtime_config: components["schemas"]["EDCRuntimeConfig"] | components["schemas"]["CatenaXDTRRuntimeConfig"];
+      /** Secrets */
+      secrets?: components["schemas"]["SecretValueWrite"][];
+    };
+    /**
+     * DataspaceConnectorListResponse
+     * @description List response for dataspace connectors.
+     */
+    DataspaceConnectorListResponse: {
+      /** Connectors */
+      connectors: components["schemas"]["DataspaceConnectorResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * DataspaceConnectorResponse
+     * @description API response model for a dataspace connector.
+     */
+    DataspaceConnectorResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Runtime */
+      runtime: string;
+      /** Participant Id */
+      participant_id: string;
+      /** Display Name */
+      display_name: string | null;
+      /** Status */
+      status: string;
+      /** Runtime Config */
+      runtime_config: components["schemas"]["EDCRuntimeConfig"] | components["schemas"]["CatenaXDTRRuntimeConfig"];
+      /** Secret Refs */
+      secret_refs: string[];
+      /** Created By Subject */
+      created_by_subject: string;
+      /** Last Validated At */
+      last_validated_at: string | null;
+      /** Last Validation Result */
+      last_validation_result: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * DataspaceConnectorUpdateRequest
+     * @description Patch request for dataspace connector updates.
+     */
+    DataspaceConnectorUpdateRequest: {
+      /** Name */
+      name?: string | null;
+      /** Participant Id */
+      participant_id?: string | null;
+      /** Display Name */
+      display_name?: string | null;
+      /** Status */
+      status?: ("active" | "disabled" | "error") | null;
+      /** Runtime Config */
+      runtime_config?: components["schemas"]["EDCRuntimeConfig"] | components["schemas"]["CatenaXDTRRuntimeConfig"] | null;
+      /** Secrets */
+      secrets?: components["schemas"]["SecretValueWrite"][] | null;
+    };
     /** DeliveryLogResponse */
     DeliveryLogResponse: {
       /**
@@ -1987,6 +3036,38 @@ export interface components {
       contract_definition_id?: string | null;
       /** Error Message */
       error_message?: string | null;
+    };
+    /**
+     * EDCRuntimeConfig
+     * @description Strict EDC runtime configuration for dataspace connectors.
+     */
+    EDCRuntimeConfig: {
+      /** Management Url */
+      management_url: string;
+      /** Dsp Endpoint */
+      dsp_endpoint?: string | null;
+      /** Management Api Key Secret Ref */
+      management_api_key_secret_ref?: string | null;
+      /** Public Api Base Url */
+      public_api_base_url?: string | null;
+      /** Provider Connector Address */
+      provider_connector_address?: string | null;
+      /**
+       * Protocol
+       * @default dataspace-protocol-http
+       */
+      protocol?: string;
+      /** Allowed Bpns */
+      allowed_bpns?: string[];
+      /**
+       * Data Destination Type
+       * @default HttpProxy
+       */
+      data_destination_type?: string;
+      /** Data Destination Properties */
+      data_destination_properties?: {
+        [key: string]: unknown;
+      };
     };
     /**
      * EDCStatusResponse
@@ -2406,6 +3487,53 @@ export interface components {
      */
     LinkType: "gs1:hasDigitalProductPassport" | "gs1:pip" | "gs1:certificationInfo" | "gs1:epil" | "gs1:defaultLink" | "gs1:productSustainabilityInfo" | "gs1:quickStartGuide" | "gs1:support" | "gs1:registration" | "gs1:recallStatus" | "iec61406:identificationLink";
     /**
+     * ManifestApplyResponse
+     * @description Response payload for manifest apply operations.
+     */
+    ManifestApplyResponse: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "applied" | "noop";
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Applied Changes */
+      applied_changes: components["schemas"]["ManifestChange"][];
+    };
+    /**
+     * ManifestChange
+     * @description Single manifest diff/apply change entry.
+     */
+    ManifestChange: {
+      /** Resource */
+      resource: string;
+      /**
+       * Action
+       * @enum {string}
+       */
+      action: "create" | "update" | "noop";
+      /** Field */
+      field?: string | null;
+      /** Old Value */
+      old_value?: unknown;
+      /** New Value */
+      new_value?: unknown;
+    };
+    /**
+     * ManifestDiffResponse
+     * @description Response payload for manifest diff preview.
+     */
+    ManifestDiffResponse: {
+      /** Has Changes */
+      has_changes: boolean;
+      /** Changes */
+      changes: components["schemas"]["ManifestChange"][];
+    };
+    /**
      * MasterAliasesUpdateRequest
      * @description Request model for updating version aliases.
      */
@@ -2746,6 +3874,75 @@ export interface components {
       created_at: string;
     };
     /**
+     * NegotiationCreateRequest
+     * @description Request payload for contract negotiation creation.
+     */
+    NegotiationCreateRequest: {
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Publication Id */
+      publication_id?: string | null;
+      /** Connector Address */
+      connector_address: string;
+      /** Offer Id */
+      offer_id: string;
+      /** Asset Id */
+      asset_id: string;
+      /** Policy */
+      policy: {
+        [key: string]: unknown;
+      };
+      /** Idempotency Key */
+      idempotency_key?: string | null;
+    };
+    /**
+     * NegotiationListResponse
+     * @description List response for negotiation records.
+     */
+    NegotiationListResponse: {
+      /** Items */
+      items: components["schemas"]["NegotiationResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * NegotiationResponse
+     * @description Response payload for negotiation state.
+     */
+    NegotiationResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Publication Id */
+      publication_id?: string | null;
+      /** Negotiation Id */
+      negotiation_id: string;
+      /** State */
+      state: string;
+      /** Contract Agreement Id */
+      contract_agreement_id?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * ObjectEventCreate
      * @description EPCIS ObjectEvent — most common type, tracks observations of objects.
      */
@@ -2909,6 +4106,109 @@ export interface components {
       is_active: boolean;
       /** Created At */
       created_at: string;
+    };
+    /**
+     * PolicyTemplateCreateRequest
+     * @description Create request for dataspace policy templates.
+     */
+    PolicyTemplateCreateRequest: {
+      /** Name */
+      name: string;
+      /**
+       * Version
+       * @default 1
+       */
+      version?: string;
+      /** Description */
+      description?: string | null;
+      /** Policy */
+      policy: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * PolicyTemplateListResponse
+     * @description List response for policy templates.
+     */
+    PolicyTemplateListResponse: {
+      /** Templates */
+      templates: components["schemas"]["PolicyTemplateResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * PolicyTemplateManifest
+     * @description Manifest representation of a dataspace policy template.
+     */
+    PolicyTemplateManifest: {
+      /** Name */
+      name: string;
+      /**
+       * Version
+       * @default 1
+       */
+      version?: string;
+      /**
+       * State
+       * @default draft
+       * @enum {string}
+       */
+      state?: "draft" | "approved" | "active" | "superseded";
+      /** Policy */
+      policy: {
+        [key: string]: unknown;
+      };
+      /** Description */
+      description?: string | null;
+    };
+    /**
+     * PolicyTemplateResponse
+     * @description Response model for dataspace policy templates.
+     */
+    PolicyTemplateResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Version */
+      version: string;
+      /** State */
+      state: string;
+      /** Description */
+      description: string | null;
+      /** Policy */
+      policy: {
+        [key: string]: unknown;
+      };
+      /** Created By Subject */
+      created_by_subject: string;
+      /** Approved By Subject */
+      approved_by_subject: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * PolicyTemplateUpdateRequest
+     * @description Update request for mutable policy-template fields.
+     */
+    PolicyTemplateUpdateRequest: {
+      /** Description */
+      description?: string | null;
+      /** Policy */
+      policy?: {
+        [key: string]: unknown;
+      } | null;
     };
     /**
      * PolicyType
@@ -3134,6 +4434,12 @@ export interface components {
       submodel: string;
     };
     /**
+     * RegistryExportFormat
+     * @description Supported registry export formats.
+     * @enum {string}
+     */
+    RegistryExportFormat: "json" | "csv";
+    /**
      * RegistrySearchRequest
      * @description Search request for finding shell descriptors by asset ID.
      */
@@ -3143,6 +4449,59 @@ export interface components {
       /** Asset Id Value */
       asset_id_value: string;
     };
+    /**
+     * RegulatoryEvidenceResponse
+     * @description Aggregated regulatory/dataspace evidence for a DPP.
+     */
+    RegulatoryEvidenceResponse: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Profile */
+      profile: string;
+      /**
+       * Generated At
+       * Format: date-time
+       */
+      generated_at: string;
+      /** Compliance Reports */
+      compliance_reports: {
+          [key: string]: unknown;
+        }[];
+      credential_status: components["schemas"]["CredentialStatusResponse"];
+      /** Resolver Links */
+      resolver_links: {
+          [key: string]: unknown;
+        }[];
+      /** Shell Descriptors */
+      shell_descriptors: {
+          [key: string]: unknown;
+        }[];
+      /** Dataspace Publications */
+      dataspace_publications: {
+          [key: string]: unknown;
+        }[];
+      /** Dataspace Negotiations */
+      dataspace_negotiations: {
+          [key: string]: unknown;
+        }[];
+      /** Dataspace Transfers */
+      dataspace_transfers: {
+          [key: string]: unknown;
+        }[];
+      /** Dataspace Conformance Runs */
+      dataspace_conformance_runs: {
+          [key: string]: unknown;
+        }[];
+    };
+    /**
+     * RenderOutputType
+     * @description Renderable file types for carrier artifacts.
+     * @enum {string}
+     */
+    RenderOutputType: "png" | "svg" | "pdf";
     /**
      * RepairInvalidListsError
      * @description Per-DPP repair failure details.
@@ -3309,6 +4668,10 @@ export interface components {
       dpp_id: string | null;
       /** Active */
       active: boolean;
+      /** Managed By System */
+      managed_by_system: boolean;
+      /** Source Data Carrier Id */
+      source_data_carrier_id: string | null;
       /** Created By Subject */
       created_by_subject: string;
       /**
@@ -3499,6 +4862,16 @@ export interface components {
       message: string;
       /** Semantic Id */
       semantic_id?: string | null;
+    };
+    /**
+     * SecretValueWrite
+     * @description Secret value submitted for a secret reference.
+     */
+    SecretValueWrite: {
+      /** Secret Ref */
+      secret_ref: string;
+      /** Value */
+      value: string;
     };
     /**
      * SensorElement
@@ -3749,6 +5122,14 @@ export interface components {
         [key: string]: unknown;
       };
       source_metadata: components["schemas"]["TemplateSourceMetadataResponse"];
+      /** Dropin Resolution Report */
+      dropin_resolution_report?: {
+          [key: string]: unknown;
+        }[];
+      /** Unsupported Nodes */
+      unsupported_nodes?: {
+          [key: string]: unknown;
+        }[];
     };
     /**
      * TemplateDefinitionResponse
@@ -3820,6 +5201,10 @@ export interface components {
       /** Resolved Version */
       resolved_version?: string | null;
       source_metadata?: components["schemas"]["TemplateSourceMetadataResponse"] | null;
+      /** Selection Diagnostics */
+      selection_diagnostics?: {
+        [key: string]: unknown;
+      } | null;
     };
     /**
      * TemplateResponse
@@ -3861,6 +5246,10 @@ export interface components {
        * @default true
        */
       refresh_enabled?: boolean;
+      /** Selection Diagnostics */
+      selection_diagnostics?: {
+        [key: string]: unknown;
+      } | null;
       /** Fetched At */
       fetched_at: string;
     };
@@ -3967,6 +5356,14 @@ export interface components {
       total_members: number;
       /** Total Epcis Events */
       total_epcis_events: number;
+      /** Total Data Carriers */
+      total_data_carriers: number;
+      /** Active Data Carriers */
+      active_data_carriers: number;
+      /** Withdrawn Data Carriers */
+      withdrawn_data_carriers: number;
+      /** System Managed Resolver Links */
+      system_managed_resolver_links: number;
       /** Total Audit Events */
       total_audit_events: number;
     };
@@ -4142,6 +5539,77 @@ export interface components {
       } | null;
     };
     /**
+     * TransferCreateRequest
+     * @description Request payload for transfer process creation.
+     */
+    TransferCreateRequest: {
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Negotiation Id */
+      negotiation_id?: string | null;
+      /** Connector Address */
+      connector_address: string;
+      /** Contract Agreement Id */
+      contract_agreement_id: string;
+      /** Asset Id */
+      asset_id: string;
+      /** Data Destination */
+      data_destination: {
+        [key: string]: unknown;
+      };
+      /** Idempotency Key */
+      idempotency_key?: string | null;
+    };
+    /**
+     * TransferListResponse
+     * @description List response for transfer records.
+     */
+    TransferListResponse: {
+      /** Items */
+      items: components["schemas"]["TransferResponse"][];
+      /** Count */
+      count: number;
+    };
+    /**
+     * TransferResponse
+     * @description Response payload for transfer process state.
+     */
+    TransferResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Connector Id
+       * Format: uuid
+       */
+      connector_id: string;
+      /** Negotiation Id */
+      negotiation_id?: string | null;
+      /** Transfer Id */
+      transfer_id: string;
+      /** State */
+      state: string;
+      /** Data Destination */
+      data_destination?: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
      * TransformationEventCreate
      * @description EPCIS TransformationEvent — input objects transformed into outputs.
      */
@@ -4304,9 +5772,9 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor identity summary for ownership metadata.
+     * @description Actor metadata for activity responses.
      */
-    app__modules__connectors__router__ActorSummary: {
+    app__modules__activity__router__ActorSummary: {
       /** Subject */
       subject: string;
       /** Display Name */
@@ -4380,6 +5848,32 @@ export interface operations {
           "application/json": {
             [key: string]: unknown;
           };
+        };
+      };
+    };
+  };
+  /**
+   * Get Withdrawn Carrier Notice
+   * @description Public recall/withdrawal notice for a withdrawn managed carrier.
+   */
+  get_withdrawn_carrier_notice_api_v1_public__tenant_slug__carriers__carrier_id__withdrawn_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        carrier_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/html": string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };
@@ -5760,6 +7254,64 @@ export interface operations {
     };
   };
   /**
+   * Upload Attachment
+   * @description Upload a tenant-private attachment linked to a DPP.
+   */
+  upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AttachmentUploadResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Download Attachment
+   * @description Download a tenant-private attachment (requires authenticated tenant access).
+   */
+  download_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments__attachment_id__get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        attachment_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * Refresh Rebuild Submodels
    * @description Refresh templates and rebuild all bound submodels for one DPP.
    */
@@ -6574,6 +8126,703 @@ export interface operations {
     };
   };
   /**
+   * List Dataspace Connectors
+   * @description List dataspace connectors for the active tenant.
+   */
+  list_dataspace_connectors_api_v1_tenants__tenant_slug__dataspace_connectors_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataspaceConnectorListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Dataspace Connector
+   * @description Create a dataspace connector instance using strict v2 schemas.
+   */
+  create_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataspaceConnectorCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["DataspaceConnectorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Dataspace Connector
+   * @description Patch a dataspace connector.
+   */
+  update_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__patch: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataspaceConnectorUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataspaceConnectorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Validate Dataspace Connector
+   * @description Validate dataspace connector runtime readiness.
+   */
+  validate_dataspace_connector_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__validate_post: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ConnectorValidationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Connector Assets
+   * @description List published dataspace assets for a connector.
+   */
+  list_connector_assets_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__assets_get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AssetPublicationListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Connector Negotiations
+   * @description List dataspace negotiations for a connector.
+   */
+  list_connector_negotiations_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__negotiations_get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["NegotiationListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Connector Transfers
+   * @description List dataspace transfers for a connector.
+   */
+  list_connector_transfers_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__transfers_get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TransferListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Connector Conformance Runs
+   * @description List conformance run history for a connector.
+   */
+  list_connector_conformance_runs_api_v1_tenants__tenant_slug__dataspace_connectors__connector_id__conformance_runs_get: {
+    parameters: {
+      path: {
+        connector_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ConformanceRunListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Policy Templates
+   * @description List dataspace policy templates for this tenant.
+   */
+  list_policy_templates_api_v1_tenants__tenant_slug__dataspace_policy_templates_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Policy Template
+   * @description Create a draft dataspace policy template.
+   */
+  create_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyTemplateCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Policy Template
+   * @description Update a draft dataspace policy template.
+   */
+  update_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__patch: {
+    parameters: {
+      path: {
+        policy_template_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PolicyTemplateUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Approve Policy Template
+   * @description Approve a draft policy template.
+   */
+  approve_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__approve_post: {
+    parameters: {
+      path: {
+        policy_template_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Activate Policy Template
+   * @description Activate an approved policy template.
+   */
+  activate_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__activate_post: {
+    parameters: {
+      path: {
+        policy_template_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Supersede Policy Template
+   * @description Supersede an approved or active policy template.
+   */
+  supersede_policy_template_api_v1_tenants__tenant_slug__dataspace_policy_templates__policy_template_id__supersede_post: {
+    parameters: {
+      path: {
+        policy_template_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PolicyTemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Publish Dataspace Asset
+   * @description Publish a DPP as a dataspace asset.
+   */
+  publish_dataspace_asset_api_v1_tenants__tenant_slug__dataspace_assets_publish_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AssetPublishRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AssetPublicationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Query Dataspace Catalog
+   * @description Query a remote dataspace catalog through the configured connector runtime.
+   */
+  query_dataspace_catalog_api_v1_tenants__tenant_slug__dataspace_catalog_query_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CatalogQueryRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CatalogQueryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Negotiation
+   * @description Start a dataspace contract negotiation.
+   */
+  create_negotiation_api_v1_tenants__tenant_slug__dataspace_negotiations_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["NegotiationCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["NegotiationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Negotiation
+   * @description Get and refresh negotiation state from runtime.
+   */
+  get_negotiation_api_v1_tenants__tenant_slug__dataspace_negotiations__negotiation_id__get: {
+    parameters: {
+      path: {
+        negotiation_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["NegotiationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Transfer
+   * @description Start a dataspace transfer process.
+   */
+  create_transfer_api_v1_tenants__tenant_slug__dataspace_transfers_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TransferCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TransferResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Transfer
+   * @description Get and refresh transfer process state from runtime.
+   */
+  get_transfer_api_v1_tenants__tenant_slug__dataspace_transfers__transfer_id__get: {
+    parameters: {
+      path: {
+        transfer_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TransferResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Dsp Tck Run
+   * @description Run and persist DSP-TCK conformance metadata.
+   */
+  create_dsp_tck_run_api_v1_tenants__tenant_slug__dataspace_conformance_dsp_tck_runs_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConformanceRunRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ConformanceRunResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Dsp Tck Run
+   * @description Read a persisted DSP-TCK conformance run result.
+   */
+  get_dsp_tck_run_api_v1_tenants__tenant_slug__dataspace_conformance_dsp_tck_runs__run_id__get: {
+    parameters: {
+      path: {
+        run_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ConformanceRunResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Dpp Regulatory Evidence
+   * @description Return aggregated regulatory and dataspace evidence for a DPP.
+   */
+  get_dpp_regulatory_evidence_api_v1_tenants__tenant_slug__dataspace_evidence_dpps__dpp_id__get: {
+    parameters: {
+      query?: {
+        profile?: string;
+      };
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RegulatoryEvidenceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Diff Manifest
+   * @description Preview config-as-code changes for connector manifests.
+   */
+  diff_manifest_api_v1_tenants__tenant_slug__dataspace_manifests_diff_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConnectorManifest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ManifestDiffResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Apply Manifest
+   * @description Apply config-as-code manifest to connector and policy-template resources.
+   */
+  apply_manifest_api_v1_tenants__tenant_slug__dataspace_manifests_apply_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ConnectorManifest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ManifestApplyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * List Resource Shares
    * @description List active shares for a resource.
    */
@@ -6789,6 +9038,7 @@ export interface operations {
   };
   /**
    * Generate Qr Code
+   * @deprecated
    * @description Generate a QR code for a DPP.
    *
    * The QR code contains the DPP viewer URL for product identification.
@@ -6823,6 +9073,7 @@ export interface operations {
   };
   /**
    * Generate Carrier
+   * @deprecated
    * @description Generate a customized data carrier for a DPP.
    *
    * Supports QR codes and GS1 Digital Link format with configurable
@@ -6860,6 +9111,7 @@ export interface operations {
   };
   /**
    * Get Gs1 Digital Link
+   * @deprecated
    * @description Get the GS1 Digital Link URL for a DPP.
    *
    * Returns the GS1 Digital Link format URL that can be encoded
@@ -6889,6 +9141,7 @@ export interface operations {
   };
   /**
    * Get Iec61406 Link
+   * @deprecated
    * @description Get the IEC 61406 identification link for a DPP.
    *
    * Returns a URL-based identification link per IEC 61406 that encodes
@@ -6906,6 +9159,274 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["IEC61406LinkResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Data Carriers */
+  list_data_carriers_api_v1_tenants__tenant_slug__data_carriers_get: {
+    parameters: {
+      query?: {
+        dpp_id?: string | null;
+        status?: components["schemas"]["DataCarrierStatus"] | null;
+        identity_level?: components["schemas"]["DataCarrierIdentityLevel"] | null;
+        identifier_scheme?: components["schemas"]["DataCarrierIdentifierScheme"] | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Data Carrier */
+  create_data_carrier_api_v1_tenants__tenant_slug__data_carriers_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Data Carrier */
+  get_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__get: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Data Carrier */
+  update_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__patch: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Render Data Carrier */
+  render_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__render_post: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierRenderRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Deprecate Data Carrier */
+  deprecate_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_deprecate_post: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierDeprecateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Withdraw Data Carrier */
+  withdraw_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_withdraw_post: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierWithdrawRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Reissue Data Carrier */
+  reissue_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_reissue_post: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierReissueRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Pre Sale Pack */
+  get_pre_sale_pack_api_v1_tenants__tenant_slug__data_carriers__carrier_id__pre_sale_pack_get: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierPreSalePackResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Registry */
+  export_registry_api_v1_tenants__tenant_slug__data_carriers_registry_export_get: {
+    parameters: {
+      query?: {
+        format?: components["schemas"]["RegistryExportFormat"];
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierRegistryExportResponse"];
         };
       };
       /** @description Validation Error */
@@ -6949,6 +9470,45 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["GlobalAssetIdBaseUriResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Data Carrier Compliance Settings
+   * @description Get data carrier compliance profile and publish gate setting.
+   */
+  get_data_carrier_compliance_settings_api_v1_admin_settings_data_carrier_compliance_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierComplianceSettingsResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Data Carrier Compliance Settings
+   * @description Update data carrier compliance profile and publish gate setting.
+   */
+  update_data_carrier_compliance_settings_api_v1_admin_settings_data_carrier_compliance_put: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierComplianceSettingsUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierComplianceSettingsResponse"];
         };
       };
       /** @description Validation Error */
@@ -8253,6 +10813,58 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["IssuedCredentialResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Revoke Credential
+   * @description Revoke the issued credential for a DPP.
+   */
+  revoke_credential_api_v1_tenants__tenant_slug__credentials__dpp_id__revoke_post: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CredentialRevocationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Credential Status
+   * @description Read VC status for a DPP, including revocation flag.
+   */
+  get_credential_status_api_v1_tenants__tenant_slug__credentials__dpp_id__status_get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IssuedCredentialResponse"];
         };
       };
       /** @description Validation Error */

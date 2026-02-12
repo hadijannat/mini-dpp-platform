@@ -126,6 +126,18 @@ async def _resolve(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Invalid redirect target",
         )
+    settings = get_settings()
+    raw_allowlist = getattr(settings, "carrier_resolver_allowed_hosts_all", [])
+    allowed_hosts = list(raw_allowlist) if isinstance(raw_allowlist, (list, tuple, set)) else []
+    if (
+        getattr(redirect_link, "managed_by_system", False)
+        and allowed_hosts
+        and (parsed.hostname or "") not in allowed_hosts
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Managed redirect target host is not allowed",
+        )
 
     return RedirectResponse(
         url=redirect_link.href,

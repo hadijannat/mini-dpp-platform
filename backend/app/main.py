@@ -24,6 +24,7 @@ from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
 from app.modules.credentials.public_router import router as public_credentials_router
 from app.modules.credentials.router import router as credentials_router
+from app.modules.data_carriers.router import router as data_carriers_router
 from app.modules.dataspace.router import router as dataspace_router
 from app.modules.digital_thread.router import router as digital_thread_router
 from app.modules.dpps.public_router import router as public_dpps_router
@@ -299,6 +300,11 @@ window.onload = function() {{
         qr_router,
         prefix=f"{tenant_prefix}/qr",
         tags=["QR Codes"],
+    )
+    app.include_router(
+        data_carriers_router,
+        prefix=f"{tenant_prefix}/data-carriers",
+        tags=["Data Carriers"],
     )
     app.include_router(
         settings_router,

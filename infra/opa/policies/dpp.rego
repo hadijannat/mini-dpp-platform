@@ -106,6 +106,35 @@ policy_candidate contains {
 }
 
 policy_candidate contains {
+    "priority": 95,
+    "decision": {
+        "effect": "allow",
+        "policy_id": "data-carrier-read-owner-team",
+    },
+} if {
+    not input.subject.is_admin
+    input.action in ["read", "render", "pre_sale_pack", "registry_export"]
+    input.resource.type == "data_carrier"
+    is_owner_team_accessible
+    tenant_match
+}
+
+policy_candidate contains {
+    "priority": 96,
+    "decision": {
+        "effect": "allow",
+        "policy_id": "data-carrier-write-owner",
+    },
+} if {
+    not input.subject.is_admin
+    input.action in ["create", "update", "deprecate", "withdraw", "reissue"]
+    input.resource.type == "data_carrier"
+    input.resource.owner_subject == input.subject.sub
+    input.subject.is_publisher
+    tenant_match
+}
+
+policy_candidate contains {
     "priority": 100,
     "decision": {
         "effect": "allow",

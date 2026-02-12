@@ -85,6 +85,10 @@ class TenantMetrics(BaseModel):
     total_revisions: int
     total_members: int
     total_epcis_events: int
+    total_data_carriers: int
+    active_data_carriers: int
+    withdrawn_data_carriers: int
+    system_managed_resolver_links: int
     total_audit_events: int
 
 
@@ -344,6 +348,12 @@ async def get_platform_metrics(
         "total_published": sum(r["published_dpps"] for r in rows),
         "total_members": sum(r["total_members"] for r in rows),
         "total_epcis_events": sum(r["total_epcis_events"] for r in rows),
+        "total_data_carriers": sum(r["total_data_carriers"] for r in rows),
+        "total_active_data_carriers": sum(r["active_data_carriers"] for r in rows),
+        "total_withdrawn_data_carriers": sum(r["withdrawn_data_carriers"] for r in rows),
+        "total_system_managed_resolver_links": sum(
+            r["system_managed_resolver_links"] for r in rows
+        ),
         "total_audit_events": sum(r["total_audit_events"] for r in rows),
     }
 

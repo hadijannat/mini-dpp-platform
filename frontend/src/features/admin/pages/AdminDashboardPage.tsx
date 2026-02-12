@@ -7,6 +7,8 @@ import {
   Activity,
   Send,
   ScrollText,
+  QrCode,
+  Link2,
 } from 'lucide-react';
 import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import { PageHeader } from '@/components/page-header';
@@ -35,6 +37,10 @@ interface TenantMetrics {
   total_revisions: number;
   total_members: number;
   total_epcis_events: number;
+  total_data_carriers: number;
+  active_data_carriers: number;
+  withdrawn_data_carriers: number;
+  system_managed_resolver_links: number;
   total_audit_events: number;
 }
 
@@ -46,6 +52,10 @@ interface PlatformMetricsResponse {
     total_published: number;
     total_members: number;
     total_epcis_events: number;
+    total_data_carriers: number;
+    total_active_data_carriers: number;
+    total_withdrawn_data_carriers: number;
+    total_system_managed_resolver_links: number;
     total_audit_events: number;
   };
 }
@@ -82,6 +92,12 @@ export default function AdminDashboardPage() {
     { label: 'Published', value: totals?.total_published ?? 0, icon: Send },
     { label: 'Members', value: totals?.total_members ?? 0, icon: Users },
     { label: 'EPCIS Events', value: totals?.total_epcis_events ?? 0, icon: Activity },
+    { label: 'Data Carriers', value: totals?.total_data_carriers ?? 0, icon: QrCode },
+    {
+      label: 'Managed Resolver Links',
+      value: totals?.total_system_managed_resolver_links ?? 0,
+      icon: Link2,
+    },
     { label: 'Audit Events', value: totals?.total_audit_events ?? 0, icon: ScrollText },
   ];
 
@@ -101,7 +117,7 @@ export default function AdminDashboardPage() {
       )}
 
       {/* Overview cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-8">
         {overviewCards.map((card) => (
           <Card key={card.label}>
             <CardContent className="flex flex-col items-center gap-2 p-4 text-center">
@@ -130,6 +146,9 @@ export default function AdminDashboardPage() {
               <TableHead className="text-right">Revisions</TableHead>
               <TableHead className="text-right">Members</TableHead>
               <TableHead className="text-right">EPCIS</TableHead>
+              <TableHead className="text-right">Carriers</TableHead>
+              <TableHead className="text-right">Withdrawn</TableHead>
+              <TableHead className="text-right">Managed Links</TableHead>
               <TableHead className="text-right">Audit</TableHead>
             </TableRow>
           </TableHeader>
@@ -170,6 +189,15 @@ export default function AdminDashboardPage() {
                 </TableCell>
                 <TableCell className="text-right font-mono">
                   {t.total_epcis_events}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {t.total_data_carriers}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {t.withdrawn_data_carriers}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {t.system_managed_resolver_links}
                 </TableCell>
                 <TableCell className="text-right font-mono">
                   {t.total_audit_events}

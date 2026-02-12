@@ -13,11 +13,12 @@ from uuid import uuid4
 
 import pytest
 
-from app.db.models import DPPStatus, TenantStatus
+from app.db.models import DataCarrierStatus, DPPStatus, TenantStatus
 from app.modules.dpps.public_router import (
     PublicDPPResponse,
     _get_published_revision,
     _resolve_tenant,
+    get_withdrawn_carrier_notice,
 )
 
 
@@ -55,6 +56,16 @@ def _make_revision(dpp_id: None = None) -> MagicMock:
     rev.aas_env_json = {"submodels": []}
     rev.digest_sha256 = "abc123"
     return rev
+
+
+def _make_carrier(*, tenant_id: None = None) -> MagicMock:
+    carrier = MagicMock()
+    carrier.id = uuid4()
+    carrier.tenant_id = tenant_id or uuid4()
+    carrier.dpp_id = uuid4()
+    carrier.status = DataCarrierStatus.WITHDRAWN
+    carrier.withdrawn_reason = "Recalled for safety check"
+    return carrier
 
 
 # --------------------------------------------------------------------------
@@ -131,3 +142,40 @@ def test_public_response_excludes_sensitive_fields() -> None:
     assert "qr_payload" not in fields
     assert "id" in fields
     assert "aas_environment" in fields
+
+
+@pytest.mark.asyncio
+async def test_withdrawn_carrier_notice_returns_html() -> None:
+    tenant = _make_tenant(slug="default")
+    carrier = _make_carrier(tenant_id=tenant.id)
+    session = AsyncMock()
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    carrier_result = MagicMock()
+    carrier_result.scalar_one_or_none.return_value = carrier
+    session.execute.side_effect = [tenant_result, carrier_result]
+
+    response = await get_withdrawn_carrier_notice("default", carrier.id, session)
+    assert response.status_code == 200
+    body = response.body.decode("utf-8")
+    assert "Data Carrier Withdrawn" in body
+    assert "Recalled for safety check" in body
+
+
+@pytest.mark.asyncio
+async def test_withdrawn_carrier_notice_404_when_missing() -> None:
+    tenant = _make_tenant(slug="default")
+    session = AsyncMock()
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    carrier_result = MagicMock()
+    carrier_result.scalar_one_or_none.return_value = None
+    session.execute.side_effect = [tenant_result, carrier_result]
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_withdrawn_carrier_notice("default", uuid4(), session)
+    assert exc_info.value.status_code == 404

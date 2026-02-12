@@ -22,6 +22,7 @@ def _make_link(
     hreflang: str = "en",
     priority: int = 100,
     active: bool = True,
+    managed_by_system: bool = False,
 ) -> MagicMock:
     """Create a mock ResolverLink."""
     link = MagicMock()
@@ -36,6 +37,8 @@ def _make_link(
     link.priority = priority
     link.dpp_id = uuid4()
     link.active = active
+    link.managed_by_system = managed_by_system
+    link.source_data_carrier_id = None
     link.created_by_subject = "test-user"
     link.created_at = datetime.now()
     link.updated_at = datetime.now()
@@ -240,6 +243,20 @@ class TestUpdateLink:
 
         assert result is None
 
+    @pytest.mark.asyncio()
+    async def test_update_link_rejects_system_managed(
+        self, mock_session: AsyncMock, tenant_id: UUID
+    ) -> None:
+        """update_link rejects direct edits on system-managed links."""
+        existing_link = _make_link(managed_by_system=True)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_link
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        svc = ResolverService(mock_session)
+        with pytest.raises(ValueError, match="System-managed resolver links"):
+            await svc.update_link(existing_link.id, tenant_id, ResolverLinkUpdate(title="x"))
+
 
 class TestDeleteLink:
     """Tests for ResolverService.delete_link."""
@@ -274,6 +291,20 @@ class TestDeleteLink:
         assert result is True
         mock_session.delete.assert_awaited_once_with(existing_link)
         mock_session.flush.assert_awaited_once()
+
+    @pytest.mark.asyncio()
+    async def test_delete_link_rejects_system_managed(
+        self, mock_session: AsyncMock, tenant_id: UUID
+    ) -> None:
+        """delete_link rejects direct deletes on system-managed links."""
+        existing_link = _make_link(managed_by_system=True)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = existing_link
+        mock_session.execute = AsyncMock(return_value=mock_result)
+
+        svc = ResolverService(mock_session)
+        with pytest.raises(ValueError, match="System-managed resolver links"):
+            await svc.delete_link(existing_link.id, tenant_id)
 
 
 class TestResolveWithFilter:

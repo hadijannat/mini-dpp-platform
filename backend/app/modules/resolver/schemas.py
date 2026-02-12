@@ -113,6 +113,8 @@ class ResolverLinkResponse(BaseModel):
     priority: int
     dpp_id: UUID | None
     active: bool
+    managed_by_system: bool
+    source_data_carrier_id: UUID | None
     created_by_subject: str
     created_at: datetime
     updated_at: datetime

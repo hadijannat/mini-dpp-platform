@@ -13,6 +13,11 @@ from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
+from app.modules.data_carriers.schemas import (
+    DataCarrierIdentifierData,
+    DataCarrierIdentityLevel,
+)
+from app.modules.data_carriers.service import DataCarrierError, DataCarrierService
 from app.modules.dpps.service import DPPService
 from app.modules.qr.schemas import (
     CarrierFormat,
@@ -25,7 +30,15 @@ from app.modules.qr.service import QRCodeService
 router = APIRouter()
 
 
-@router.get("/{dpp_id}")
+def _asset_id_value(asset_ids: dict[str, object], key: str) -> str | None:
+    value = asset_ids.get(key)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+@router.get("/{dpp_id}", deprecated=True)
 async def generate_qr_code(
     dpp_id: UUID,
     db: DbSession,
@@ -101,6 +114,7 @@ async def generate_qr_code(
 
 @router.post(
     "/{dpp_id}/carrier",
+    deprecated=True,
     responses={
         200: {
             "content": {
@@ -126,6 +140,7 @@ async def generate_carrier(
     """
     dpp_service = DPPService(db)
     qr_service = QRCodeService()
+    carrier_service = DataCarrierService(db)
 
     # Get DPP
     dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
@@ -158,11 +173,16 @@ async def generate_carrier(
 
     # Determine URL based on format
     if request.format == CarrierFormat.GS1_QR:
-        # Use GS1 Digital Link format
-        gtin, serial, _is_pseudo = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
         try:
-            carrier_url = qr_service.build_gs1_digital_link(gtin, serial)
-        except ValueError as e:
+            _key, carrier_url, _identifier_data, _verified = carrier_service._build_gs1_identifier(
+                identity_level=DataCarrierIdentityLevel.ITEM,
+                identifier_data=DataCarrierIdentifierData(
+                    gtin=_asset_id_value(dpp.asset_ids or {}, "gtin"),
+                    serial=_asset_id_value(dpp.asset_ids or {}, "serialNumber"),
+                    batch=_asset_id_value(dpp.asset_ids or {}, "batchId"),
+                ),
+            )
+        except DataCarrierError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=str(e),
@@ -214,7 +234,7 @@ async def generate_carrier(
     )
 
 
-@router.get("/{dpp_id}/gs1", response_model=GS1DigitalLinkResponse)
+@router.get("/{dpp_id}/gs1", response_model=GS1DigitalLinkResponse, deprecated=True)
 async def get_gs1_digital_link(
     dpp_id: UUID,
     db: DbSession,
@@ -227,7 +247,7 @@ async def get_gs1_digital_link(
     in a QR code for EU DPP/ESPR compliance.
     """
     dpp_service = DPPService(db)
-    qr_service = QRCodeService()
+    carrier_service = DataCarrierService(db)
 
     # Get DPP
     dpp = await dpp_service.get_dpp(dpp_id, tenant.tenant_id)
@@ -258,14 +278,19 @@ async def get_gs1_digital_link(
             detail="GS1 Digital Links can only be generated for published DPPs",
         )
 
-    # Extract GTIN and serial
-    gtin, serial, is_pseudo_gtin = qr_service.extract_gtin_from_asset_ids(dpp.asset_ids or {})
-
-    # Build GS1 Digital Link
-    resolver_url = qr_service.DEFAULT_GS1_RESOLVER
     try:
-        digital_link = qr_service.build_gs1_digital_link(gtin, serial, resolver_url)
-    except ValueError as e:
+        key, digital_link, identifier_data, _verified = carrier_service._build_gs1_identifier(
+            identity_level=DataCarrierIdentityLevel.ITEM,
+            identifier_data=DataCarrierIdentifierData(
+                gtin=_asset_id_value(dpp.asset_ids or {}, "gtin"),
+                serial=_asset_id_value(dpp.asset_ids or {}, "serialNumber"),
+                batch=_asset_id_value(dpp.asset_ids or {}, "batchId"),
+            ),
+        )
+        gtin = identifier_data.get("gtin", "")
+        serial = identifier_data.get("serial", "")
+        resolver_url = digital_link.split(f"/{key}", 1)[0]
+    except DataCarrierError as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(e),
@@ -277,11 +302,11 @@ async def get_gs1_digital_link(
         gtin=gtin,
         serial=serial,
         resolver_url=resolver_url,
-        is_pseudo_gtin=is_pseudo_gtin,
+        is_pseudo_gtin=False,
     )
 
 
-@router.get("/{dpp_id}/iec61406", response_model=IEC61406LinkResponse)
+@router.get("/{dpp_id}/iec61406", response_model=IEC61406LinkResponse, deprecated=True)
 async def get_iec61406_link(
     dpp_id: UUID,
     db: DbSession,
