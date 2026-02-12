@@ -283,7 +283,9 @@ async def get_gs1_digital_link(
             detail="GS1 Digital Links can only be generated for published DPPs",
         )
 
-    gtin, serial, is_pseudo_gtin = qr_service.extract_gtin_from_asset_ids(_legacy_asset_ids(dpp.asset_ids))
+    gtin, serial, is_pseudo_gtin = qr_service.extract_gtin_from_asset_ids(
+        _legacy_asset_ids(dpp.asset_ids)
+    )
     serial = _legacy_serial_fallback(serial, dpp_id)
     try:
         digital_link = qr_service.build_gs1_digital_link(gtin, serial)

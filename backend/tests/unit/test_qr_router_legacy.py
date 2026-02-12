@@ -32,7 +32,9 @@ def _published_dpp(dpp_id: UUID, *, asset_ids: dict[str, str]) -> SimpleNamespac
 
 
 @pytest.mark.asyncio
-async def test_generate_carrier_gs1_legacy_uses_fallback_serial(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_generate_carrier_gs1_legacy_uses_fallback_serial(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     dpp_id = uuid4()
     dpp = _published_dpp(dpp_id, asset_ids={"manufacturerPartId": "PART-001"})
     tenant = _tenant_context()
@@ -44,8 +46,7 @@ async def test_generate_carrier_gs1_legacy_uses_fallback_serial(monkeypatch: pyt
     qr_service = MagicMock()
     qr_service.extract_gtin_from_asset_ids.return_value = ("10614141000415", "", True)
     qr_service.build_gs1_digital_link.return_value = (
-        "https://id.gs1.org/01/10614141000415/21/"
-        f"{str(dpp_id).replace('-', '')[:12]}"
+        f"https://id.gs1.org/01/10614141000415/21/{str(dpp_id).replace('-', '')[:12]}"
     )
     qr_service.generate_qr_code.return_value = b"legacy-carrier-bytes"
 
@@ -75,7 +76,9 @@ async def test_generate_carrier_gs1_legacy_uses_fallback_serial(monkeypatch: pyt
 
 
 @pytest.mark.asyncio
-async def test_get_gs1_digital_link_legacy_reports_pseudo_gtin(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_gs1_digital_link_legacy_reports_pseudo_gtin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     dpp_id = uuid4()
     dpp = _published_dpp(
         dpp_id,
@@ -89,7 +92,9 @@ async def test_get_gs1_digital_link_legacy_reports_pseudo_gtin(monkeypatch: pyte
 
     qr_service = MagicMock()
     qr_service.extract_gtin_from_asset_ids.return_value = ("10614141000415", "SER-001", True)
-    qr_service.build_gs1_digital_link.return_value = "https://id.gs1.org/01/10614141000415/21/SER-001"
+    qr_service.build_gs1_digital_link.return_value = (
+        "https://id.gs1.org/01/10614141000415/21/SER-001"
+    )
 
     monkeypatch.setattr(qr_router, "DPPService", lambda _db: dpp_service)
     monkeypatch.setattr(qr_router, "QRCodeService", lambda: qr_service)
