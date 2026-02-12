@@ -33,6 +33,7 @@ from app.modules.dataspace.schemas import (
     DataspaceConnectorListResponse,
     DataspaceConnectorResponse,
     DataspaceConnectorUpdateRequest,
+    EDCRuntimeConfig,
     ManifestApplyResponse,
     ManifestDiffResponse,
     NegotiationCreateRequest,
@@ -65,8 +66,7 @@ def _connector_response(
     *,
     secret_refs: list[str],
 ) -> DataspaceConnectorResponse:
-    from app.modules.dataspace.schemas import EDCRuntimeConfig
-
+    runtime_config: EDCRuntimeConfig | CatenaXDTRRuntimeConfig
     if connector.runtime.value == "edc":
         runtime_config = EDCRuntimeConfig.model_validate(connector.runtime_config)
     elif connector.runtime.value == "catena_x_dtr":
