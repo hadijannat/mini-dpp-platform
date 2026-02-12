@@ -68,6 +68,13 @@ test.describe('Landing page', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 
+  test('header anchor links reach deferred standards section', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Standards' }).click();
+    await expect(page).toHaveURL(/#standards$/);
+    await expect(page.getByRole('heading', { name: 'Capability claims with explicit evidence' })).toBeVisible();
+  });
+
   test('hero CTAs navigate to sample section and quickstart link', async ({ page }) => {
     await page.goto('/');
 

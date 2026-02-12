@@ -12,6 +12,7 @@ const viteBin = path.resolve(frontendDir, 'node_modules/vite/bin/vite.js');
 const previewHost = '127.0.0.1';
 const previewPort = Number(process.env.PRERENDER_PORT ?? 4173);
 const previewUrl = `http://${previewHost}:${previewPort}/`;
+const skipPrerender = process.env.SKIP_LANDING_PRERENDER === '1';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,6 +51,11 @@ function startPreviewServer() {
 }
 
 async function prerenderLanding() {
+  if (skipPrerender) {
+    console.log('[prerender] SKIP_LANDING_PRERENDER=1 set; skipping prerender step.');
+    return;
+  }
+
   const preview = startPreviewServer();
   let browser;
 

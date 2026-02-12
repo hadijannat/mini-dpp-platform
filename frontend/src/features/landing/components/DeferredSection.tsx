@@ -4,12 +4,14 @@ interface DeferredSectionProps {
   children: ReactNode;
   minHeight?: number;
   rootMargin?: string;
+  sectionId?: string;
 }
 
 export default function DeferredSection({
   children,
   minHeight = 360,
   rootMargin = '220px',
+  sectionId,
 }: DeferredSectionProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -34,7 +36,7 @@ export default function DeferredSection({
   }, [rootMargin, visible]);
 
   return (
-    <div ref={anchorRef}>
+    <div ref={anchorRef} id={sectionId} className={sectionId ? 'scroll-mt-24' : undefined}>
       {visible ? children : <div style={{ minHeight }} aria-hidden="true" />}
     </div>
   );

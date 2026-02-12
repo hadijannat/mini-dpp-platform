@@ -34,13 +34,13 @@ export default function LandingPage() {
         <SamplePassportSection />
         <AudienceSegmentsSection />
 
-        <DeferredSection minHeight={420}>
+        <DeferredSection minHeight={420} sectionId="standards">
           <Suspense fallback={<div className="h-[420px]" aria-hidden="true" />}>
             <StandardsMapSection />
           </Suspense>
         </DeferredSection>
 
-        <DeferredSection minHeight={320}>
+        <DeferredSection minHeight={320} sectionId="dataspaces">
           <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
             <DataspaceReadySection />
           </Suspense>
@@ -48,7 +48,7 @@ export default function LandingPage() {
 
         <HowItWorksSection />
 
-        <DeferredSection minHeight={320}>
+        <DeferredSection minHeight={320} sectionId="developers">
           <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
             <DeveloperTrustSection />
           </Suspense>
