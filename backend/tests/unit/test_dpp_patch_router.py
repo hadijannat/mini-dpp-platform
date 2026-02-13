@@ -94,9 +94,10 @@ async def test_patch_submodel_endpoint_forbidden_for_non_owner_non_admin() -> No
     )
     body = PatchSubmodelRequest(template_key="digital-nameplate", operations=[])
 
-    with patch("app.modules.dpps.router.DPPService", return_value=service), pytest.raises(
-        HTTPException
-    ) as exc_info:
+    with (
+        patch("app.modules.dpps.router.DPPService", return_value=service),
+        pytest.raises(HTTPException) as exc_info,
+    ):
         await patch_submodel(
             dpp_id=dpp_id,
             body=body,

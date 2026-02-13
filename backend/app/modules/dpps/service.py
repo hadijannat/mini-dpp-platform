@@ -1240,13 +1240,16 @@ class DPPService:
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
             )
 
-        template, available_templates, template_lookup, target_submodel_id = (
-            await self._resolve_update_target(
-                base_env=base_env,
-                current_revision=current_revision,
-                template_key=template_key,
-                submodel_id=submodel_id,
-            )
+        (
+            template,
+            available_templates,
+            template_lookup,
+            target_submodel_id,
+        ) = await self._resolve_update_target(
+            base_env=base_env,
+            current_revision=current_revision,
+            template_key=template_key,
+            submodel_id=submodel_id,
         )
 
         if rebuild_from_template:
@@ -1350,15 +1353,18 @@ class DPPService:
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
             )
 
-        template, available_templates, template_lookup, target_submodel_id = (
-            await self._resolve_update_target(
-                base_env=base_env,
-                current_revision=current_revision,
-                template_key=template_key,
-                submodel_id=submodel_id,
-                preloaded_templates=preloaded_templates,
-                preloaded_template_lookup=preloaded_template_lookup,
-            )
+        (
+            template,
+            available_templates,
+            template_lookup,
+            target_submodel_id,
+        ) = await self._resolve_update_target(
+            base_env=base_env,
+            current_revision=current_revision,
+            template_key=template_key,
+            submodel_id=submodel_id,
+            preloaded_templates=preloaded_templates,
+            preloaded_template_lookup=preloaded_template_lookup,
         )
 
         contract = preloaded_contract or self._template_service.generate_template_contract(
@@ -1450,7 +1456,9 @@ class DPPService:
                     f"submodel_id '{submodel_id}' not found in current DPP environment"
                 )
 
-        matching_bindings = [binding for binding in bindings if binding.template_key == template_key]
+        matching_bindings = [
+            binding for binding in bindings if binding.template_key == template_key
+        ]
         target_submodel_id = submodel_id
         if target_submodel_id is not None:
             explicit_match = next(
@@ -1565,7 +1573,9 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
             template_provenance=current_revision.template_provenance or {},
-            supplementary_manifest=self._revision_manifest(current_revision, "supplementary_manifest"),
+            supplementary_manifest=self._revision_manifest(
+                current_revision, "supplementary_manifest"
+            ),
             doc_hints_manifest=doc_hints_manifest,
         )
         self._session.add(revision)
@@ -1621,9 +1631,7 @@ class DPPService:
                 if not isinstance(child_id_short, str) or child_id_short not in incoming_value:
                     continue
                 next_current = (
-                    current_value.get(child_id_short)
-                    if isinstance(current_value, dict)
-                    else None
+                    current_value.get(child_id_short) if isinstance(current_value, dict) else None
                 )
                 self._build_node_patch_ops(
                     node=child,
@@ -1923,7 +1931,9 @@ class DPPService:
                     supplementary_manifest=self._revision_manifest(
                         current_revision, "supplementary_manifest"
                     ),
-                    doc_hints_manifest=self._revision_manifest(current_revision, "doc_hints_manifest"),
+                    doc_hints_manifest=self._revision_manifest(
+                        current_revision, "doc_hints_manifest"
+                    ),
                 )
                 self._session.add(revision)
                 await self._session.flush()
@@ -2022,7 +2032,9 @@ class DPPService:
                 signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
                 template_provenance=latest_revision.template_provenance or {},
-                supplementary_manifest=self._revision_manifest(latest_revision, "supplementary_manifest"),
+                supplementary_manifest=self._revision_manifest(
+                    latest_revision, "supplementary_manifest"
+                ),
                 doc_hints_manifest=self._revision_manifest(latest_revision, "doc_hints_manifest"),
             )
             self._session.add(revision)
@@ -2134,7 +2146,9 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
             template_provenance=await self._build_provenance_from_db_templates(templates),
-            supplementary_manifest=self._revision_manifest(current_revision, "supplementary_manifest"),
+            supplementary_manifest=self._revision_manifest(
+                current_revision, "supplementary_manifest"
+            ),
             doc_hints_manifest=self._revision_manifest(current_revision, "doc_hints_manifest"),
         )
         self._session.add(revision)

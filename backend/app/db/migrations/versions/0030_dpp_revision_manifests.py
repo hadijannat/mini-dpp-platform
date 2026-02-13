@@ -40,4 +40,3 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("dpp_revisions", "doc_hints_manifest")
     op.drop_column("dpp_revisions", "supplementary_manifest")
-

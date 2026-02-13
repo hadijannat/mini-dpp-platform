@@ -282,3 +282,16 @@ def test_export_aasx_includes_supplementary_files_when_provided() -> None:
         names = set(zf.namelist())
 
     assert "aasx/files/manual.pdf" in names
+
+
+def test_normalize_package_path_rejects_traversal_and_reserved_paths() -> None:
+    export_service = ExportService()
+
+    assert (
+        export_service._normalize_package_path("aasx/files/manual.pdf") == "/aasx/files/manual.pdf"
+    )
+    assert (
+        export_service._normalize_package_path("/aasx/files/manual.pdf") == "/aasx/files/manual.pdf"
+    )
+    assert export_service._normalize_package_path("/aasx/files/../../evil.txt") is None
+    assert export_service._normalize_package_path("/_rels/.rels") is None

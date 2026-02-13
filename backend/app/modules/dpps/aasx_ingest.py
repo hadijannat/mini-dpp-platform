@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import mimetypes
+import posixpath
 import zipfile
 from dataclasses import dataclass
 from typing import Any
@@ -72,12 +73,15 @@ class AasxIngestService:
     ) -> list[SupplementaryFile]:
         entries: dict[str, SupplementaryFile] = {}
         for name in sorted(files):
+            package_path = self._normalize_package_path(name)
+            if package_path is None:
+                continue
             output = io.BytesIO()
             files.write_file(name, output)
             payload = output.getvalue()
             content_type = files.get_content_type(name) or "application/octet-stream"
-            entries[name] = SupplementaryFile(
-                package_path=name,
+            entries[package_path] = SupplementaryFile(
+                package_path=package_path,
                 content_type=content_type,
                 payload=payload,
                 sha256=hashlib.sha256(payload).hexdigest(),
@@ -87,14 +91,13 @@ class AasxIngestService:
         # not explicitly referenced by File/Blob elements.
         with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as archive:
             for name in sorted(archive.namelist()):
-                normalized = name.replace("\\", "/")
-                if not normalized.startswith("aasx/files/") or normalized.endswith("/"):
+                package_path = self._normalize_package_path(name)
+                if package_path is None:
                     continue
-                package_path = f"/{normalized}"
                 if package_path in entries:
                     continue
                 payload = archive.read(name)
-                guessed_type = mimetypes.guess_type(normalized, strict=False)[0]
+                guessed_type = mimetypes.guess_type(package_path, strict=False)[0]
                 entries[package_path] = SupplementaryFile(
                     package_path=package_path,
                     content_type=guessed_type or "application/octet-stream",
@@ -163,7 +166,9 @@ class AasxIngestService:
             if id_short_path:
                 path_key = id_short_path.strip("/")
                 if path_key in by_id_short_path:
-                    raise ValueError(f"Ambiguous ui-hints mapping for idShortPath '{id_short_path}'")
+                    raise ValueError(
+                        f"Ambiguous ui-hints mapping for idShortPath '{id_short_path}'"
+                    )
                 by_id_short_path[path_key] = entry
             if not semantic_id and not id_short_path:
                 raise ValueError(
@@ -174,3 +179,20 @@ class AasxIngestService:
             "by_semantic_id": dict(sorted(by_semantic_id.items())),
             "by_id_short_path": dict(sorted(by_id_short_path.items())),
         }
+
+    def _normalize_package_path(self, raw_path: Any) -> str | None:
+        if not isinstance(raw_path, str):
+            return None
+        path = raw_path.replace("\\", "/").strip()
+        if not path:
+            return None
+        if not path.startswith("/"):
+            path = f"/{path}"
+        normalized = posixpath.normpath(path)
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        if normalized in {"/", "/."}:
+            return None
+        if not normalized.startswith("/aasx/files/"):
+            return None
+        return normalized

@@ -5,6 +5,7 @@ Supports AASX, JSON, and PDF export with integrity verification.
 
 import io
 import json
+import posixpath
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -196,9 +197,7 @@ class ExportService:
             for supplementary in supplementary_files or []:
                 package_path = self._normalize_package_path(supplementary.get("package_path"))
                 payload = supplementary.get("payload")
-                content_type = str(
-                    supplementary.get("content_type") or "application/octet-stream"
-                )
+                content_type = str(supplementary.get("content_type") or "application/octet-stream")
                 if not package_path or not isinstance(payload, (bytes, bytearray)):
                     continue
                 files.add_file(package_path, io.BytesIO(bytes(payload)), content_type)
@@ -239,7 +238,14 @@ class ExportService:
             return None
         if not path.startswith("/"):
             path = f"/{path}"
-        return path
+        normalized = posixpath.normpath(path)
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        if normalized in {"/", "/."}:
+            return None
+        if not normalized.startswith("/aasx/files/"):
+            return None
+        return normalized
 
     def export_pdf(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
         """

@@ -1357,7 +1357,9 @@ class TemplateRegistryService:
                 "formUrl": smt.get("form_url"),
                 "source": "qualifier",
             }
-            if semantic_key and any(hint.get(name) for name in ("formTitle", "formInfo", "formUrl")):
+            if semantic_key and any(
+                hint.get(name) for name in ("formTitle", "formInfo", "formUrl")
+            ):
                 by_semantic[semantic_key] = hint
             if path_key and any(hint.get(name) for name in ("formTitle", "formInfo", "formUrl")):
                 by_path[path_key] = hint

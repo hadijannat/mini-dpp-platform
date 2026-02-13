@@ -157,4 +157,3 @@ def test_apply_canonical_patch_enforces_one_to_many_minimum() -> None:
             contract=_contract(),
             strict=True,
         )
-

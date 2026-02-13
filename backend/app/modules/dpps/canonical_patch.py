@@ -175,7 +175,7 @@ def _resolve_element_path(submodel: dict[str, Any], path_segments: list[str]) ->
             if current_element is None:
                 raise ValueError(
                     f"Path not found at segment '{segment}' "
-                    f"(resolved='{ '/'.join(path_segments[:idx]) }')"
+                    f"(resolved='{'/'.join(path_segments[:idx])}')"
                 )
             continue
 
@@ -187,27 +187,27 @@ def _resolve_element_path(submodel: dict[str, Any], path_segments: list[str]) ->
                 if item_index < 0 or item_index >= len(items):
                     raise ValueError(
                         f"List index {item_index} out of bounds at "
-                        f"'{ '/'.join(path_segments[:idx + 1]) }'"
+                        f"'{'/'.join(path_segments[: idx + 1])}'"
                     )
                 parent_element = current_element
                 parent_list = items
                 current_element = items[item_index]
                 continue
             raise ValueError(
-                f"List path requires numeric index after '{ '/'.join(path_segments[:idx]) }'"
+                f"List path requires numeric index after '{'/'.join(path_segments[:idx])}'"
             )
 
         children = _child_elements(current_element)
         if children is None:
             raise ValueError(
                 f"Path segment '{segment}' targets a leaf element at "
-                f"'{ '/'.join(path_segments[:idx]) }'"
+                f"'{'/'.join(path_segments[:idx])}'"
             )
         next_element = _find_child_by_id_short(children, segment)
         if next_element is None:
             raise ValueError(
                 f"Path not found at segment '{segment}' "
-                f"(resolved='{ '/'.join(path_segments[:idx]) }')"
+                f"(resolved='{'/'.join(path_segments[:idx])}')"
             )
         parent_element = current_element
         parent_list = children
@@ -300,7 +300,9 @@ def _resolve_contract_node(
     key = _normalize_contract_path(path_segments)
     node = contract_index.get(key)
     if node is None and strict:
-        raise ValueError(f"Patch path '{'/'.join(path_segments)}' is not present in strict contract")
+        raise ValueError(
+            f"Patch path '{'/'.join(path_segments)}' is not present in strict contract"
+        )
     return node
 
 
@@ -458,9 +460,7 @@ def _extract_list_item_idshort_policy(contract_node: dict[str, Any] | None) -> d
         return {"allowed_id_short": None, "naming": None}
     allowed = smt.get("allowed_id_short")
     allowed_list = (
-        [str(item) for item in allowed if str(item).strip()]
-        if isinstance(allowed, list)
-        else None
+        [str(item) for item in allowed if str(item).strip()] if isinstance(allowed, list) else None
     )
     naming = smt.get("naming")
     return {"allowed_id_short": allowed_list, "naming": str(naming) if naming else None}
@@ -519,12 +519,16 @@ def _build_element_from_definition(node: dict[str, Any]) -> dict[str, Any]:
         element["value"] = None
         return element
     if model_type == "SubmodelElementCollection":
-        children = [_build_element_from_definition(child) for child in _as_node_list(node.get("children"))]
+        children = [
+            _build_element_from_definition(child) for child in _as_node_list(node.get("children"))
+        ]
         element["value"] = children
         return element
     if model_type == "SubmodelElementList":
         items = node.get("items")
-        element["value"] = [_build_element_from_definition(items)] if isinstance(items, dict) else []
+        element["value"] = (
+            [_build_element_from_definition(items)] if isinstance(items, dict) else []
+        )
         return element
     return element
 

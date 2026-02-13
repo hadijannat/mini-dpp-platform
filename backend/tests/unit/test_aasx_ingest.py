@@ -11,7 +11,11 @@ from basyx.aas.adapter import aasx
 from app.modules.dpps.aasx_ingest import AasxIngestService
 
 
-def _build_test_aasx(*, sidecar: dict | None = None) -> bytes:
+def _build_test_aasx(
+    *,
+    sidecar: dict | None = None,
+    extra_archive_entries: dict[str, bytes] | None = None,
+) -> bytes:
     store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
     aas = model.AssetAdministrationShell(
         id_="urn:aas:test:1",
@@ -46,6 +50,8 @@ def _build_test_aasx(*, sidecar: dict | None = None) -> bytes:
         archive.writestr("aasx/files/manual.pdf", b"%PDF-1.4")
         if sidecar is not None:
             archive.writestr("aasx/files/ui-hints.json", json.dumps(sidecar))
+        for path, payload in (extra_archive_entries or {}).items():
+            archive.writestr(path, payload)
     return output.getvalue()
 
 
@@ -83,3 +89,20 @@ def test_parse_aasx_rejects_ambiguous_doc_hints_semantic_ids() -> None:
 
     with pytest.raises(ValueError, match="Ambiguous ui-hints mapping"):
         service.parse(aasx_bytes)
+
+
+def test_parse_aasx_ignores_unsafe_supplementary_paths() -> None:
+    service = AasxIngestService()
+    aasx_bytes = _build_test_aasx(
+        extra_archive_entries={
+            "aasx/files/../../evil.txt": b"nope",
+            "aasx/files/../sneaky.txt": b"nope-2",
+        }
+    )
+
+    result = service.parse(aasx_bytes)
+
+    paths = [entry.package_path for entry in result.supplementary_files]
+    assert "/aasx/files/manual.pdf" in paths
+    assert all(path.startswith("/aasx/files/") for path in paths)
+    assert "/evil.txt" not in paths

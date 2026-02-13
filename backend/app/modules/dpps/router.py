@@ -1014,7 +1014,9 @@ async def import_dpp_aasx(
         for supplementary in ingest.supplementary_files:
             if supplementary.package_path.replace("\\", "/").endswith("/ui-hints.json"):
                 continue
-            filename = supplementary.package_path.replace("\\", "/").split("/")[-1] or "attachment.bin"
+            filename = (
+                supplementary.package_path.replace("\\", "/").split("/")[-1] or "attachment.bin"
+            )
             uploaded = await attachment_service.upload_attachment_bytes(
                 tenant_id=tenant.tenant_id,
                 dpp_id=dpp.id,

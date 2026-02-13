@@ -352,6 +352,31 @@ async def batch_export(
                     )
                     continue
 
+                shared_with_current_user = await dpp_service.is_resource_shared_with_user(
+                    tenant_id=tenant.tenant_id,
+                    resource_type="dpp",
+                    resource_id=dpp.id,
+                    user_subject=tenant.user.sub,
+                )
+                await require_access(
+                    tenant.user,
+                    "export",
+                    {
+                        **build_dpp_resource_context(
+                            dpp,
+                            shared_with_current_user=shared_with_current_user,
+                        ),
+                        "format": body.format,
+                    },
+                    tenant=tenant,
+                )
+
+                if body.format == "aasx" and not tenant.is_publisher:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="AASX export requires publisher role",
+                    )
+
                 if dpp.status == DPPStatus.PUBLISHED:
                     revision = await dpp_service.get_published_revision(dpp_id, tenant.tenant_id)
                 else:
@@ -393,6 +418,14 @@ async def batch_export(
 
                 zf.writestr(f"dpp-{dpp_id}.{ext}", content)
                 results.append(BatchExportResultItem(dpp_id=dpp_id, status="ok"))
+            except HTTPException as exc:
+                logger.info(
+                    "batch_export_item_forbidden",
+                    dpp_id=str(dpp_id),
+                    status_code=exc.status_code,
+                )
+                detail = exc.detail if isinstance(exc.detail, str) else "Forbidden"
+                results.append(BatchExportResultItem(dpp_id=dpp_id, status="failed", error=detail))
             except Exception:
                 logger.warning("batch_export_item_failed", dpp_id=str(dpp_id), exc_info=True)
                 results.append(
