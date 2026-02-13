@@ -21,7 +21,7 @@ The public summary endpoint returns aggregate-only fields:
 
 Response cache policy:
 
-- `Cache-Control: public, max-age=300, stale-while-revalidate=900`
+- `Cache-Control: public, max-age=15, stale-while-revalidate=15`
 
 ## Allowed vs Blocked Data
 

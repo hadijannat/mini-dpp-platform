@@ -86,7 +86,7 @@ async function prerenderLanding() {
     await page.waitForSelector('h1');
 
     const renderedHtml = await page.content();
-    if (!renderedHtml.includes('Open-source Digital Product Passports built on AAS and IDTA DPP4.0')) {
+    if (!renderedHtml.includes('Digital Product Passport Platform for ESPR-ready product data')) {
       throw new Error('Prerender validation failed: hero heading not found in rendered HTML.');
     }
     if (!renderedHtml.includes('"@type":"SoftwareApplication"')) {
@@ -95,8 +95,8 @@ async function prerenderLanding() {
     if (!renderedHtml.includes('"@type":"Organization"')) {
       throw new Error('Prerender validation failed: Organization JSON-LD missing.');
     }
-    if (!renderedHtml.includes('"@type":"WebSite"')) {
-      throw new Error('Prerender validation failed: WebSite JSON-LD missing.');
+    if (!renderedHtml.includes('"@type":"FAQPage"')) {
+      throw new Error('Prerender validation failed: FAQPage JSON-LD missing.');
     }
 
     const originalIndex = await readFile(distIndexPath, 'utf8');

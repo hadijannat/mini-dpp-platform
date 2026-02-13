@@ -1,21 +1,11 @@
 import { useState } from 'react';
-import { useAuth } from 'react-oidc-context';
-import { useNavigate } from 'react-router-dom';
-import { Fingerprint, LayoutDashboard, LogIn, Menu } from 'lucide-react';
+import { Fingerprint, LogIn, Menu, PlayCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isPublisher } from '@/lib/auth';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { landingContent } from '../content/landingContent';
 
 export default function LandingHeader() {
-  const auth = useAuth();
-  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const consoleEnabled = auth.isAuthenticated && isPublisher(auth.user);
-
-  const handleSignIn = () => auth.signinRedirect();
-  const handleDashboard = () => navigate(consoleEnabled ? '/console' : '/welcome');
 
   return (
     <header className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl">
@@ -45,17 +35,18 @@ export default function LandingHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          {auth.isAuthenticated ? (
-            <Button size="sm" className="rounded-full px-4" onClick={handleDashboard}>
-              <LayoutDashboard className="h-4 w-4" />
-              Dashboard
-            </Button>
-          ) : (
-            <Button size="sm" className="rounded-full px-4" onClick={handleSignIn}>
+          <Button size="sm" variant="outline" className="rounded-full px-4" asChild>
+            <a href="#sample-passport">
+              <PlayCircle className="h-4 w-4" />
+              Open demo
+            </a>
+          </Button>
+          <Button size="sm" className="rounded-full px-4" asChild>
+            <a href="/login">
               <LogIn className="h-4 w-4" />
               Sign in
-            </Button>
-          )}
+            </a>
+          </Button>
         </div>
 
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -91,31 +82,18 @@ export default function LandingHeader() {
               ))}
 
               <div className="mt-4 border-t border-landing-ink/10 pt-4">
-                {auth.isAuthenticated ? (
-                  <Button
-                    className="w-full rounded-full"
-                    size="sm"
-                    onClick={() => {
-                      setMobileOpen(false);
-                      handleDashboard();
-                    }}
-                  >
-                    <LayoutDashboard className="h-4 w-4" />
-                    Dashboard
-                  </Button>
-                ) : (
-                  <Button
-                    className="w-full rounded-full"
-                    size="sm"
-                    onClick={() => {
-                      setMobileOpen(false);
-                      handleSignIn();
-                    }}
-                  >
+                <Button className="mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
+                  <a href="#sample-passport" onClick={() => setMobileOpen(false)}>
+                    <PlayCircle className="h-4 w-4" />
+                    Open demo
+                  </a>
+                </Button>
+                <Button className="w-full rounded-full" size="sm" asChild>
+                  <a href="/login" onClick={() => setMobileOpen(false)}>
                     <LogIn className="h-4 w-4" />
                     Sign in
-                  </Button>
-                )}
+                  </a>
+                </Button>
               </div>
             </nav>
           </SheetContent>

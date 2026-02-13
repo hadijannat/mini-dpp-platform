@@ -1,17 +1,14 @@
-import { ArrowRight, ExternalLink } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ExternalLink, Link2, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { landingContent } from '../content/landingContent';
 
-function scrollToSamplePassport() {
-  document.getElementById('sample-passport')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+function openHref(href: string) {
+  if (href.startsWith('#')) {
+    document.getElementById(href.slice(1))?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
 
-function openQuickstart() {
-  window.open(
-    'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
-    '_blank',
-    'noopener,noreferrer',
-  );
+  window.open(href, '_blank', 'noopener,noreferrer');
 }
 
 export default function HeroSection() {
@@ -55,7 +52,7 @@ export default function HeroSection() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button
                 className="h-12 rounded-full px-6 text-sm font-semibold"
-                onClick={scrollToSamplePassport}
+                onClick={() => openHref(landingContent.hero.primaryCtaHref)}
                 data-testid="landing-hero-primary-cta"
               >
                 {landingContent.hero.primaryCta}
@@ -64,7 +61,7 @@ export default function HeroSection() {
               <Button
                 variant="outline"
                 className="h-12 rounded-full border-landing-ink/25 bg-white/70 px-6 text-sm font-semibold text-landing-ink backdrop-blur transition-colors hover:bg-white"
-                onClick={openQuickstart}
+                onClick={() => openHref(landingContent.hero.secondaryCtaHref)}
                 data-testid="landing-hero-secondary-cta"
               >
                 {landingContent.hero.secondaryCta}
@@ -73,33 +70,54 @@ export default function HeroSection() {
             </div>
           </div>
 
-          <aside className="landing-panel rounded-3xl border border-landing-cyan/25 bg-white/80 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">Evidence</p>
-            <ul className="mt-4 space-y-3">
-              {landingContent.hero.evidenceLinks.map((link) => (
-                <li key={link.href}>
-                  <a
-                    href={link.href}
-                    target={link.href.startsWith('http') ? '_blank' : undefined}
-                    rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    {link.label}
-                  </a>
+          <aside className="landing-panel rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
+            <div className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/60 p-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">Passport preview</p>
+              <h2 className="mt-2 font-display text-2xl font-semibold text-landing-ink">Battery Module BM-2400</h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Published
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-700">
+                  <Link2 className="h-3.5 w-3.5" />
+                  Resolver Ready
+                </span>
+              </div>
+              <dl className="mt-4 grid gap-2 text-sm">
+                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
+                  <dt className="text-landing-muted">AAS ID</dt>
+                  <dd className="font-mono text-xs text-landing-ink">dpp-shell-2f4e5a9a</dd>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
+                  <dt className="text-landing-muted">Carbon Footprint</dt>
+                  <dd className="font-semibold text-landing-ink">12.4 kg CO2e</dd>
+                </div>
+                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
+                  <dt className="text-landing-muted">Data Carrier</dt>
+                  <dd className="font-semibold text-landing-ink">GS1 Digital Link</dd>
+                </div>
+              </dl>
+            </div>
+
+            <ul className="mt-5 space-y-2">
+              {landingContent.hero.trustBullets.map((bullet) => (
+                <li key={bullet} className="flex items-start gap-2 text-sm leading-relaxed text-landing-muted">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-landing-cyan" />
+                  <span>{bullet}</span>
                 </li>
               ))}
             </ul>
-            <ul className="mt-6 space-y-3">
-              {landingContent.hero.highlights.map((highlight) => (
-                <li
-                  key={highlight}
-                  className="rounded-2xl border border-landing-ink/10 bg-white/85 px-4 py-3 text-sm text-landing-muted"
-                >
-                  {highlight}
-                </li>
-              ))}
-            </ul>
+
+            <a
+              href={landingContent.hero.technicalEvidence.href}
+              target={landingContent.hero.technicalEvidence.href.startsWith('http') ? '_blank' : undefined}
+              rel={landingContent.hero.technicalEvidence.href.startsWith('http') ? 'noopener noreferrer' : undefined}
+              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              {landingContent.hero.technicalEvidence.label}
+            </a>
           </aside>
         </div>
       </div>
