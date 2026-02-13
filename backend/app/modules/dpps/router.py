@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, RootModel
 from sqlalchemy import text
 
 from app.core.audit import emit_audit_event
+from app.core.config import get_settings
 from app.core.identifiers import IdentifierValidationError
 from app.core.logging import get_logger
 from app.core.security import require_access
@@ -63,6 +64,25 @@ async def _resolve_revision(
     ):
         return await service.get_published_revision(dpp.id, tenant.tenant_id)
     return await service.get_latest_revision(dpp.id, tenant.tenant_id)
+
+
+async def _read_upload_file_limited(file: UploadFile, *, max_bytes: int) -> bytes:
+    """Read UploadFile in chunks and reject payloads exceeding the configured limit."""
+    chunk_size = 1024 * 1024
+    total = 0
+    chunks: list[bytes] = []
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"AASX file exceeds maximum upload size ({max_bytes} bytes)",
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 def _access_source(
@@ -922,7 +942,8 @@ async def import_dpp_aasx(
             detail="AASX import requires a .aasx file",
         )
 
-    raw_bytes = await file.read()
+    settings = get_settings()
+    raw_bytes = await _read_upload_file_limited(file, max_bytes=settings.aasx_max_upload_bytes)
     if not raw_bytes:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -933,9 +954,10 @@ async def import_dpp_aasx(
     try:
         ingest = ingest_service.parse(raw_bytes)
     except Exception as exc:
+        logger.warning("import_dpp_aasx_parse_failed", filename=file.filename, exc_info=True)
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Failed to parse AASX package: {exc}",
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Failed to parse AASX package",
         ) from exc
 
     aas_env = ingest.aas_env_json

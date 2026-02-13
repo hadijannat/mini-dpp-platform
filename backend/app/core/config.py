@@ -192,6 +192,11 @@ class Settings(BaseSettings):
         ge=1024,
         description="Maximum attachment upload size in bytes",
     )
+    aasx_max_upload_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        ge=1024,
+        description="Maximum AASX upload size in bytes",
+    )
     mime_validation_regex: str = Field(
         default=(
             r"^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}/"
