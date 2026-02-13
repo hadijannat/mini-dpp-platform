@@ -196,11 +196,11 @@ class ExportService:
             files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
             for supplementary in supplementary_files or []:
                 package_path = self._normalize_package_path(supplementary.get("package_path"))
-                payload = supplementary.get("payload")
+                file_payload = supplementary.get("payload")
                 content_type = str(supplementary.get("content_type") or "application/octet-stream")
-                if not package_path or not isinstance(payload, (bytes, bytearray)):
+                if not package_path or not isinstance(file_payload, (bytes, bytearray)):
                     continue
-                files.add_file(package_path, io.BytesIO(bytes(payload)), content_type)
+                files.add_file(package_path, io.BytesIO(bytes(file_payload)), content_type)
 
             with aasx.AASXWriter(buffer) as writer:
                 core_props = pyecma376_2.OPCCoreProperties()  # type: ignore[attr-defined, no-untyped-call]

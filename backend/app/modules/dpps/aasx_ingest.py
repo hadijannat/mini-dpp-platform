@@ -68,7 +68,7 @@ class AasxIngestService:
 
     def _extract_supplementary_files(
         self,
-        files: aasx.DictSupplementaryFileContainer,  # type: ignore[name-defined]
+        files: aasx.DictSupplementaryFileContainer,
         aasx_bytes: bytes,
     ) -> list[SupplementaryFile]:
         entries: dict[str, SupplementaryFile] = {}

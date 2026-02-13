@@ -1381,7 +1381,7 @@ class TemplateRegistryService:
         return {"by_semantic_id": by_semantic, "by_id_short_path": by_path}
 
     def _extract_sidecar_doc_hints(self, template: Template) -> dict[str, dict[str, Any]]:
-        empty = {"by_semantic_id": {}, "by_id_short_path": {}}
+        empty: dict[str, dict[str, Any]] = {"by_semantic_id": {}, "by_id_short_path": {}}
         if not template.template_aasx:
             return empty
         try:
