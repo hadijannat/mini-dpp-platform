@@ -22,7 +22,7 @@ export default function DataspaceReadySection() {
           {landingContent.dataspaceCards.map((card) => (
             <article
               key={card.title}
-              className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_20px_40px_-34px_rgba(16,35,50,0.72)]"
+              className="rounded-2xl border border-landing-ink/12 bg-landing-surface-0/70 p-5 shadow-[0_20px_40px_-34px_rgba(16,35,50,0.72)]"
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-display text-xl font-semibold text-landing-ink">{card.title}</h3>

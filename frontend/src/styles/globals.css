@@ -1,6 +1,8 @@
 @font-face {
   font-family: 'Fraunces';
-  src: url('/fonts/Fraunces-Variable.ttf') format('truetype');
+  src:
+    url('/fonts/Fraunces-Variable.woff2') format('woff2'),
+    url('/fonts/Fraunces-Variable.ttf') format('truetype');
   font-weight: 400 700;
   font-style: normal;
   font-display: swap;
@@ -8,7 +10,9 @@
 
 @font-face {
   font-family: 'Manrope';
-  src: url('/fonts/Manrope-Variable.ttf') format('truetype');
+  src:
+    url('/fonts/Manrope-Variable.woff2') format('woff2'),
+    url('/fonts/Manrope-Variable.ttf') format('truetype');
   font-weight: 400 800;
   font-style: normal;
   font-display: swap;
@@ -52,7 +56,7 @@
     --radius: 0.65rem;
 
     --landing-ink: 204 43% 16%;
-    --landing-muted: 205 20% 36%;
+    --landing-muted: 205 20% 32%;
     --landing-surface-0: 48 45% 98%;
     --landing-surface-1: 42 34% 95%;
     --landing-surface-2: 40 24% 91%;
@@ -135,7 +139,7 @@
   }
 
   .landing-kicker {
-    letter-spacing: 0.16em;
+    letter-spacing: 0.12em;
   }
 
   .landing-panel {

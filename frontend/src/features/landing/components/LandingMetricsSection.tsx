@@ -89,11 +89,15 @@ export default function LandingMetricsSection({
 }: LandingMetricsSectionProps) {
   const { data, isLoading, isError } = useLandingSummary(tenantSlug, scope, enabled);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const freshnessIntervalMs = Math.max(
+    5_000,
+    (data?.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)) * 1000,
+  );
 
   useEffect(() => {
-    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), freshnessIntervalMs);
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [freshnessIntervalMs]);
 
   return (
     <section id="metrics" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">

@@ -3,7 +3,7 @@ import { landingContent } from '../content/landingContent';
 
 export default function StandardsMapSection() {
   return (
-    <section className="px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
+    <section className="bg-landing-surface-1/45 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="max-w-4xl">
           <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">

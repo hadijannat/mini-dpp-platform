@@ -31,9 +31,16 @@ describe('HeroSection', () => {
   it('renders required proof pills', () => {
     render(<HeroSection />);
 
-    expect(screen.getByText('AAS Repository API (IDTA Part 2)')).toBeTruthy();
+    expect(screen.getByText('Regulation (EU) 2024/1781 aligned posture')).toBeTruthy();
     expect(screen.getByText('DPP4.0 Template Ingestion')).toBeTruthy();
-    expect(screen.getByText('EDC Publish + Policy Setup')).toBeTruthy();
-    expect(screen.getByText('MIT Licensed')).toBeTruthy();
+    expect(screen.getByText('AAS + Dataspace-ready APIs')).toBeTruthy();
+  });
+
+  it('renders the new conversion-first headline', () => {
+    render(<HeroSection />);
+
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toContain(
+      'Digital Product Passport Platform for ESPR-ready product data',
+    );
   });
 });

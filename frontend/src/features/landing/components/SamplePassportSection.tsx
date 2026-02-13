@@ -8,7 +8,7 @@ export default function SamplePassportSection() {
         <div className="grid gap-8 lg:grid-cols-[1fr_1fr] lg:items-start">
           <div>
             <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
-              Sample Passport
+              Demo Passport
             </p>
             <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
               {landingContent.samplePassport.title}

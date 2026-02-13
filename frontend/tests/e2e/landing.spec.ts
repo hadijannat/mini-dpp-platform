@@ -14,7 +14,7 @@ test.describe('Landing page', () => {
 
       await expect(
         page.getByRole('heading', {
-          name: /Open-source Digital Product Passports built on AAS and IDTA DPP4.0/i,
+          name: /Digital Product Passport Platform for ESPR-ready product data/i,
         }),
       ).toBeVisible();
 
@@ -63,9 +63,10 @@ test.describe('Landing page', () => {
 
     await page.getByRole('button', { name: /open menu/i }).click();
 
-    await expect(page.getByRole('link', { name: 'Sample' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Demo' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'FAQ' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Standards' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
   });
 
   test('header anchor links reach deferred standards section', async ({ page }) => {
@@ -73,6 +74,15 @@ test.describe('Landing page', () => {
     await page.getByRole('link', { name: 'Standards' }).click();
     await expect(page).toHaveURL(/#standards$/);
     await expect(page.getByRole('heading', { name: 'Capability claims with explicit evidence' })).toBeVisible();
+  });
+
+  test('faq section is present and reachable from header navigation', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'FAQ' }).click();
+    await expect(page).toHaveURL(/#faq$/);
+    await expect(
+      page.getByRole('heading', { name: 'Common questions from compliance and engineering teams' }),
+    ).toBeVisible();
   });
 
   test('hero CTAs navigate to sample section and quickstart link', async ({ page }) => {
@@ -90,10 +100,16 @@ test.describe('Landing page', () => {
   });
 
   test('includes software JSON-LD blocks in page source', async ({ page }) => {
-    const response = await page.goto('/');
-    const html = await response?.text();
+    await page.goto('/');
+    const html = await page.content();
     expect(html).toContain('"@type":"SoftwareApplication"');
     expect(html).toContain('"@type":"Organization"');
-    expect(html).toContain('"@type":"WebSite"');
+    expect(html).toContain('"@type":"FAQPage"');
+  });
+
+  test('uses dedicated OG image asset', async ({ page }) => {
+    const response = await page.goto('/');
+    const html = await response?.text();
+    expect(html).toContain('og-dpp-platform-1200x630.png');
   });
 });

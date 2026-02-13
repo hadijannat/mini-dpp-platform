@@ -1,10 +1,8 @@
 import { Fingerprint, ExternalLink } from 'lucide-react';
-import { useAuth } from 'react-oidc-context';
+import { Button } from '@/components/ui/button';
 import { landingContent } from '../content/landingContent';
 
 export default function LandingFooter() {
-  const auth = useAuth();
-
   return (
     <footer className="border-t border-landing-ink/10 bg-landing-surface-1 px-4 py-14 sm:px-6 lg:px-8">
       <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
@@ -19,15 +17,14 @@ export default function LandingFooter() {
             Open-source reference implementation for standards-linked Digital Product Passport
             workflows with conservative claims and evidence-first messaging.
           </p>
-          <button
-            type="button"
-            className="mt-5 rounded-full border border-landing-ink/20 bg-white px-4 py-2 text-sm font-semibold text-landing-ink transition-colors hover:border-landing-cyan/40 hover:text-landing-cyan"
-            onClick={() =>
-              auth.isAuthenticated ? window.location.assign('/console') : auth.signinRedirect()
-            }
-          >
-            {auth.isAuthenticated ? 'Open dashboard' : 'Sign in to continue'}
-          </button>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
+              <a href="#sample-passport">Open demo passport</a>
+            </Button>
+            <Button size="sm" className="rounded-full px-4" asChild>
+              <a href="/login">Sign in</a>
+            </Button>
+          </div>
         </div>
 
         <div>

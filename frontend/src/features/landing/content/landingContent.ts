@@ -28,10 +28,12 @@ export interface HeroContent {
   title: string;
   subtitle: string;
   primaryCta: string;
+  primaryCtaHref: string;
   secondaryCta: string;
+  secondaryCtaHref: string;
   proofPills: string[];
-  highlights: string[];
-  evidenceLinks: EvidenceLink[];
+  trustBullets: string[];
+  technicalEvidence: EvidenceLink;
 }
 
 export interface AudienceCardContent {
@@ -84,6 +86,20 @@ export interface DataExposureRule {
   rule: string;
 }
 
+export interface FaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface FinalCtaContent {
+  title: string;
+  subtitle: string;
+  primaryCta: string;
+  primaryCtaHref: string;
+  secondaryCta: string;
+  secondaryCtaHref: string;
+}
+
 export interface FooterLink {
   label: string;
   href: string;
@@ -92,10 +108,10 @@ export interface FooterLink {
 
 export const landingContent = {
   navigation: [
-    { label: 'Sample', href: '#sample-passport' },
+    { label: 'Demo', href: '#sample-passport' },
+    { label: 'How it works', href: '#workflow' },
     { label: 'Standards', href: '#standards' },
-    { label: 'Dataspaces', href: '#dataspaces' },
-    { label: 'Developers', href: '#developers' },
+    { label: 'FAQ', href: '#faq' },
     {
       label: 'Docs',
       href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
@@ -104,35 +120,29 @@ export const landingContent = {
   ] satisfies NavigationLink[],
 
   hero: {
-    eyebrow: 'AAS + DPP4.0 reference implementation',
-    title: 'Open-source Digital Product Passports built on AAS and IDTA DPP4.0',
+    eyebrow: 'Open-source ESPR-ready DPP platform',
+    title: 'Digital Product Passport Platform for ESPR-ready product data',
     subtitle:
-      'Create, publish, and share DPPs with AAS APIs, AASX export, and dataspace-ready connector flows for European interoperability.',
-    primaryCta: 'View Sample Passport',
-    secondaryCta: 'Deploy in 5 minutes',
+      'Create, manage, and publish standards-aligned passports using AAS + IDTA DPP4.0 with controlled public sharing.',
+    primaryCta: 'Open demo passport',
+    primaryCtaHref: '#sample-passport',
+    secondaryCta: 'Deploy locally in 5 minutes',
+    secondaryCtaHref:
+      'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
     proofPills: [
-      'AAS Repository API (IDTA Part 2)',
+      'Regulation (EU) 2024/1781 aligned posture',
       'DPP4.0 Template Ingestion',
-      'EDC Publish + Policy Setup',
-      'MIT Licensed',
+      'AAS + Dataspace-ready APIs',
     ],
-    highlights: [
-      'ESPR entered into force on 18 July 2024; product-specific obligations are delegated-act driven.',
-      'Public landing views stay aggregate-only by policy.',
-      'Production stack: FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, MinIO.',
+    trustBullets: [
+      'Regulation (EU) 2024/1781 entered into force on 18 July 2024; delegated acts define category-specific obligations.',
+      'Public landing metrics are aggregate-only by policy, with sensitive keys blocked.',
+      'Production stack: FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.',
     ],
-    evidenceLinks: [
-      { label: 'API docs', href: '/api/v1/docs' },
-      { label: 'OpenAPI', href: '/api/v1/openapi.json' },
-      {
-        label: 'Public data policy',
-        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md',
-      },
-      {
-        label: 'MIT License',
-        href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/LICENSE',
-      },
-    ],
+    technicalEvidence: {
+      label: 'View technical evidence',
+      href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
+    },
   } satisfies HeroContent,
 
   samplePassport: {
@@ -339,6 +349,39 @@ export const landingContent = {
     },
   ] satisfies DeveloperSignal[],
 
+  faq: [
+    {
+      question: 'What is a Digital Product Passport under ESPR?',
+      answer:
+        'A Digital Product Passport is a product-specific digital record defined by the EU ESPR framework to make sustainability and lifecycle information accessible in a structured format.',
+    },
+    {
+      question: 'How does this platform handle confidential supplier data?',
+      answer:
+        'Public landing and public summary surfaces are aggregate-only. Sensitive product identifiers, raw event payloads, and actor metadata are blocked by policy.',
+    },
+    {
+      question: 'Is this implementation aligned with AAS and IDTA DPP4.0?',
+      answer:
+        'Yes. The platform is built on Asset Administration Shell structures and IDTA DPP4.0 template flows, with API and implementation evidence linked in the standards map.',
+    },
+    {
+      question: 'Can I self-host the platform?',
+      answer:
+        'Yes. The repository ships with Docker Compose for local deployment and includes backend, frontend, Keycloak, OPA, PostgreSQL, Redis, and MinIO services.',
+    },
+    {
+      question: 'How do I evaluate interoperability with dataspaces or Catena-X style flows?',
+      answer:
+        'Connector, registry, and resolver capabilities are exposed through documented APIs. Interoperability outcomes depend on external connector and partner environment configuration.',
+    },
+    {
+      question: 'Where can I verify current public claims?',
+      answer:
+        'Landing claims are evidence-linked to API docs, public architecture/operations docs, and source routes so technical reviewers can verify scope quickly.',
+    },
+  ] satisfies FaqItem[],
+
   fallbackMetrics: [
     {
       label: 'Published DPPs',
@@ -404,6 +447,17 @@ export const landingContent = {
       rule: 'Explicitly prohibited.',
     },
   ] satisfies DataExposureRule[],
+
+  finalCta: {
+    title: 'Ready to publish your first passport?',
+    subtitle:
+      'Start with the live demo, then deploy locally to create, validate, and publish your own DPP workflows.',
+    primaryCta: 'Open demo passport',
+    primaryCtaHref: '#sample-passport',
+    secondaryCta: 'Start local deployment',
+    secondaryCtaHref:
+      'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
+  } satisfies FinalCtaContent,
 
   footer: {
     developerLinks: [

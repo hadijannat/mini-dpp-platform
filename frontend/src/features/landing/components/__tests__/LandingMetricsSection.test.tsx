@@ -6,6 +6,7 @@ const mockUseLandingSummary = vi.fn();
 
 vi.mock('../../hooks/useLandingSummary', () => ({
   useLandingSummary: (tenantSlug?: string, scope?: string) => mockUseLandingSummary(tenantSlug, scope),
+  LANDING_SUMMARY_REFRESH_SLA_MS: 30_000,
 }));
 
 import LandingMetricsSection from '../LandingMetricsSection';
