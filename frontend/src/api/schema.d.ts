@@ -371,6 +371,13 @@ export interface paths {
      */
     post: operations["import_dpp_api_v1_tenants__tenant_slug__dpps_import_post"];
   };
+  "/api/v1/tenants/{tenant_slug}/dpps/import-aasx": {
+    /**
+     * Import Dpp Aasx
+     * @description Import a DPP from an AASX package and persist supplementary files.
+     */
+    post: operations["import_dpp_aasx_api_v1_tenants__tenant_slug__dpps_import_aasx_post"];
+  };
   "/api/v1/tenants/{tenant_slug}/dpps/rebuild-all": {
     /**
      * Rebuild All Dpps
@@ -414,6 +421,13 @@ export interface paths {
      * Creates a new revision with the updated data.
      */
     put: operations["update_submodel_api_v1_tenants__tenant_slug__dpps__dpp_id__submodel_put"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/submodel-patch": {
+    /**
+     * Patch Submodel
+     * @description Update a submodel via deterministic canonical patch operations.
+     */
+    put: operations["patch_submodel_api_v1_tenants__tenant_slug__dpps__dpp_id__submodel_patch_put"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/attachments": {
     /**
@@ -1353,7 +1367,7 @@ export interface components {
       id: string;
       /** Subject */
       subject?: string | null;
-      actor?: components["schemas"]["app__modules__activity__router__ActorSummary"] | null;
+      actor?: components["schemas"]["ActorSummary"] | null;
       /** Action */
       action: string;
       /** Resource Type */
@@ -1371,7 +1385,7 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor identity summary for ownership metadata.
+     * @description Actor metadata for activity responses.
      */
     ActorSummary: {
       /** Subject */
@@ -1851,6 +1865,14 @@ export interface components {
       /** Biztransaction */
       bizTransaction: string;
     };
+    /** Body_import_dpp_aasx_api_v1_tenants__tenant_slug__dpps_import_aasx_post */
+    Body_import_dpp_aasx_api_v1_tenants__tenant_slug__dpps_import_aasx_post: {
+      /**
+       * File
+       * Format: binary
+       */
+      file: string;
+    };
     /** Body_upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post */
     Body_upload_attachment_api_v1_tenants__tenant_slug__dpps__dpp_id__attachments_post: {
       /**
@@ -2283,7 +2305,7 @@ export interface components {
       status: string;
       /** Created By Subject */
       created_by_subject: string;
-      created_by: components["schemas"]["ActorSummary"];
+      created_by: components["schemas"]["app__modules__connectors__router__ActorSummary"];
       /** Visibility Scope */
       visibility_scope: string;
       access: components["schemas"]["AccessSummary"];
@@ -4028,6 +4050,25 @@ export interface components {
       /** Cursor */
       cursor?: string | null;
     };
+    /**
+     * PatchSubmodelRequest
+     * @description Request model for canonical patch-based submodel updates.
+     */
+    PatchSubmodelRequest: {
+      /** Template Key */
+      template_key: string;
+      /** Operations */
+      operations?: components["schemas"]["SubmodelPatchOperation"][];
+      /** Submodel Id */
+      submodel_id?: string | null;
+      /** Base Revision Id */
+      base_revision_id?: string | null;
+      /**
+       * Strict
+       * @default true
+       */
+      strict?: boolean;
+    };
     /** PlatformMetricsResponse */
     PlatformMetricsResponse: {
       /** Tenants */
@@ -5103,6 +5144,23 @@ export interface components {
         }[];
     };
     /**
+     * SubmodelPatchOperation
+     * @description Atomic deterministic patch operation for submodel mutation.
+     */
+    SubmodelPatchOperation: {
+      /**
+       * Op
+       * @enum {string}
+       */
+      op: "set_value" | "set_multilang" | "add_list_item" | "remove_list_item" | "set_file_ref";
+      /** Path */
+      path: string;
+      /** Value */
+      value?: unknown;
+      /** Index */
+      index?: number | null;
+    };
+    /**
      * TemplateContractResponse
      * @description Response model for canonical template contract used by frontend form generation.
      */
@@ -5130,6 +5188,10 @@ export interface components {
       unsupported_nodes?: {
           [key: string]: unknown;
         }[];
+      /** Doc Hints */
+      doc_hints?: {
+        [key: string]: unknown;
+      };
     };
     /**
      * TemplateDefinitionResponse
@@ -5772,9 +5834,9 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor metadata for activity responses.
+     * @description Actor identity summary for ownership metadata.
      */
-    app__modules__activity__router__ActorSummary: {
+    app__modules__connectors__router__ActorSummary: {
       /** Subject */
       subject: string;
       /** Display Name */
@@ -7107,6 +7169,42 @@ export interface operations {
     };
   };
   /**
+   * Import Dpp Aasx
+   * @description Import a DPP from an AASX package and persist supplementary files.
+   */
+  import_dpp_aasx_api_v1_tenants__tenant_slug__dpps_import_aasx_post: {
+    parameters: {
+      query?: {
+        /** @description Validate against a master template by product ID */
+        master_product_id?: string | null;
+        /** @description Master version or alias */
+        master_version?: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_dpp_aasx_api_v1_tenants__tenant_slug__dpps_import_aasx_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["DPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
    * Rebuild All Dpps
    * @description Refresh templates and rebuild submodels for all DPPs.
    *
@@ -7236,6 +7334,37 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["UpdateSubmodelRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RevisionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Patch Submodel
+   * @description Update a submodel via deterministic canonical patch operations.
+   */
+  patch_submodel_api_v1_tenants__tenant_slug__dpps__dpp_id__submodel_patch_put: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatchSubmodelRequest"];
       };
     };
     responses: {

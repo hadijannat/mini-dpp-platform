@@ -46,6 +46,7 @@ import {
   isNodeRequired,
 } from '../utils/pathUtils';
 import { validateSchema, validateReadOnly } from '../utils/validation';
+import { buildPatchOperations } from '../utils/patchOps';
 import { useSubmodelForm } from '../hooks/useSubmodelForm';
 import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
 import { AASRendererList } from '../components/AASRenderer';
@@ -311,6 +312,69 @@ async function updateSubmodel(
   return response.json();
 }
 
+async function patchSubmodel(
+  dppId: string,
+  templateKey: string,
+  operations: Array<Record<string, unknown>>,
+  submodelId: string | undefined,
+  token?: string,
+  baseRevisionId?: string,
+  strict = true,
+) {
+  const response = await tenantApiFetch(
+    `/dpps/${dppId}/submodel-patch`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        template_key: templateKey,
+        operations,
+        strict,
+        ...(submodelId ? { submodel_id: submodelId } : {}),
+        ...(baseRevisionId ? { base_revision_id: baseRevisionId } : {}),
+      }),
+    },
+    token,
+  );
+  if (!response.ok) {
+    if (response.status === 409) {
+      const contentType = response.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        try {
+          const body = (await response.json()) as {
+            detail?: {
+              message?: string;
+              template_key?: string;
+              candidates?: string[];
+            };
+          };
+          const detail = body?.detail;
+          if (
+            detail &&
+            typeof detail === 'object' &&
+            Array.isArray(detail.candidates) &&
+            detail.candidates.length > 0
+          ) {
+            throw new AmbiguousBindingError(
+              typeof detail.message === 'string'
+                ? detail.message
+                : 'Ambiguous template binding',
+              typeof detail.template_key === 'string'
+                ? detail.template_key
+                : templateKey,
+              detail.candidates,
+            );
+          }
+        } catch (e) {
+          if (e instanceof AmbiguousBindingError) throw e;
+        }
+      }
+    }
+    throw new Error(await getApiErrorMessage(response, 'Failed to patch submodel'));
+  }
+  return response.json();
+}
+
 // ── Page Component ──────────────────────────────────────────────
 
 export default function SubmodelEditorPage() {
@@ -321,6 +385,8 @@ export default function SubmodelEditorPage() {
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const rollout = useMemo(() => resolveSubmodelUxRollout(tenantSlug), [tenantSlug]);
+  const patchApiEnabled =
+    String(import.meta.env.VITE_SUBMODEL_PATCH_API ?? 'true').toLowerCase() !== 'false';
   const queryClient = useQueryClient();
   const requestedSubmodelId = searchParams.get('submodel_id');
   const requestedFocusPath = searchParams.get('focus_path');
@@ -471,15 +537,38 @@ export default function SubmodelEditorPage() {
   // ── Mutation ──
 
   const updateMutation = useMutation({
-    mutationFn: (payload: { data: Record<string, unknown>; rebuildFromTemplate?: boolean }) =>
-      updateSubmodel(
+    mutationFn: async (payload: { data: Record<string, unknown>; rebuildFromTemplate?: boolean }) => {
+      if (payload.rebuildFromTemplate) {
+        return updateSubmodel(
+          dppId!,
+          templateKey!,
+          payload.data,
+          selectedSubmodelId,
+          token,
+          true,
+        );
+      }
+      if (patchApiEnabled && templateDefinition) {
+        const operations = buildPatchOperations(templateDefinition, initialData, payload.data);
+        return patchSubmodel(
+          dppId!,
+          templateKey!,
+          operations,
+          selectedSubmodelId,
+          token,
+          undefined,
+          true,
+        );
+      }
+      return updateSubmodel(
         dppId!,
         templateKey!,
         payload.data,
         selectedSubmodelId,
         token,
-        payload.rebuildFromTemplate ?? false,
-      ),
+        false,
+      );
+    },
     onSuccess: () => {
       setPendingAction(null);
       setSaveAttempted(false);

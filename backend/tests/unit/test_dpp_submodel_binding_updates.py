@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -192,6 +192,8 @@ async def test_update_submodel_disambiguates_with_explicit_submodel_id() -> None
         revision_no=2,
         aas_env_json=aas_env,
         template_provenance={},
+        supplementary_manifest={},
+        doc_hints_manifest={},
     )
     service.get_latest_revision = AsyncMock(return_value=current_revision)
     service.get_dpp = AsyncMock(
@@ -210,21 +212,27 @@ async def test_update_submodel_disambiguates_with_explicit_submodel_id() -> None
                 )
             ]
         ),
+        generate_template_contract=MagicMock(
+            return_value={
+                "definition": {"submodel": {"elements": []}},
+                "doc_hints": {},
+            }
+        ),
     )
-    # Return the same env dict — content doesn't matter, just needs to be a valid dict
-    service._basyx_builder = SimpleNamespace(
-        update_submodel_environment=MagicMock(return_value=aas_env)
-    )
+    service._basyx_builder = SimpleNamespace(update_submodel_environment=MagicMock())
 
-    await service.update_submodel(
-        dpp_id=uuid4(),
-        tenant_id=uuid4(),
-        template_key="carbon-footprint",
-        submodel_data={},
-        updated_by_subject="publisher-sub",
-        submodel_id="urn:dpp:sm:1",
-    )
+    with patch(
+        "app.modules.dpps.service.apply_canonical_patch",
+        return_value=SimpleNamespace(aas_env_json=aas_env, applied_operations=0),
+    ) as apply_patch:
+        await service.update_submodel(
+            dpp_id=uuid4(),
+            tenant_id=uuid4(),
+            template_key="carbon-footprint",
+            submodel_data={},
+            updated_by_subject="publisher-sub",
+            submodel_id="urn:dpp:sm:1",
+        )
 
-    service._basyx_builder.update_submodel_environment.assert_called_once()
-    call_kwargs = service._basyx_builder.update_submodel_environment.call_args
-    assert call_kwargs.kwargs["submodel_id"] == "urn:dpp:sm:1"
+    service._basyx_builder.update_submodel_environment.assert_not_called()
+    assert apply_patch.call_args.kwargs["submodel_id"] == "urn:dpp:sm:1"

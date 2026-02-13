@@ -251,3 +251,34 @@ def test_export_aasx_graceful_with_missing_modeltype() -> None:
 
     assert "[Content_Types].xml" in names
     assert "_rels/.rels" in names
+
+
+def test_export_aasx_includes_supplementary_files_when_provided() -> None:
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_basyx_revision(dpp_id)
+    revision.aas_env_json["submodels"][0]["submodelElements"] = [
+        {
+            "modelType": "File",
+            "idShort": "Manual",
+            "contentType": "application/pdf",
+            "value": "/aasx/files/manual.pdf",
+        }
+    ]
+
+    aasx_bytes = export_service.export_aasx(
+        revision,
+        dpp_id,
+        supplementary_files=[
+            {
+                "package_path": "/aasx/files/manual.pdf",
+                "content_type": "application/pdf",
+                "payload": b"%PDF-1.4 sample",
+            }
+        ],
+    )
+
+    with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as zf:
+        names = set(zf.namelist())
+
+    assert "aasx/files/manual.pdf" in names

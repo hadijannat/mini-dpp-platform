@@ -4,7 +4,7 @@ API Router for DPP Export endpoints.
 
 import io
 import zipfile
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -18,6 +18,7 @@ from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantContextDep
 from app.db.models import DPPStatus
 from app.db.session import DbSession
+from app.modules.dpps.attachment_service import AttachmentNotFoundError, AttachmentService
 from app.modules.dpps.service import DPPService
 from app.modules.epcis.service import EPCISService
 from app.modules.export.service import ExportService
@@ -26,6 +27,57 @@ from app.modules.webhooks.service import trigger_webhooks
 logger = get_logger(__name__)
 
 router = APIRouter()
+
+
+async def _collect_supplementary_export_files(
+    *,
+    db: DbSession,
+    tenant_id: UUID,
+    dpp_id: UUID,
+    revision: Any,
+) -> list[dict[str, Any]]:
+    manifest = getattr(revision, "supplementary_manifest", None)
+    if not isinstance(manifest, dict):
+        return []
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        return []
+
+    attachment_service = AttachmentService(db)
+    export_files: list[dict[str, Any]] = []
+    for entry in files:
+        if not isinstance(entry, dict):
+            continue
+        attachment_id_raw = entry.get("attachment_id")
+        package_path = entry.get("package_path")
+        content_type = entry.get("content_type")
+        if not isinstance(attachment_id_raw, str):
+            continue
+        try:
+            attachment_id = UUID(attachment_id_raw)
+        except ValueError:
+            continue
+        try:
+            attachment, payload = await attachment_service.download_attachment_bytes(
+                tenant_id=tenant_id,
+                dpp_id=dpp_id,
+                attachment_id=attachment_id,
+            )
+        except AttachmentNotFoundError:
+            logger.warning(
+                "supplementary_attachment_missing",
+                dpp_id=str(dpp_id),
+                attachment_id=attachment_id_raw,
+            )
+            continue
+        export_files.append(
+            {
+                "package_path": package_path,
+                "content_type": content_type or attachment.content_type,
+                "payload": payload,
+            }
+        )
+    return export_files
 
 
 @router.get("/{dpp_id}")
@@ -145,8 +197,17 @@ async def export_dpp(
             },
         )
     elif format == "aasx":
+        supplementary_files = await _collect_supplementary_export_files(
+            db=db,
+            tenant_id=tenant.tenant_id,
+            dpp_id=dpp_id,
+            revision=revision,
+        )
         content = export_service.export_aasx(
-            revision, dpp_id, write_json=(aasx_serialization == "json")
+            revision,
+            dpp_id,
+            write_json=(aasx_serialization == "json"),
+            supplementary_files=supplementary_files,
         )
         await emit_audit_event(
             db_session=db,
@@ -318,7 +379,17 @@ async def batch_export(
                 if body.format == "json":
                     content = export_service.export_json(revision)
                 else:
-                    content = export_service.export_aasx(revision, dpp_id)
+                    supplementary_files = await _collect_supplementary_export_files(
+                        db=db,
+                        tenant_id=tenant.tenant_id,
+                        dpp_id=dpp_id,
+                        revision=revision,
+                    )
+                    content = export_service.export_aasx(
+                        revision,
+                        dpp_id,
+                        supplementary_files=supplementary_files,
+                    )
 
                 zf.writestr(f"dpp-{dpp_id}.{ext}", content)
                 results.append(BatchExportResultItem(dpp_id=dpp_id, status="ok"))

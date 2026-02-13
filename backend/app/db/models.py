@@ -578,6 +578,16 @@ class DPPRevision(TenantScopedMixin, Base):
         nullable=True,
         comment="Template version metadata captured at creation time",
     )
+    supplementary_manifest: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Supplementary AASX files manifest mapped to tenant attachment records",
+    )
+    doc_hints_manifest: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="Resolved deterministic documentation hints snapshot for this revision",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),

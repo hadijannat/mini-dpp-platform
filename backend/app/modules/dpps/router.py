@@ -27,6 +27,7 @@ from app.db.models import DPPStatus
 from app.db.session import DbSession
 from app.modules.aas.conformance import validate_aas_environment
 from app.modules.digital_thread.handlers import record_lifecycle_event
+from app.modules.dpps.aasx_ingest import AasxIngestService
 from app.modules.dpps.attachment_service import AttachmentNotFoundError, AttachmentService
 from app.modules.dpps.service import AmbiguousSubmodelBindingError, DPPService
 from app.modules.epcis.handlers import record_epcis_lifecycle_event
@@ -152,6 +153,25 @@ class UpdateSubmodelRequest(BaseModel):
     data: dict[str, Any]
     rebuild_from_template: bool = False
     submodel_id: str | None = None
+
+
+class SubmodelPatchOperation(BaseModel):
+    """Atomic deterministic patch operation for submodel mutation."""
+
+    op: Literal["set_value", "set_multilang", "add_list_item", "remove_list_item", "set_file_ref"]
+    path: str
+    value: Any | None = None
+    index: int | None = None
+
+
+class PatchSubmodelRequest(BaseModel):
+    """Request model for canonical patch-based submodel updates."""
+
+    template_key: str
+    operations: list[SubmodelPatchOperation] = Field(default_factory=list)
+    submodel_id: str | None = None
+    base_revision_id: UUID | None = None
+    strict: bool = True
 
 
 class AttachmentUploadResponse(BaseModel):
@@ -882,6 +902,168 @@ async def import_dpp(
     )
 
 
+@router.post("/import-aasx", response_model=DPPResponse, status_code=status.HTTP_201_CREATED)
+async def import_dpp_aasx(
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+    file: UploadFile = File(...),
+    master_product_id: str | None = Query(
+        None,
+        description="Validate against a master template by product ID",
+    ),
+    master_version: str = Query("latest", description="Master version or alias"),
+) -> DPPResponse:
+    """Import a DPP from an AASX package and persist supplementary files."""
+    await require_access(tenant.user, "create", {"type": "dpp"}, tenant=tenant)
+    if not file.filename or not file.filename.lower().endswith(".aasx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="AASX import requires a .aasx file",
+        )
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded AASX file is empty",
+        )
+
+    ingest_service = AasxIngestService()
+    try:
+        ingest = ingest_service.parse(raw_bytes)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Failed to parse AASX package: {exc}",
+        ) from exc
+
+    aas_env = ingest.aas_env_json
+    validation = validate_aas_environment(aas_env)
+    if validation.warnings:
+        logger.warning(
+            "import_dpp_aasx_validation_warnings",
+            warning_count=len(validation.warnings),
+        )
+    if not validation.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"errors": validation.errors, "warnings": validation.warnings},
+        )
+
+    if master_product_id:
+        master_service = DPPMasterService(db)
+        result = await master_service.get_version_for_product(
+            tenant.tenant_id,
+            master_product_id,
+            master_version,
+        )
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Master template not found",
+            )
+        _, release = result
+        aas_env, errors = master_service.validate_instance_payload(aas_env, release)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"errors": errors},
+            )
+
+    service = DPPService(db)
+    try:
+        asset_ids = service.extract_asset_ids_from_environment(aas_env)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    existing = await service.find_existing_dpp(tenant.tenant_id, asset_ids)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "DPP already exists for the provided asset identifiers",
+                "dpp_id": str(existing.id),
+            },
+        )
+
+    try:
+        dpp = await service.create_dpp_from_environment(
+            tenant_id=tenant.tenant_id,
+            tenant_slug=tenant.tenant_slug,
+            owner_subject=tenant.user.sub,
+            asset_ids=asset_ids,
+            aas_env=aas_env,
+            doc_hints_manifest=ingest.doc_hints_manifest,
+        )
+    except IdentifierValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    supplementary_manifest: dict[str, Any] = {
+        "files": [],
+        "count": 0,
+    }
+    if ingest.supplementary_files:
+        attachment_service = AttachmentService(db)
+        for supplementary in ingest.supplementary_files:
+            if supplementary.package_path.replace("\\", "/").endswith("/ui-hints.json"):
+                continue
+            filename = supplementary.package_path.replace("\\", "/").split("/")[-1] or "attachment.bin"
+            uploaded = await attachment_service.upload_attachment_bytes(
+                tenant_id=tenant.tenant_id,
+                dpp_id=dpp.id,
+                filename=filename,
+                payload=supplementary.payload,
+                created_by_subject=tenant.user.sub,
+                requested_content_type=supplementary.content_type,
+            )
+            supplementary_manifest["files"].append(
+                {
+                    "package_path": supplementary.package_path,
+                    "attachment_id": str(uploaded.attachment_id),
+                    "content_type": uploaded.content_type,
+                    "size_bytes": uploaded.size_bytes,
+                    "sha256": supplementary.sha256,
+                }
+            )
+        supplementary_manifest["count"] = len(supplementary_manifest["files"])
+
+    latest_revision = await service.get_latest_revision(dpp.id, tenant.tenant_id)
+    if latest_revision is not None:
+        latest_revision.supplementary_manifest = supplementary_manifest
+        if ingest.doc_hints_manifest is not None:
+            latest_revision.doc_hints_manifest = ingest.doc_hints_manifest
+        await db.flush()
+
+    await db.commit()
+    await db.refresh(dpp)
+
+    await emit_audit_event(
+        db_session=db,
+        action="import_dpp_aasx",
+        resource_type="dpp",
+        resource_id=dpp.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+        metadata={"supplementary_count": supplementary_manifest["count"]},
+    )
+
+    owners = await load_users_by_subject(db, [dpp.owner_subject])
+    return _dpp_response_payload(
+        dpp,
+        owner=actor_payload(dpp.owner_subject, owners),
+        tenant=tenant,
+        shared_with_current_user=False,
+    )
+
+
 @router.post("/rebuild-all", response_model=BulkRebuildResponse)
 async def rebuild_all_dpps(
     db: DbSession,
@@ -1221,6 +1403,86 @@ async def update_submodel(
             user=tenant.user,
             request=request,
             metadata={"template_key": body.template_key},
+        )
+    except AmbiguousSubmodelBindingError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(e),
+                "template_key": e.template_key,
+                "candidates": e.submodel_ids,
+            },
+        ) from e
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+
+    return RevisionResponse(
+        id=revision.id,
+        revision_no=revision.revision_no,
+        state=revision.state.value,
+        digest_sha256=revision.digest_sha256,
+        created_by_subject=revision.created_by_subject,
+        created_at=revision.created_at.isoformat(),
+        template_provenance=revision.template_provenance,
+    )
+
+
+@router.put("/{dpp_id}/submodel-patch", response_model=RevisionResponse)
+async def patch_submodel(
+    dpp_id: UUID,
+    body: PatchSubmodelRequest,
+    request: Request,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> RevisionResponse:
+    """Update a submodel via deterministic canonical patch operations."""
+    service = DPPService(db)
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+    if dpp.owner_subject != tenant.user.sub and not tenant.is_tenant_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can edit this DPP",
+        )
+    await require_access(
+        tenant.user,
+        "update",
+        build_dpp_resource_context(dpp, shared_with_current_user=False),
+        tenant=tenant,
+    )
+
+    try:
+        revision = await service.patch_submodel(
+            dpp_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            template_key=body.template_key,
+            operations=[operation.model_dump(exclude_none=True) for operation in body.operations],
+            updated_by_subject=tenant.user.sub,
+            submodel_id=body.submodel_id,
+            strict=body.strict,
+            base_revision_id=body.base_revision_id,
+        )
+        await db.commit()
+        await emit_audit_event(
+            db_session=db,
+            action="patch_submodel",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+            metadata={
+                "template_key": body.template_key,
+                "operation_count": len(body.operations),
+                "strict": body.strict,
+            },
         )
     except AmbiguousSubmodelBindingError as e:
         raise HTTPException(
