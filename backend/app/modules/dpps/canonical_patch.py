@@ -435,6 +435,7 @@ def _apply_remove_list_item(
     index: Any,
     contract_node: dict[str, Any] | None,
 ) -> None:
+    del contract_node
     if not isinstance(index, int):
         raise ValueError("remove_list_item requires integer 'index'")
     value = list_element.get("value")
@@ -442,13 +443,6 @@ def _apply_remove_list_item(
         raise ValueError("List element has no value array")
     if index < 0 or index >= len(value):
         raise ValueError(f"remove_list_item index {index} out of bounds")
-    cardinality = ""
-    if isinstance(contract_node, dict):
-        smt = contract_node.get("smt")
-        if isinstance(smt, dict):
-            cardinality = str(smt.get("cardinality") or "").strip()
-    if cardinality in {"One", "OneToMany"} and len(value) <= 1:
-        raise ValueError(f"Cardinality '{cardinality}' requires at least one list item")
     del value[index]
 
 
