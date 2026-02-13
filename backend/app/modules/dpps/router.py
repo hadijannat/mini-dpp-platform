@@ -1841,8 +1841,6 @@ async def publish_dpp(
             tenant_id=tenant.tenant_id,
             published_by_subject=tenant.user.sub,
         )
-        await db.commit()
-        await db.refresh(published_dpp)
         await record_epcis_lifecycle_event(
             session=db,
             dpp_id=dpp_id,
@@ -1858,53 +1856,60 @@ async def publish_dpp(
             created_by=tenant.user.sub,
         )
         await db.commit()
-        await emit_audit_event(
-            db_session=db,
-            action="publish_dpp",
-            resource_type="dpp",
-            resource_id=dpp_id,
-            tenant_id=tenant.tenant_id,
-            user=tenant.user,
-            request=request,
-        )
-
-        await trigger_webhooks(
-            db,
-            tenant.tenant_id,
-            "DPP_PUBLISHED",
-            {
-                "event": "DPP_PUBLISHED",
-                "dpp_id": str(dpp_id),
-                "status": published_dpp.status.value,
-            },
-        )
-        # Run resolver + registry auto-registration concurrently
-        auto_tasks: list[Any] = [
-            auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub),
-        ]
-        if published_dpp.current_published_revision_id:
-            from sqlalchemy import select as _select
-
-            from app.db.models import DPPRevision as _DPPRevision
-
-            _rev_result = await db.execute(
-                _select(_DPPRevision).where(
-                    _DPPRevision.id == published_dpp.current_published_revision_id
-                )
-            )
-            _pub_rev = _rev_result.scalar_one_or_none()
-            if _pub_rev:
-                auto_tasks.append(
-                    auto_register_shell_descriptor(
-                        db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
-                    )
-                )
-        await asyncio.gather(*auto_tasks)
+        await db.refresh(published_dpp)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+    # Post-commit side effects — failures are logged, not raised to the user
+    await emit_audit_event(
+        db_session=db,
+        action="publish_dpp",
+        resource_type="dpp",
+        resource_id=dpp_id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        request=request,
+    )
+
+    await trigger_webhooks(
+        db,
+        tenant.tenant_id,
+        "DPP_PUBLISHED",
+        {
+            "event": "DPP_PUBLISHED",
+            "dpp_id": str(dpp_id),
+            "status": published_dpp.status.value,
+        },
+    )
+
+    # Run resolver + registry auto-registration concurrently
+    auto_tasks: list[Any] = [
+        auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub),
+    ]
+    if published_dpp.current_published_revision_id:
+        from sqlalchemy import select as _select
+
+        from app.db.models import DPPRevision as _DPPRevision
+
+        _rev_result = await db.execute(
+            _select(_DPPRevision).where(
+                _DPPRevision.id == published_dpp.current_published_revision_id
+            )
+        )
+        _pub_rev = _rev_result.scalar_one_or_none()
+        if _pub_rev:
+            auto_tasks.append(
+                auto_register_shell_descriptor(
+                    db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                )
+            )
+    results = await asyncio.gather(*auto_tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            logger.warning("Post-publish auto-registration failed: %s", result)
 
     owners = await load_users_by_subject(db, [published_dpp.owner_subject])
     return _dpp_response_payload(

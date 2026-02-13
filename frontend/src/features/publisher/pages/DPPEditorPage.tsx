@@ -20,6 +20,7 @@ import { buildEditorOutline } from '@/features/dpp-outline/builders/buildEditorO
 import type { DppOutlineNode } from '@/features/dpp-outline/types';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
@@ -219,6 +220,7 @@ export default function DPPEditorPage() {
   const token = auth.user?.access_token;
   const [tenantSlug] = useTenantSlug();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [refreshRebuildSummary, setRefreshRebuildSummary] = useState<RefreshRebuildSummary | null>(
     null,
   );
@@ -598,9 +600,9 @@ export default function DPPEditorPage() {
             </DropdownMenu>
             {dpp.status === 'draft' && (
               <Button
-                onClick={() => publishMutation.mutate()}
+                onClick={() => setPublishConfirmOpen(true)}
                 disabled={publishMutation.isPending || !actionState.canPublish}
-                className="bg-green-600 hover:bg-green-700"
+                variant="default"
                 title={publishBlocked ? publishBlockers[0] : undefined}
               >
                 <Send className="h-4 w-4 mr-2" />
@@ -1036,6 +1038,16 @@ export default function DPPEditorPage() {
           dppId={dppId}
         />
       )}
+
+      <ConfirmDialog
+        open={publishConfirmOpen}
+        onOpenChange={setPublishConfirmOpen}
+        title="Publish DPP"
+        description="Publishing is irreversible. The DPP will be publicly accessible and can only be archived after publishing. Are you sure you want to publish?"
+        confirmLabel="Publish"
+        loading={publishMutation.isPending}
+        onConfirm={() => { setPublishConfirmOpen(false); publishMutation.mutate(); }}
+      />
         </div>
       </div>
     </div>

@@ -101,7 +101,7 @@ export default function ResolverPage() {
   const { data: links, isLoading } = useQuery<ResolverLink[]>({
     queryKey: ['resolver-links', slug],
     queryFn: async () => {
-      const res = await tenantApiFetch('/resolver/', {}, token!);
+      const res = await tenantApiFetch('/resolver/', {}, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to load resolver links'));
       return res.json();
     },
@@ -122,7 +122,7 @@ export default function ResolverPage() {
           hreflang: newHreflang,
           priority: newPriority,
         }),
-      }, token!);
+      }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to create resolver link'));
       return res.json();
     },
@@ -140,7 +140,7 @@ export default function ResolverPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ active }),
-      }, token!);
+      }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to update link'));
       return res.json();
     },
@@ -151,7 +151,7 @@ export default function ResolverPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await tenantApiFetch(`/resolver/${id}`, { method: 'DELETE' }, token!);
+      const res = await tenantApiFetch(`/resolver/${id}`, { method: 'DELETE' }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to delete link'));
     },
     onSuccess: () => {

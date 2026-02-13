@@ -65,7 +65,7 @@ export default function RegistryPage() {
   const { data: descriptors, isLoading, error: fetchError } = useQuery<ShellDescriptor[]>({
     queryKey: ['registry-descriptors', slug],
     queryFn: async () => {
-      const res = await tenantApiFetch('/registry/shell-descriptors', {}, token!);
+      const res = await tenantApiFetch('/registry/shell-descriptors', {}, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to load shell descriptors'));
       return res.json();
     },
@@ -82,7 +82,7 @@ export default function RegistryPage() {
           asset_id_key: activeSearch!.key,
           asset_id_value: activeSearch!.value,
         }),
-      }, token!);
+      }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Search failed'));
       return res.json();
     },
@@ -96,7 +96,7 @@ export default function RegistryPage() {
         asset_id_key: activeDiscovery!.key,
         asset_id_value: activeDiscovery!.value,
       });
-      const res = await tenantApiFetch(`/registry/discovery?${params.toString()}`, {}, token!);
+      const res = await tenantApiFetch(`/registry/discovery?${params.toString()}`, {}, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Discovery lookup failed'));
       return res.json();
     },

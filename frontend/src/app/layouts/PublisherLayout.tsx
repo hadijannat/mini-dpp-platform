@@ -28,6 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { isAdmin as checkIsAdmin } from '@/lib/auth';
 import { useBreadcrumbs } from '@/lib/breadcrumbs';
+import { ErrorBoundary } from '@/components/error-boundary';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -252,7 +253,9 @@ export default function PublisherLayout() {
 
           {/* Page content */}
           <main id="main-content" className="p-6 md:p-8">
-            <Outlet />
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>
