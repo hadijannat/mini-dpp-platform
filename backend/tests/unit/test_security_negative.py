@@ -80,20 +80,20 @@ class TestMissingAuthentication:
     async def test_authenticated_endpoint_returns_401_without_auth(
         self, test_client: AsyncClient
     ) -> None:
-        resp = await test_client.get("/api/v1/t/default/dpps")
+        resp = await test_client.get("/api/v1/tenants/default/dpps")
         assert resp.status_code == 401
 
     @pytest.mark.asyncio()
     async def test_thread_endpoint_returns_401_without_auth(self, test_client: AsyncClient) -> None:
         dpp_id = uuid4()
-        resp = await test_client.get(f"/api/v1/t/default/thread/timeline/{dpp_id}")
+        resp = await test_client.get(f"/api/v1/tenants/default/thread/timeline/{dpp_id}")
         assert resp.status_code == 401
 
     @pytest.mark.asyncio()
     async def test_webhooks_endpoint_returns_401_without_auth(
         self, test_client: AsyncClient
     ) -> None:
-        resp = await test_client.get("/api/v1/t/default/webhooks")
+        resp = await test_client.get("/api/v1/tenants/default/webhooks")
         assert resp.status_code == 401
 
 
@@ -131,7 +131,7 @@ class TestCrossTenantAccess:
         self, test_client: AsyncClient, mock_auth_headers: dict[str, str]
     ) -> None:
         resp = await test_client.get(
-            "/api/v1/t/nonexistent-tenant/dpps",
+            "/api/v1/tenants/nonexistent-tenant/dpps",
             headers=mock_auth_headers,
         )
         # Non-existent tenant should return 404 (not 401, to avoid info leak)
@@ -144,7 +144,7 @@ class TestCrossTenantAccess:
         """Attempting to fetch a DPP via a different tenant slug returns 404."""
         fake_dpp_id = uuid4()
         resp = await test_client.get(
-            f"/api/v1/t/nonexistent-tenant/dpps/{fake_dpp_id}",
+            f"/api/v1/tenants/nonexistent-tenant/dpps/{fake_dpp_id}",
             headers=mock_auth_headers,
         )
         assert resp.status_code == 404

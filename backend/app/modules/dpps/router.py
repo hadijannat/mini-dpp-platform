@@ -1863,31 +1863,66 @@ async def publish_dpp(
             detail=str(e),
         )
 
+    side_effect_timeout_seconds = max(get_settings().webhook_timeout_seconds, 1)
+
+    async def _run_post_publish_side_effect(name: str, task: Any) -> None:
+        try:
+            await asyncio.wait_for(task, timeout=side_effect_timeout_seconds)
+        except TimeoutError:
+            logger.warning(
+                "Post-publish side effect timed out",
+                extra={
+                    "side_effect": name,
+                    "timeout_seconds": side_effect_timeout_seconds,
+                    "dpp_id": str(dpp_id),
+                    "tenant_id": str(tenant.tenant_id),
+                },
+            )
+        except Exception:
+            logger.warning(
+                "Post-publish side effect failed",
+                extra={
+                    "side_effect": name,
+                    "dpp_id": str(dpp_id),
+                    "tenant_id": str(tenant.tenant_id),
+                },
+                exc_info=True,
+            )
+
     # Post-commit side effects — failures are logged, not raised to the user
-    await emit_audit_event(
-        db_session=db,
-        action="publish_dpp",
-        resource_type="dpp",
-        resource_id=dpp_id,
-        tenant_id=tenant.tenant_id,
-        user=tenant.user,
-        request=request,
+    await _run_post_publish_side_effect(
+        "emit_audit_event",
+        emit_audit_event(
+            db_session=db,
+            action="publish_dpp",
+            resource_type="dpp",
+            resource_id=dpp_id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            request=request,
+        ),
     )
 
-    await trigger_webhooks(
-        db,
-        tenant.tenant_id,
-        "DPP_PUBLISHED",
-        {
-            "event": "DPP_PUBLISHED",
-            "dpp_id": str(dpp_id),
-            "status": published_dpp.status.value,
-        },
+    await _run_post_publish_side_effect(
+        "trigger_webhooks",
+        trigger_webhooks(
+            db,
+            tenant.tenant_id,
+            "DPP_PUBLISHED",
+            {
+                "event": "DPP_PUBLISHED",
+                "dpp_id": str(dpp_id),
+                "status": published_dpp.status.value,
+            },
+        ),
     )
 
     # Run resolver + registry auto-registration concurrently
-    auto_tasks: list[Any] = [
-        auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub),
+    auto_tasks: list[tuple[str, Any]] = [
+        (
+            "auto_register_resolver_links",
+            auto_register_resolver_links(db, published_dpp, tenant.tenant_id, tenant.user.sub),
+        ),
     ]
     if published_dpp.current_published_revision_id:
         from sqlalchemy import select as _select
@@ -1902,14 +1937,19 @@ async def publish_dpp(
         _pub_rev = _rev_result.scalar_one_or_none()
         if _pub_rev:
             auto_tasks.append(
-                auto_register_shell_descriptor(
-                    db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                (
+                    "auto_register_shell_descriptor",
+                    auto_register_shell_descriptor(
+                        db, published_dpp, _pub_rev, tenant.tenant_id, tenant.user.sub
+                    ),
                 )
             )
-    results = await asyncio.gather(*auto_tasks, return_exceptions=True)
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning("Post-publish auto-registration failed: %s", result)
+    await asyncio.gather(
+        *(
+            _run_post_publish_side_effect(side_effect_name, side_effect_task)
+            for side_effect_name, side_effect_task in auto_tasks
+        )
+    )
 
     owners = await load_users_by_subject(db, [published_dpp.owner_subject])
     return _dpp_response_payload(
