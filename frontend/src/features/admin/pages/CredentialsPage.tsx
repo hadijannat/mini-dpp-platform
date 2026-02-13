@@ -122,18 +122,18 @@ export default function CredentialsPage() {
 
   const { data: credentials, isLoading } = useQuery({
     queryKey: ['credentials', slug],
-    queryFn: () => fetchCredentials(token!),
+    queryFn: () => fetchCredentials(token ?? ''),
     enabled: !!token,
   });
 
   const { data: dppsData } = useQuery({
     queryKey: ['published-dpps', slug],
-    queryFn: () => fetchPublishedDPPs(token!),
+    queryFn: () => fetchPublishedDPPs(token ?? ''),
     enabled: !!token && issueOpen,
   });
 
   const issueMutation = useMutation({
-    mutationFn: () => issueCredential(selectedDppId, expirationDays, token!),
+    mutationFn: () => issueCredential(selectedDppId, expirationDays, token ?? ''),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['credentials'] });
       resetIssueForm();
@@ -143,7 +143,7 @@ export default function CredentialsPage() {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (cred: Record<string, unknown>) => verifyCredential(cred, token!),
+    mutationFn: (cred: Record<string, unknown>) => verifyCredential(cred, token ?? ''),
     onSuccess: (result) => {
       setVerifyResult(result);
       setError(null);

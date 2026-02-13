@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -11,6 +13,47 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 _ALLOWED_HREF_SCHEMES = {"http", "https"}
+
+# Hostnames that must never appear in resolver link targets (SSRF protection)
+_BLOCKED_HOSTS = re.compile(
+    r"^("
+    r"localhost"
+    r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|169\.254\.\d{1,3}\.\d{1,3}"
+    r"|0\.0\.0\.0"
+    r"|\[?::1\]?"
+    r"|\[?fe80:.*\]?"
+    r"|\[?f[cd][0-9a-f]{2}:.*\]?"
+    r")$",
+    re.IGNORECASE,
+)
+
+
+def _reject_internal_urls(v: str) -> str:
+    """Reject URLs targeting private/internal addresses (SSRF protection)."""
+    parsed = urlparse(v)
+    host = parsed.hostname
+    if not host:
+        raise ValueError("URL must include a hostname")
+
+    host_clean = host.strip("[]")
+
+    if _BLOCKED_HOSTS.match(host_clean):
+        raise ValueError("Resolver link URLs must not target private or internal addresses")
+
+    try:
+        ip = ipaddress.ip_address(host_clean)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError("Resolver link URLs must not target private or internal addresses")
+    except ValueError as exc:
+        if "private" in str(exc) or "internal" in str(exc):
+            raise
+        # Not an IP literal — that's fine, it's a hostname
+
+    return v
 
 
 class LinkType(str, Enum):
@@ -71,11 +114,11 @@ class ResolverLinkCreate(BaseModel):
 
     @field_validator("href")
     @classmethod
-    def validate_href_scheme(cls, v: str) -> str:
+    def validate_href(cls, v: str) -> str:
         parsed = urlparse(v)
         if parsed.scheme.lower() not in _ALLOWED_HREF_SCHEMES:
             raise ValueError(f"href must use http or https scheme, got '{parsed.scheme}'")
-        return v
+        return _reject_internal_urls(v)
 
 
 class ResolverLinkUpdate(BaseModel):
@@ -90,13 +133,13 @@ class ResolverLinkUpdate(BaseModel):
 
     @field_validator("href")
     @classmethod
-    def validate_href_scheme(cls, v: str | None) -> str | None:
+    def validate_href(cls, v: str | None) -> str | None:
         if v is None:
             return v
         parsed = urlparse(v)
         if parsed.scheme.lower() not in _ALLOWED_HREF_SCHEMES:
             raise ValueError(f"href must use http or https scheme, got '{parsed.scheme}'")
-        return v
+        return _reject_internal_urls(v)
 
 
 class ResolverLinkResponse(BaseModel):

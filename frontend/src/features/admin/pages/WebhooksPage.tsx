@@ -78,7 +78,7 @@ export default function WebhooksPage() {
   const { data: webhooks, isLoading } = useQuery<Webhook[]>({
     queryKey: ['webhooks', slug],
     queryFn: async () => {
-      const res = await tenantApiFetch('/webhooks', {}, token!);
+      const res = await tenantApiFetch('/webhooks', {}, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to load webhooks'));
       return res.json();
     },
@@ -88,7 +88,7 @@ export default function WebhooksPage() {
   const { data: deliveries } = useQuery<Delivery[]>({
     queryKey: ['webhook-deliveries', expandedId],
     queryFn: async () => {
-      const res = await tenantApiFetch(`/webhooks/${expandedId}/deliveries`, {}, token!);
+      const res = await tenantApiFetch(`/webhooks/${expandedId}/deliveries`, {}, token ?? '');
       if (!res.ok) return [];
       return res.json();
     },
@@ -101,7 +101,7 @@ export default function WebhooksPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: newUrl, events: Array.from(newEvents) }),
-      }, token!);
+      }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to create webhook'));
       return res.json();
     },
@@ -117,7 +117,7 @@ export default function WebhooksPage() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await tenantApiFetch(`/webhooks/${id}`, { method: 'DELETE' }, token!);
+      const res = await tenantApiFetch(`/webhooks/${id}`, { method: 'DELETE' }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to delete webhook'));
     },
     onSuccess: () => {
@@ -128,7 +128,7 @@ export default function WebhooksPage() {
 
   const testMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await tenantApiFetch(`/webhooks/${id}/test`, { method: 'POST' }, token!);
+      const res = await tenantApiFetch(`/webhooks/${id}/test`, { method: 'POST' }, token ?? '');
       if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Test failed'));
     },
     onSuccess: () => {

@@ -5,6 +5,9 @@ on:
     - cron: "0 3 * * *"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   dsp-tck:
     name: DSP-TCK Conformance Run
@@ -27,7 +30,7 @@ jobs:
       E2E_EDC_API_KEY: "password"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Start stack with EDC
         run: docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build
@@ -155,7 +158,7 @@ jobs:
 
       - name: Upload conformance artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dataspace-conformance
           path: test-results/dataspace-conformance/

@@ -612,10 +612,26 @@ export default function SubmodelEditorPage() {
     dpp?.status ?? '',
   );
   const fieldErrors = flattenFormErrors(form.formState.errors as Record<string, unknown>);
-  const liveFormValues = form.watch();
+
+  // Debounce form.watch() to avoid re-rendering on every keystroke (FE-002)
+  const [debouncedFormValues, setDebouncedFormValues] = useState(() => form.getValues());
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => {
+    const subscription = form.watch((values) => {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        setDebouncedFormValues({ ...values } as Record<string, unknown>);
+      }, 300);
+    });
+    return () => {
+      clearTimeout(debounceRef.current);
+      subscription.unsubscribe();
+    };
+  }, [form]);
+
   const sectionProgress = useMemo(
-    () => buildSectionProgress(templateDefinition, liveFormValues),
-    [liveFormValues, templateDefinition],
+    () => buildSectionProgress(templateDefinition, debouncedFormValues),
+    [debouncedFormValues, templateDefinition],
   );
   const totalRequiredAcrossSections = sectionProgress.reduce(
     (sum, section) => sum + section.totalRequired,
@@ -633,10 +649,10 @@ export default function SubmodelEditorPage() {
     () =>
       buildSubmodelEditorOutline({
         templateDefinition,
-        formData: liveFormValues,
+        formData: debouncedFormValues,
         fieldErrors,
       }),
-    [fieldErrors, liveFormValues, templateDefinition],
+    [fieldErrors, debouncedFormValues, templateDefinition],
   );
 
   const findOutlineNodeByPath = useCallback(
