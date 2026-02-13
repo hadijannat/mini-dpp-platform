@@ -5,6 +5,7 @@ Supports AASX, JSON, and PDF export with integrity verification.
 
 import io
 import json
+import posixpath
 import zipfile
 from datetime import UTC, datetime
 from typing import Any, Literal, cast
@@ -156,6 +157,7 @@ class ExportService:
         revision: DPPRevision,
         dpp_id: UUID,
         write_json: bool = True,
+        supplementary_files: list[dict[str, Any]] | None = None,
     ) -> bytes:
         """
         Export DPP as AASX package.
@@ -192,6 +194,13 @@ class ExportService:
                 string_io.close()
 
             files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
+            for supplementary in supplementary_files or []:
+                package_path = self._normalize_package_path(supplementary.get("package_path"))
+                file_payload = supplementary.get("payload")
+                content_type = str(supplementary.get("content_type") or "application/octet-stream")
+                if not package_path or not isinstance(file_payload, (bytes, bytearray)):
+                    continue
+                files.add_file(package_path, io.BytesIO(bytes(file_payload)), content_type)
 
             with aasx.AASXWriter(buffer) as writer:
                 core_props = pyecma376_2.OPCCoreProperties()  # type: ignore[attr-defined, no-untyped-call]
@@ -220,6 +229,23 @@ class ExportService:
             raise ValueError("Failed to export AASX: package creation failed") from exc
         finally:
             buffer.close()
+
+    def _normalize_package_path(self, raw_path: Any) -> str | None:
+        if not isinstance(raw_path, str):
+            return None
+        path = raw_path.replace("\\", "/").strip()
+        if not path:
+            return None
+        if not path.startswith("/"):
+            path = f"/{path}"
+        normalized = posixpath.normpath(path)
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        if normalized in {"/", "/."}:
+            return None
+        if not normalized.startswith("/aasx/files/"):
+            return None
+        return normalized
 
     def export_pdf(self, revision: DPPRevision, dpp_id: UUID) -> bytes:
         """

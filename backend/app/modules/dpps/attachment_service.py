@@ -126,6 +126,75 @@ class AttachmentService:
             size_bytes=attachment.size_bytes,
         )
 
+    async def upload_attachment_bytes(
+        self,
+        *,
+        tenant_id: UUID,
+        dpp_id: UUID,
+        filename: str,
+        payload: bytes,
+        created_by_subject: str,
+        requested_content_type: str | None,
+    ) -> AttachmentPayload:
+        """Upload an attachment from in-memory bytes (used by AASX ingestion)."""
+        sanitized_filename = self._sanitize_filename(filename or "attachment.bin")
+        content_type = self._resolve_content_type(
+            requested_content_type=requested_content_type,
+            upload_content_type=None,
+            filename=sanitized_filename,
+        )
+        if not payload:
+            raise ValueError("Attachment is empty")
+        size_bytes = len(payload)
+        if size_bytes > self._settings.attachments_max_upload_bytes:
+            raise ValueError(
+                f"Attachment exceeds max upload size ({self._settings.attachments_max_upload_bytes} bytes)"
+            )
+
+        sha256_hex = hashlib.sha256(payload).hexdigest()
+        attachment_id = uuid4()
+        object_key = f"{tenant_id}/{dpp_id}/{attachment_id}/{sanitized_filename}"
+
+        await self._ensure_bucket()
+        stream = io.BytesIO(payload)
+        await asyncio.to_thread(
+            self._client.put_object,
+            self._bucket,
+            object_key,
+            stream,
+            size_bytes,
+            content_type=content_type,
+            metadata={
+                "tenant_id": str(tenant_id),
+                "dpp_id": str(dpp_id),
+                "sha256": sha256_hex,
+            },
+        )
+
+        attachment = DPPAttachment(
+            id=attachment_id,
+            tenant_id=tenant_id,
+            dpp_id=dpp_id,
+            filename=sanitized_filename,
+            object_key=object_key,
+            content_type=content_type,
+            size_bytes=size_bytes,
+            sha256=sha256_hex,
+            created_by_subject=created_by_subject,
+        )
+        try:
+            self._session.add(attachment)
+            await self._session.flush()
+        except Exception:
+            await asyncio.to_thread(self._client.remove_object, self._bucket, object_key)
+            raise
+
+        return AttachmentPayload(
+            attachment_id=attachment.id,
+            content_type=attachment.content_type,
+            size_bytes=attachment.size_bytes,
+        )
+
     async def get_attachment_metadata(
         self,
         *,

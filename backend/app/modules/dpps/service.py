@@ -58,6 +58,7 @@ from app.modules.data_carriers.profile import (
     parse_data_carrier_compliance_profile,
 )
 from app.modules.dpps.basyx_builder import BasyxDppBuilder
+from app.modules.dpps.canonical_patch import apply_canonical_patch
 from app.modules.dpps.submodel_binding import (
     ResolvedSubmodelBinding,
     resolve_submodel_bindings,
@@ -118,6 +119,12 @@ class DPPService:
                 context=context,
                 warning_count=len(validation.warnings),
             )
+
+    @staticmethod
+    def _revision_manifest(revision: Any, field: str) -> dict[str, Any]:
+        """Return a manifest dict from revision-like objects, defaulting safely for mocks/legacy data."""
+        value = getattr(revision, field, None)
+        return value if isinstance(value, dict) else {}
 
     async def _ensure_user_exists(self, subject: str) -> User:
         """
@@ -377,6 +384,8 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=owner_subject,
             template_provenance=template_provenance,
+            supplementary_manifest={},
+            doc_hints_manifest={},
         )
         self._session.add(revision)
         await self._session.flush()
@@ -398,6 +407,8 @@ class DPPService:
         asset_ids: dict[str, Any],
         aas_env: dict[str, Any],
         required_specific_asset_ids: list[str] | None = None,
+        supplementary_manifest: dict[str, Any] | None = None,
+        doc_hints_manifest: dict[str, Any] | None = None,
     ) -> DPP:
         """
         Create a new DPP from a fully populated AAS environment.
@@ -459,6 +470,8 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=owner_subject,
             template_provenance={},
+            supplementary_manifest=supplementary_manifest or {},
+            doc_hints_manifest=doc_hints_manifest or {},
         )
         self._session.add(revision)
         await self._session.flush()
@@ -1212,23 +1225,7 @@ class DPPService:
         rebuild_from_template: bool = False,
         submodel_id: str | None = None,
     ) -> DPPRevision:
-        """
-        Update a specific submodel within a DPP.
-
-        Creates a new draft revision with the updated submodel data.
-        The previous revision remains unchanged for audit purposes.
-
-        Args:
-            dpp_id: ID of the DPP to update
-            template_key: Key of the submodel template being updated
-            submodel_data: New submodel element values
-            updated_by_subject: OIDC subject of the updating user
-            submodel_id: Optional explicit target submodel ID
-
-        Returns:
-            The newly created revision
-        """
-        # Get current revision
+        """Compatibility updater accepting value-object payloads."""
         current_revision = await self.get_latest_revision(dpp_id, tenant_id)
         if not current_revision:
             raise ValueError(f"DPP {dpp_id} not found")
@@ -1236,19 +1233,190 @@ class DPPService:
         dpp = await self.get_dpp(dpp_id, tenant_id)
         if dpp and dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot update an archived DPP")
-        asset_ids = dpp.asset_ids if dpp else {}
 
-        # Clone current AAS environment
-        aas_env = json.loads(json.dumps(current_revision.aas_env_json))
-        if self._is_legacy_environment(aas_env):
+        base_env = current_revision.aas_env_json
+        if self._is_legacy_environment(base_env):
             raise ValueError(
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
             )
 
-        base_env = current_revision.aas_env_json
+        (
+            template,
+            available_templates,
+            template_lookup,
+            target_submodel_id,
+        ) = await self._resolve_update_target(
+            base_env=base_env,
+            current_revision=current_revision,
+            template_key=template_key,
+            submodel_id=submodel_id,
+        )
 
-        # Find and update the target submodel
-        template = await self._template_service.get_template(template_key)
+        if rebuild_from_template:
+            return await self._update_submodel_via_rebuild(
+                dpp_id=dpp_id,
+                tenant_id=tenant_id,
+                current_revision=current_revision,
+                template_key=template_key,
+                template=template,
+                template_lookup=template_lookup,
+                target_submodel_id=target_submodel_id,
+                submodel_data=submodel_data,
+                updated_by_subject=updated_by_subject,
+                asset_ids=(dpp.asset_ids if dpp else {}),
+            )
+
+        generate_template_contract = getattr(
+            self._template_service, "generate_template_contract", None
+        )
+        if not callable(generate_template_contract):
+            logger.warning(
+                "template_contract_generator_unavailable_fallback",
+                template_key=template_key,
+                dpp_id=str(dpp_id),
+            )
+            return await self._update_submodel_via_rebuild(
+                dpp_id=dpp_id,
+                tenant_id=tenant_id,
+                current_revision=current_revision,
+                template_key=template_key,
+                template=template,
+                template_lookup=template_lookup,
+                target_submodel_id=target_submodel_id,
+                submodel_data=submodel_data,
+                updated_by_subject=updated_by_subject,
+                asset_ids=(dpp.asset_ids if dpp else {}),
+            )
+
+        contract = generate_template_contract(
+            template,
+            template_lookup=template_lookup,
+        )
+        target_submodel = self._find_submodel_json_by_id(base_env, target_submodel_id)
+        if target_submodel is None:
+            raise ValueError(
+                f"submodel_id '{target_submodel_id}' not found in current DPP environment"
+            )
+        current_data = self._extract_submodel_data(target_submodel)
+        operations = self._build_patch_ops_from_form_payload(
+            definition=contract.get("definition", {}),
+            current_data=current_data,
+            incoming_data=submodel_data,
+        )
+        return await self.patch_submodel(
+            dpp_id=dpp_id,
+            tenant_id=tenant_id,
+            template_key=template_key,
+            operations=operations,
+            updated_by_subject=updated_by_subject,
+            submodel_id=target_submodel_id,
+            strict=True,
+            base_revision_id=None,
+            preloaded_contract=contract,
+            preloaded_revision=current_revision,
+            preloaded_templates=available_templates,
+            preloaded_template_lookup=template_lookup,
+        )
+
+    async def patch_submodel(
+        self,
+        *,
+        dpp_id: UUID,
+        tenant_id: UUID,
+        template_key: str,
+        operations: list[dict[str, Any]],
+        updated_by_subject: str,
+        submodel_id: str | None = None,
+        strict: bool = True,
+        base_revision_id: UUID | None = None,
+        preloaded_contract: dict[str, Any] | None = None,
+        preloaded_revision: DPPRevision | None = None,
+        preloaded_templates: list[Template] | None = None,
+        preloaded_template_lookup: dict[str, Template] | None = None,
+    ) -> DPPRevision:
+        """Patch a submodel via canonical operations."""
+        current_revision = preloaded_revision or await self.get_latest_revision(dpp_id, tenant_id)
+        if not current_revision:
+            raise ValueError(f"DPP {dpp_id} not found")
+        if base_revision_id is not None and current_revision.id != base_revision_id:
+            raise ValueError(
+                f"Base revision mismatch: expected {base_revision_id}, latest is {current_revision.id}"
+            )
+
+        dpp = await self.get_dpp(dpp_id, tenant_id)
+        if dpp and dpp.status == DPPStatus.ARCHIVED:
+            raise ValueError("Cannot update an archived DPP")
+
+        base_env = current_revision.aas_env_json
+        if self._is_legacy_environment(base_env):
+            raise ValueError(
+                "Legacy AAS environment detected. Recreate this DPP after updating templates."
+            )
+
+        (
+            template,
+            available_templates,
+            template_lookup,
+            target_submodel_id,
+        ) = await self._resolve_update_target(
+            base_env=base_env,
+            current_revision=current_revision,
+            template_key=template_key,
+            submodel_id=submodel_id,
+            preloaded_templates=preloaded_templates,
+            preloaded_template_lookup=preloaded_template_lookup,
+        )
+
+        contract = preloaded_contract or self._template_service.generate_template_contract(
+            template,
+            template_lookup=template_lookup,
+        )
+        patch_result = apply_canonical_patch(
+            aas_env_json=base_env,
+            submodel_id=target_submodel_id,
+            operations=operations,
+            contract=contract,
+            strict=strict,
+        )
+        aas_env = patch_result.aas_env_json
+        self._assert_conformant_environment(aas_env, context="patch_submodel")
+
+        revision = await self._create_draft_revision(
+            dpp_id=dpp_id,
+            tenant_id=tenant_id,
+            current_revision=current_revision,
+            aas_env=aas_env,
+            updated_by_subject=updated_by_subject,
+            doc_hints_manifest=contract.get("doc_hints"),
+        )
+
+        logger.info(
+            "submodel_patched",
+            dpp_id=str(dpp_id),
+            template_key=template_key,
+            revision_no=revision.revision_no,
+            operation_count=len(operations),
+            strict=strict,
+        )
+
+        await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
+        return revision
+
+    async def _resolve_update_target(
+        self,
+        *,
+        base_env: dict[str, Any],
+        current_revision: DPPRevision,
+        template_key: str,
+        submodel_id: str | None,
+        preloaded_templates: list[Template] | None = None,
+        preloaded_template_lookup: dict[str, Template] | None = None,
+    ) -> tuple[Template, list[Template], dict[str, Template], str]:
+        template = None
+        if preloaded_template_lookup and template_key in preloaded_template_lookup:
+            template = preloaded_template_lookup[template_key]
+        if template is None:
+            template = await self._template_service.get_template(template_key)
         if not template:
             try:
                 template = await self._template_service.refresh_template(template_key)
@@ -1259,21 +1427,23 @@ class DPPService:
                     error=str(exc),
                 )
                 template = None
-
-        if not template:
+        if template is None:
             raise ValueError(f"Template {template_key} not found")
 
-        get_all_templates = getattr(self._template_service, "get_all_templates", None)
-        if callable(get_all_templates):
-            available_templates = await get_all_templates()
-        else:
-            available_templates = [template]
-        template_lookup = {
-            candidate.template_key: candidate
-            for candidate in available_templates
-            if getattr(candidate, "template_key", None)
-        }
+        available_templates = list(preloaded_templates or [])
+        if not available_templates:
+            get_all_templates = getattr(self._template_service, "get_all_templates", None)
+            if callable(get_all_templates):
+                available_templates = await get_all_templates()
+            else:
+                available_templates = [template]
+
+        template_lookup = dict(preloaded_template_lookup or {})
+        for candidate in available_templates:
+            if getattr(candidate, "template_key", None):
+                template_lookup[candidate.template_key] = candidate
         template_lookup[template.template_key] = template
+
         bindings = resolve_submodel_bindings(
             aas_env_json=base_env,
             templates=available_templates,
@@ -1285,10 +1455,10 @@ class DPPService:
                 raise ValueError(
                     f"submodel_id '{submodel_id}' not found in current DPP environment"
                 )
+
         matching_bindings = [
             binding for binding in bindings if binding.template_key == template_key
         ]
-
         target_submodel_id = submodel_id
         if target_submodel_id is not None:
             explicit_match = next(
@@ -1313,10 +1483,27 @@ class DPPService:
             target_submodel_id = matching_bindings[0].submodel_id
         else:
             raise ValueError(f"No submodel in this DPP is bound to template '{template_key}'")
+        if not target_submodel_id:
+            raise ValueError(f"No concrete submodel_id resolved for template '{template_key}'")
+        return template, available_templates, template_lookup, target_submodel_id
 
+    async def _update_submodel_via_rebuild(
+        self,
+        *,
+        dpp_id: UUID,
+        tenant_id: UUID,
+        current_revision: DPPRevision,
+        template_key: str,
+        template: Template,
+        template_lookup: dict[str, Template],
+        target_submodel_id: str,
+        submodel_data: dict[str, Any],
+        updated_by_subject: str,
+        asset_ids: dict[str, Any],
+    ) -> DPPRevision:
+        base_env = current_revision.aas_env_json
         applied_autofix = False
         autofix_stats = SanitizationStats()
-
         try:
             aas_env = self._basyx_builder.update_submodel_environment(
                 aas_env_json=base_env,
@@ -1324,73 +1511,59 @@ class DPPService:
                 template=template,
                 submodel_data=submodel_data,
                 asset_ids=asset_ids,
-                rebuild_from_template=rebuild_from_template,
+                rebuild_from_template=True,
                 submodel_id=target_submodel_id,
                 template_lookup=template_lookup,
             )
         except Exception as exc:
             if not self._is_aasd120_list_idshort_error(exc):
-                logger.error(
-                    "basyx_update_failed",
-                    dpp_id=str(dpp_id),
-                    template_key=template_key,
-                    error=str(exc),
-                )
                 raise ValueError(f"BaSyx update failed: {exc}") from exc
-
             sanitized_env, autofix_stats = sanitize_submodel_list_item_id_shorts(base_env)
             applied_autofix = True
-            logger.warning(
-                "aasd120_autofix_applied",
-                dpp_id=str(dpp_id),
+            aas_env = self._basyx_builder.update_submodel_environment(
+                aas_env_json=sanitized_env,
                 template_key=template_key,
-                revision_no_base=current_revision.revision_no,
-                lists_scanned=autofix_stats.lists_scanned,
-                idshort_removed=autofix_stats.idshort_removed,
+                template=template,
+                submodel_data=submodel_data,
+                asset_ids=asset_ids,
+                rebuild_from_template=True,
+                submodel_id=target_submodel_id,
+                template_lookup=template_lookup,
             )
 
-            try:
-                aas_env = self._basyx_builder.update_submodel_environment(
-                    aas_env_json=sanitized_env,
-                    template_key=template_key,
-                    template=template,
-                    submodel_data=submodel_data,
-                    asset_ids=asset_ids,
-                    rebuild_from_template=rebuild_from_template,
-                    submodel_id=target_submodel_id,
-                    template_lookup=template_lookup,
-                )
-                logger.info(
-                    "aasd120_autofix_retry_success",
-                    dpp_id=str(dpp_id),
-                    template_key=template_key,
-                    revision_no_base=current_revision.revision_no,
-                    lists_scanned=autofix_stats.lists_scanned,
-                    idshort_removed=autofix_stats.idshort_removed,
-                )
-            except Exception as retry_exc:
-                logger.error(
-                    "aasd120_autofix_retry_failed",
-                    dpp_id=str(dpp_id),
-                    template_key=template_key,
-                    revision_no_base=current_revision.revision_no,
-                    lists_scanned=autofix_stats.lists_scanned,
-                    idshort_removed=autofix_stats.idshort_removed,
-                    error=str(retry_exc),
-                )
-                logger.error(
-                    "basyx_update_failed",
-                    dpp_id=str(dpp_id),
-                    template_key=template_key,
-                    error=str(retry_exc),
-                )
-                raise ValueError(f"BaSyx update failed: {retry_exc}") from retry_exc
+        self._assert_conformant_environment(aas_env, context="update_submodel_rebuild")
+        revision = await self._create_draft_revision(
+            dpp_id=dpp_id,
+            tenant_id=tenant_id,
+            current_revision=current_revision,
+            aas_env=aas_env,
+            updated_by_subject=updated_by_subject,
+            doc_hints_manifest=self._revision_manifest(current_revision, "doc_hints_manifest"),
+        )
+        logger.info(
+            "submodel_updated_rebuild",
+            dpp_id=str(dpp_id),
+            template_key=template_key,
+            revision_no=revision.revision_no,
+            applied_autofix=applied_autofix,
+            lists_scanned=autofix_stats.lists_scanned,
+            idshort_removed=autofix_stats.idshort_removed,
+        )
+        await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
+        return revision
 
-        self._assert_conformant_environment(aas_env, context="update_submodel")
-
+    async def _create_draft_revision(
+        self,
+        *,
+        dpp_id: UUID,
+        tenant_id: UUID,
+        current_revision: DPPRevision,
+        aas_env: dict[str, Any],
+        updated_by_subject: str,
+        doc_hints_manifest: dict[str, Any] | None,
+    ) -> DPPRevision:
         digest = self._calculate_digest(aas_env)
         new_revision_no = current_revision.revision_no + 1
-
         revision = DPPRevision(
             tenant_id=tenant_id,
             dpp_id=dpp_id,
@@ -1400,22 +1573,115 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
             template_provenance=current_revision.template_provenance or {},
+            supplementary_manifest=self._revision_manifest(
+                current_revision, "supplementary_manifest"
+            ),
+            doc_hints_manifest=doc_hints_manifest,
         )
         self._session.add(revision)
         await self._session.flush()
-
-        logger.info(
-            "submodel_updated_basyx",
-            dpp_id=str(dpp_id),
-            template_key=template_key,
-            revision_no=new_revision_no,
-            applied_autofix=applied_autofix,
-            lists_scanned=autofix_stats.lists_scanned,
-            idshort_removed=autofix_stats.idshort_removed,
-        )
-
-        await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
         return revision
+
+    def _build_patch_ops_from_form_payload(
+        self,
+        *,
+        definition: dict[str, Any],
+        current_data: dict[str, Any],
+        incoming_data: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        operations: list[dict[str, Any]] = []
+        submodel = definition.get("submodel")
+        if not isinstance(submodel, dict):
+            return operations
+        roots = submodel.get("elements")
+        if not isinstance(roots, list):
+            return operations
+        for node in roots:
+            if not isinstance(node, dict):
+                continue
+            id_short = node.get("idShort")
+            if not isinstance(id_short, str) or id_short not in incoming_data:
+                continue
+            self._build_node_patch_ops(
+                node=node,
+                current_value=current_data.get(id_short),
+                incoming_value=incoming_data.get(id_short),
+                path=id_short,
+                operations=operations,
+            )
+        return operations
+
+    def _build_node_patch_ops(
+        self,
+        *,
+        node: dict[str, Any],
+        current_value: Any,
+        incoming_value: Any,
+        path: str,
+        operations: list[dict[str, Any]],
+    ) -> None:
+        model_type = str(node.get("modelType") or "")
+        if model_type == "SubmodelElementCollection":
+            if not isinstance(incoming_value, dict):
+                return
+            for child in node.get("children", []):
+                if not isinstance(child, dict):
+                    continue
+                child_id_short = child.get("idShort")
+                if not isinstance(child_id_short, str) or child_id_short not in incoming_value:
+                    continue
+                next_current = (
+                    current_value.get(child_id_short) if isinstance(current_value, dict) else None
+                )
+                self._build_node_patch_ops(
+                    node=child,
+                    current_value=next_current,
+                    incoming_value=incoming_value.get(child_id_short),
+                    path=f"{path}/{child_id_short}",
+                    operations=operations,
+                )
+            return
+
+        if model_type == "SubmodelElementList":
+            if not isinstance(incoming_value, list):
+                return
+            current_list = current_value if isinstance(current_value, list) else []
+            item_node = node.get("items") if isinstance(node.get("items"), dict) else None
+            for idx in range(len(current_list) - 1, len(incoming_value) - 1, -1):
+                operations.append({"op": "remove_list_item", "path": path, "index": idx})
+            if item_node:
+                shared = min(len(current_list), len(incoming_value))
+                for idx in range(shared):
+                    self._build_node_patch_ops(
+                        node=item_node,
+                        current_value=current_list[idx],
+                        incoming_value=incoming_value[idx],
+                        path=f"{path}/{idx}",
+                        operations=operations,
+                    )
+            for idx in range(len(current_list), len(incoming_value)):
+                payload = incoming_value[idx]
+                if not isinstance(payload, dict):
+                    payload = {"value": payload}
+                operations.append({"op": "add_list_item", "path": path, "value": payload})
+            return
+
+        if model_type == "MultiLanguageProperty":
+            if incoming_value != current_value and isinstance(incoming_value, dict):
+                operations.append({"op": "set_multilang", "path": path, "value": incoming_value})
+            return
+
+        if model_type in {"File", "Blob"}:
+            if incoming_value != current_value and isinstance(incoming_value, dict):
+                payload = {
+                    "contentType": incoming_value.get("contentType"),
+                    "url": incoming_value.get("value"),
+                }
+                operations.append({"op": "set_file_ref", "path": path, "value": payload})
+            return
+
+        if incoming_value != current_value:
+            operations.append({"op": "set_value", "path": path, "value": incoming_value})
 
     async def refresh_and_rebuild_dpp_submodels(
         self,
@@ -1662,6 +1928,12 @@ class DPPService:
                     digest_sha256=digest,
                     created_by_subject=updated_by_subject,
                     template_provenance=current_revision.template_provenance or {},
+                    supplementary_manifest=self._revision_manifest(
+                        current_revision, "supplementary_manifest"
+                    ),
+                    doc_hints_manifest=self._revision_manifest(
+                        current_revision, "doc_hints_manifest"
+                    ),
                 )
                 self._session.add(revision)
                 await self._session.flush()
@@ -1760,6 +2032,10 @@ class DPPService:
                 signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
                 template_provenance=latest_revision.template_provenance or {},
+                supplementary_manifest=self._revision_manifest(
+                    latest_revision, "supplementary_manifest"
+                ),
+                doc_hints_manifest=self._revision_manifest(latest_revision, "doc_hints_manifest"),
             )
             self._session.add(revision)
             await self._session.flush()
@@ -1870,6 +2146,10 @@ class DPPService:
             digest_sha256=digest,
             created_by_subject=updated_by_subject,
             template_provenance=await self._build_provenance_from_db_templates(templates),
+            supplementary_manifest=self._revision_manifest(
+                current_revision, "supplementary_manifest"
+            ),
+            doc_hints_manifest=self._revision_manifest(current_revision, "doc_hints_manifest"),
         )
         self._session.add(revision)
         await self._session.flush()

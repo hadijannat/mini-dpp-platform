@@ -109,6 +109,7 @@ class TemplateContractResponse(BaseModel):
     source_metadata: TemplateSourceMetadataResponse
     dropin_resolution_report: list[dict[str, Any]] = Field(default_factory=list)
     unsupported_nodes: list[dict[str, Any]] = Field(default_factory=list)
+    doc_hints: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -208,6 +209,7 @@ async def get_template_contract(
         source_metadata=TemplateSourceMetadataResponse(**contract["source_metadata"]),
         dropin_resolution_report=contract.get("dropin_resolution_report", []),
         unsupported_nodes=contract.get("unsupported_nodes", []),
+        doc_hints=contract.get("doc_hints", {}),
     )
 
 

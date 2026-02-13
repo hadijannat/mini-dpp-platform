@@ -1259,6 +1259,7 @@ class TemplateRegistryService:
         schema = DefinitionToSchemaConverter().convert(definition)
         dropin_resolution_report = self._collect_dropin_resolution_report(definition)
         unsupported_nodes = self._collect_unsupported_nodes(definition, schema)
+        doc_hints = self._build_doc_hints(definition=definition, template=template)
         return {
             "template_key": template.template_key,
             "idta_version": template.idta_version,
@@ -1268,6 +1269,7 @@ class TemplateRegistryService:
             "source_metadata": self._source_metadata(template),
             "dropin_resolution_report": dropin_resolution_report,
             "unsupported_nodes": unsupported_nodes,
+            "doc_hints": doc_hints,
         }
 
     def _source_metadata(self, template: Template) -> dict[str, Any]:
@@ -1280,6 +1282,155 @@ class TemplateRegistryService:
             "selection_strategy": template.selection_strategy,
             "source_url": template.source_url,
         }
+
+    def _build_doc_hints(self, *, definition: dict[str, Any], template: Template) -> dict[str, Any]:
+        qualifier_hints = self._collect_qualifier_doc_hints(definition)
+        sidecar_hints = self._extract_sidecar_doc_hints(template)
+        merged_semantic = dict(qualifier_hints["by_semantic_id"])
+        merged_paths = dict(qualifier_hints["by_id_short_path"])
+
+        for key, hint in sidecar_hints["by_semantic_id"].items():
+            existing = merged_semantic.get(key, {})
+            merged_semantic[key] = {
+                **existing,
+                **hint,
+                "source": "sidecar",
+            }
+        for key, hint in sidecar_hints["by_id_short_path"].items():
+            existing = merged_paths.get(key, {})
+            merged_paths[key] = {
+                **existing,
+                **hint,
+                "source": "sidecar",
+            }
+
+        entries: list[dict[str, Any]] = []
+        for key, hint in sorted(merged_semantic.items(), key=lambda item: item[0]):
+            entry = {"match": "semanticId", "match_key": key, **hint}
+            entries.append(entry)
+        for key, hint in sorted(merged_paths.items(), key=lambda item: item[0]):
+            entry = {"match": "idShortPath", "match_key": key, **hint}
+            entries.append(entry)
+
+        return {
+            "by_semantic_id": merged_semantic,
+            "by_id_short_path": merged_paths,
+            "entries": entries,
+        }
+
+    def _collect_qualifier_doc_hints(self, definition: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        submodel = definition.get("submodel")
+        if not isinstance(submodel, dict):
+            return {"by_semantic_id": {}, "by_id_short_path": {}}
+        root_id_short = str(submodel.get("idShort") or "").strip()
+        roots = submodel.get("elements")
+        if not isinstance(roots, list):
+            return {"by_semantic_id": {}, "by_id_short_path": {}}
+
+        by_semantic: dict[str, dict[str, Any]] = {}
+        by_path: dict[str, dict[str, Any]] = {}
+
+        def relative_path(raw_path: str | None) -> str | None:
+            if not raw_path:
+                return None
+            path = raw_path.strip().strip("/")
+            if not path:
+                return None
+            if root_id_short and path.startswith(f"{root_id_short}/"):
+                path = path[len(root_id_short) + 1 :]
+            elif path == root_id_short:
+                path = ""
+            return path or None
+
+        def visit(node: dict[str, Any]) -> None:
+            smt = node.get("smt")
+            if not isinstance(smt, dict):
+                smt = {}
+            semantic_id = str(node.get("semanticId") or "").strip()
+            semantic_key = semantic_id.rstrip("/").lower() if semantic_id else ""
+            path_key = relative_path(str(node.get("path") or "").strip())
+            hint = {
+                "semanticId": semantic_id or None,
+                "idShortPath": path_key,
+                "formTitle": smt.get("form_title"),
+                "formInfo": smt.get("form_info"),
+                "formUrl": smt.get("form_url"),
+                "source": "qualifier",
+            }
+            if semantic_key and any(
+                hint.get(name) for name in ("formTitle", "formInfo", "formUrl")
+            ):
+                by_semantic[semantic_key] = hint
+            if path_key and any(hint.get(name) for name in ("formTitle", "formInfo", "formUrl")):
+                by_path[path_key] = hint
+
+            for key in ("children", "statements", "annotations"):
+                children = node.get(key)
+                if isinstance(children, list):
+                    for child in children:
+                        if isinstance(child, dict):
+                            visit(child)
+            list_item = node.get("items")
+            if isinstance(list_item, dict):
+                visit(list_item)
+
+        for root in roots:
+            if isinstance(root, dict):
+                visit(root)
+
+        return {"by_semantic_id": by_semantic, "by_id_short_path": by_path}
+
+    def _extract_sidecar_doc_hints(self, template: Template) -> dict[str, dict[str, Any]]:
+        empty: dict[str, dict[str, Any]] = {"by_semantic_id": {}, "by_id_short_path": {}}
+        if not template.template_aasx:
+            return empty
+        try:
+            with zipfile.ZipFile(io.BytesIO(template.template_aasx), "r") as zf:
+                candidate = next(
+                    (
+                        name
+                        for name in sorted(zf.namelist())
+                        if name.replace("\\", "/") == "aasx/files/ui-hints.json"
+                        or name.replace("\\", "/").endswith("/ui-hints.json")
+                    ),
+                    None,
+                )
+                if candidate is None:
+                    return empty
+                raw = zf.read(candidate)
+        except Exception:
+            return empty
+
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception:
+            return empty
+
+        mappings = payload.get("mappings")
+        if not isinstance(mappings, dict):
+            return empty
+
+        by_semantic: dict[str, dict[str, Any]] = {}
+        by_path: dict[str, dict[str, Any]] = {}
+        for _, mapping in sorted(mappings.items(), key=lambda item: str(item[0])):
+            if not isinstance(mapping, dict):
+                continue
+            semantic_id = str(mapping.get("semanticId") or "").strip()
+            semantic_key = semantic_id.rstrip("/").lower() if semantic_id else ""
+            id_short_path = str(mapping.get("idShortPath") or "").strip().strip("/")
+            entry = {
+                "semanticId": semantic_id or None,
+                "idShortPath": id_short_path or None,
+                "helpText": mapping.get("helpText"),
+                "formUrl": mapping.get("formUrl"),
+                "pdfRef": mapping.get("pdfRef"),
+                "page": mapping.get("page"),
+            }
+            if semantic_key:
+                by_semantic[semantic_key] = entry
+            if id_short_path:
+                by_path[id_short_path] = entry
+        return {"by_semantic_id": by_semantic, "by_id_short_path": by_path}
 
     def _collect_dropin_resolution_report(self, definition: dict[str, Any]) -> list[dict[str, Any]]:
         report: list[dict[str, Any]] = []

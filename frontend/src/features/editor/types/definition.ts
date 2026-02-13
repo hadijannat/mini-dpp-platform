@@ -108,6 +108,11 @@ export type TemplateContractResponse = {
     semanticId?: string | null;
     reasons?: string[];
   }>;
+  doc_hints?: {
+    by_semantic_id?: Record<string, Record<string, unknown>>;
+    by_id_short_path?: Record<string, Record<string, unknown>>;
+    entries?: Array<Record<string, unknown>>;
+  };
 };
 
 export type FormData = Record<string, unknown>;
