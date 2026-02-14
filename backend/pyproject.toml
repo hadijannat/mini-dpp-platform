@@ -63,6 +63,7 @@ dependencies = [
 
     # PDF Export
     "fpdf2>=2.7.8",
+    "pypdf>=5.1.0",
 
     # Cryptographic Audit Trail
     "asn1crypto>=1.5.0",
