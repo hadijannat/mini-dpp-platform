@@ -1,0 +1,37 @@
+name: Regulatory Timeline Refresh
+
+on:
+  schedule:
+    - cron: "10 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh-public-timeline:
+    name: Refresh public regulatory timeline cache
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Warm all timeline tracks
+        run: |
+          mkdir -p artifacts
+          curl --fail --retry 5 --retry-all-errors --retry-delay 3 \
+            --silent --show-error \
+            "https://dpp-platform.dev/api/v1/public/landing/regulatory-timeline" \
+            -o artifacts/regulatory-timeline-all.json
+
+      - name: Warm standards timeline track
+        run: |
+          curl --fail --retry 5 --retry-all-errors --retry-delay 3 \
+            --silent --show-error \
+            "https://dpp-platform.dev/api/v1/public/landing/regulatory-timeline?track=standards" \
+            -o artifacts/regulatory-timeline-standards.json
+
+      - name: Upload refresh artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: regulatory-timeline-refresh
+          path: artifacts/

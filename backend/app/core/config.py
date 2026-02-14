@@ -120,6 +120,35 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # Public Regulatory Timeline
+    # ==========================================================================
+    regulatory_timeline_refresh_ttl_seconds: int = Field(
+        default=82_800,
+        ge=300,
+        description="Staleness threshold for regulatory timeline snapshots in seconds",
+    )
+    regulatory_timeline_cache_control_fresh: str = Field(
+        default="public, max-age=300, stale-while-revalidate=3600",
+        description="Cache-Control header for fresh regulatory timeline responses",
+    )
+    regulatory_timeline_cache_control_stale: str = Field(
+        default="public, max-age=60, stale-while-revalidate=3600",
+        description="Cache-Control header for stale regulatory timeline responses",
+    )
+    regulatory_timeline_source_timeout_seconds: int = Field(
+        default=15,
+        ge=3,
+        le=60,
+        description="HTTP timeout used when fetching official timeline sources",
+    )
+    regulatory_timeline_verify_max_age_days: int = Field(
+        default=7,
+        ge=1,
+        le=30,
+        description="Maximum age in days for timeline verification freshness badge",
+    )
+
+    # ==========================================================================
     # Keycloak / OIDC Configuration
     # ==========================================================================
     keycloak_server_url: str = Field(default="http://localhost:8080")

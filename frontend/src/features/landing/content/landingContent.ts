@@ -109,6 +109,7 @@ export interface FooterLink {
 export const landingContent = {
   navigation: [
     { label: 'Demo', href: '#sample-passport' },
+    { label: 'Timeline', href: '#timeline' },
     { label: 'CIRPASS Lab', href: '#cirpass-lab' },
     { label: 'How it works', href: '#workflow' },
     { label: 'Standards', href: '#standards' },

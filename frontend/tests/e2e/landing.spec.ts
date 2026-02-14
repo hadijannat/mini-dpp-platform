@@ -50,11 +50,122 @@ test.describe('Landing page', () => {
     await page
       .getByRole('heading', { name: /What is public vs what stays protected/i })
       .scrollIntoViewIfNeeded();
+    const metricsSection = page.locator('#metrics');
+    await metricsSection.scrollIntoViewIfNeeded();
 
-    const metrics = page.getByTestId('landing-metrics-success');
-    await expect(metrics).toBeVisible();
-    await expect(metrics.getByText('SN-LEAK')).toHaveCount(0);
     await expect(page.getByText('Published DPPs')).toBeVisible();
+    await expect(metricsSection.getByText('SN-LEAK')).toHaveCount(0);
+    await expect(metricsSection.getByText('serialNumber')).toHaveCount(0);
+  });
+
+  test('timeline shows verified badges, supports filters, and opens source details', async ({
+    page,
+  }) => {
+    await page.route(/\/api\/v1\/public\/landing\/regulatory-timeline(?:\?.*)?$/, async (route) => {
+      const track = new URL(route.request().url()).searchParams.get('track');
+      const allEvents = [
+        {
+          id: 'espr-entry-into-force',
+          date: '2024-07-18',
+          date_precision: 'day',
+          track: 'regulation',
+          title: 'ESPR entered into force',
+          plain_summary: 'Regulation baseline.',
+          audience_tags: ['brands'],
+          status: 'past',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'European Commission — ESPR',
+              url: 'https://commission.europa.eu',
+              publisher: 'European Commission',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'a'.repeat(64),
+            },
+          ],
+        },
+        {
+          id: 'cencenelec-workshop',
+          date: '2024-06-24',
+          date_precision: 'day',
+          track: 'standards',
+          title: 'CEN workshop on DPP design guidelines launched',
+          plain_summary: 'Standards workshop milestone.',
+          audience_tags: ['standards'],
+          status: 'past',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'CEN-CENELEC Workshop Announcement',
+              url: 'https://www.cencenelec.eu',
+              publisher: 'CEN-CENELEC',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'b'.repeat(64),
+            },
+          ],
+        },
+        {
+          id: 'battery-passport',
+          date: '2027-02-18',
+          date_precision: 'day',
+          track: 'regulation',
+          title: 'Battery passport requirement begins',
+          plain_summary: 'Upcoming battery milestone.',
+          audience_tags: ['battery-manufacturers'],
+          status: 'upcoming',
+          verified: false,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'source-hash',
+            confidence: 'medium',
+          },
+          sources: [],
+        },
+      ];
+      const events =
+        track === 'regulation'
+          ? allEvents.filter((event) => event.track === 'regulation')
+          : track === 'standards'
+            ? allEvents.filter((event) => event.track === 'standards')
+            : allEvents;
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generated_at: '2026-02-10T12:00:00Z',
+          fetched_at: '2026-02-10T12:00:00Z',
+          source_status: 'fresh',
+          refresh_sla_seconds: 82800,
+          digest_sha256: 'c'.repeat(64),
+          events,
+        }),
+      });
+    });
+
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: /Verified DPP Timeline/i })).toBeVisible();
+    await expect(page.getByTestId('timeline-card-espr-entry-into-force')).toBeVisible();
+    await expect(page.getByTestId('timeline-card-battery-passport')).toBeVisible();
+    await expect(page.getByText('Verified').first()).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Standards' }).click();
+    await expect(page.getByTestId('timeline-card-cencenelec-workshop')).toBeVisible();
+
+    await page.getByTestId('timeline-card-cencenelec-workshop').click();
+    await expect(page.getByText('Official citations')).toBeVisible();
+    await expect(page.getByRole('link', { name: /CEN-CENELEC Workshop Announcement/i })).toBeVisible();
   });
 
   test('mobile menu reveals navigation and auth actions', async ({ page }) => {
@@ -63,7 +174,7 @@ test.describe('Landing page', () => {
 
     await page.getByRole('button', { name: /open menu/i }).click();
 
-    await expect(page.getByRole('link', { name: 'Demo' })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Demo$/ })).toBeVisible();
     await expect(page.getByRole('link', { name: 'FAQ' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Standards' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Sign in' })).toBeVisible();
@@ -101,6 +212,11 @@ test.describe('Landing page', () => {
 
   test('includes software JSON-LD blocks in page source', async ({ page }) => {
     await page.goto('/');
+    await expect(
+      page.getByRole('heading', {
+        name: /Digital Product Passport Platform for ESPR-ready product data/i,
+      }),
+    ).toBeVisible();
     const html = await page.content();
     expect(html).toContain('"@type":"SoftwareApplication"');
     expect(html).toContain('"@type":"Organization"');
