@@ -43,4 +43,12 @@ describe('HeroSection', () => {
       'Digital Product Passport Platform for ESPR-ready product data',
     );
   });
+
+  it('renders the compact AAS shell model in hero preview', () => {
+    render(<HeroSection />);
+
+    expect(screen.getByRole('heading', { level: 2 }).textContent).toContain(
+      'Asset Administration Shell (IEC 63278)',
+    );
+  });
 });
