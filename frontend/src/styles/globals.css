@@ -149,13 +149,12 @@
 
   .landing-aas-shell {
     position: relative;
-    overflow: hidden;
     border-radius: 1.2rem;
     border: 1px solid hsl(var(--landing-ink) / 0.12);
     background:
       radial-gradient(
-        360px 180px at 25% 18%,
-        hsl(var(--landing-accent-cyan) / 0.12),
+        420px 220px at 20% 10%,
+        hsl(var(--landing-accent-cyan) / 0.1),
         transparent 75%
       ),
       linear-gradient(
@@ -166,20 +165,17 @@
     padding: 0.85rem;
   }
 
-  .landing-aas-shell-arch {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    height: 100%;
-    width: 100%;
-    opacity: 0.9;
-  }
-
-  .landing-dpp-tab-vertical {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    line-height: 1.1;
-    letter-spacing: 0.015em;
+  .landing-aas-shell-cap {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid hsl(var(--landing-accent-cyan) / 0.35);
+    background: hsl(var(--landing-accent-cyan) / 0.09);
+    padding: 0.28rem 0.7rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: hsl(var(--landing-muted));
   }
 
   .landing-dpp-lane-box {

@@ -73,9 +73,9 @@ function SubmodelContent({ node, audienceMode }: { node: DppModelNode; audienceM
   const templateValue = node.templateKey ?? 'recyclability-extension';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-display text-2xl font-semibold text-landing-ink">{node.label}</h3>
+        <h3 className="font-display text-xl font-semibold text-landing-ink">{node.label}</h3>
         <AccessBadge accessTier={node.accessTier} />
       </div>
 
@@ -214,71 +214,48 @@ export default function DppCompactModel() {
         </div>
 
         <div className="landing-aas-shell mt-4">
-          <svg
-            viewBox="0 0 720 300"
-            className="landing-aas-shell-arch"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path
-              d="M48 24H652L688 58V246H602V164C602 152 592 142 580 142H140C128 142 118 152 118 164V246H32V58L48 24Z"
-              fill="hsl(var(--landing-accent-cyan))"
-              fillOpacity="0.18"
-              stroke="hsl(var(--landing-accent-cyan))"
-              strokeOpacity="0.45"
-              strokeWidth="2"
-            />
-          </svg>
+          <div className="landing-aas-shell-cap">AAS shell with modular DPP submodels</div>
 
           <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel} className="relative z-10">
-            <div className="grid gap-4 md:grid-cols-[74px_1fr]">
-              <div className="space-y-3">
-                <TabsList className="flex h-auto w-full justify-start gap-1.5 overflow-x-auto bg-transparent p-0 md:flex-col md:overflow-visible">
-                  {dppModelNodes.map((node) => (
-                    <Tooltip key={node.id}>
-                      <TooltipTrigger asChild>
-                        <TabsTrigger
-                          value={node.id}
-                          className={cn(
-                            'landing-dpp-tab min-h-9 shrink-0 rounded-xl border border-landing-ink/15 bg-white/90 px-2 py-1.5 text-xs font-semibold text-landing-ink shadow-none data-[state=active]:border-landing-cyan/55 data-[state=active]:bg-landing-cyan/15 md:h-[118px] md:w-[64px] md:px-1.5',
-                            node.lane === 'extension' &&
-                              'data-[state=active]:border-landing-amber/55 data-[state=active]:bg-landing-amber/15',
-                          )}
-                        >
-                          <span className="md:hidden">{node.tabLabel}</span>
-                          <span className="hidden md:block landing-dpp-tab-vertical">{node.tabLabel}</span>
-                        </TabsTrigger>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[300px] border-landing-ink/15 bg-white text-xs text-landing-muted">
-                        <p className="font-semibold text-landing-ink">{node.label}</p>
-                        <p className="mt-1">{node.descriptionPublic}</p>
-                        <p className="mt-1">{node.whoUsesItPublic}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  ))}
-                </TabsList>
-
-                <div className="grid gap-2 md:hidden">
-                  <div className="landing-dpp-lane-box landing-dpp-lane-core">
-                    Core DPP templates according ESPR
-                  </div>
-                  <div className="landing-dpp-lane-box landing-dpp-lane-extension">
-                    Extension templates by business policy
-                  </div>
+            <div className="space-y-3">
+              <div className="grid gap-2 lg:grid-cols-[1.8fr_1fr]">
+                <div className="landing-dpp-lane-box landing-dpp-lane-core">
+                  Submodels including DPP information according ESPR
+                </div>
+                <div className="landing-dpp-lane-box landing-dpp-lane-extension">
+                  Submodels for digital services based on business policy
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="hidden gap-2 md:grid md:grid-cols-2">
-                  <div className="landing-dpp-lane-box landing-dpp-lane-core">
-                    Submodels including DPP information according ESPR
-                  </div>
-                  <div className="landing-dpp-lane-box landing-dpp-lane-extension">
-                    Submodels for digital services based on business policy
-                  </div>
-                </div>
+              <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 sm:grid-cols-3">
+                {dppModelNodes.map((node) => (
+                  <Tooltip key={node.id}>
+                    <TooltipTrigger asChild>
+                      <TabsTrigger
+                        value={node.id}
+                        className={cn(
+                          'h-auto min-h-[56px] w-full rounded-xl border border-landing-ink/14 bg-white/92 px-3 py-2 text-left text-landing-ink shadow-none data-[state=active]:border-landing-cyan/55 data-[state=active]:bg-landing-cyan/14 data-[state=active]:text-landing-ink',
+                          node.lane === 'extension' &&
+                            'sm:col-span-3 data-[state=active]:border-landing-amber/60 data-[state=active]:bg-landing-amber/14',
+                        )}
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-[0.09em] text-landing-muted">
+                          {node.lane === 'core' ? 'Core template' : 'Extension lane'}
+                        </span>
+                        <span className="mt-0.5 block text-sm font-semibold leading-tight">{node.label}</span>
+                      </TabsTrigger>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[300px] border-landing-ink/15 bg-white text-xs text-landing-muted">
+                      <p className="font-semibold text-landing-ink">{node.label}</p>
+                      <p className="mt-1">{node.descriptionPublic}</p>
+                      <p className="mt-1">{node.whoUsesItPublic}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </TabsList>
 
-                <div className="rounded-2xl border border-landing-ink/12 bg-white/90 p-4 shadow-[0_20px_44px_-34px_rgba(10,33,45,0.72)]">
+              <div className="rounded-2xl border border-landing-ink/12 bg-white/92 p-4 shadow-[0_20px_44px_-34px_rgba(10,33,45,0.72)]">
+                <div className="max-h-[360px] overflow-y-auto pr-1">
                   {dppModelNodes.map((node) => (
                     <TabsContent key={node.id} value={node.id} className="mt-0">
                       <SubmodelContent node={node} audienceMode={audienceMode} />
