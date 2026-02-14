@@ -99,12 +99,17 @@ class RegulatoryTimelineService:
 
         if snapshot is None:
             try:
-                return await self.refresh_timeline(track=track)
+                async with _refresh_lock:
+                    snapshot = await self._load_latest_snapshot()
+                    if snapshot is None:
+                        snapshot = await self._bootstrap_timeline_snapshot()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("regulatory_timeline_initial_refresh_failed", error=str(exc))
                 raise RegulatoryTimelineUnavailableError(
                     "Regulatory timeline is temporarily unavailable. Please retry shortly."
                 ) from exc
+            schedule_regulatory_timeline_refresh()
+            return self._snapshot_to_response(snapshot, track=track, source_status="stale")
 
         source_status: RegulatoryTimelineSourceStatus = "fresh"
         if self._is_snapshot_stale(snapshot):
@@ -127,16 +132,8 @@ class RegulatoryTimelineService:
         )
 
         async with _refresh_lock:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
                 verified_events = await self._build_verified_events(seed_events, client=client)
-
-            canonical_payload = json.dumps(
-                {"events": verified_events},
-                sort_keys=True,
-                separators=(",", ":"),
-                ensure_ascii=False,
-            )
-            digest_sha256 = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
 
             fetched_at = datetime.now(UTC)
             expires_at = fetched_at + timedelta(
@@ -144,7 +141,7 @@ class RegulatoryTimelineService:
             )
             snapshot = await self._upsert_snapshot(
                 events_json={"events": verified_events},
-                digest_sha256=digest_sha256,
+                digest_sha256=self._events_digest(verified_events),
                 fetched_at=fetched_at,
                 expires_at=expires_at,
             )
@@ -158,18 +155,105 @@ class RegulatoryTimelineService:
         client: httpx.AsyncClient,
     ) -> list[dict[str, Any]]:
         verified_events: list[dict[str, Any]] = []
+        verify_tasks = [self._verify_event(event, client=client) for event in seed_events]
+        verify_results = await asyncio.gather(*verify_tasks, return_exceptions=True)
 
-        for event in seed_events:
-            try:
-                verified = await self._verify_event(event, client=client)
-            except RegulatoryTimelineValidationError:
-                raise
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("regulatory_timeline_event_verification_failed", error=str(exc))
+        for event, verify_result in zip(seed_events, verify_results, strict=False):
+            if isinstance(verify_result, RegulatoryTimelineValidationError):
+                raise verify_result
+
+            if isinstance(verify_result, Exception):
+                logger.warning(
+                    "regulatory_timeline_event_verification_failed",
+                    event_id=str(event.get("id", "unknown")),
+                    error=str(verify_result),
+                )
                 continue
-            verified_events.append(verified)
+
+            verified_events.append(cast(dict[str, Any], verify_result))
 
         return verified_events
+
+    async def _bootstrap_timeline_snapshot(self) -> RegulatoryTimelineSnapshot:
+        """Insert a non-blocking seed-based snapshot while background verification runs."""
+        seed_events = self._load_seed_events()
+        fallback_events = self._build_bootstrap_events(seed_events)
+        fetched_at = datetime.now(UTC)
+        # Expire immediately so the first request schedules async refresh.
+        expires_at = fetched_at
+        return await self._upsert_snapshot(
+            events_json={"events": fallback_events},
+            digest_sha256=self._events_digest(fallback_events),
+            fetched_at=fetched_at,
+            expires_at=expires_at,
+        )
+
+    def _build_bootstrap_events(self, seed_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        checked_at = iso_now()
+        bootstrap_events: list[dict[str, Any]] = []
+
+        for raw_event in seed_events:
+            track_raw = str(raw_event.get("track", "")).strip().lower()
+            if track_raw not in {"regulation", "standards"}:
+                raise RegulatoryTimelineValidationError(
+                    "Event track must be regulation or standards"
+                )
+
+            date_precision_raw = str(raw_event.get("date_precision", "day")).strip().lower()
+            if date_precision_raw not in {"day", "month"}:
+                raise RegulatoryTimelineValidationError("date_precision must be day or month")
+
+            event_id = str(raw_event.get("id", "")).strip()
+            title = str(raw_event.get("title", "")).strip()
+            date_value = str(raw_event.get("date", "")).strip()
+            if not event_id or not title or not date_value:
+                raise RegulatoryTimelineValidationError(
+                    "Seed events require id, title, and date for bootstrap"
+                )
+
+            source_refs_raw = raw_event.get("source_refs")
+            if not isinstance(source_refs_raw, list):
+                source_refs_raw = []
+
+            sources_payload: list[dict[str, Any]] = []
+            for source_ref in source_refs_raw:
+                if not isinstance(source_ref, dict):
+                    continue
+
+                sources_payload.append(
+                    {
+                        "label": str(source_ref.get("label", "")).strip() or "Official source",
+                        "url": str(source_ref.get("url", "")).strip(),
+                        "publisher": str(source_ref.get("publisher", "")).strip()
+                        or "Official publisher",
+                        "retrieved_at": checked_at,
+                        "sha256": None,
+                    }
+                )
+
+            bootstrap_events.append(
+                {
+                    "id": event_id,
+                    "date": date_value,
+                    "date_precision": date_precision_raw,
+                    "track": cast(RegulatoryTimelineTrack, track_raw),
+                    "title": title,
+                    "plain_summary": str(raw_event.get("plain_summary", "")).strip() or title,
+                    "audience_tags": self._coerce_string_list(raw_event.get("audience_tags")),
+                    "verified": False,
+                    "verification": {
+                        "checked_at": checked_at,
+                        "method": "manual",
+                        "confidence": "low",
+                    },
+                    "sources": sources_payload,
+                }
+            )
+
+        if not bootstrap_events:
+            raise RegulatoryTimelineValidationError("Timeline seed file has no valid events")
+
+        return bootstrap_events
 
     async def _verify_event(
         self,
@@ -227,7 +311,11 @@ class RegulatoryTimelineService:
 
             try:
                 self._assert_source_allowed(url=url, track=track)
-                body_text, sha256_hex, retrieved_at = await self._fetch_source_text(client, url=url)
+                body_text, sha256_hex, retrieved_at = await self._fetch_source_text(
+                    client,
+                    url=url,
+                    track=track,
+                )
                 fetched_any = True
                 matched = self._match_patterns(body_text, effective_patterns)
                 if matched:
@@ -275,12 +363,40 @@ class RegulatoryTimelineService:
         client: httpx.AsyncClient,
         *,
         url: str,
+        track: RegulatoryTimelineTrack,
     ) -> tuple[str, str, str]:
-        response = await client.get(url)
+        current_url = url
+
+        for _ in range(4):
+            self._assert_source_allowed(url=current_url, track=track)
+            response = await client.get(current_url)
+            if response.is_redirect:
+                location = response.headers.get("location")
+                if not location:
+                    raise RegulatoryTimelineValidationError(
+                        f"Redirect without location header: {current_url}"
+                    )
+                current_url = str(response.url.join(location))
+                continue
+
+            break
+        else:
+            raise RegulatoryTimelineValidationError(f"Too many redirects fetching {url}")
+
         response.raise_for_status()
         retrieved_at = iso_now()
         digest_sha256 = hashlib.sha256(response.content).hexdigest()
         return response.text, digest_sha256, retrieved_at
+
+    @staticmethod
+    def _events_digest(events: list[dict[str, Any]]) -> str:
+        canonical_payload = json.dumps(
+            {"events": events},
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        return hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
 
     async def _upsert_snapshot(
         self,
@@ -347,7 +463,9 @@ class RegulatoryTimelineService:
 
         filtered_events.sort(key=self._event_sort_key)
 
-        validated_events = [RegulatoryTimelineEvent.model_validate(event) for event in filtered_events]
+        validated_events = [
+            RegulatoryTimelineEvent.model_validate(event) for event in filtered_events
+        ]
 
         fetched_at = snapshot.fetched_at
         if fetched_at.tzinfo is None:
@@ -477,7 +595,9 @@ class RegulatoryTimelineService:
         if parsed.scheme not in {"https", "http"}:
             raise RegulatoryTimelineValidationError(f"Unsupported source URL scheme: {url}")
 
-        allowed_hosts = _REGULATION_ALLOWED_HOSTS if track == "regulation" else _STANDARDS_ALLOWED_HOSTS
+        allowed_hosts = (
+            _REGULATION_ALLOWED_HOSTS if track == "regulation" else _STANDARDS_ALLOWED_HOSTS
+        )
         if host not in allowed_hosts:
             raise RegulatoryTimelineValidationError(f"Source host is not allowlisted: {url}")
 

@@ -2625,9 +2625,7 @@ class RegulatoryTimelineSnapshot(Base):
         nullable=False,
     )
 
-    __table_args__ = (
-        Index("ix_regulatory_timeline_snapshot_fetched_at", "fetched_at"),
-    )
+    __table_args__ = (Index("ix_regulatory_timeline_snapshot_fetched_at", "fetched_at"),)
 
 
 # =============================================================================

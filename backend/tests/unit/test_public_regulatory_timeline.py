@@ -176,6 +176,97 @@ async def test_stale_snapshot_schedules_single_refresh() -> None:
 
 
 @pytest.mark.asyncio
+async def test_initial_bootstrap_returns_stale_and_schedules_refresh() -> None:
+    fake_db = _FakeSession([])
+    service = RegulatoryTimelineService(fake_db)  # type: ignore[arg-type]
+
+    counter = {"runs": 0}
+
+    async def fake_background_refresh() -> None:
+        counter["runs"] += 1
+        await asyncio.sleep(0.05)
+
+    regulatory_timeline_service_module._refresh_task = None
+    original_refresh = regulatory_timeline_service_module._refresh_in_background
+    regulatory_timeline_service_module._refresh_in_background = fake_background_refresh
+
+    try:
+        response = await service.get_latest_timeline(track="all")
+        assert response.source_status == "stale"
+        assert len(response.events) > 0
+        assert len(fake_db.snapshots) == 1
+
+        await asyncio.sleep(0.08)
+        assert counter["runs"] == 1
+    finally:
+        regulatory_timeline_service_module._refresh_in_background = original_refresh
+        task = regulatory_timeline_service_module._refresh_task
+        if task is not None and not task.done():
+            await task
+        regulatory_timeline_service_module._refresh_task = None
+
+
+@pytest.mark.asyncio
+async def test_verify_event_sets_content_match_and_source_hash_confidence() -> None:
+    service = RegulatoryTimelineService(_FakeSession())  # type: ignore[arg-type]
+
+    event = {
+        "id": "espr-entry-into-force",
+        "date": "2024-07-18",
+        "date_precision": "day",
+        "track": "regulation",
+        "title": "ESPR entered into force",
+        "plain_summary": "Summary",
+        "audience_tags": ["brands"],
+        "expected_patterns": ["entered into force"],
+        "source_refs": [
+            {
+                "label": "Commission",
+                "url": "https://commission.europa.eu/example",
+                "publisher": "European Commission",
+            }
+        ],
+    }
+
+    checked_at = datetime.now(UTC).isoformat()
+    service._fetch_source_text = AsyncMock(  # type: ignore[method-assign]
+        return_value=("Regulation entered into force on 18 July 2024", "a" * 64, checked_at)
+    )
+    matched = await service._verify_event(event, client=AsyncMock())  # type: ignore[arg-type]
+    assert matched["verified"] is True
+    assert matched["verification"]["method"] == "content-match"
+    assert matched["verification"]["confidence"] == "high"
+
+    service._fetch_source_text = AsyncMock(  # type: ignore[method-assign]
+        return_value=("No expected phrase here", "b" * 64, checked_at)
+    )
+    unmatched = await service._verify_event(event, client=AsyncMock())  # type: ignore[arg-type]
+    assert unmatched["verified"] is False
+    assert unmatched["verification"]["method"] == "source-hash"
+    assert unmatched["verification"]["confidence"] == "medium"
+
+
+@pytest.mark.asyncio
+async def test_stale_verification_downgrades_verified_badge() -> None:
+    snapshot = _snapshot(stale=False)
+    old_checked_at = (datetime.now(UTC) - timedelta(days=45)).isoformat()
+    events = snapshot.events_json.get("events")
+    assert isinstance(events, list)
+    first_event = events[0]
+    assert isinstance(first_event, dict)
+    verification = first_event.get("verification")
+    assert isinstance(verification, dict)
+    verification["checked_at"] = old_checked_at
+
+    fake_db = _FakeSession([snapshot])
+    service = RegulatoryTimelineService(fake_db)  # type: ignore[arg-type]
+    response = await service.get_latest_timeline(track="regulation")
+    assert len(response.events) == 1
+    assert response.events[0].verified is False
+    assert response.events[0].verification.confidence == "low"
+
+
+@pytest.mark.asyncio
 async def test_public_route_sets_cache_etag_and_server_timing(_app: FastAPI) -> None:
     payload = RegulatoryTimelineResponse(
         generated_at="2026-02-14T00:00:00+00:00",
@@ -204,7 +295,9 @@ async def test_public_route_sets_cache_etag_and_server_timing(_app: FastAPI) -> 
             response = await client.get("/public/landing/regulatory-timeline")
 
         assert response.status_code == 200
-        assert response.headers["cache-control"] == "public, max-age=300, stale-while-revalidate=3600"
+        assert (
+            response.headers["cache-control"] == "public, max-age=300, stale-while-revalidate=3600"
+        )
         assert response.headers["etag"] == f'"{"d" * 64}"'
         assert "regulatory_timeline;dur=" in response.headers["server-timing"]
         body = response.json()
@@ -264,7 +357,9 @@ async def test_public_route_returns_304_on_if_none_match(_app: FastAPI) -> None:
             )
 
         assert response.status_code == 304
-        assert response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=3600"
+        assert (
+            response.headers["cache-control"] == "public, max-age=60, stale-while-revalidate=3600"
+        )
         assert response.headers["etag"] == f'"{"e" * 64}"'
         assert "regulatory_timeline;dur=" in response.headers["server-timing"]
     finally:
