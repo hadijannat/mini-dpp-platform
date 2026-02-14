@@ -198,50 +198,55 @@ export default function DppCompactModel() {
           </div>
         </div>
 
-        <div className="landing-aas-shell mt-4">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-landing-cyan/10 px-2.5 py-1 text-[11px] font-semibold text-landing-ink">
-              <span className="h-1.5 w-1.5 rounded-full bg-landing-cyan" />
-              ESPR core
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-landing-amber/10 px-2.5 py-1 text-[11px] font-semibold text-landing-ink">
-              <span className="h-1.5 w-1.5 rounded-full bg-landing-amber" />
-              Business policy
-            </span>
+        <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel}>
+          <div className="landing-aas-arch mt-4">
+            <div className="landing-aas-arch-label">AAS &middot; DPP4.0</div>
+
+            <div className="landing-aas-arch-body">
+              <TabsList className="flex h-auto gap-1 bg-transparent p-0">
+                {dppModelNodes.map((node) => (
+                  <TabsTrigger
+                    key={node.id}
+                    value={node.id}
+                    className={cn(
+                      'landing-aas-card flex h-[120px] flex-1 flex-col items-center justify-center',
+                      'rounded-lg border border-landing-ink/12 bg-white px-1 py-2',
+                      'text-[10px] font-semibold text-landing-ink shadow-none',
+                      'data-[state=active]:border-landing-cyan/60 data-[state=active]:bg-landing-cyan/8',
+                      node.lane === 'extension' &&
+                        'data-[state=active]:border-landing-amber/60 data-[state=active]:bg-landing-amber/8',
+                    )}
+                  >
+                    {node.tabLabel}
+                    <span
+                      className={cn(
+                        'mt-auto h-1.5 w-1.5 shrink-0 rounded-full',
+                        node.lane === 'core' ? 'bg-landing-cyan/60' : 'bg-landing-amber/60',
+                      )}
+                    />
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              <div className="mt-2 flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
+                  <span className="h-1.5 w-1.5 rounded-full bg-landing-cyan/60" /> ESPR core
+                </span>
+                <span className="inline-flex items-center gap-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
+                  <span className="h-1.5 w-1.5 rounded-full bg-landing-amber/60" /> Extension
+                </span>
+              </div>
+            </div>
           </div>
 
-          <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel}>
-            <TabsList className="landing-tabs-scroll mb-3 flex h-auto w-full flex-wrap justify-start gap-1.5 overflow-x-auto bg-transparent p-0">
-              {dppModelNodes.map((node) => (
-                <TabsTrigger
-                  key={node.id}
-                  value={node.id}
-                  className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-landing-ink/15 bg-white/90 px-3 py-1.5 text-xs font-semibold text-landing-ink shadow-none transition-colors data-[state=active]:border-landing-cyan/55 data-[state=active]:bg-landing-cyan/15',
-                    node.lane === 'extension' &&
-                      'data-[state=active]:border-landing-amber/55 data-[state=active]:bg-landing-amber/15',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'h-1.5 w-1.5 rounded-full',
-                      node.lane === 'core' ? 'bg-landing-cyan' : 'bg-landing-amber',
-                    )}
-                  />
-                  {node.tabLabel}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-
-            <div className="max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-3.5">
-              {dppModelNodes.map((node) => (
-                <TabsContent key={node.id} value={node.id} className="mt-0">
-                  <SubmodelContent node={node} audienceMode={audienceMode} />
-                </TabsContent>
-              ))}
-            </div>
-          </Tabs>
-        </div>
+          <div className="mt-3 max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-3.5">
+            {dppModelNodes.map((node) => (
+              <TabsContent key={node.id} value={node.id} className="mt-0">
+                <SubmodelContent node={node} audienceMode={audienceMode} />
+              </TabsContent>
+            ))}
+          </div>
+        </Tabs>
       </section>
     </TooltipProvider>
   );
