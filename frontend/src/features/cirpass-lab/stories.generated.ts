@@ -45,23 +45,67 @@ export const generatedCirpassManifest: CirpassLabManifest = {
           "title": "CREATE passport payload",
           "actor": "Manufacturer",
           "intent": "Compose mandatory fields for an ESPR-aligned passport.",
+          "actor_goal": "Publish the first valid passport so downstream actors can trust baseline data.",
+          "physical_story_md": "A new product leaves the line and receives its digital backpack.",
+          "why_it_matters_md": "Missing mandatory fields blocks every subsequent lifecycle action.",
           "explanation_md": "Add identifier, material composition, and carbon footprint before publication.",
           "ui_action": {
             "label": "Validate & Continue",
             "kind": "form"
           },
+          "interaction": {
+            "kind": "form",
+            "submit_label": "Validate & Continue",
+            "hint_text": "Include identifier, material composition, and a positive carbon footprint.",
+            "success_message": "CREATE completed successfully.",
+            "failure_message": "Missing mandatory fields. Review payload requirements.",
+            "fields": [
+              {
+                "name": "identifier",
+                "label": "Identifier",
+                "type": "text",
+                "required": true,
+                "validation": {
+                  "min_length": 10
+                },
+                "test_id": "cirpass-create-identifier"
+              },
+              {
+                "name": "materialComposition",
+                "label": "Material composition",
+                "type": "textarea",
+                "required": true,
+                "validation": {
+                  "min_length": 3
+                },
+                "test_id": "cirpass-create-material"
+              },
+              {
+                "name": "carbonFootprint",
+                "label": "Carbon footprint (kg CO2e)",
+                "type": "number",
+                "required": true,
+                "validation": {
+                  "gt": 0
+                },
+                "test_id": "cirpass-create-carbon"
+              }
+            ],
+            "options": []
+          },
           "api": {
             "method": "POST",
-            "path": "/api/v1/public/cirpass/stories/latest",
-            "auth": "none",
-            "expected_status": 200,
+            "path": "/api/v1/tenants/{tenant}/dpps",
+            "auth": "user",
+            "expected_status": 201,
             "request_example": {
               "identifier": "did:web:dpp.eu:product:demo-bike",
               "materialComposition": "recycled_aluminum",
               "carbonFootprint": 14.2
             },
             "response_example": {
-              "status": "accepted"
+              "id": "dpp_123",
+              "status": "draft"
             }
           },
           "artifacts": {
@@ -106,10 +150,51 @@ export const generatedCirpassManifest: CirpassLabManifest = {
           "title": "ACCESS policy routing",
           "actor": "Authority",
           "intent": "Route consumer and authority access with restricted fields masked for consumers.",
+          "actor_goal": "Keep public access open while restricting sensitive attributes by role.",
+          "physical_story_md": "Consumer and authority scan the same product but receive different views.",
+          "why_it_matters_md": "Role-aware masking prevents confidential leakage while preserving trust.",
           "explanation_md": "Access logic should deny restricted data to non-authority actors.",
           "ui_action": {
             "label": "Validate & Continue",
             "kind": "select"
+          },
+          "interaction": {
+            "kind": "form",
+            "submit_label": "Validate & Continue",
+            "hint_text": "Consumer and authority checks must both pass, with restricted fields hidden.",
+            "fields": [
+              {
+                "name": "consumerViewEnabled",
+                "label": "Consumer default access enabled",
+                "type": "checkbox",
+                "required": true,
+                "validation": {
+                  "equals": true
+                },
+                "test_id": "cirpass-access-consumer"
+              },
+              {
+                "name": "authorityCredentialValidated",
+                "label": "Authority credential validated",
+                "type": "checkbox",
+                "required": true,
+                "validation": {
+                  "equals": true
+                },
+                "test_id": "cirpass-access-authority"
+              },
+              {
+                "name": "restrictedFieldsHiddenFromConsumer",
+                "label": "Restricted fields hidden from consumer view",
+                "type": "checkbox",
+                "required": true,
+                "validation": {
+                  "equals": true
+                },
+                "test_id": "cirpass-access-restricted"
+              }
+            ],
+            "options": []
           },
           "api": {
             "method": "GET",
@@ -127,12 +212,27 @@ export const generatedCirpassManifest: CirpassLabManifest = {
             {
               "type": "status",
               "expected": 200
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.consumerViewEnabled",
+              "expected": true
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.authorityCredentialValidated",
+              "expected": true
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.restrictedFieldsHiddenFromConsumer",
+              "expected": true
             }
           ],
           "policy": {
             "required_role": "authority",
             "opa_policy": "dpp/authz",
-            "expected_decision": "deny",
+            "expected_decision": "mask",
             "note": "Consumer path must not expose restricted fields."
           },
           "variants": [
@@ -147,10 +247,51 @@ export const generatedCirpassManifest: CirpassLabManifest = {
           "title": "UPDATE repair chain",
           "actor": "Repairer",
           "intent": "Append a lifecycle event while preserving hash-chain integrity.",
+          "actor_goal": "Record repairs with verifiable lineage continuity.",
+          "physical_story_md": "A repair event is appended while product history stays intact.",
+          "why_it_matters_md": "Auditability depends on preserving the event chain across updates.",
           "explanation_md": "The new event hash must differ from prior hash and include a repair event narrative.",
           "ui_action": {
             "label": "Validate & Continue",
             "kind": "form"
+          },
+          "interaction": {
+            "kind": "form",
+            "submit_label": "Validate & Continue",
+            "hint_text": "Provide old/new hashes and a repair event narrative.",
+            "fields": [
+              {
+                "name": "previousHash",
+                "label": "Previous hash",
+                "type": "text",
+                "required": true,
+                "validation": {
+                  "min_length": 8
+                },
+                "test_id": "cirpass-update-prev-hash"
+              },
+              {
+                "name": "newEventHash",
+                "label": "New event hash",
+                "type": "text",
+                "required": true,
+                "validation": {
+                  "min_length": 8
+                },
+                "test_id": "cirpass-update-new-hash"
+              },
+              {
+                "name": "repairEvent",
+                "label": "Repair event",
+                "type": "textarea",
+                "required": true,
+                "validation": {
+                  "min_length": 5
+                },
+                "test_id": "cirpass-update-repair-event"
+              }
+            ],
+            "options": []
           },
           "api": {
             "method": "PATCH",
@@ -162,6 +303,16 @@ export const generatedCirpassManifest: CirpassLabManifest = {
             {
               "type": "jsonpath",
               "expression": "$.repairEvent",
+              "expected": "present"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.previousHash",
+              "expected": "present"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.newEventHash",
               "expected": "present"
             }
           ],
@@ -180,10 +331,51 @@ export const generatedCirpassManifest: CirpassLabManifest = {
           "title": "TRANSFER ownership handoff",
           "actor": "Retailer",
           "intent": "Transfer ownership while preserving confidentiality boundaries.",
+          "actor_goal": "Handoff custody without exposing restricted commercial details.",
+          "physical_story_md": "Ownership changes hands while confidential fields stay protected.",
+          "why_it_matters_md": "Secure transfer enables circular trade without data leakage.",
           "explanation_md": "From/to actors must differ and confidentiality constraints remain enabled.",
           "ui_action": {
             "label": "Validate & Continue",
             "kind": "form"
+          },
+          "interaction": {
+            "kind": "form",
+            "submit_label": "Validate & Continue",
+            "hint_text": "Use different actors and keep confidentiality enabled.",
+            "fields": [
+              {
+                "name": "fromActor",
+                "label": "From actor",
+                "type": "text",
+                "required": true,
+                "validation": {
+                  "min_length": 2
+                },
+                "test_id": "cirpass-transfer-from"
+              },
+              {
+                "name": "toActor",
+                "label": "To actor",
+                "type": "text",
+                "required": true,
+                "validation": {
+                  "min_length": 2
+                },
+                "test_id": "cirpass-transfer-to"
+              },
+              {
+                "name": "confidentialityMaintained",
+                "label": "Confidentiality boundary preserved",
+                "type": "checkbox",
+                "required": true,
+                "validation": {
+                  "equals": true
+                },
+                "test_id": "cirpass-transfer-confidentiality"
+              }
+            ],
+            "options": []
           },
           "api": {
             "method": "POST",
@@ -195,6 +387,21 @@ export const generatedCirpassManifest: CirpassLabManifest = {
             {
               "type": "status",
               "expected": 201
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.fromActor",
+              "expected": "present"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.toActor",
+              "expected": "present"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.confidentialityMaintained",
+              "expected": true
             }
           ],
           "policy": {
@@ -212,22 +419,86 @@ export const generatedCirpassManifest: CirpassLabManifest = {
           "title": "DEACTIVATE and circular loop closure",
           "actor": "Recycler",
           "intent": "Mark end-of-life and expose recovered material outputs.",
+          "actor_goal": "Complete lifecycle closure and generate next-loop material insight.",
+          "physical_story_md": "Recycler closes the loop and extracts recovered material intelligence.",
+          "why_it_matters_md": "End-of-life quality directly affects circular economy traceability.",
           "explanation_md": "End-of-life state requires recovered materials and next-passport spawn flag.",
           "ui_action": {
             "label": "Validate & Continue",
             "kind": "form"
           },
+          "interaction": {
+            "kind": "form",
+            "submit_label": "Validate & Continue",
+            "hint_text": "Set status to end_of_life and include recovered materials.",
+            "fields": [
+              {
+                "name": "lifecycleStatus",
+                "label": "Lifecycle status",
+                "type": "select",
+                "required": true,
+                "options": [
+                  {
+                    "label": "active",
+                    "value": "active"
+                  },
+                  {
+                    "label": "end_of_life",
+                    "value": "end_of_life"
+                  }
+                ],
+                "validation": {
+                  "equals": "end_of_life"
+                },
+                "test_id": "cirpass-deactivate-status"
+              },
+              {
+                "name": "recoveredMaterials",
+                "label": "Recovered materials",
+                "type": "textarea",
+                "required": true,
+                "validation": {
+                  "min_length": 3
+                },
+                "test_id": "cirpass-deactivate-materials"
+              },
+              {
+                "name": "spawnNextPassport",
+                "label": "Spawn material insight for next passport",
+                "type": "checkbox",
+                "required": true,
+                "validation": {
+                  "equals": true
+                },
+                "test_id": "cirpass-deactivate-spawn"
+              }
+            ],
+            "options": []
+          },
           "api": {
             "method": "POST",
-            "path": "/api/v1/public/cirpass/leaderboard/submit",
-            "auth": "none",
-            "expected_status": 200
+            "path": "/api/v1/tenants/{tenant}/dpps/{id}/lifecycle",
+            "auth": "user",
+            "expected_status": 200,
+            "response_example": {
+              "status": "end_of_life"
+            }
           },
           "checks": [
             {
               "type": "jsonpath",
-              "expression": "$.status",
+              "expression": "$.lifecycleStatus",
               "expected": "end_of_life"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.recoveredMaterials",
+              "expected": "present"
+            },
+            {
+              "type": "jsonpath",
+              "expression": "$.spawnNextPassport",
+              "expected": true
             }
           ],
           "policy": {

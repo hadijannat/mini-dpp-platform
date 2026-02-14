@@ -1,4 +1,5 @@
 import type { CirpassLevelKey } from '../machines/cirpassMachine';
+import type { CirpassLabStep, CirpassLabStory } from '../schema/storySchema';
 
 const LEVEL_ORDER: CirpassLevelKey[] = ['create', 'access', 'update', 'transfer', 'deactivate'];
 
@@ -14,12 +15,16 @@ interface JoyfulLayerProps {
   currentLevel: CirpassLevelKey;
   completedLevels: Record<CirpassLevelKey, boolean>;
   latestMessage: string;
+  story: CirpassLabStory;
+  step: CirpassLabStep;
 }
 
 export default function JoyfulLayer({
   currentLevel,
   completedLevels,
   latestMessage,
+  story,
+  step,
 }: JoyfulLayerProps) {
   return (
     <div className="relative h-full p-5">
@@ -63,8 +68,24 @@ export default function JoyfulLayer({
         })}
       </div>
 
-      <div className="relative z-10 mt-4 rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-sm text-slate-200">
-        {latestMessage || 'Start with CREATE and complete each stage in sequence.'}
+      <div className="relative z-10 mt-4 grid gap-3 rounded-xl border border-white/10 bg-black/35 px-4 py-3 text-sm text-slate-200 sm:grid-cols-2">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-300">Story Beat</p>
+          <p className="mt-1 text-sm text-slate-100">
+            {step.physical_story_md ??
+              step.actor_goal ??
+              `${step.actor} advances ${story.title} by completing ${step.title}.`}
+          </p>
+          {step.why_it_matters_md && (
+            <p className="mt-2 text-xs text-slate-300">{step.why_it_matters_md}</p>
+          )}
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-slate-300">Run Signal</p>
+          <p className="mt-1 text-sm text-slate-100">
+            {latestMessage || 'Start with CREATE and complete each stage in sequence.'}
+          </p>
+        </div>
       </div>
     </div>
   );

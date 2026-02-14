@@ -1,69 +1,57 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
 import { assign, createMachine } from 'xstate';
 
 export type CirpassLevelKey = 'create' | 'access' | 'update' | 'transfer' | 'deactivate';
 
-export interface CreateLevelPayload {
-  identifier: string;
-  materialComposition: string;
-  carbonFootprint: number | null;
+export interface CirpassMachineStep {
+  id: string;
+  level: CirpassLevelKey;
 }
 
-export interface AccessLevelPayload {
-  consumerViewEnabled: boolean;
-  authorityCredentialValidated: boolean;
-  restrictedFieldsHiddenFromConsumer: boolean;
+export interface CirpassStepStats {
+  errors: number;
+  hints: number;
+  completed: boolean;
+  level: CirpassLevelKey;
 }
 
-export interface UpdateLevelPayload {
-  previousHash: string;
-  newEventHash: string;
-  repairEvent: string;
-}
-
-export interface TransferLevelPayload {
-  fromActor: string;
-  toActor: string;
-  confidentialityMaintained: boolean;
-}
-
-export interface DeactivateLevelPayload {
-  lifecycleStatus: string;
-  recoveredMaterials: string;
-  spawnNextPassport: boolean;
+export interface CirpassLevelStats {
+  errors: number;
+  hints: number;
+  completed: boolean;
 }
 
 export interface CirpassMachineContext {
+  steps: CirpassMachineStep[];
+  currentStepIndex: number;
   errors: number;
   hints: number;
   perfectLevels: number;
   lastMessage: string;
-  levelStats: Record<
-    CirpassLevelKey,
-    {
-      errors: number;
-      hints: number;
-      completed: boolean;
-    }
-  >;
+  levelStats: Record<CirpassLevelKey, CirpassLevelStats>;
+  stepStats: Record<string, CirpassStepStats>;
 }
 
 export type CirpassMachineEvent =
   | {
-      type: 'SUBMIT_LEVEL';
-      level: CirpassLevelKey;
-      data:
-        | CreateLevelPayload
-        | AccessLevelPayload
-        | UpdateLevelPayload
-        | TransferLevelPayload
-        | DeactivateLevelPayload;
+      type: 'INIT';
+      steps: CirpassMachineStep[];
+      startStepId?: string | null;
+      completedLevels?: CirpassLevelKey[];
     }
-  | { type: 'HINT_USED'; level: CirpassLevelKey }
+  | {
+      type: 'SUBMIT_STEP';
+      stepId: string;
+      level: CirpassLevelKey;
+      isValid: boolean;
+    }
+  | {
+      type: 'HINT_USED';
+      stepId: string;
+      level: CirpassLevelKey;
+    }
   | { type: 'RESET' };
 
-function emptyStats() {
+function emptyLevelStats(): Record<CirpassLevelKey, CirpassLevelStats> {
   return {
     create: { errors: 0, hints: 0, completed: false },
     access: { errors: 0, hints: 0, completed: false },
@@ -73,246 +61,349 @@ function emptyStats() {
   };
 }
 
-function validateCreate(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') {
-    return false;
+function buildStepStats(
+  steps: CirpassMachineStep[],
+  currentStepIndex: number,
+): Record<string, CirpassStepStats> {
+  const stats: Record<string, CirpassStepStats> = {};
+  for (const [index, step] of steps.entries()) {
+    stats[step.id] = {
+      errors: 0,
+      hints: 0,
+      completed: index < currentStepIndex,
+      level: step.level,
+    };
   }
-  const source = payload as Record<string, unknown>;
-  const identifier = typeof source.identifier === 'string' ? source.identifier.trim() : '';
-  const material = typeof source.materialComposition === 'string' ? source.materialComposition.trim() : '';
-  const carbon = source.carbonFootprint;
-  return identifier.length > 0 && material.length > 0 && typeof carbon === 'number' && carbon > 0;
+  return stats;
 }
 
-function validateAccess(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') {
-    return false;
+function getExpectedStep(context: CirpassMachineContext): CirpassMachineStep | null {
+  if (context.steps.length === 0) {
+    return null;
   }
-  const source = payload as Record<string, unknown>;
-  return (
-    source.consumerViewEnabled === true &&
-    source.authorityCredentialValidated === true &&
-    source.restrictedFieldsHiddenFromConsumer === true
-  );
+  return context.steps[context.currentStepIndex] ?? context.steps[context.steps.length - 1] ?? null;
 }
 
-function validateUpdate(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') {
-    return false;
+function deriveStartIndex(steps: CirpassMachineStep[], startStepId: string | null | undefined): number {
+  if (steps.length === 0) {
+    return 0;
   }
-  const source = payload as Record<string, unknown>;
-  const previousHash = typeof source.previousHash === 'string' ? source.previousHash.trim() : '';
-  const newEventHash = typeof source.newEventHash === 'string' ? source.newEventHash.trim() : '';
-  const repairEvent = typeof source.repairEvent === 'string' ? source.repairEvent.trim() : '';
-  return previousHash.length > 6 && newEventHash.length > 6 && previousHash !== newEventHash && repairEvent.length > 0;
+  if (!startStepId) {
+    return 0;
+  }
+  const index = steps.findIndex((step) => step.id === startStepId);
+  return index >= 0 ? index : 0;
 }
 
-function validateTransfer(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') {
-    return false;
+function buildLevelStatsFromCompletedLevels(
+  completedLevels: CirpassLevelKey[] | undefined,
+): Record<CirpassLevelKey, CirpassLevelStats> {
+  const levelStats = emptyLevelStats();
+  if (!completedLevels) {
+    return levelStats;
   }
-  const source = payload as Record<string, unknown>;
-  const fromActor = typeof source.fromActor === 'string' ? source.fromActor.trim() : '';
-  const toActor = typeof source.toActor === 'string' ? source.toActor.trim() : '';
-  return fromActor.length > 0 && toActor.length > 0 && fromActor !== toActor && source.confidentialityMaintained === true;
+  for (const level of completedLevels) {
+    if (level in levelStats) {
+      levelStats[level].completed = true;
+    }
+  }
+  return levelStats;
 }
 
-function validateDeactivate(payload: unknown): boolean {
-  if (!payload || typeof payload !== 'object') {
-    return false;
+const initializeContext = assign(({ event }) => {
+  if (event.type !== 'INIT') {
+    return {};
   }
-  const source = payload as Record<string, unknown>;
-  const status = typeof source.lifecycleStatus === 'string' ? source.lifecycleStatus.trim() : '';
-  const recovered = typeof source.recoveredMaterials === 'string' ? source.recoveredMaterials.trim() : '';
-  return status === 'end_of_life' && recovered.length > 0 && source.spawnNextPassport === true;
-}
 
-const registerHint = assign(({ context, event }: { context: CirpassMachineContext; event: any }) => {
+  const steps = event.steps;
+  const startIndex = deriveStartIndex(steps, event.startStepId);
+  const levelStats = buildLevelStatsFromCompletedLevels(event.completedLevels);
+
+  let perfectLevels = 0;
+  for (const level of Object.keys(levelStats) as CirpassLevelKey[]) {
+    if (levelStats[level].completed && levelStats[level].errors === 0 && levelStats[level].hints === 0) {
+      perfectLevels += 1;
+    }
+  }
+
+  return {
+    steps,
+    currentStepIndex: startIndex,
+    errors: 0,
+    hints: 0,
+    perfectLevels,
+    lastMessage: '',
+    levelStats,
+    stepStats: buildStepStats(steps, startIndex),
+  };
+});
+
+const resetRun = assign(({ context }) => {
+  const levelStats = emptyLevelStats();
+  return {
+    ...context,
+    currentStepIndex: 0,
+    errors: 0,
+    hints: 0,
+    perfectLevels: 0,
+    lastMessage: '',
+    levelStats,
+    stepStats: buildStepStats(context.steps, 0),
+  };
+});
+
+const registerHint = assign(({ context, event }) => {
   if (event.type !== 'HINT_USED') {
     return {};
   }
+
+  const stateContext = context as CirpassMachineContext;
+  const expected = getExpectedStep(stateContext);
+  if (!expected || expected.id !== event.stepId || expected.level !== event.level) {
+    return {};
+  }
+  const levelKey = event.level as CirpassLevelKey;
+
+  const currentStepStats = stateContext.stepStats[event.stepId] ?? {
+    errors: 0,
+    hints: 0,
+    completed: false,
+    level: levelKey,
+  };
   return {
-    hints: context.hints + 1,
+    hints: stateContext.hints + 1,
     levelStats: {
-      ...context.levelStats,
-      [event.level]: {
-        ...context.levelStats[event.level],
-        hints: context.levelStats[event.level].hints + 1,
+      ...stateContext.levelStats,
+      [levelKey]: {
+        ...stateContext.levelStats[levelKey],
+        hints: stateContext.levelStats[levelKey].hints + 1,
+      },
+    },
+    stepStats: {
+      ...stateContext.stepStats,
+      [event.stepId]: {
+        ...currentStepStats,
+        hints: currentStepStats.hints + 1,
       },
     },
     lastMessage: `Hint used for ${event.level.toUpperCase()}.`,
   };
 });
 
-const registerError = assign(({ context, event }: { context: CirpassMachineContext; event: any }) => {
-  if (event.type !== 'SUBMIT_LEVEL') {
-    return {};
-  }
-  return {
-    errors: context.errors + 1,
-    levelStats: {
-      ...context.levelStats,
-      [event.level]: {
-        ...context.levelStats[event.level],
-        errors: context.levelStats[event.level].errors + 1,
-      },
-    },
-    lastMessage: `Validation failed for ${event.level.toUpperCase()}.`,
-  };
-});
-
-const completeLevel = assign(({ context, event }: { context: CirpassMachineContext; event: any }) => {
-  if (event.type !== 'SUBMIT_LEVEL') {
+const registerSubmissionError = assign(({ context, event }) => {
+  if (event.type !== 'SUBMIT_STEP') {
     return {};
   }
 
-  const stats = context.levelStats[event.level];
-  const isPerfect = !stats.completed && stats.errors === 0 && stats.hints === 0;
+  const stateContext = context as CirpassMachineContext;
+  const expected = getExpectedStep(stateContext);
+  const level = (expected?.level ?? event.level) as CirpassLevelKey;
+  const stepId = expected?.id ?? event.stepId;
+  const currentStepStats = stateContext.stepStats[stepId] ?? {
+    errors: 0,
+    hints: 0,
+    completed: false,
+    level,
+  };
+
+  const orderMessage =
+    expected && (event.stepId !== expected.id || event.level !== expected.level)
+      ? `Complete ${expected.level.toUpperCase()} before attempting this step.`
+      : `Validation failed for ${event.level.toUpperCase()}.`;
 
   return {
-    perfectLevels: isPerfect ? context.perfectLevels + 1 : context.perfectLevels,
+    errors: stateContext.errors + 1,
     levelStats: {
-      ...context.levelStats,
-      [event.level]: {
-        ...context.levelStats[event.level],
-        completed: true,
+      ...stateContext.levelStats,
+      [level]: {
+        ...stateContext.levelStats[level],
+        errors: stateContext.levelStats[level].errors + 1,
       },
     },
-    lastMessage: `${event.level.toUpperCase()} completed successfully.`,
+    stepStats: {
+      ...stateContext.stepStats,
+      [stepId]: {
+        ...currentStepStats,
+        errors: currentStepStats.errors + 1,
+      },
+    },
+    lastMessage: orderMessage,
   };
 });
 
-const resetContext = assign((): CirpassMachineContext => ({
-  errors: 0,
-  hints: 0,
-  perfectLevels: 0,
-  lastMessage: '',
-  levelStats: emptyStats(),
-}));
+const completeStep = assign(({ context, event }) => {
+  if (event.type !== 'SUBMIT_STEP') {
+    return {};
+  }
+  const stateContext = context as CirpassMachineContext;
+  const expected = getExpectedStep(stateContext);
+  if (!expected) {
+    return {};
+  }
+
+  const stepStats = { ...stateContext.stepStats };
+  stepStats[expected.id] = {
+    ...(stepStats[expected.id] ?? {
+      errors: 0,
+      hints: 0,
+      level: expected.level,
+      completed: false,
+    }),
+    completed: true,
+  };
+
+  const levelStats = { ...stateContext.levelStats };
+  let perfectLevels = stateContext.perfectLevels;
+  const nextIndex = stateContext.currentStepIndex + 1;
+  const isLastStepForLevel = !stateContext.steps
+    .slice(nextIndex)
+    .some((step: CirpassMachineStep) => step.level === expected.level);
+  if (isLastStepForLevel && !levelStats[expected.level].completed) {
+    levelStats[expected.level] = {
+      ...levelStats[expected.level],
+      completed: true,
+    };
+    if (levelStats[expected.level].errors === 0 && levelStats[expected.level].hints === 0) {
+      perfectLevels += 1;
+    }
+  }
+
+  return {
+    currentStepIndex:
+      nextIndex < stateContext.steps.length ? nextIndex : Math.max(stateContext.steps.length - 1, 0),
+    perfectLevels,
+    levelStats,
+    stepStats,
+    lastMessage: `${expected.level.toUpperCase()} completed successfully.`,
+  };
+});
 
 export const cirpassMachine = createMachine(
   {
-    id: 'cirpassLifecycle',
-    initial: 'create',
+    types: {} as {
+      context: CirpassMachineContext;
+      events: CirpassMachineEvent;
+    },
+    id: 'cirpassStepRunner',
+    initial: 'idle',
     context: {
+      steps: [],
+      currentStepIndex: 0,
       errors: 0,
       hints: 0,
       perfectLevels: 0,
       lastMessage: '',
-      levelStats: emptyStats(),
-    } as CirpassMachineContext,
-    on: {
-      HINT_USED: {
-        actions: 'registerHint',
-      },
-      RESET: {
-        target: '.create',
-        actions: 'resetContext',
-      },
+      levelStats: emptyLevelStats(),
+      stepStats: {},
     },
     states: {
-      create: {
+      idle: {
         on: {
-          SUBMIT_LEVEL: [
-            {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' &&
-                event.level === 'create' &&
-                validateCreate(event.data),
-              target: 'access',
-              actions: 'completeLevel',
-            },
-            {
-              guard: ({ event }) => event.type === 'SUBMIT_LEVEL' && event.level === 'create',
-              actions: 'registerError',
-            },
-          ],
+          INIT: {
+            target: 'running',
+            actions: 'initializeContext',
+          },
         },
       },
-      access: {
+      running: {
         on: {
-          SUBMIT_LEVEL: [
+          INIT: {
+            actions: 'initializeContext',
+          },
+          RESET: {
+            actions: 'resetRun',
+          },
+          HINT_USED: {
+            actions: 'registerHint',
+          },
+          SUBMIT_STEP: [
             {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' &&
-                event.level === 'access' &&
-                validateAccess(event.data),
-              target: 'update',
-              actions: 'completeLevel',
+              guard: 'isStepOrderViolation',
+              actions: 'registerSubmissionError',
             },
             {
-              guard: ({ event }) => event.type === 'SUBMIT_LEVEL' && event.level === 'access',
-              actions: 'registerError',
-            },
-          ],
-        },
-      },
-      update: {
-        on: {
-          SUBMIT_LEVEL: [
-            {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' &&
-                event.level === 'update' &&
-                validateUpdate(event.data),
-              target: 'transfer',
-              actions: 'completeLevel',
-            },
-            {
-              guard: ({ event }) => event.type === 'SUBMIT_LEVEL' && event.level === 'update',
-              actions: 'registerError',
-            },
-          ],
-        },
-      },
-      transfer: {
-        on: {
-          SUBMIT_LEVEL: [
-            {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' &&
-                event.level === 'transfer' &&
-                validateTransfer(event.data),
-              target: 'deactivate',
-              actions: 'completeLevel',
-            },
-            {
-              guard: ({ event }) => event.type === 'SUBMIT_LEVEL' && event.level === 'transfer',
-              actions: 'registerError',
-            },
-          ],
-        },
-      },
-      deactivate: {
-        on: {
-          SUBMIT_LEVEL: [
-            {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' &&
-                event.level === 'deactivate' &&
-                validateDeactivate(event.data),
+              guard: 'isValidFinalSubmission',
               target: 'completed',
-              actions: 'completeLevel',
+              actions: 'completeStep',
             },
             {
-              guard: ({ event }) =>
-                event.type === 'SUBMIT_LEVEL' && event.level === 'deactivate',
-              actions: 'registerError',
+              guard: 'isValidExpectedSubmission',
+              actions: 'completeStep',
+            },
+            {
+              guard: 'isExpectedStepSubmission',
+              actions: 'registerSubmissionError',
             },
           ],
         },
       },
       completed: {
-        type: 'final',
+        on: {
+          INIT: {
+            target: 'running',
+            actions: 'initializeContext',
+          },
+          RESET: {
+            target: 'running',
+            actions: 'resetRun',
+          },
+        },
       },
     },
   },
   {
+    guards: {
+      isStepOrderViolation: ({ context, event }) => {
+        if (event.type !== 'SUBMIT_STEP') {
+          return false;
+        }
+        const expected = getExpectedStep(context);
+        if (!expected) {
+          return true;
+        }
+        return expected.id !== event.stepId || expected.level !== event.level;
+      },
+      isExpectedStepSubmission: ({ context, event }) => {
+        if (event.type !== 'SUBMIT_STEP') {
+          return false;
+        }
+        const expected = getExpectedStep(context);
+        if (!expected) {
+          return false;
+        }
+        return expected.id === event.stepId && expected.level === event.level;
+      },
+      isValidExpectedSubmission: ({ context, event }) => {
+        if (event.type !== 'SUBMIT_STEP' || !event.isValid) {
+          return false;
+        }
+        const expected = getExpectedStep(context);
+        if (!expected) {
+          return false;
+        }
+        const isExpected = expected.id === event.stepId && expected.level === event.level;
+        const isFinal = context.currentStepIndex >= context.steps.length - 1;
+        return isExpected && !isFinal;
+      },
+      isValidFinalSubmission: ({ context, event }) => {
+        if (event.type !== 'SUBMIT_STEP' || !event.isValid) {
+          return false;
+        }
+        const expected = getExpectedStep(context);
+        if (!expected) {
+          return false;
+        }
+        const isExpected = expected.id === event.stepId && expected.level === event.level;
+        const isFinal = context.currentStepIndex >= context.steps.length - 1;
+        return isExpected && isFinal;
+      },
+    },
     actions: {
-      registerHint,
-      registerError,
-      completeLevel,
-      resetContext,
+      initializeContext: initializeContext as any,
+      resetRun: resetRun as any,
+      registerHint: registerHint as any,
+      registerSubmissionError: registerSubmissionError as any,
+      completeStep: completeStep as any,
     },
   },
 );

@@ -29,6 +29,20 @@ describe('cirpass lab manifest schema', () => {
               actor: 'Manufacturer',
               intent: 'Create payload',
               explanation_md: 'Explain',
+              interaction: {
+                kind: 'form',
+                submit_label: 'Validate & Continue',
+                fields: [
+                  {
+                    name: 'identifier',
+                    label: 'Identifier',
+                    type: 'text',
+                    required: true,
+                    validation: { min_length: 3 },
+                  },
+                ],
+                options: [],
+              },
               variants: ['happy'],
               checks: [],
             },
@@ -68,6 +82,16 @@ describe('cirpass lab manifest schema', () => {
                 actor: 'Manufacturer',
                 intent: 'Create payload',
                 explanation_md: 'Explain',
+                interaction: {
+                  kind: 'form',
+                  fields: [
+                    {
+                      name: 'identifier',
+                      label: 'Identifier',
+                      type: 'invalid_type',
+                    },
+                  ],
+                },
                 variants: ['invalid_variant'],
                 checks: [],
               },
