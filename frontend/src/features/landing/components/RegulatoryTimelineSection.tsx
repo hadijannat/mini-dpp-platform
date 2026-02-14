@@ -80,6 +80,10 @@ const FALLBACK_EVENTS: RegulatoryTimelineEvent[] = [
   },
 ];
 
+const DESKTOP_TIMELINE_CARD_WIDTH_PX = 280;
+const DESKTOP_TIMELINE_CARD_GAP_PX = 12;
+const DESKTOP_TIMELINE_NODE_OFFSET_PX = 30;
+
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
@@ -93,19 +97,44 @@ function dateToMs(event: RegulatoryTimelineEvent): number | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
 }
 
-function computeRange(events: RegulatoryTimelineEvent[]): { min: number; max: number } | null {
+function computeTodayMarkerLeftPx(events: RegulatoryTimelineEvent[], now: Date): number | null {
   const values = events
     .map((event) => dateToMs(event))
     .filter((value): value is number => typeof value === 'number');
 
-  if (values.length < 2) {
+  if (values.length === 0) {
     return null;
   }
 
-  return {
-    min: Math.min(...values),
-    max: Math.max(...values),
-  };
+  const step = DESKTOP_TIMELINE_CARD_WIDTH_PX + DESKTOP_TIMELINE_CARD_GAP_PX;
+  if (values.length === 1) {
+    return DESKTOP_TIMELINE_NODE_OFFSET_PX;
+  }
+
+  const nowMs = now.getTime();
+  const firstMs = values[0];
+  const lastMs = values[values.length - 1];
+  if (nowMs <= firstMs) {
+    return DESKTOP_TIMELINE_NODE_OFFSET_PX;
+  }
+  if (nowMs >= lastMs) {
+    return DESKTOP_TIMELINE_NODE_OFFSET_PX + (values.length - 1) * step;
+  }
+
+  for (let index = 0; index < values.length - 1; index += 1) {
+    const leftMs = values[index];
+    const rightMs = values[index + 1];
+
+    if (nowMs < leftMs || nowMs > rightMs) {
+      continue;
+    }
+
+    const segment = Math.max(1, rightMs - leftMs);
+    const interpolation = clamp01((nowMs - leftMs) / segment);
+    return DESKTOP_TIMELINE_NODE_OFFSET_PX + (index + interpolation) * step;
+  }
+
+  return DESKTOP_TIMELINE_NODE_OFFSET_PX + (values.length - 1) * step;
 }
 
 function formatMilestoneDate(event: RegulatoryTimelineEvent): string {
@@ -331,14 +360,7 @@ export default function RegulatoryTimelineSection() {
     return data?.fetched_at ?? null;
   }, [data?.fetched_at, events]);
 
-  const range = useMemo(() => computeRange(events), [events]);
-  const nowPct = useMemo(() => {
-    if (!range) {
-      return 0;
-    }
-    const span = Math.max(1, range.max - range.min);
-    return clamp01((now.getTime() - range.min) / span);
-  }, [now, range]);
+  const todayMarkerLeftPx = useMemo(() => computeTodayMarkerLeftPx(events, now), [events, now]);
 
   useEffect(() => {
     const scrollEl = desktopScrollRef.current;
@@ -501,10 +523,10 @@ export default function RegulatoryTimelineSection() {
                       className="pointer-events-none absolute left-1 right-1 top-8 h-px bg-gradient-to-r from-transparent via-landing-ink/20 to-transparent"
                       data-testid="timeline-axis-rail"
                     />
-                    {range && (
+                    {todayMarkerLeftPx !== null && (
                       <div
                         className="pointer-events-none absolute top-1 z-[1] flex -translate-x-1/2 flex-col items-center"
-                        style={{ left: `${nowPct * 100}%` }}
+                        style={{ left: `${todayMarkerLeftPx}px` }}
                         data-testid="timeline-now-marker"
                       >
                         <div className="h-11 w-px bg-amber-500/60" />
