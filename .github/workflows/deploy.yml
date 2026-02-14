@@ -122,6 +122,28 @@ jobs:
             # Export commit SHA for frontend version tag
             export VITE_COMMIT_SHA=$(git rev-parse HEAD)
 
+            # Ensure CIRPASS session signing secret is available for production migrations/runtime.
+            # Backward-compatible fallback: reuse DPP_SIGNING_KEY when CIRPASS secret is not yet set.
+            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
+              if [ -f .env.prod ]; then
+                CIRPASS_SESSION_TOKEN_SECRET=$(grep -E '^CIRPASS_SESSION_TOKEN_SECRET=' .env.prod | tail -n1 | cut -d= -f2- || true)
+                export CIRPASS_SESSION_TOKEN_SECRET
+              fi
+            fi
+            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
+              if [ -f .env.prod ]; then
+                DPP_SIGNING_KEY_FALLBACK=$(grep -E '^DPP_SIGNING_KEY=' .env.prod | tail -n1 | cut -d= -f2- || true)
+                if [ -n "${DPP_SIGNING_KEY_FALLBACK:-}" ]; then
+                  export CIRPASS_SESSION_TOKEN_SECRET="$DPP_SIGNING_KEY_FALLBACK"
+                  echo "CIRPASS_SESSION_TOKEN_SECRET missing; using DPP_SIGNING_KEY fallback for this deploy."
+                fi
+              fi
+            fi
+            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
+              echo "CIRPASS_SESSION_TOKEN_SECRET is required for production deploy."
+              exit 1
+            fi
+
             # Build images (does not restart running containers)
             docker compose -f docker-compose.prod.yml build
 
