@@ -58,6 +58,9 @@ COPY frontend/ .
 # The docker-container BuildKit driver in CI cannot resolve files outside
 # the project root, so the real files must live under /repo/frontend/.
 COPY shared/ ./shared/
+# Copy CIRPASS story manifests consumed by generate:cirpass-stories.
+# Script resolves docs under /repo/docs/public/cirpass-stories.
+COPY docs/public/cirpass-stories/ /repo/docs/public/cirpass-stories/
 RUN ln -s /repo/frontend/shared /repo/shared
 ENV SHARED_DIR=/repo/frontend/shared
 ENV SKIP_LANDING_PRERENDER=1

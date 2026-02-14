@@ -1,5 +1,8 @@
 .git
 docs/
+!docs/public/
+!docs/public/cirpass-stories/
+!docs/public/cirpass-stories/**
 infra/
 *.md
 !backend/README.md

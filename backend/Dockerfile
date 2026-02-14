@@ -49,6 +49,8 @@ COPY backend/ .
 
 # Copy shared registry (consumed by semantic_registry.py via parents[3] → /)
 COPY shared/ /shared/
+# Copy CIRPASS lab manifests used by public manifest endpoints.
+COPY docs/public/cirpass-stories/ /app/docs/public/cirpass-stories/
 
 # Development server with hot reload
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -75,6 +77,8 @@ COPY --chown=appuser:appgroup backend/ .
 
 # Copy shared registry
 COPY --chown=appuser:appgroup shared/ /shared/
+# Copy CIRPASS lab manifests used by public manifest endpoints.
+COPY --chown=appuser:appgroup docs/public/cirpass-stories/ /app/docs/public/cirpass-stories/
 
 USER appuser
 
