@@ -1,0 +1,1 @@
+"""Public CIRPASS lab module."""

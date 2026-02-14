@@ -41,6 +41,67 @@ export interface LandingSummary {
   refresh_sla_seconds?: number | null;
 }
 
+export type CirpassLevelKey = 'create' | 'access' | 'update' | 'transfer' | 'deactivate';
+
+export interface CirpassStory {
+  id: string;
+  title: string;
+  summary: string;
+  technical_note?: string | null;
+}
+
+export interface CirpassLevel {
+  level: CirpassLevelKey;
+  label: string;
+  objective: string;
+  stories: CirpassStory[];
+}
+
+export interface CirpassStoryFeed {
+  version: string;
+  release_date: string | null;
+  source_url: string;
+  zenodo_record_url: string;
+  source_status: 'fresh' | 'stale';
+  generated_at: string;
+  fetched_at: string;
+  levels: CirpassLevel[];
+}
+
+export interface CirpassSession {
+  session_token: string;
+  expires_at: string;
+}
+
+export interface CirpassLeaderboardEntry {
+  rank: number;
+  nickname: string;
+  score: number;
+  completion_seconds: number;
+  version: string;
+  created_at: string;
+}
+
+export interface CirpassLeaderboard {
+  version: string;
+  entries: CirpassLeaderboardEntry[];
+}
+
+export interface CirpassLeaderboardSubmitRequest {
+  session_token: string;
+  nickname: string;
+  score: number;
+  completion_seconds: number;
+  version: string;
+}
+
+export interface CirpassLeaderboardSubmitResponse {
+  accepted: boolean;
+  rank: number | null;
+  best_score: number | null;
+  version: string;
+}
+
 // Data carrier types
 export type DataCarrierCreateRequest = components['schemas']['DataCarrierCreateRequest'];
 export type DataCarrierUpdateRequest = components['schemas']['DataCarrierUpdateRequest'];

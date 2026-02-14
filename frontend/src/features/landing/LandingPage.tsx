@@ -5,6 +5,7 @@ import DataExposureSection from './components/DataExposureSection';
 import FAQSection from './components/FAQSection';
 import HeroSection from './components/HeroSection';
 import HowItWorksSection from './components/HowItWorksSection';
+import CirpassLabTeaserSection from './components/CirpassLabTeaserSection';
 import LandingFooter from './components/LandingFooter';
 import LandingHeader from './components/LandingHeader';
 import LandingMetricsSection from './components/LandingMetricsSection';
@@ -45,6 +46,7 @@ export default function LandingPage() {
       <main id="main-content" className="pb-6">
         <HeroSection />
         <HowItWorksSection />
+        <CirpassLabTeaserSection />
         <SamplePassportSection />
 
         <DeferredSection minHeight={360} sectionId="metrics">

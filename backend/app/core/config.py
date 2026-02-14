@@ -68,6 +68,40 @@ class Settings(BaseSettings):
     redis_cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
 
     # ==========================================================================
+    # CIRPASS Lab Public Feed
+    # ==========================================================================
+    cirpass_results_url: str = Field(
+        default="https://cirpassproject.eu/project-results/",
+        description="Official CIRPASS project results page used to discover latest user stories",
+    )
+    cirpass_refresh_ttl_seconds: int = Field(
+        default=43_200,
+        ge=60,
+        description="Staleness threshold for CIRPASS story snapshots in seconds",
+    )
+    cirpass_session_ttl_seconds: int = Field(
+        default=86_400,
+        ge=300,
+        description="TTL for public CIRPASS leaderboard session tokens in seconds",
+    )
+    cirpass_session_token_secret: str = Field(
+        default="dev-cirpass-session-secret-change-me",
+        description="HMAC secret used for signing public CIRPASS session tokens",
+    )
+    cirpass_leaderboard_limit_default: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Default number of rows returned for CIRPASS leaderboard endpoint",
+    )
+    cirpass_leaderboard_limit_max: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+        description="Hard maximum rows returned for CIRPASS leaderboard endpoint",
+    )
+
+    # ==========================================================================
     # Keycloak / OIDC Configuration
     # ==========================================================================
     keycloak_server_url: str = Field(default="http://localhost:8080")
@@ -640,6 +674,13 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"auto_provision_default_tenant must be False in {self.environment} environment"
                 )
+            if (
+                not self.cirpass_session_token_secret
+                or self.cirpass_session_token_secret == "dev-cirpass-session-secret-change-me"
+            ):
+                raise ValueError(
+                    "cirpass_session_token_secret must be explicitly set in production/staging"
+                )
         else:
             if not self.encryption_master_key:
                 warnings.warn(
@@ -651,6 +692,13 @@ class Settings(BaseSettings):
             if not self.dpp_signing_key:
                 warnings.warn(
                     "dpp_signing_key is empty — published DPPs will not be signed.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if self.cirpass_session_token_secret == "dev-cirpass-session-secret-change-me":
+                warnings.warn(
+                    "cirpass_session_token_secret uses development default. "
+                    "Set a unique secret before deploying publicly.",
                     UserWarning,
                     stacklevel=2,
                 )

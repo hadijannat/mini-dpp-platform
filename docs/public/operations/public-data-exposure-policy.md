@@ -6,6 +6,11 @@ This policy defines what data is allowed on public landing pages and public summ
 
 - Public landing page at `https://dpp-platform.dev/`
 - Public summary endpoint: `GET /api/v1/public/{tenant_slug}/landing/summary`
+- Public CIRPASS feed endpoint: `GET /api/v1/public/cirpass/stories/latest`
+- Public CIRPASS leaderboard endpoints:
+  - `GET /api/v1/public/cirpass/leaderboard`
+  - `POST /api/v1/public/cirpass/session`
+  - `POST /api/v1/public/cirpass/leaderboard/submit`
 - Audience: manufacturers, regulators, recyclers/repair networks, and consumers
 
 ## Contract: Public Landing Summary
@@ -36,6 +41,9 @@ Response cache policy:
 | Raw AAS submodel content | No | Restricted to viewer/protected routes |
 | Raw EPCIS event payloads or location fields (`payload`, `read_point`, `biz_location`) | No | Explicitly prohibited |
 | Actor/user metadata | No | Explicitly prohibited |
+| CIRPASS leaderboard nickname + score + completion time + version + rank | Yes | Pseudonymous only, no email/account linkage |
+| CIRPASS session token payload internals (`sid`, `ua_hash`, signature) | No | Never exposed in public responses |
+| Raw source PDFs or non-official scraped sources | No | Only normalized story summaries from official CIRPASS + Zenodo references |
 
 ## Landing Claims Source of Truth
 
@@ -50,6 +58,9 @@ Response cache policy:
 - Public responses use allowlisted aggregate fields for landing summaries.
 - Sensitive-key denylist filtering is applied to public data paths to prevent accidental leakage.
 - Public landing UI renders only known aggregate keys and ignores unexpected response fields.
+- CIRPASS source ingestion accepts only official `cirpassproject.eu` and `zenodo.org` URLs.
+- Leaderboard submissions are pseudonymous and protected by signed short-lived browser tokens.
+- Public leaderboard storage excludes direct identifiers (no user ID, email, or tenant linkage).
 
 ## Review and Change Management
 

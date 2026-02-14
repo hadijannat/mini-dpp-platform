@@ -20,6 +20,7 @@ from app.core.security.abac import close_opa_client
 from app.db.session import close_db, get_db_session, init_db
 from app.modules.activity.router import router as activity_router
 from app.modules.audit.router import router as audit_router
+from app.modules.cirpass.public_router import router as public_cirpass_router
 from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
 from app.modules.credentials.public_router import router as public_credentials_router
@@ -235,6 +236,11 @@ window.onload = function() {{
         public_credentials_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public Credentials"],
+    )
+    app.include_router(
+        public_cirpass_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public CIRPASS"],
     )
 
     # Onboarding (authenticated, not tenant-scoped)

@@ -13,6 +13,7 @@ import ProtectedRoute from './auth/ProtectedRoute';
 
 // Lazy-loaded pages
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
+const CirpassLabPage = lazy(() => import('./features/cirpass-lab/pages/CirpassLabPage'));
 const LoginPage = lazy(() => import('./auth/LoginPage'));
 const DPPViewerPage = lazy(() => import('./features/viewer/pages/DPPViewerPage'));
 const DashboardPage = lazy(() => import('./features/publisher/pages/DashboardPage'));
@@ -170,6 +171,7 @@ function App() {
 
         {/* Landing page */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/cirpass-lab" element={<CirpassLabPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

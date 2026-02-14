@@ -3,13 +3,15 @@ SQLAlchemy ORM models for the DPP platform.
 All models use UUIDv7 for primary keys to ensure time-ordered identifiers.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum as PyEnum
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
+    Date,
     DateTime,
     Double,
     Enum,
@@ -2572,4 +2574,143 @@ class RoleUpgradeRequest(TenantScopedMixin, Base):
     __table_args__ = (
         Index("ix_role_upgrade_requests_tenant_user", "tenant_id", "user_subject"),
         Index("ix_role_upgrade_requests_status", "status"),
+    )
+
+
+# =============================================================================
+# Public CIRPASS Lab
+# =============================================================================
+
+
+class CirpassStorySnapshot(Base):
+    """Cached snapshot of latest CIRPASS user stories feed."""
+
+    __tablename__ = "cirpass_story_snapshots"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="Parsed story release version (e.g. V3.1)",
+    )
+    release_date: Mapped[date | None] = mapped_column(
+        Date,
+        nullable=True,
+        comment="Release date from source metadata",
+    )
+    source_url: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Official CIRPASS source page URL",
+    )
+    zenodo_record_url: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Resolved Zenodo record URL used for extraction",
+    )
+    zenodo_record_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="Zenodo record id when available",
+    )
+    stories_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Normalized level/story payload used by the public simulator",
+    )
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        comment="Timestamp of successful source extraction",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("version", "zenodo_record_url", name="uq_cirpass_snapshot_version_record"),
+        Index("ix_cirpass_snapshot_fetched_at", "fetched_at"),
+    )
+
+
+class CirpassLeaderboardEntry(Base):
+    """Public pseudonymous leaderboard entry for CIRPASS lab runs."""
+
+    __tablename__ = "cirpass_leaderboard_entries"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    sid: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="Session identifier from signed browser token",
+    )
+    ip_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="SHA-256 hash of request client IP",
+    )
+    nickname: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        comment="Public display nickname",
+    )
+    score: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Game score (higher is better)",
+    )
+    completion_seconds: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        comment="Completion time in seconds (lower wins tie-break)",
+    )
+    version: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="CIRPASS story version played",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("sid", "version", name="uq_cirpass_leaderboard_sid_version"),
+        CheckConstraint("score >= 0", name="ck_cirpass_leaderboard_score_non_negative"),
+        CheckConstraint(
+            "completion_seconds >= 0",
+            name="ck_cirpass_leaderboard_completion_non_negative",
+        ),
+        Index(
+            "ix_cirpass_leaderboard_rank",
+            "version",
+            "score",
+            "completion_seconds",
+            "created_at",
+        ),
+        Index("ix_cirpass_leaderboard_sid_updated", "sid", "updated_at"),
+        Index("ix_cirpass_leaderboard_ip_updated", "ip_hash", "updated_at"),
     )

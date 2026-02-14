@@ -70,7 +70,7 @@ def _is_trusted_proxy(remote_ip: str) -> bool:
     )
 
 
-def _get_client_ip(request: Request) -> str:
+def get_client_ip(request: Request) -> str:
     """Extract real client IP, only trusting proxy headers from known proxies.
 
     If the direct connection comes from a trusted proxy CIDR, the
@@ -120,7 +120,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith(settings.api_v1_prefix):
             return await call_next(request)
 
-        client_ip = _get_client_ip(request)
+        client_ip = get_client_ip(request)
         # Auth presence check determines rate tier only — actual authentication
         # is enforced by the OIDC dependency in route handlers.
         has_auth = "authorization" in request.headers
@@ -159,3 +159,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         return response
+
+
+def _get_client_ip(request: Request) -> str:
+    """Backwards-compatible alias for older imports/tests."""
+    return get_client_ip(request)
