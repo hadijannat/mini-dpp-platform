@@ -7,11 +7,13 @@ import hashlib
 import json
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
+from time import perf_counter
 from typing import Any, cast
 from urllib.parse import urlparse
 
 import httpx
 import yaml
+from prometheus_client import Counter, Histogram
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +53,42 @@ _STANDARDS_ALLOWED_HOSTS = {
 _refresh_lock = asyncio.Lock()
 _refresh_task: asyncio.Task[None] | None = None
 
+_SEED_REPO_RELATIVE = Path("docs/public/regulatory-timeline/events.seed.yaml")
+_SEED_PACKAGED_RELATIVE = Path("data/events.seed.yaml")
+
+_METRIC_REFRESH_ATTEMPTS = "regulatory_timeline_refresh_attempts_total"
+_METRIC_REFRESH_RESULTS = "regulatory_timeline_refresh_results_total"
+_METRIC_REFRESH_DURATION = "regulatory_timeline_refresh_duration_seconds"
+_METRIC_SOURCE_FETCH_RESULTS = "regulatory_timeline_source_fetch_results_total"
+_METRIC_SERVED_SNAPSHOTS = "regulatory_timeline_served_snapshots_total"
+
+_refresh_attempts_total = Counter(
+    _METRIC_REFRESH_ATTEMPTS,
+    "Total regulatory timeline refresh attempts grouped by mode and requested track.",
+    ("mode", "track"),
+)
+_refresh_results_total = Counter(
+    _METRIC_REFRESH_RESULTS,
+    "Total regulatory timeline refresh outcomes grouped by mode/track/result.",
+    ("mode", "track", "result"),
+)
+_refresh_duration_seconds = Histogram(
+    _METRIC_REFRESH_DURATION,
+    "Duration of regulatory timeline refresh operations in seconds.",
+    ("mode", "track", "result"),
+    buckets=(0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 40, 60),
+)
+_source_fetch_results_total = Counter(
+    _METRIC_SOURCE_FETCH_RESULTS,
+    "Per-source verification outcomes grouped by timeline track.",
+    ("track", "result"),
+)
+_served_snapshots_total = Counter(
+    _METRIC_SERVED_SNAPSHOTS,
+    "Timeline responses served by freshness status and requested track.",
+    ("source_status", "track"),
+)
+
 
 class RegulatoryTimelineUnavailableError(RuntimeError):
     """Raised when timeline data cannot be served."""
@@ -71,24 +109,43 @@ class RegulatoryTimelineService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.settings = get_settings()
-        self._seed_path = self._resolve_seed_path()
+        self._seed_path = self._resolve_seed_path(
+            seed_path_override=self.settings.regulatory_timeline_seed_path,
+        )
 
     @staticmethod
     def _resolve_seed_path(
         *,
+        seed_path_override: str | None = None,
         module_path: Path | None = None,
         cwd: Path | None = None,
     ) -> Path:
-        """Resolve timeline seed file for local and containerized layouts."""
-        seed_relative = Path("docs/public/regulatory-timeline/events.seed.yaml")
+        """Resolve timeline seed file with explicit, repo, then packaged fallback order."""
         resolved_module_path = (module_path or Path(__file__)).resolve()
 
+        if seed_path_override:
+            explicit_path = Path(seed_path_override).expanduser().resolve()
+            if explicit_path.exists():
+                return explicit_path
+            logger.warning(
+                "regulatory_timeline_seed_override_missing_falling_back",
+                configured_path=str(explicit_path),
+            )
+
         for ancestor in resolved_module_path.parents:
-            candidate = ancestor / seed_relative
+            candidate = (ancestor / _SEED_REPO_RELATIVE).resolve()
             if candidate.exists():
                 return candidate
 
-        return ((cwd or Path.cwd()) / seed_relative).resolve()
+        packaged_candidate = (resolved_module_path.parent / _SEED_PACKAGED_RELATIVE).resolve()
+        if packaged_candidate.exists():
+            return packaged_candidate
+
+        cwd_candidate = ((cwd or Path.cwd()) / _SEED_REPO_RELATIVE).resolve()
+        if cwd_candidate.exists():
+            return cwd_candidate
+
+        return packaged_candidate
 
     async def get_latest_timeline(
         self,
@@ -109,44 +166,66 @@ class RegulatoryTimelineService:
                     "Regulatory timeline is temporarily unavailable. Please retry shortly."
                 ) from exc
             schedule_regulatory_timeline_refresh()
-            return self._snapshot_to_response(snapshot, track=track, source_status="stale")
+            response = self._snapshot_to_response(snapshot, track=track, source_status="stale")
+            self._record_served_snapshot(source_status=response.source_status, track=track)
+            return response
 
         source_status: RegulatoryTimelineSourceStatus = "fresh"
         if self._is_snapshot_stale(snapshot):
             source_status = "stale"
             schedule_regulatory_timeline_refresh()
 
-        return self._snapshot_to_response(snapshot, track=track, source_status=source_status)
+        response = self._snapshot_to_response(snapshot, track=track, source_status=source_status)
+        self._record_served_snapshot(source_status=response.source_status, track=track)
+        return response
 
     async def refresh_timeline(
         self,
         *,
         track: RegulatoryTimelineTrackFilter = "all",
+        mode: str = "sync",
     ) -> RegulatoryTimelineResponse:
         """Fetch official sources, verify milestones, and persist a new snapshot."""
-        seed_events = self._load_seed_events()
+        refresh_started = perf_counter()
+        refresh_result = "success"
+        _refresh_attempts_total.labels(mode=mode, track=track).inc()
+        try:
+            seed_events = self._load_seed_events()
 
-        timeout = httpx.Timeout(
-            float(self.settings.regulatory_timeline_source_timeout_seconds),
-            connect=min(10.0, float(self.settings.regulatory_timeline_source_timeout_seconds)),
-        )
-
-        async with _refresh_lock:
-            async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-                verified_events = await self._build_verified_events(seed_events, client=client)
-
-            fetched_at = datetime.now(UTC)
-            expires_at = fetched_at + timedelta(
-                seconds=self.settings.regulatory_timeline_refresh_ttl_seconds
-            )
-            snapshot = await self._upsert_snapshot(
-                events_json={"events": verified_events},
-                digest_sha256=self._events_digest(verified_events),
-                fetched_at=fetched_at,
-                expires_at=expires_at,
+            timeout = httpx.Timeout(
+                float(self.settings.regulatory_timeline_source_timeout_seconds),
+                connect=min(10.0, float(self.settings.regulatory_timeline_source_timeout_seconds)),
             )
 
-        return self._snapshot_to_response(snapshot, track=track, source_status="fresh")
+            async with _refresh_lock:
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+                    verified_events = await self._build_verified_events(seed_events, client=client)
+
+                fetched_at = datetime.now(UTC)
+                expires_at = fetched_at + timedelta(
+                    seconds=self.settings.regulatory_timeline_refresh_ttl_seconds
+                )
+                snapshot = await self._upsert_snapshot(
+                    events_json={"events": verified_events},
+                    digest_sha256=self._events_digest(verified_events),
+                    fetched_at=fetched_at,
+                    expires_at=expires_at,
+                )
+
+            return self._snapshot_to_response(snapshot, track=track, source_status="fresh")
+        except RegulatoryTimelineValidationError:
+            refresh_result = "validation_error"
+            raise
+        except Exception:
+            refresh_result = "error"
+            raise
+        finally:
+            _refresh_results_total.labels(mode=mode, track=track, result=refresh_result).inc()
+            _refresh_duration_seconds.labels(
+                mode=mode,
+                track=track,
+                result=refresh_result,
+            ).observe(max(0.0, perf_counter() - refresh_started))
 
     async def _build_verified_events(
         self,
@@ -320,6 +399,9 @@ class RegulatoryTimelineService:
                 matched = self._match_patterns(body_text, effective_patterns)
                 if matched:
                     matched_any = True
+                    _source_fetch_results_total.labels(track=track, result="matched").inc()
+                else:
+                    _source_fetch_results_total.labels(track=track, result="mismatched").inc()
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "regulatory_timeline_source_fetch_failed",
@@ -327,6 +409,7 @@ class RegulatoryTimelineService:
                     track=track,
                     error=str(exc),
                 )
+                _source_fetch_results_total.labels(track=track, result="error").inc()
 
             sources_payload.append(
                 {
@@ -397,6 +480,14 @@ class RegulatoryTimelineService:
             ensure_ascii=False,
         )
         return hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _record_served_snapshot(
+        *,
+        source_status: RegulatoryTimelineSourceStatus,
+        track: RegulatoryTimelineTrackFilter,
+    ) -> None:
+        _served_snapshots_total.labels(source_status=source_status, track=track).inc()
 
     async def _upsert_snapshot(
         self,
@@ -639,7 +730,7 @@ async def _refresh_in_background() -> None:
     try:
         async with get_background_session() as db:
             service = RegulatoryTimelineService(db)
-            await service.refresh_timeline(track="all")
+            await service.refresh_timeline(track="all", mode="background")
             await db.commit()
     except RegulatoryTimelineValidationError as exc:
         logger.warning("regulatory_timeline_background_refresh_validation_failed", error=str(exc))

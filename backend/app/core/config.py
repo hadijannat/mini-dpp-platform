@@ -147,6 +147,13 @@ class Settings(BaseSettings):
         le=30,
         description="Maximum age in days for timeline verification freshness badge",
     )
+    regulatory_timeline_seed_path: str | None = Field(
+        default=None,
+        description=(
+            "Optional absolute/relative path override for regulatory timeline seed file. "
+            "When unset, service falls back to repo docs seed and packaged module seed."
+        ),
+    )
 
     # ==========================================================================
     # Keycloak / OIDC Configuration

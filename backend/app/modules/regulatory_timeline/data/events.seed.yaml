@@ -1,0 +1,171 @@
+version: 1
+updated_at: "2026-02-14T00:00:00Z"
+
+events:
+  - id: espr-entry-into-force
+    date: "2024-07-18"
+    date_precision: day
+    track: regulation
+    title: "ESPR entered into force"
+    plain_summary: "Regulation (EU) 2024/1781 is now in force and starts the legal DPP rollout baseline."
+    audience_tags: ["brands", "market-surveillance", "platform-teams"]
+    expected_patterns: ["entered into force", "18 july 2024"]
+    source_refs:
+      - label: "European Commission — ESPR"
+        url: "https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/ecodesign-sustainable-products-regulation_en"
+        publisher: "European Commission"
+        expected_patterns: ["entered into force on 18 july 2024"]
+
+  - id: espr-working-plan-2025
+    date: "2025-04-16"
+    date_precision: day
+    track: regulation
+    title: "First ESPR working plan adopted"
+    plain_summary: "The first ESPR and Energy Labelling Working Plan sets priority product groups and timeline direction."
+    audience_tags: ["manufacturers", "suppliers", "compliance-teams"]
+    expected_patterns: ["first esp and energy labelling working plan", "16 april 2025"]
+    source_refs:
+      - label: "European Commission — ESPR timeline"
+        url: "https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/ecodesign-sustainable-products-regulation_en"
+        publisher: "European Commission"
+        expected_patterns: ["16 april 2025"]
+
+  - id: espr-disclosure-ia-deadline-2025
+    date: "2025-07-19"
+    date_precision: day
+    track: regulation
+    title: "Initial disclosure implementing act deadline"
+    plain_summary: "A first implementing act deadline sets details that shape DPP disclosure obligations."
+    audience_tags: ["regulatory", "legal", "platform-teams"]
+    expected_patterns: ["19 july 2025"]
+    source_refs:
+      - label: "EUR-Lex — Regulation (EU) 2024/1781"
+        url: "https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng"
+        publisher: "EUR-Lex"
+        expected_patterns: ["19 july 2025"]
+
+  - id: espr-unsold-products-acts-2026
+    date: "2026-02-09"
+    date_precision: day
+    track: regulation
+    title: "Unsold consumer products acts adopted"
+    plain_summary: "Delegated and implementing acts define categories and rules for destruction disclosures and restrictions."
+    audience_tags: ["retail", "brands", "policy"]
+    expected_patterns: ["9 february 2026"]
+    source_refs:
+      - label: "European Commission — ESPR timeline"
+        url: "https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/ecodesign-sustainable-products-regulation_en"
+        publisher: "European Commission"
+        expected_patterns: ["9 february 2026"]
+
+  - id: espr-dpp-registry-deadline-2026
+    date: "2026-07-19"
+    date_precision: day
+    track: regulation
+    title: "Commission DPP registry deadline"
+    plain_summary: "The Commission must have the DPP registry infrastructure in place by this deadline."
+    audience_tags: ["platform-teams", "authorities", "integrators"]
+    expected_patterns: ["19 july 2026", "registry"]
+    source_refs:
+      - label: "EUR-Lex — Regulation (EU) 2024/1781"
+        url: "https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng"
+        publisher: "EUR-Lex"
+        expected_patterns: ["19 july 2026"]
+
+  - id: espr-destruction-ban-applies-2026
+    date: "2026-07-19"
+    date_precision: day
+    track: regulation
+    title: "Unsold product destruction prohibition applies"
+    plain_summary: "The prohibition for destroying defined unsold consumer products starts to apply."
+    audience_tags: ["retail", "brands", "compliance-teams"]
+    expected_patterns: ["19 july 2026"]
+    source_refs:
+      - label: "EUR-Lex — Regulation (EU) 2024/1781"
+        url: "https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng"
+        publisher: "EUR-Lex"
+        expected_patterns: ["19 july 2026"]
+
+  - id: batteries-passport-2027
+    date: "2027-02-18"
+    date_precision: day
+    track: regulation
+    title: "Battery passport requirement begins"
+    plain_summary: "Specified batteries must carry an electronic battery passport record from this date."
+    audience_tags: ["battery-manufacturers", "importers", "market-surveillance"]
+    expected_patterns: ["18 february 2027", "battery passport"]
+    source_refs:
+      - label: "EUR-Lex — Regulation (EU) 2023/1542"
+        url: "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX%3A02023R1542-20230728"
+        publisher: "EUR-Lex"
+        expected_patterns: ["18 february 2027"]
+
+  - id: espr-medium-companies-disclosure-2030
+    date: "2030-07-19"
+    date_precision: day
+    track: regulation
+    title: "Medium-sized company disclosure duty"
+    plain_summary: "Disclosure obligations expand to medium-sized companies for unsold consumer products rules."
+    audience_tags: ["mid-market", "legal", "compliance-teams"]
+    expected_patterns: ["19 july 2030"]
+    source_refs:
+      - label: "EUR-Lex — Regulation (EU) 2024/1781"
+        url: "https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng"
+        publisher: "EUR-Lex"
+        expected_patterns: ["19 july 2030"]
+
+  - id: cencenelec-jtc24-established
+    date: "2023-09"
+    date_precision: month
+    track: standards
+    title: "CEN-CENELEC JTC24 established"
+    plain_summary: "A joint technical committee was established to coordinate DPP-related standardization work."
+    audience_tags: ["standards", "architects", "interoperability"]
+    expected_patterns: ["jtc 24", "digital product passport"]
+    source_refs:
+      - label: "CEN-CENELEC — Digital Product Passport topic"
+        url: "https://www.cencenelec.eu/areas-of-work/cen-cenelec-topics/digital-product-passport/"
+        publisher: "CEN-CENELEC"
+        expected_patterns: ["digital product passport"]
+
+  - id: cencenelec-cwa-workshop-launch
+    date: "2024-06-24"
+    date_precision: day
+    track: standards
+    title: "CEN workshop on DPP design guidelines launched"
+    plain_summary: "A CEN workshop starts work on practical design guidelines for Digital Product Passports."
+    audience_tags: ["standards", "implementation", "design-authorities"]
+    expected_patterns: ["24 june 2024"]
+    source_refs:
+      - label: "CEN-CENELEC Workshop Announcement"
+        url: "https://www.cencenelec.eu/news-and-events/news/2024/workshop/2024-06-24-circthread/"
+        publisher: "CEN-CENELEC"
+        expected_patterns: ["24 june 2024"]
+
+  - id: cencenelec-cwa-draft-comment-open
+    date: "2025-02-17"
+    date_precision: day
+    track: standards
+    title: "Draft CWA for DPP guidelines opened for comments"
+    plain_summary: "Stakeholders can review and comment on draft DPP design guideline content."
+    audience_tags: ["standards", "policy", "industry-groups"]
+    expected_patterns: ["17 february 2025", "draft cwa"]
+    source_refs:
+      - label: "CEN-CENELEC Draft CWA News"
+        url: "https://www.cencenelec.eu/news-events/news/2025/workshop/2025-02-17-circthread/"
+        publisher: "CEN-CENELEC"
+        expected_patterns: ["17 february 2025"]
+
+  - id: cencenelec-cwa-comment-close
+    date: "2025-03-19"
+    date_precision: day
+    track: standards
+    title: "Draft CWA comment period closes"
+    plain_summary: "The public comment window for draft DPP design guidelines closes."
+    audience_tags: ["standards", "contributors", "implementation-teams"]
+    expected_patterns: ["19 march 2025"]
+    source_refs:
+      - label: "CEN-CENELEC Draft CWA News"
+        url: "https://www.cencenelec.eu/news-events/news/2025/workshop/2025-02-17-circthread/"
+        publisher: "CEN-CENELEC"
+        expected_patterns: ["19 march 2025"]

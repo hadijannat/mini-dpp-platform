@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
@@ -51,6 +53,16 @@ class _FakeSession:
 
     async def flush(self) -> None:
         return None
+
+
+def _metric_sample_value(metric: Any, sample_name: str, labels: dict[str, str]) -> float:
+    for metric_family in metric.collect():
+        for sample in metric_family.samples:
+            if sample.name != sample_name:
+                continue
+            if all(sample.labels.get(k) == v for k, v in labels.items()):
+                return float(sample.value)
+    return 0.0
 
 
 @pytest.fixture()
@@ -229,6 +241,17 @@ async def test_verify_event_sets_content_match_and_source_hash_confidence() -> N
     }
 
     checked_at = datetime.now(UTC).isoformat()
+    baseline_matched = _metric_sample_value(
+        regulatory_timeline_service_module._source_fetch_results_total,
+        "regulatory_timeline_source_fetch_results_total",
+        {"track": "regulation", "result": "matched"},
+    )
+    baseline_mismatched = _metric_sample_value(
+        regulatory_timeline_service_module._source_fetch_results_total,
+        "regulatory_timeline_source_fetch_results_total",
+        {"track": "regulation", "result": "mismatched"},
+    )
+
     service._fetch_source_text = AsyncMock(  # type: ignore[method-assign]
         return_value=("Regulation entered into force on 18 July 2024", "a" * 64, checked_at)
     )
@@ -236,6 +259,14 @@ async def test_verify_event_sets_content_match_and_source_hash_confidence() -> N
     assert matched["verified"] is True
     assert matched["verification"]["method"] == "content-match"
     assert matched["verification"]["confidence"] == "high"
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._source_fetch_results_total,
+            "regulatory_timeline_source_fetch_results_total",
+            {"track": "regulation", "result": "matched"},
+        )
+        == baseline_matched + 1
+    )
 
     service._fetch_source_text = AsyncMock(  # type: ignore[method-assign]
         return_value=("No expected phrase here", "b" * 64, checked_at)
@@ -244,6 +275,14 @@ async def test_verify_event_sets_content_match_and_source_hash_confidence() -> N
     assert unmatched["verified"] is False
     assert unmatched["verification"]["method"] == "source-hash"
     assert unmatched["verification"]["confidence"] == "medium"
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._source_fetch_results_total,
+            "regulatory_timeline_source_fetch_results_total",
+            {"track": "regulation", "result": "mismatched"},
+        )
+        == baseline_mismatched + 1
+    )
 
 
 @pytest.mark.asyncio
@@ -264,6 +303,137 @@ async def test_stale_verification_downgrades_verified_badge() -> None:
     assert len(response.events) == 1
     assert response.events[0].verified is False
     assert response.events[0].verification.confidence == "low"
+
+
+@pytest.mark.asyncio
+async def test_fetch_source_redirect_rechecks_allowlist() -> None:
+    service = RegulatoryTimelineService(_FakeSession())  # type: ignore[arg-type]
+    redirect_response = httpx.Response(
+        status_code=302,
+        headers={"location": "https://example.com/disallowed"},
+        request=httpx.Request("GET", "https://commission.europa.eu/path"),
+    )
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=redirect_response)
+
+    with pytest.raises(RegulatoryTimelineValidationError):
+        await service._fetch_source_text(
+            client,  # type: ignore[arg-type]
+            url="https://commission.europa.eu/path",
+            track="regulation",
+        )
+
+
+@pytest.mark.asyncio
+async def test_refresh_metrics_increment_on_success() -> None:
+    fake_db = _FakeSession([])
+    service = RegulatoryTimelineService(fake_db)  # type: ignore[arg-type]
+    now = datetime.now(UTC).isoformat()
+    verified_event = {
+        "id": "refresh-success-event",
+        "date": "2026-07-19",
+        "date_precision": "day",
+        "track": "regulation",
+        "title": "Refresh success",
+        "plain_summary": "Synthetic refresh verification event.",
+        "audience_tags": ["tests"],
+        "verified": True,
+        "verification": {
+            "checked_at": now,
+            "method": "content-match",
+            "confidence": "high",
+        },
+        "sources": [],
+    }
+
+    service._load_seed_events = lambda: [verified_event]  # type: ignore[method-assign]
+    service._build_verified_events = AsyncMock(  # type: ignore[method-assign]
+        return_value=[verified_event]
+    )
+
+    labels_refresh = {"mode": "sync", "track": "all"}
+    before_attempts = _metric_sample_value(
+        regulatory_timeline_service_module._refresh_attempts_total,
+        "regulatory_timeline_refresh_attempts_total",
+        labels_refresh,
+    )
+    before_results = _metric_sample_value(
+        regulatory_timeline_service_module._refresh_results_total,
+        "regulatory_timeline_refresh_results_total",
+        {**labels_refresh, "result": "success"},
+    )
+    before_duration_count = _metric_sample_value(
+        regulatory_timeline_service_module._refresh_duration_seconds,
+        "regulatory_timeline_refresh_duration_seconds_count",
+        {**labels_refresh, "result": "success"},
+    )
+
+    refreshed = await service.refresh_timeline(track="all")
+    assert refreshed.source_status == "fresh"
+
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._refresh_attempts_total,
+            "regulatory_timeline_refresh_attempts_total",
+            labels_refresh,
+        )
+        == before_attempts + 1
+    )
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._refresh_results_total,
+            "regulatory_timeline_refresh_results_total",
+            {**labels_refresh, "result": "success"},
+        )
+        == before_results + 1
+    )
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._refresh_duration_seconds,
+            "regulatory_timeline_refresh_duration_seconds_count",
+            {**labels_refresh, "result": "success"},
+        )
+        == before_duration_count + 1
+    )
+
+    before_served = _metric_sample_value(
+        regulatory_timeline_service_module._served_snapshots_total,
+        "regulatory_timeline_served_snapshots_total",
+        {"source_status": "fresh", "track": "all"},
+    )
+    served_response = await service.get_latest_timeline(track="all")
+    assert served_response.source_status == "fresh"
+    assert (
+        _metric_sample_value(
+            regulatory_timeline_service_module._served_snapshots_total,
+            "regulatory_timeline_served_snapshots_total",
+            {"source_status": "fresh", "track": "all"},
+        )
+        == before_served + 1
+    )
+
+
+def test_seed_path_resolution_override_and_packaged_fallback(tmp_path: Path) -> None:
+    override_seed = tmp_path / "override-seed.yaml"
+    override_seed.write_text("events: []\n", encoding="utf-8")
+
+    resolved_override = RegulatoryTimelineService._resolve_seed_path(
+        seed_path_override=str(override_seed),
+        module_path=Path(__file__),
+        cwd=tmp_path,
+    )
+    assert resolved_override == override_seed.resolve()
+
+    isolated_root = tmp_path / "isolated"
+    packaged_seed = isolated_root / "data" / "events.seed.yaml"
+    packaged_seed.parent.mkdir(parents=True, exist_ok=True)
+    packaged_seed.write_text("events: []\n", encoding="utf-8")
+
+    resolved_packaged = RegulatoryTimelineService._resolve_seed_path(
+        module_path=isolated_root / "service.py",
+        cwd=tmp_path / "missing-docs-root",
+    )
+    assert resolved_packaged == packaged_seed.resolve()
 
 
 @pytest.mark.asyncio

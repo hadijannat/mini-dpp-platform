@@ -61,6 +61,13 @@ Verification guardrails:
 - Sources are allowlisted to official domains only.
 - `verified=true` requires at least one official source content-match.
 - Month-only milestones use `date_precision=month` and must render as month/year (no inferred day).
+- UI freshness badge semantics:
+  - `source_status=fresh` -> "Live verified feed"
+  - `source_status=stale` -> "Refreshing..." (stale snapshot served while background refresh runs)
+- Seed resolution order for runtime safety:
+  1. `regulatory_timeline_seed_path` override (if configured)
+  2. repository seed `docs/public/regulatory-timeline/events.seed.yaml`
+  3. packaged fallback seed `app/modules/regulatory_timeline/data/events.seed.yaml`
 
 ## Contract: CIRPASS Manifest + Stories
 

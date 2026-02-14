@@ -89,12 +89,19 @@ describe('RegulatoryTimelineSection', () => {
     render(<RegulatoryTimelineSection />);
 
     expect(screen.getByText('Verified DPP Timeline')).toBeTruthy();
+    expect(screen.getByText('Live verified feed')).toBeTruthy();
+    expect(screen.getByTestId('timeline-axis-rail')).toBeTruthy();
+    expect(screen.getByTestId('timeline-now-marker')).toBeTruthy();
     expect(screen.getAllByText('ESPR entered into force').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Verified').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Verified (High)').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Unverified').length).toBeGreaterThan(0);
     expect(screen.getByTestId('timeline-next-milestone')).toBeTruthy();
+    expect(screen.getByTestId('timeline-scroll-right')).toBeTruthy();
+    expect(screen.getByTestId('timeline-scroll-progress')).toBeTruthy();
 
     fireEvent.click(screen.getByTestId('timeline-card-espr-entry-into-force'));
     expect(screen.getByText('Official citations')).toBeTruthy();
+    expect(screen.getByText('Verification method: Content match against official source text')).toBeTruthy();
     expect(screen.getByRole('link', { name: /European Commission — ESPR/i })).toBeTruthy();
   });
 
@@ -108,6 +115,7 @@ describe('RegulatoryTimelineSection', () => {
     render(<RegulatoryTimelineSection />);
 
     expect(screen.getByText(/showing fallback milestones/i)).toBeTruthy();
+    expect(screen.getByText('Refreshing...')).toBeTruthy();
     expect(screen.getAllByText('ESPR entered into force').length).toBeGreaterThan(0);
   });
 });

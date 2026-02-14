@@ -1,8 +1,17 @@
-import { useMemo, useState } from 'react';
-import { CalendarClock, Clock3, ExternalLink, ShieldCheck } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
+  ExternalLink,
+  ShieldCheck,
+} from 'lucide-react';
 import type {
   RegulatoryTimelineEvent,
   RegulatoryTimelineTrackFilter,
+  RegulatoryTimelineVerificationMethod,
 } from '@/api/types';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -12,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useRegulatoryTimeline } from '../hooks/useRegulatoryTimeline';
@@ -70,6 +80,34 @@ const FALLBACK_EVENTS: RegulatoryTimelineEvent[] = [
   },
 ];
 
+function clamp01(value: number): number {
+  return Math.max(0, Math.min(1, value));
+}
+
+function dateToMs(event: RegulatoryTimelineEvent): number | null {
+  const parsed =
+    event.date_precision === 'month'
+      ? new Date(`${event.date}-01T00:00:00Z`)
+      : new Date(`${event.date}T00:00:00Z`);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
+function computeRange(events: RegulatoryTimelineEvent[]): { min: number; max: number } | null {
+  const values = events
+    .map((event) => dateToMs(event))
+    .filter((value): value is number => typeof value === 'number');
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values),
+  };
+}
+
 function formatMilestoneDate(event: RegulatoryTimelineEvent): string {
   if (event.date_precision === 'month') {
     const parsed = new Date(`${event.date}-01T00:00:00Z`);
@@ -96,6 +134,7 @@ function formatDateTime(value: string): string {
   if (Number.isNaN(parsed.getTime())) {
     return 'Unavailable';
   }
+
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'short',
@@ -143,6 +182,40 @@ function statusBadgeClass(status: RegulatoryTimelineEvent['status']): string {
   return 'border-landing-cyan/35 bg-landing-cyan/10 text-landing-cyan';
 }
 
+function confidenceClass(confidence: RegulatoryTimelineEvent['verification']['confidence']): string {
+  if (confidence === 'high') {
+    return 'border-landing-cyan/35 bg-landing-cyan/10 text-landing-cyan';
+  }
+  if (confidence === 'medium') {
+    return 'border-amber-500/30 bg-amber-100 text-amber-900';
+  }
+  return 'border-landing-ink/20 bg-white text-landing-muted';
+}
+
+function confidenceLabel(confidence: RegulatoryTimelineEvent['verification']['confidence']): string {
+  if (confidence === 'high') {
+    return 'High';
+  }
+  if (confidence === 'medium') {
+    return 'Medium';
+  }
+  return 'Low';
+}
+
+function verificationMethodLabel(method: RegulatoryTimelineVerificationMethod): string {
+  if (method === 'content-match') {
+    return 'Content match against official source text';
+  }
+  if (method === 'source-hash') {
+    return 'Official source fetched and hashed';
+  }
+  return 'Manual fallback';
+}
+
+function trackNodeClass(track: RegulatoryTimelineEvent['track']): string {
+  return track === 'standards' ? 'bg-amber-500' : 'bg-landing-cyan';
+}
+
 function filterFallback(track: RegulatoryTimelineTrackFilter): RegulatoryTimelineEvent[] {
   if (track === 'all') {
     return FALLBACK_EVENTS;
@@ -150,12 +223,90 @@ function filterFallback(track: RegulatoryTimelineTrackFilter): RegulatoryTimelin
   return FALLBACK_EVENTS.filter((event) => event.track === track);
 }
 
+interface TimelineCardProps {
+  event: RegulatoryTimelineEvent;
+  desktop: boolean;
+  testId?: string;
+  shouldReduceMotion: boolean;
+  onSelect: (event: RegulatoryTimelineEvent) => void;
+}
+
+function TimelineCard({
+  event,
+  desktop,
+  testId,
+  shouldReduceMotion,
+  onSelect,
+}: TimelineCardProps) {
+  const motionProps = shouldReduceMotion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 14 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -10 },
+        transition: { type: 'spring' as const, stiffness: 420, damping: 34 },
+      };
+
+  return (
+    <motion.button
+      type="button"
+      layout
+      onClick={() => onSelect(event)}
+      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+      whileTap={shouldReduceMotion ? undefined : { scale: 0.99 }}
+      className={cn(
+        'group rounded-2xl border border-landing-ink/12 bg-white/90 text-left shadow-[0_16px_30px_-24px_rgba(12,31,46,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan',
+        desktop ? 'h-full w-[280px] p-4' : 'w-full p-4',
+      )}
+      data-testid={testId}
+      {...motionProps}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className={cn('font-display font-semibold text-landing-ink', desktop ? 'text-xl' : 'text-lg')}>
+            {formatMilestoneDate(event)}
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-landing-ink">{event.title}</p>
+        </div>
+        <Badge
+          variant="outline"
+          className={cn('text-[11px] uppercase tracking-[0.08em]', statusBadgeClass(event.status))}
+        >
+          {event.status}
+        </Badge>
+      </div>
+      <p className="mt-2 text-sm leading-relaxed text-landing-muted">{event.plain_summary}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {event.verified ? (
+          <Badge variant="outline" className={cn('gap-1.5', confidenceClass(event.verification.confidence))}>
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Verified ({confidenceLabel(event.verification.confidence)})
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="gap-1.5 border-landing-ink/15 bg-white text-landing-muted">
+            <Clock3 className="h-3.5 w-3.5" />
+            Unverified
+          </Badge>
+        )}
+      </div>
+    </motion.button>
+  );
+}
+
 export default function RegulatoryTimelineSection() {
+  const shouldReduceMotion = useReducedMotion();
   const [track, setTrack] = useState<RegulatoryTimelineTrackFilter>('all');
   const [selectedEvent, setSelectedEvent] = useState<RegulatoryTimelineEvent | null>(null);
+  const [now, setNow] = useState<Date>(() => new Date());
+  const [desktopScrollProgress, setDesktopScrollProgress] = useState(0);
+  const desktopScrollRef = useRef<HTMLDivElement | null>(null);
   const { data, isLoading, isError } = useRegulatoryTimeline(track);
 
-  const now = new Date();
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const events = useMemo(
     () => data?.events ?? (isError ? filterFallback(track) : []),
     [data?.events, isError, track],
@@ -180,6 +331,57 @@ export default function RegulatoryTimelineSection() {
     return data?.fetched_at ?? null;
   }, [data?.fetched_at, events]);
 
+  const range = useMemo(() => computeRange(events), [events]);
+  const nowPct = useMemo(() => {
+    if (!range) {
+      return 0;
+    }
+    const span = Math.max(1, range.max - range.min);
+    return clamp01((now.getTime() - range.min) / span);
+  }, [now, range]);
+
+  useEffect(() => {
+    const scrollEl = desktopScrollRef.current;
+    if (!scrollEl) {
+      return;
+    }
+
+    const updateProgress = () => {
+      const maxScrollable = scrollEl.scrollWidth - scrollEl.clientWidth;
+      if (maxScrollable <= 0) {
+        setDesktopScrollProgress(1);
+        return;
+      }
+      setDesktopScrollProgress(clamp01(scrollEl.scrollLeft / maxScrollable));
+    };
+
+    updateProgress();
+    scrollEl.addEventListener('scroll', updateProgress, { passive: true });
+    window.addEventListener('resize', updateProgress);
+
+    return () => {
+      scrollEl.removeEventListener('scroll', updateProgress);
+      window.removeEventListener('resize', updateProgress);
+    };
+  }, [events, track]);
+
+  const freshnessStatus =
+    data?.source_status ?? (isError || isLoading ? 'stale' : ('fresh' as const));
+  const isFresh = freshnessStatus === 'fresh';
+
+  const scrollDesktop = (direction: -1 | 1) => {
+    const scrollEl = desktopScrollRef.current;
+    if (!scrollEl) {
+      return;
+    }
+
+    const step = Math.max(120, Math.floor(scrollEl.clientWidth * 0.8));
+    scrollEl.scrollBy({
+      left: step * direction,
+      behavior: shouldReduceMotion ? 'auto' : 'smooth',
+    });
+  };
+
   return (
     <section id="timeline" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
       <div className="mx-auto max-w-6xl rounded-3xl border border-landing-cyan/30 bg-white/86 p-6 shadow-[0_30px_54px_-42px_rgba(8,35,50,0.85)] sm:p-8">
@@ -192,13 +394,31 @@ export default function RegulatoryTimelineSection() {
               Verified DPP Timeline
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-landing-muted sm:text-base">
-              Verified against official EU and standards-body sources. Updated daily and rendered for
-              one-glance understanding across technical and non-technical audiences.
+              Verified from official sources (Commission, EUR-Lex, and standards bodies). Built for
+              one-glance understanding across compliance, product, and engineering audiences.
             </p>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-landing-muted">
               <Badge variant="outline" className="border-landing-cyan/35 bg-landing-cyan/10 text-landing-cyan">
                 <ShieldCheck className="mr-1 h-3.5 w-3.5" />
                 Official sources only
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn(
+                  'gap-1.5',
+                  isFresh
+                    ? 'border-landing-cyan/35 bg-landing-cyan/10 text-landing-cyan'
+                    : 'border-amber-500/30 bg-amber-100 text-amber-900',
+                )}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-2 w-2 rounded-full',
+                    isFresh ? 'bg-landing-cyan' : 'bg-amber-500',
+                  )}
+                  aria-hidden="true"
+                />
+                {isFresh ? 'Live verified feed' : 'Refreshing...'}
               </Badge>
               <Badge variant="outline" className="border-landing-ink/20 bg-white text-landing-ink">
                 <CalendarClock className="mr-1 h-3.5 w-3.5" />
@@ -249,7 +469,10 @@ export default function RegulatoryTimelineSection() {
         {isLoading && (
           <div className="mt-6 grid gap-3 md:grid-cols-3" data-testid="regulatory-timeline-loading">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`timeline-loading-${index}`} className="rounded-2xl border border-landing-ink/10 bg-white/80 p-4">
+              <div
+                key={`timeline-loading-${index}`}
+                className="rounded-2xl border border-landing-ink/10 bg-white/80 p-4"
+              >
                 <div className="h-4 w-20 animate-pulse rounded bg-landing-ink/10" />
                 <div className="mt-3 h-6 w-4/5 animate-pulse rounded bg-landing-ink/15" />
                 <div className="mt-3 h-4 w-full animate-pulse rounded bg-landing-ink/10" />
@@ -266,31 +489,77 @@ export default function RegulatoryTimelineSection() {
 
         {!isLoading && events.length > 0 && (
           <>
-            <div className="mt-6 hidden overflow-x-auto pb-2 md:block">
-              <div className="flex min-w-max snap-x snap-mandatory gap-3">
-                {events.map((event) => (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() => setSelectedEvent(event)}
-                    className="group w-[280px] snap-start rounded-2xl border border-landing-ink/12 bg-white/88 p-4 text-left shadow-[0_16px_30px_-24px_rgba(12,31,46,0.84)] transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
-                    data-testid={`timeline-card-${event.id}`}
+            <div className="mt-6 hidden md:block">
+              <div className="relative">
+                <div
+                  className="pointer-events-none absolute left-0 right-0 top-8 h-px bg-gradient-to-r from-transparent via-landing-ink/20 to-transparent"
+                  data-testid="timeline-axis-rail"
+                />
+                {range && (
+                  <div
+                    className="pointer-events-none absolute top-1 z-[1] flex -translate-x-1/2 flex-col items-center"
+                    style={{ left: `${nowPct * 100}%` }}
+                    data-testid="timeline-now-marker"
                   >
-                    <p className="font-display text-xl font-semibold text-landing-ink">{formatMilestoneDate(event)}</p>
-                    <p className="mt-2 text-sm font-semibold leading-snug text-landing-ink">{event.title}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-landing-muted">{event.plain_summary}</p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      <Badge variant="outline" className={cn('text-[11px] uppercase tracking-[0.08em]', statusBadgeClass(event.status))}>
-                        {event.status}
-                      </Badge>
-                      {event.verified && (
-                        <Badge variant="outline" className="border-emerald-600/35 bg-emerald-100 text-emerald-900">
-                          Verified
-                        </Badge>
-                      )}
+                    <div className="h-11 w-px bg-amber-500/60" />
+                    <div className="mt-1 rounded-full border border-amber-500/30 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                      Today
                     </div>
+                  </div>
+                )}
+                <div
+                  ref={desktopScrollRef}
+                  className="overflow-x-auto pb-4 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]"
+                  data-testid="timeline-scroll-container"
+                >
+                  <div className="flex min-w-max snap-x snap-mandatory gap-3 px-1 pt-6">
+                    <AnimatePresence initial={false} mode="popLayout">
+                      {events.map((event) => (
+                        <motion.div key={event.id} layout className="relative w-[280px] snap-start pt-2">
+                          <span
+                            className={cn(
+                              'pointer-events-none absolute left-6 top-[0.10rem] h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(12,31,46,0.12)]',
+                              trackNodeClass(event.track),
+                            )}
+                            aria-hidden="true"
+                          />
+                          <TimelineCard
+                            event={event}
+                            desktop
+                            testId={`timeline-card-${event.id}`}
+                            shouldReduceMotion={!!shouldReduceMotion}
+                            onSelect={setSelectedEvent}
+                          />
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => scrollDesktop(-1)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/15 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
+                    aria-label="Scroll timeline left"
+                    data-testid="timeline-scroll-left"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
-                ))}
+                  <Progress
+                    value={Math.round(desktopScrollProgress * 100)}
+                    className="h-1.5 bg-landing-ink/10 [&>div]:bg-landing-cyan"
+                    data-testid="timeline-scroll-progress"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => scrollDesktop(1)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/15 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
+                    aria-label="Scroll timeline right"
+                    data-testid="timeline-scroll-right"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -303,30 +572,18 @@ export default function RegulatoryTimelineSection() {
                   </div>
                 </div>
               )}
-              {events.map((event) => (
-                <button
-                  key={`mobile-${event.id}`}
-                  type="button"
-                  onClick={() => setSelectedEvent(event)}
-                  className="w-full rounded-2xl border border-landing-ink/12 bg-white/90 p-4 text-left shadow-[0_12px_24px_-20px_rgba(10,32,46,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-display text-lg font-semibold text-landing-ink">{formatMilestoneDate(event)}</p>
-                      <p className="mt-1 text-sm font-semibold text-landing-ink">{event.title}</p>
-                    </div>
-                    <Badge variant="outline" className={cn('text-[11px] uppercase tracking-[0.08em]', statusBadgeClass(event.status))}>
-                      {event.status}
-                    </Badge>
-                  </div>
-                  <p className="mt-2 text-sm leading-relaxed text-landing-muted">{event.plain_summary}</p>
-                  {event.verified && (
-                    <Badge variant="outline" className="mt-3 border-emerald-600/35 bg-emerald-100 text-emerald-900">
-                      Verified
-                    </Badge>
-                  )}
-                </button>
-              ))}
+              <AnimatePresence initial={false} mode="popLayout">
+                {events.map((event) => (
+                  <motion.div key={`mobile-${event.id}`} layout>
+                    <TimelineCard
+                      event={event}
+                      desktop={false}
+                      shouldReduceMotion={!!shouldReduceMotion}
+                      onSelect={setSelectedEvent}
+                    />
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </>
         )}
@@ -348,21 +605,26 @@ export default function RegulatoryTimelineSection() {
                   {selectedEvent.title}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-landing-muted">
-                  {formatMilestoneDate(selectedEvent)} · {selectedEvent.track === 'regulation' ? 'Regulation track' : 'Standards track'}
+                  {formatMilestoneDate(selectedEvent)} ·{' '}
+                  {selectedEvent.track === 'regulation' ? 'Regulation track' : 'Standards track'}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-3 text-sm leading-relaxed text-landing-muted">
                 <p>{selectedEvent.plain_summary}</p>
                 <ul className="space-y-1">
-                  <li>Verification method: {selectedEvent.verification.method}</li>
-                  <li>Verification confidence: {selectedEvent.verification.confidence}</li>
+                  <li>Verification method: {verificationMethodLabel(selectedEvent.verification.method)}</li>
+                  <li>
+                    Verification confidence: {confidenceLabel(selectedEvent.verification.confidence)}
+                  </li>
                   <li>Last checked: {formatDateTime(selectedEvent.verification.checked_at)}</li>
                 </ul>
               </div>
 
               <div className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-landing-muted">Official citations</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-landing-muted">
+                  Official citations
+                </p>
                 <ul className="mt-2 space-y-2 text-sm">
                   {selectedEvent.sources.length === 0 ? (
                     <li className="text-landing-muted">No citations available for fallback data.</li>
