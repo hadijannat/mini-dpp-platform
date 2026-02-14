@@ -25,74 +25,76 @@ export default function HeroSection() {
       />
 
       <div className="mx-auto max-w-6xl">
-        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
-          <div>
-            <p className="landing-kicker inline-flex items-center rounded-full border border-landing-cyan/30 bg-landing-cyan/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-landing-cyan">
-              {landingContent.hero.eyebrow}
-            </p>
+        {/* ── Hero text block ── */}
+        <div className="text-center">
+          <p className="landing-kicker inline-flex items-center rounded-full border border-landing-cyan/30 bg-landing-cyan/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-landing-cyan">
+            {landingContent.hero.eyebrow}
+          </p>
 
-            <h1 className="mt-6 font-display text-4xl font-semibold leading-tight tracking-tight text-landing-ink sm:text-5xl lg:text-6xl">
-              {landingContent.hero.title}
-            </h1>
+          <h1 className="mx-auto mt-6 max-w-4xl font-display text-4xl font-semibold leading-tight tracking-tight text-landing-ink sm:text-5xl lg:text-6xl">
+            {landingContent.hero.title}
+          </h1>
 
-            <p className="mt-6 max-w-3xl text-base leading-relaxed text-landing-muted sm:text-lg">
-              {landingContent.hero.subtitle}
-            </p>
+          <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-landing-muted sm:text-lg">
+            {landingContent.hero.subtitle}
+          </p>
 
-            <div className="mt-5 flex flex-wrap gap-2.5">
-              {landingContent.hero.proofPills.map((pill) => (
-                <span
-                  key={pill}
-                  className="inline-flex rounded-full border border-landing-ink/14 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-landing-ink"
-                >
-                  {pill}
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button
-                className="h-12 rounded-full px-6 text-sm font-semibold"
-                onClick={() => openHref(landingContent.hero.primaryCtaHref)}
-                data-testid="landing-hero-primary-cta"
+          <div className="mt-5 flex flex-wrap justify-center gap-2.5">
+            {landingContent.hero.proofPills.map((pill) => (
+              <span
+                key={pill}
+                className="inline-flex rounded-full border border-landing-ink/14 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-landing-ink"
               >
-                {landingContent.hero.primaryCta}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="h-12 rounded-full border-landing-ink/25 bg-white/70 px-6 text-sm font-semibold text-landing-ink backdrop-blur transition-colors hover:bg-white"
-                onClick={() => openHref(landingContent.hero.secondaryCtaHref)}
-                data-testid="landing-hero-secondary-cta"
-              >
-                {landingContent.hero.secondaryCta}
-                <ExternalLink className="h-4 w-4" />
-              </Button>
-            </div>
+                {pill}
+              </span>
+            ))}
           </div>
 
-          <aside className="landing-panel rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
-            <DppCompactModel />
+          <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Button
+              className="h-12 rounded-full px-6 text-sm font-semibold"
+              onClick={() => openHref(landingContent.hero.primaryCtaHref)}
+              data-testid="landing-hero-primary-cta"
+            >
+              {landingContent.hero.primaryCta}
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-12 rounded-full border-landing-ink/25 bg-white/70 px-6 text-sm font-semibold text-landing-ink backdrop-blur transition-colors hover:bg-white"
+              onClick={() => openHref(landingContent.hero.secondaryCtaHref)}
+              data-testid="landing-hero-secondary-cta"
+            >
+              {landingContent.hero.secondaryCta}
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
 
-            <ul className="mt-5 space-y-2">
-              {landingContent.hero.trustBullets.map((bullet) => (
-                <li key={bullet} className="flex items-start gap-2 text-sm leading-relaxed text-landing-muted">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-landing-cyan" />
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
+        {/* ── Full-width AAS model ── */}
+        <div className="landing-panel mx-auto mt-10 max-w-4xl rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
+          <DppCompactModel />
 
+          <div className="mt-5 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {landingContent.hero.trustBullets.map((bullet) => (
+              <div key={bullet} className="flex items-start gap-2 text-sm leading-relaxed text-landing-muted">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-landing-cyan" />
+                <span>{bullet}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 text-center">
             <a
               href={landingContent.hero.technicalEvidence.href}
               target={landingContent.hero.technicalEvidence.href.startsWith('http') ? '_blank' : undefined}
               rel={landingContent.hero.technicalEvidence.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-              className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               {landingContent.hero.technicalEvidence.label}
             </a>
-          </aside>
+          </div>
         </div>
       </div>
     </section>
