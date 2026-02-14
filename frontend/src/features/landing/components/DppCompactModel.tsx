@@ -177,7 +177,7 @@ export default function DppCompactModel() {
 
   return (
     <TooltipProvider delayDuration={180}>
-      <section className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/65 p-4">
+      <section className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/60 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-display text-lg font-semibold text-landing-ink">
             Asset Administration Shell (IEC 63278)
@@ -208,7 +208,7 @@ export default function DppCompactModel() {
         </div>
 
         {/* ── Identifier & Data Carrier Layer ── */}
-        <div className="mt-4 rounded-xl border border-dashed border-landing-ink/15 bg-landing-surface-1/50 p-3">
+        <div className="mt-5 rounded-xl border border-dashed border-landing-ink/15 bg-landing-surface-1/50 p-3.5">
           <p className="mb-2.5 text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-landing-muted">
             DPP4.0 &mdash; Identification &amp; Data Carrier Layer
           </p>
@@ -321,7 +321,7 @@ export default function DppCompactModel() {
         </div>
 
         <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel}>
-          <div className="landing-aas-arch mt-3">
+          <div className="landing-aas-arch mt-4">
             <div className="landing-aas-arch-label">AAS &middot; DPP4.0</div>
 
             <div className="landing-aas-arch-body">
@@ -361,7 +361,7 @@ export default function DppCompactModel() {
             </div>
           </div>
 
-          <div className="mt-3 max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-3.5">
+          <div className="mt-3 max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-4">
             {dppModelNodes.map((node) => (
               <TabsContent key={node.id} value={node.id} className="mt-0">
                 <SubmodelContent node={node} audienceMode={audienceMode} />
