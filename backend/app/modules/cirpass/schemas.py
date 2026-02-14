@@ -127,6 +127,52 @@ class CirpassLabUiActionResponse(BaseModel):
     kind: Literal["click", "form", "scan", "select"]
 
 
+class CirpassLabInteractionValidationResponse(BaseModel):
+    """Optional field-level validation hints for interaction rendering."""
+
+    min_length: int | None = Field(default=None, ge=0)
+    max_length: int | None = Field(default=None, ge=0)
+    gt: float | None = None
+    gte: float | None = None
+    lt: float | None = None
+    lte: float | None = None
+    pattern: str | None = None
+    equals: str | int | float | bool | None = None
+
+
+class CirpassLabInteractionOptionResponse(BaseModel):
+    """Choice entry used by select/scan interactions."""
+
+    label: str
+    value: str
+
+
+class CirpassLabInteractionFieldResponse(BaseModel):
+    """Manifest-defined learner input field."""
+
+    name: str
+    label: str
+    type: Literal["text", "textarea", "number", "checkbox", "select"]
+    placeholder: str | None = None
+    required: bool = False
+    hint: str | None = None
+    validation: CirpassLabInteractionValidationResponse | None = None
+    options: list[CirpassLabInteractionOptionResponse] = Field(default_factory=list)
+    test_id: str | None = None
+
+
+class CirpassLabStepInteractionResponse(BaseModel):
+    """Manifest-defined interaction descriptor consumed by the runner."""
+
+    kind: Literal["click", "form", "scan", "select"] = "form"
+    submit_label: str = "Validate & Continue"
+    hint_text: str | None = None
+    success_message: str | None = None
+    failure_message: str | None = None
+    fields: list[CirpassLabInteractionFieldResponse] = Field(default_factory=list)
+    options: list[CirpassLabInteractionOptionResponse] = Field(default_factory=list)
+
+
 class CirpassLabApiCallResponse(BaseModel):
     """API interaction metadata for under-the-hood inspector."""
 
@@ -173,6 +219,10 @@ class CirpassLabStepResponse(BaseModel):
     intent: str
     explanation_md: str
     ui_action: CirpassLabUiActionResponse | None = None
+    interaction: CirpassLabStepInteractionResponse | None = None
+    actor_goal: str | None = None
+    physical_story_md: str | None = None
+    why_it_matters_md: str | None = None
     api: CirpassLabApiCallResponse | None = None
     artifacts: CirpassLabArtifactsResponse | None = None
     checks: list[CirpassLabStepCheckResponse] = Field(default_factory=list)

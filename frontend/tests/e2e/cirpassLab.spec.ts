@@ -30,6 +30,35 @@ const manifestFixture = {
           intent: 'Create DPP payload.',
           explanation_md: 'Create fields are mandatory.',
           variants: ['happy'],
+          interaction: {
+            kind: 'form',
+            submit_label: 'Validate & Continue',
+            fields: [
+              {
+                name: 'identifier',
+                label: 'Identifier',
+                type: 'text',
+                required: true,
+                test_id: 'cirpass-create-identifier',
+              },
+              {
+                name: 'materialComposition',
+                label: 'Material composition',
+                type: 'textarea',
+                required: true,
+                test_id: 'cirpass-create-material',
+              },
+              {
+                name: 'carbonFootprint',
+                label: 'Carbon footprint',
+                type: 'number',
+                required: true,
+                validation: { gt: 0 },
+                test_id: 'cirpass-create-carbon',
+              },
+            ],
+            options: [],
+          },
           api: {
             method: 'POST',
             path: '/api/v1/public/cirpass/stories/latest',
@@ -46,6 +75,37 @@ const manifestFixture = {
           intent: 'Route access by role.',
           explanation_md: 'Unauthorized should be denied.',
           variants: ['happy', 'unauthorized', 'not_found'],
+          interaction: {
+            kind: 'form',
+            submit_label: 'Validate & Continue',
+            fields: [
+              {
+                name: 'consumerViewEnabled',
+                label: 'Consumer access',
+                type: 'checkbox',
+                required: true,
+                validation: { equals: true },
+                test_id: 'cirpass-access-consumer',
+              },
+              {
+                name: 'authorityCredentialValidated',
+                label: 'Authority credential',
+                type: 'checkbox',
+                required: true,
+                validation: { equals: true },
+                test_id: 'cirpass-access-authority',
+              },
+              {
+                name: 'restrictedFieldsHiddenFromConsumer',
+                label: 'Restricted hidden',
+                type: 'checkbox',
+                required: true,
+                validation: { equals: true },
+                test_id: 'cirpass-access-restricted',
+              },
+            ],
+            options: [],
+          },
           api: {
             method: 'GET',
             path: '/api/v1/public/dpps/{id}',
@@ -62,6 +122,34 @@ const manifestFixture = {
           intent: 'Append repair event.',
           explanation_md: 'Hash chain must remain valid.',
           variants: ['happy'],
+          interaction: {
+            kind: 'form',
+            submit_label: 'Validate & Continue',
+            fields: [
+              {
+                name: 'previousHash',
+                label: 'Previous hash',
+                type: 'text',
+                required: true,
+                test_id: 'cirpass-update-prev-hash',
+              },
+              {
+                name: 'newEventHash',
+                label: 'New hash',
+                type: 'text',
+                required: true,
+                test_id: 'cirpass-update-new-hash',
+              },
+              {
+                name: 'repairEvent',
+                label: 'Repair event',
+                type: 'textarea',
+                required: true,
+                test_id: 'cirpass-update-repair-event',
+              },
+            ],
+            options: [],
+          },
           checks: [],
         },
         {
@@ -72,6 +160,35 @@ const manifestFixture = {
           intent: 'Transfer ownership.',
           explanation_md: 'Confidentiality maintained.',
           variants: ['happy'],
+          interaction: {
+            kind: 'form',
+            submit_label: 'Validate & Continue',
+            fields: [
+              {
+                name: 'fromActor',
+                label: 'From actor',
+                type: 'text',
+                required: true,
+                test_id: 'cirpass-transfer-from',
+              },
+              {
+                name: 'toActor',
+                label: 'To actor',
+                type: 'text',
+                required: true,
+                test_id: 'cirpass-transfer-to',
+              },
+              {
+                name: 'confidentialityMaintained',
+                label: 'Confidentiality',
+                type: 'checkbox',
+                required: true,
+                validation: { equals: true },
+                test_id: 'cirpass-transfer-confidentiality',
+              },
+            ],
+            options: [],
+          },
           checks: [],
         },
         {
@@ -82,6 +199,39 @@ const manifestFixture = {
           intent: 'Mark end of life.',
           explanation_md: 'Recovered materials required.',
           variants: ['happy'],
+          interaction: {
+            kind: 'form',
+            submit_label: 'Validate & Continue',
+            fields: [
+              {
+                name: 'lifecycleStatus',
+                label: 'Lifecycle status',
+                type: 'select',
+                required: true,
+                options: [
+                  { label: 'active', value: 'active' },
+                  { label: 'end_of_life', value: 'end_of_life' },
+                ],
+                test_id: 'cirpass-deactivate-status',
+              },
+              {
+                name: 'recoveredMaterials',
+                label: 'Recovered materials',
+                type: 'textarea',
+                required: true,
+                test_id: 'cirpass-deactivate-materials',
+              },
+              {
+                name: 'spawnNextPassport',
+                label: 'Spawn next passport',
+                type: 'checkbox',
+                required: true,
+                validation: { equals: true },
+                test_id: 'cirpass-deactivate-spawn',
+              },
+            ],
+            options: [],
+          },
           checks: [],
         },
       ],
@@ -89,7 +239,11 @@ const manifestFixture = {
   ],
 };
 
-async function mockCirpassApis(page: Page, status: StoryStatus = 'fresh') {
+async function mockCirpassApis(
+  page: Page,
+  status: StoryStatus = 'fresh',
+  manifestUnavailable = false,
+) {
   let submitted = false;
 
   await page.route(/\/api\/v1\/public\/cirpass\/stories\/latest(?:\?.*)?$/, async (route) => {
@@ -141,6 +295,15 @@ async function mockCirpassApis(page: Page, status: StoryStatus = 'fresh') {
   });
 
   await page.route(/\/api\/v1\/public\/cirpass\/lab\/manifest\/latest$/, async (route) => {
+    if (manifestUnavailable) {
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ detail: 'temporary unavailable' }),
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -297,4 +460,16 @@ test('handles stale source banner and mobile overflow safety', async ({ page }) 
   });
 
   expect(hasHorizontalOverflow).toBeFalsy();
+});
+
+test('falls back to bundled manifest when manifest API is unavailable', async ({ page }) => {
+  await mockCirpassApis(page, 'fresh', true);
+  await page.goto('/cirpass-lab');
+
+  await expect(page.getByTestId('cirpass-manifest-fallback')).toContainText('bundled manifest');
+  await page.getByTestId('cirpass-create-identifier').fill('did:web:dpp.eu:product:fallback');
+  await page.getByTestId('cirpass-create-material').fill('recycled aluminum');
+  await page.getByTestId('cirpass-create-carbon').fill('10.4');
+  await page.getByTestId('cirpass-level-submit').click();
+  await expect(page.getByTestId('cirpass-current-level')).toHaveText(/ACCESS/i);
 });

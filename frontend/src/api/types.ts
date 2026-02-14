@@ -167,6 +167,44 @@ export interface CirpassLabUiAction {
   kind: 'click' | 'form' | 'scan' | 'select';
 }
 
+export interface CirpassLabInteractionValidation {
+  min_length?: number | null;
+  max_length?: number | null;
+  gt?: number | null;
+  gte?: number | null;
+  lt?: number | null;
+  lte?: number | null;
+  pattern?: string | null;
+  equals?: string | number | boolean | null;
+}
+
+export interface CirpassLabInteractionOption {
+  label: string;
+  value: string;
+}
+
+export interface CirpassLabInteractionField {
+  name: string;
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'checkbox' | 'select';
+  placeholder?: string | null;
+  required?: boolean;
+  hint?: string | null;
+  validation?: CirpassLabInteractionValidation | null;
+  options?: CirpassLabInteractionOption[];
+  test_id?: string | null;
+}
+
+export interface CirpassLabStepInteraction {
+  kind: 'click' | 'form' | 'scan' | 'select';
+  submit_label?: string;
+  hint_text?: string | null;
+  success_message?: string | null;
+  failure_message?: string | null;
+  fields?: CirpassLabInteractionField[];
+  options?: CirpassLabInteractionOption[];
+}
+
 export interface CirpassLabApiCall {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
@@ -203,6 +241,10 @@ export interface CirpassLabStep {
   intent: string;
   explanation_md: string;
   ui_action?: CirpassLabUiAction | null;
+  interaction?: CirpassLabStepInteraction | null;
+  actor_goal?: string | null;
+  physical_story_md?: string | null;
+  why_it_matters_md?: string | null;
   api?: CirpassLabApiCall | null;
   artifacts?: CirpassLabArtifacts | null;
   checks: CirpassLabStepCheck[];

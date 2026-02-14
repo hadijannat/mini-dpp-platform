@@ -13,6 +13,7 @@ import pytest
 import app.modules.cirpass.service as cirpass_service_module
 from app.db.models import CirpassStorySnapshot
 from app.modules.cirpass.parser import CirpassSourceParser
+from app.modules.cirpass.schemas import CirpassLabManifestResponse
 from app.modules.cirpass.service import (
     CirpassLabService,
     CirpassParseError,
@@ -198,3 +199,62 @@ async def test_no_snapshot_and_refresh_failure_raises_unavailable() -> None:
 
     with pytest.raises(CirpassUnavailableError):
         await service.get_latest_stories()
+
+
+def test_manifest_schema_accepts_optional_interaction_fields() -> None:
+    payload = {
+        "manifest_version": "v1.0.0",
+        "story_version": "V3.1",
+        "generated_at": "2026-02-14T00:00:00Z",
+        "source_status": "fresh",
+        "feature_flags": {
+            "scenario_engine_enabled": True,
+            "live_mode_enabled": False,
+            "inspector_enabled": True,
+        },
+        "stories": [
+            {
+                "id": "core-loop",
+                "title": "Core Loop",
+                "summary": "Summary",
+                "personas": ["Manufacturer"],
+                "references": [],
+                "steps": [
+                    {
+                        "id": "create-passport",
+                        "level": "create",
+                        "title": "Create",
+                        "actor": "Manufacturer",
+                        "intent": "Create payload",
+                        "explanation_md": "Create payload",
+                        "actor_goal": "Publish first passport",
+                        "physical_story_md": "A product leaves the line with a digital backpack.",
+                        "why_it_matters_md": "Core fields unlock downstream lifecycle actions.",
+                        "interaction": {
+                            "kind": "form",
+                            "submit_label": "Validate & Continue",
+                            "fields": [
+                                {
+                                    "name": "identifier",
+                                    "label": "Identifier",
+                                    "type": "text",
+                                    "required": True,
+                                    "validation": {"min_length": 3},
+                                    "test_id": "cirpass-create-identifier",
+                                }
+                            ],
+                            "options": [],
+                        },
+                        "checks": [],
+                        "variants": ["happy"],
+                    }
+                ],
+            }
+        ],
+    }
+
+    parsed = CirpassLabManifestResponse.model_validate(payload)
+    step = parsed.stories[0].steps[0]
+    assert step.interaction is not None
+    assert step.interaction.fields[0].name == "identifier"
+    assert step.actor_goal == "Publish first passport"

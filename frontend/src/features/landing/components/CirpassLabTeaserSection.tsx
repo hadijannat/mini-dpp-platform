@@ -1,6 +1,8 @@
 import { ArrowRight, Recycle, ShieldCheck, Wrench } from 'lucide-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { useCirpassStories } from '@/features/cirpass-lab/hooks/useCirpassStories';
+import { loadGeneratedCirpassManifest } from '@/features/cirpass-lab/schema/manifestLoader';
 
 const roleCards = [
   {
@@ -24,8 +26,15 @@ const roleCards = [
 ] as const;
 
 export default function CirpassLabTeaserSection() {
+  const generatedManifest = useMemo(() => loadGeneratedCirpassManifest(), []);
   const storiesQuery = useCirpassStories();
-  const version = storiesQuery.data?.version ?? 'V3.1';
+  const defaultStory = generatedManifest.stories[0];
+  const version = storiesQuery.data?.version ?? generatedManifest.story_version ?? 'V3.1';
+  const learningGoals = defaultStory?.learning_goals.slice(0, 2) ?? [];
+  const sourceRecord =
+    storiesQuery.data?.zenodo_record_url ??
+    defaultStory?.references.find((entry) => entry.ref.includes('zenodo'))?.ref ??
+    'https://zenodo.org/records/17979585';
 
   const prefetchLab = () => {
     void import('@/features/cirpass-lab/pages/CirpassLabPage');
@@ -54,6 +63,11 @@ export default function CirpassLabTeaserSection() {
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                 Issue, access, update, exchange, modify
               </span>
+              {learningGoals.map((goal) => (
+                <span key={goal} className="rounded-full border border-white/20 bg-white/10 px-3 py-1 normal-case tracking-normal">
+                  {goal}
+                </span>
+              ))}
               <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1">
                 Mock mode default
               </span>
@@ -84,7 +98,7 @@ export default function CirpassLabTeaserSection() {
                 asChild
               >
                 <a
-                  href={storiesQuery.data?.zenodo_record_url ?? 'https://zenodo.org/records/17979585'}
+                  href={sourceRecord}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

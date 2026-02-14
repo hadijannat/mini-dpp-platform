@@ -22,7 +22,8 @@ function formatParseError(error: ZodError): string {
 }
 
 export function parseCirpassLabManifest(input: unknown): CirpassLabManifest {
-  const parsed = cirpassLabManifestSchema.safeParse(input);
+  const normalized = normalizeManifest(input);
+  const parsed = cirpassLabManifestSchema.safeParse(normalized);
   if (!parsed.success) {
     throw new Error(`Invalid CIRPASS lab manifest payload: ${formatParseError(parsed.error)}`);
   }
@@ -66,4 +67,97 @@ export function mapStoryStepsByLevel(storySteps: CirpassLabStep[]): Record<Cirpa
   }
 
   return mapped;
+}
+
+function normalizeManifest(input: unknown): unknown {
+  if (!input || typeof input !== 'object') {
+    return input;
+  }
+
+  const source = input as Record<string, unknown>;
+  if (!Array.isArray(source.stories)) {
+    return input;
+  }
+
+  return {
+    ...source,
+    stories: source.stories.map((story) => normalizeStory(story)),
+  };
+}
+
+function normalizeStory(story: unknown): unknown {
+  if (!story || typeof story !== 'object') {
+    return story;
+  }
+
+  const source = story as Record<string, unknown>;
+  if (!Array.isArray(source.steps)) {
+    return story;
+  }
+
+  return {
+    ...source,
+    steps: source.steps.map((step) => normalizeStep(step)),
+  };
+}
+
+function normalizeStep(step: unknown): unknown {
+  if (!step || typeof step !== 'object') {
+    return step;
+  }
+
+  const source = step as Record<string, unknown>;
+  const interaction = normalizeInteraction(source.interaction, source.ui_action);
+  return {
+    ...source,
+    interaction,
+  };
+}
+
+function normalizeInteraction(
+  interaction: unknown,
+  uiAction: unknown,
+): Record<string, unknown> | unknown {
+  if (interaction && typeof interaction === 'object') {
+    const source = interaction as Record<string, unknown>;
+    return {
+      ...source,
+      kind: typeof source.kind === 'string' ? source.kind : 'form',
+      submit_label:
+        typeof source.submit_label === 'string' && source.submit_label.trim().length > 0
+          ? source.submit_label
+          : inferLegacySubmitLabel(uiAction),
+      fields: Array.isArray(source.fields) ? source.fields : [],
+      options: Array.isArray(source.options) ? source.options : [],
+    };
+  }
+
+  if (uiAction && typeof uiAction === 'object') {
+    const source = uiAction as Record<string, unknown>;
+    return {
+      kind:
+        typeof source.kind === 'string' && source.kind.trim().length > 0
+          ? source.kind
+          : 'form',
+      submit_label: inferLegacySubmitLabel(uiAction),
+      fields: [],
+      options: [],
+    };
+  }
+
+  return {
+    kind: 'form',
+    submit_label: 'Validate & Continue',
+    fields: [],
+    options: [],
+  };
+}
+
+function inferLegacySubmitLabel(uiAction: unknown): string {
+  if (!uiAction || typeof uiAction !== 'object') {
+    return 'Validate & Continue';
+  }
+  const source = uiAction as Record<string, unknown>;
+  const label = typeof source.label === 'string' ? source.label.trim() : '';
+  return label.length > 0 ? label : 'Validate & Continue';
 }

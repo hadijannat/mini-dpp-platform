@@ -4,32 +4,22 @@ import * as htmlToImage from 'html-to-image';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import type { CirpassLevel } from '@/api/types';
-import type {
-  AccessLevelPayload,
-  CreateLevelPayload,
-  DeactivateLevelPayload,
-  TransferLevelPayload,
-  UpdateLevelPayload,
-} from '../machines/cirpassMachine';
 import { cirpassMachine, type CirpassLevelKey } from '../machines/cirpassMachine';
 import { computeLoopForgeScore } from '../utils/scoring';
 import { useCirpassLeaderboard } from '../hooks/useCirpassLeaderboard';
 import { useCirpassLabTelemetry } from '../hooks/useCirpassLabTelemetry';
 import { useCirpassManifest } from '../hooks/useCirpassManifest';
 import { useStoryProgress } from '../hooks/useStoryProgress';
-import {
-  coerceLabMode,
-  coerceLabVariant,
-  mapStoryStepsByLevel,
-} from '../schema/manifestLoader';
-import type { CirpassLabMode, CirpassLabVariant } from '../schema/storySchema';
+import { coerceLabMode, coerceLabVariant } from '../schema/manifestLoader';
+import type { CirpassLabMode, CirpassLabStep, CirpassLabStory, CirpassLabVariant } from '../schema/storySchema';
+import { deriveHintFromFailures, evaluateStepChecks, type CheckResult } from '../utils/checkEngine';
 import ApiInspector from './inspectors/ApiInspector';
 import ArtifactDiffInspector from './inspectors/ArtifactDiffInspector';
 import PolicyInspector from './inspectors/PolicyInspector';
 import JoyfulLayer from './JoyfulLayer';
 import LeaderboardPanel from './LeaderboardPanel';
-import MissionPanel from './MissionPanel';
 import ScoreHud from './ScoreHud';
+import StepInteractionRenderer from './StepInteractionRenderer';
 import TechnicalLayer from './TechnicalLayer';
 import TwinLayerShell from './TwinLayerShell';
 
@@ -43,98 +33,370 @@ const levelLabels: Record<CirpassLevelKey, string> = {
 
 const levelOrder: CirpassLevelKey[] = ['create', 'access', 'update', 'transfer', 'deactivate'];
 
-const validPayloadByLevel: Record<
-  CirpassLevelKey,
-  CreateLevelPayload | AccessLevelPayload | UpdateLevelPayload | TransferLevelPayload | DeactivateLevelPayload
-> = {
-  create: {
-    identifier: 'did:web:dpp.eu:product:seeded-demo',
-    materialComposition: 'recycled_aluminum',
-    carbonFootprint: 12.2,
-  },
-  access: {
-    consumerViewEnabled: true,
-    authorityCredentialValidated: true,
-    restrictedFieldsHiddenFromConsumer: true,
-  },
-  update: {
-    previousHash: 'prevhash-seeded-0001',
-    newEventHash: 'newhash-seeded-0002',
-    repairEvent: 'Repair event replayed from saved progress.',
-  },
-  transfer: {
-    fromActor: 'Seeded Wholesaler',
-    toActor: 'Seeded Retailer',
-    confidentialityMaintained: true,
-  },
-  deactivate: {
-    lifecycleStatus: 'end_of_life',
-    recoveredMaterials: 'copper, lithium, aluminum',
-    spawnNextPassport: true,
-  },
-};
-
-function resolveCurrentLevel(rawValue: unknown): CirpassLevelKey | 'completed' {
-  if (rawValue === 'create') return 'create';
-  if (rawValue === 'access') return 'access';
-  if (rawValue === 'update') return 'update';
-  if (rawValue === 'transfer') return 'transfer';
-  if (rawValue === 'deactivate') return 'deactivate';
-  return 'completed';
+function getObjective(levels: CirpassLevel[], level: CirpassLevelKey, fallback: string): string {
+  return levels.find((entry) => entry.level === level)?.objective ?? fallback;
 }
 
-type PayloadShape =
-  | CreateLevelPayload
-  | AccessLevelPayload
-  | UpdateLevelPayload
-  | TransferLevelPayload
-  | DeactivateLevelPayload;
+function buildSyntheticFallbackStory(levels: CirpassLevel[], version: string): CirpassLabStory {
+  return {
+    id: 'fallback-core-loop-v3_1',
+    title: 'Fallback Core Lifecycle Loop',
+    summary: 'Resilient synthetic flow when remote manifest is unavailable.',
+    personas: ['Manufacturer', 'Consumer', 'Repairer', 'Retailer', 'Recycler'],
+    learning_goals: [
+      'Issue and validate required DPP payload attributes.',
+      'Apply role-based access filtering and restricted field controls.',
+      'Preserve lifecycle integrity while updates and transfer events occur.',
+      'Close end-of-life and recover circularity intelligence.',
+    ],
+    references: [],
+    version,
+    steps: [
+      {
+        id: 'create-passport',
+        level: 'create',
+        title: 'CREATE passport payload',
+        actor: 'Manufacturer',
+        intent: getObjective(levels, 'create', 'Build a complete DPP payload with mandatory fields.'),
+        actor_goal: 'Publish a valid passport with core sustainability attributes.',
+        explanation_md: 'Add identifier, material composition, and carbon footprint before publication.',
+        interaction: {
+          kind: 'form',
+          submit_label: 'Validate & Continue',
+          hint_text: 'Include identifier, material composition, and a positive carbon footprint.',
+          fields: [
+            {
+              name: 'identifier',
+              label: 'Identifier',
+              type: 'text',
+              required: true,
+              validation: { min_length: 10 },
+              test_id: 'cirpass-create-identifier',
+            },
+            {
+              name: 'materialComposition',
+              label: 'Material composition',
+              type: 'textarea',
+              required: true,
+              validation: { min_length: 3 },
+              test_id: 'cirpass-create-material',
+            },
+            {
+              name: 'carbonFootprint',
+              label: 'Carbon footprint (kg CO2e)',
+              type: 'number',
+              required: true,
+              validation: { gt: 0 },
+              test_id: 'cirpass-create-carbon',
+            },
+          ],
+          options: [],
+        },
+        api: {
+          method: 'POST',
+          path: '/api/v1/tenants/{tenant}/dpps',
+          auth: 'user',
+          expected_status: 201,
+          request_example: {
+            identifier: 'did:web:dpp.eu:product:demo-bike',
+            materialComposition: 'recycled_aluminum',
+            carbonFootprint: 14.2,
+          },
+          response_example: {
+            id: 'dpp_123',
+            status: 'draft',
+          },
+        },
+        artifacts: {
+          before: { status: 'draft', payload: {} },
+          after: {
+            status: 'active',
+            payload: {
+              identifier: 'did:web:dpp.eu:product:demo-bike',
+              materialComposition: 'recycled_aluminum',
+              carbonFootprint: 14.2,
+            },
+          },
+          diff_hint: 'Mandatory fields become available to the technical layer.',
+        },
+        checks: [
+          {
+            type: 'schema',
+            expression: 'required:create_fields',
+            expected: ['identifier', 'materialComposition', 'carbonFootprint'],
+          },
+        ],
+        policy: {
+          required_role: 'publisher',
+          opa_policy: 'dpp/authz',
+          expected_decision: 'allow',
+        },
+        variants: ['happy'],
+      },
+      {
+        id: 'access-routing',
+        level: 'access',
+        title: 'ACCESS policy routing',
+        actor: 'Authority',
+        intent: getObjective(levels, 'access', 'Route role-based views with restricted fields masked.'),
+        actor_goal: 'Ensure consumers see public fields while authority checks privileged data.',
+        explanation_md: 'Access logic must deny restricted fields to non-authority actors.',
+        interaction: {
+          kind: 'form',
+          submit_label: 'Validate & Continue',
+          hint_text: 'Consumer and authority checks must both pass, with restricted data hidden.',
+          fields: [
+            {
+              name: 'consumerViewEnabled',
+              label: 'Consumer default access enabled',
+              type: 'checkbox',
+              required: true,
+              validation: { equals: true },
+              test_id: 'cirpass-access-consumer',
+            },
+            {
+              name: 'authorityCredentialValidated',
+              label: 'Authority credential validated',
+              type: 'checkbox',
+              required: true,
+              validation: { equals: true },
+              test_id: 'cirpass-access-authority',
+            },
+            {
+              name: 'restrictedFieldsHiddenFromConsumer',
+              label: 'Restricted fields hidden from consumer view',
+              type: 'checkbox',
+              required: true,
+              validation: { equals: true },
+              test_id: 'cirpass-access-restricted',
+            },
+          ],
+          options: [],
+        },
+        api: {
+          method: 'GET',
+          path: '/api/v1/public/dpps/{id}',
+          auth: 'none',
+          expected_status: 200,
+          response_example: {
+            publicFields: ['manual', 'safety'],
+          },
+        },
+        checks: [
+          { type: 'status', expected: 200 },
+          { type: 'jsonpath', expression: '$.consumerViewEnabled', expected: true },
+          { type: 'jsonpath', expression: '$.authorityCredentialValidated', expected: true },
+          { type: 'jsonpath', expression: '$.restrictedFieldsHiddenFromConsumer', expected: true },
+        ],
+        policy: {
+          required_role: 'authority',
+          opa_policy: 'dpp/authz',
+          expected_decision: 'mask',
+        },
+        variants: ['happy', 'unauthorized', 'not_found'],
+      },
+      {
+        id: 'update-repair-chain',
+        level: 'update',
+        title: 'UPDATE repair chain',
+        actor: 'Repairer',
+        intent: getObjective(levels, 'update', 'Append lifecycle updates while preserving provenance.'),
+        actor_goal: 'Record a trusted repair event without breaking the hash chain.',
+        explanation_md: 'The new hash must differ from the previous hash and include a repair event.',
+        interaction: {
+          kind: 'form',
+          submit_label: 'Validate & Continue',
+          hint_text: 'Provide previous hash, new hash, and a non-empty repair event.',
+          fields: [
+            {
+              name: 'previousHash',
+              label: 'Previous hash',
+              type: 'text',
+              required: true,
+              validation: { min_length: 8 },
+              test_id: 'cirpass-update-prev-hash',
+            },
+            {
+              name: 'newEventHash',
+              label: 'New event hash',
+              type: 'text',
+              required: true,
+              validation: { min_length: 8 },
+              test_id: 'cirpass-update-new-hash',
+            },
+            {
+              name: 'repairEvent',
+              label: 'Repair event',
+              type: 'textarea',
+              required: true,
+              validation: { min_length: 5 },
+              test_id: 'cirpass-update-repair-event',
+            },
+          ],
+          options: [],
+        },
+        api: {
+          method: 'PATCH',
+          path: '/api/v1/tenants/{tenant}/dpps/{id}',
+          auth: 'user',
+          expected_status: 200,
+        },
+        checks: [
+          { type: 'jsonpath', expression: '$.previousHash', expected: 'present' },
+          { type: 'jsonpath', expression: '$.newEventHash', expected: 'present' },
+          { type: 'jsonpath', expression: '$.repairEvent', expected: 'present' },
+        ],
+        policy: {
+          required_role: 'publisher',
+          opa_policy: 'dpp/authz',
+          expected_decision: 'allow',
+        },
+        variants: ['happy'],
+      },
+      {
+        id: 'transfer-handoff',
+        level: 'transfer',
+        title: 'TRANSFER ownership handoff',
+        actor: 'Retailer',
+        intent: getObjective(levels, 'transfer', 'Transfer ownership while preserving confidentiality.'),
+        actor_goal: 'Handoff custody while keeping restricted fields protected.',
+        explanation_md: 'From and to actors must differ while confidentiality remains enabled.',
+        interaction: {
+          kind: 'form',
+          submit_label: 'Validate & Continue',
+          hint_text: 'Use different actors and keep confidentiality enabled.',
+          fields: [
+            {
+              name: 'fromActor',
+              label: 'From actor',
+              type: 'text',
+              required: true,
+              validation: { min_length: 2 },
+              test_id: 'cirpass-transfer-from',
+            },
+            {
+              name: 'toActor',
+              label: 'To actor',
+              type: 'text',
+              required: true,
+              validation: { min_length: 2 },
+              test_id: 'cirpass-transfer-to',
+            },
+            {
+              name: 'confidentialityMaintained',
+              label: 'Confidentiality boundary preserved',
+              type: 'checkbox',
+              required: true,
+              validation: { equals: true },
+              test_id: 'cirpass-transfer-confidentiality',
+            },
+          ],
+          options: [],
+        },
+        api: {
+          method: 'POST',
+          path: '/api/v1/tenants/{tenant}/shares',
+          auth: 'user',
+          expected_status: 201,
+        },
+        checks: [
+          { type: 'status', expected: 201 },
+          { type: 'jsonpath', expression: '$.fromActor', expected: 'present' },
+          { type: 'jsonpath', expression: '$.toActor', expected: 'present' },
+          { type: 'jsonpath', expression: '$.confidentialityMaintained', expected: true },
+        ],
+        policy: {
+          required_role: 'publisher',
+          opa_policy: 'dpp/authz',
+          expected_decision: 'allow',
+        },
+        variants: ['happy'],
+      },
+      {
+        id: 'deactivate-loop',
+        level: 'deactivate',
+        title: 'DEACTIVATE and circular loop closure',
+        actor: 'Recycler',
+        intent: getObjective(levels, 'deactivate', 'Mark end-of-life and expose recovered outputs.'),
+        actor_goal: 'Close lifecycle and feed recovered insights into the next passport.',
+        explanation_md: 'End-of-life requires recovered materials and next-passport spawn.',
+        interaction: {
+          kind: 'form',
+          submit_label: 'Validate & Continue',
+          hint_text: 'Set status to end_of_life and include recovered materials.',
+          fields: [
+            {
+              name: 'lifecycleStatus',
+              label: 'Lifecycle status',
+              type: 'select',
+              required: true,
+              options: [
+                { label: 'active', value: 'active' },
+                { label: 'end_of_life', value: 'end_of_life' },
+              ],
+              validation: { equals: 'end_of_life' },
+              test_id: 'cirpass-deactivate-status',
+            },
+            {
+              name: 'recoveredMaterials',
+              label: 'Recovered materials',
+              type: 'textarea',
+              required: true,
+              validation: { min_length: 3 },
+              test_id: 'cirpass-deactivate-materials',
+            },
+            {
+              name: 'spawnNextPassport',
+              label: 'Spawn material insight for next passport',
+              type: 'checkbox',
+              required: true,
+              validation: { equals: true },
+              test_id: 'cirpass-deactivate-spawn',
+            },
+          ],
+          options: [],
+        },
+        api: {
+          method: 'POST',
+          path: '/api/v1/tenants/{tenant}/dpps/{id}/lifecycle',
+          auth: 'user',
+          expected_status: 200,
+          response_example: {
+            status: 'end_of_life',
+          },
+        },
+        checks: [
+          { type: 'jsonpath', expression: '$.lifecycleStatus', expected: 'end_of_life' },
+          { type: 'jsonpath', expression: '$.recoveredMaterials', expected: 'present' },
+          { type: 'jsonpath', expression: '$.spawnNextPassport', expected: true },
+        ],
+        policy: {
+          required_role: 'recycler',
+          opa_policy: 'dpp/authz',
+          expected_decision: 'allow',
+        },
+        variants: ['happy'],
+      },
+    ],
+  };
+}
 
-function validatePayload(level: CirpassLevelKey, payload: PayloadShape): boolean {
-  if (level === 'create') {
-    const source = payload as CreateLevelPayload;
-    const identifier = source.identifier?.trim() ?? '';
-    const materialComposition = source.materialComposition?.trim() ?? '';
-    return (
-      identifier.length > 0 &&
-      materialComposition.length > 0 &&
-      typeof source.carbonFootprint === 'number' &&
-      source.carbonFootprint > 0
-    );
+function resolveStepStatus(step: CirpassLabStep, variant: CirpassLabVariant): number {
+  if (variant === 'unauthorized') {
+    return 403;
   }
-
-  if (level === 'access') {
-    const source = payload as AccessLevelPayload;
-    return (
-      source.consumerViewEnabled === true &&
-      source.authorityCredentialValidated === true &&
-      source.restrictedFieldsHiddenFromConsumer === true
-    );
+  if (variant === 'not_found') {
+    return 404;
   }
+  return step.api?.expected_status ?? 200;
+}
 
-  if (level === 'update') {
-    const source = payload as UpdateLevelPayload;
-    const previousHash = source.previousHash?.trim() ?? '';
-    const newEventHash = source.newEventHash?.trim() ?? '';
-    const repairEvent = source.repairEvent?.trim() ?? '';
-    return (
-      previousHash.length > 6 &&
-      newEventHash.length > 6 &&
-      previousHash !== newEventHash &&
-      repairEvent.length > 0
-    );
+function buildResponseBody(step: CirpassLabStep, payload: Record<string, unknown>): Record<string, unknown> {
+  const response = { ...payload };
+  if (step.level === 'deactivate' && typeof payload.lifecycleStatus === 'string') {
+    response.status = payload.lifecycleStatus;
   }
-
-  if (level === 'transfer') {
-    const source = payload as TransferLevelPayload;
-    const fromActor = source.fromActor?.trim() ?? '';
-    const toActor = source.toActor?.trim() ?? '';
-    return fromActor.length > 0 && toActor.length > 0 && fromActor !== toActor && source.confidentialityMaintained;
-  }
-
-  const source = payload as DeactivateLevelPayload;
-  const recovered = source.recoveredMaterials?.trim() ?? '';
-  return source.lifecycleStatus === 'end_of_life' && recovered.length > 0 && source.spawnNextPassport;
+  return response;
 }
 
 interface StoryRunnerProps {
@@ -159,9 +421,12 @@ export default function StoryRunner({
   const [startedAt, setStartedAt] = useState(() => Date.now());
   const [completedAt, setCompletedAt] = useState<number | null>(null);
   const [clockNow, setClockNow] = useState(() => Date.now());
-  const [payloadByLevel, setPayloadByLevel] = useState<Partial<Record<CirpassLevelKey, PayloadShape>>>({});
+  const [payloadByStep, setPayloadByStep] = useState<Record<string, Record<string, unknown>>>({});
+  const [checkResultByStep, setCheckResultByStep] = useState<Record<string, CheckResult>>({});
+  const [responseByStep, setResponseByStep] = useState<Record<string, { status: number; body?: unknown }>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [stepFeedback, setStepFeedback] = useState<string | null>(null);
   const badgeRef = useRef<HTMLDivElement | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -172,41 +437,50 @@ export default function StoryRunner({
   const location = useLocation();
 
   const manifestQuery = useCirpassManifest();
+  const manifestEnvelope = manifestQuery.data;
+  const manifest = manifestEnvelope?.manifest;
+
   const { leaderboardQuery, submitMutation } = useCirpassLeaderboard(version, 20);
   const { trackEvent } = useCirpassLabTelemetry();
 
   const scenarioEngineEnabled =
-    manifestQuery.data?.feature_flags.scenario_engine_enabled === true &&
-    (manifestQuery.data?.stories.length ?? 0) > 0;
+    manifest?.feature_flags.scenario_engine_enabled === true &&
+    (manifest.stories.length ?? 0) > 0;
 
-  const selectedStory = useMemo(() => {
-    if (!scenarioEngineEnabled || !manifestQuery.data) {
-      return null;
-    }
-
-    const allStories = manifestQuery.data.stories;
-    if (storyIdParam) {
-      const byParam = allStories.find((story) => story.id === storyIdParam);
-      if (byParam) {
-        return byParam;
-      }
-    }
-    return allStories[0] ?? null;
-  }, [manifestQuery.data, scenarioEngineEnabled, storyIdParam]);
-
-  const progress = useStoryProgress(selectedStory?.id ?? '');
-  const storyStepsByLevel = useMemo(
-    () => (selectedStory ? mapStoryStepsByLevel(selectedStory.steps) : null),
-    [selectedStory],
+  const syntheticFallbackStory = useMemo(
+    () => buildSyntheticFallbackStory(levels, version),
+    [levels, version],
   );
 
-  const levelValue = resolveCurrentLevel(state.value);
-  const completed = levelValue === 'completed';
-  const activeLevel: CirpassLevelKey = completed ? 'deactivate' : levelValue;
-  const activeStep = selectedStory && storyStepsByLevel ? storyStepsByLevel[activeLevel] : null;
+  const selectedStory = useMemo(() => {
+    if (!scenarioEngineEnabled || !manifest) {
+      return syntheticFallbackStory;
+    }
+
+    if (storyIdParam) {
+      const direct = manifest.stories.find((story) => story.id === storyIdParam);
+      if (direct) {
+        return direct;
+      }
+    }
+    return manifest.stories[0] ?? syntheticFallbackStory;
+  }, [manifest, scenarioEngineEnabled, storyIdParam, syntheticFallbackStory]);
+
+  const progress = useStoryProgress(selectedStory.id);
+
+  const activeStepIndex = useMemo(() => {
+    if (selectedStory.steps.length === 0) {
+      return 0;
+    }
+    return Math.min(state.context.currentStepIndex, selectedStory.steps.length - 1);
+  }, [selectedStory.steps.length, state.context.currentStepIndex]);
+
+  const activeStep = selectedStory.steps[activeStepIndex] ?? selectedStory.steps[0];
+  const completed = state.matches('completed');
+  const activeLevel = activeStep?.level ?? 'create';
 
   const completedLevelKeys = useMemo(
-    () => levelOrder.filter((level) => state.context.levelStats[level].completed),
+    () => levelOrder.filter((level) => state.context.levelStats[level]?.completed),
     [state.context.levelStats],
   );
 
@@ -214,11 +488,14 @@ export default function StoryRunner({
     if (manifestQuery.isError) {
       return 'Scenario manifest unavailable. Running fallback 5-level flow.';
     }
-    if (manifestQuery.data && !scenarioEngineEnabled) {
+    if (manifestEnvelope?.resolved_from === 'generated') {
+      return manifestEnvelope.warning ?? 'Using bundled scenario manifest.';
+    }
+    if (manifest && !scenarioEngineEnabled) {
       return 'Scenario engine disabled by feature flag. Running fallback 5-level flow.';
     }
     return null;
-  }, [manifestQuery.data, manifestQuery.isError, scenarioEngineEnabled]);
+  }, [manifest, manifestEnvelope, manifestQuery.isError, scenarioEngineEnabled]);
 
   const emitTelemetry = (
     eventType: 'step_view' | 'step_submit' | 'hint' | 'mode_switch' | 'reset_story' | 'reset_all',
@@ -226,7 +503,7 @@ export default function StoryRunner({
     metadata: Record<string, unknown> = {},
     latencyMs?: number,
   ) => {
-    if (!sessionToken || !selectedStory || !activeStep) {
+    if (!sessionToken || !activeStep) {
       return;
     }
 
@@ -260,10 +537,6 @@ export default function StoryRunner({
 
   const restoreKeyRef = useRef<string>('');
   useEffect(() => {
-    if (!scenarioEngineEnabled || !selectedStory) {
-      return;
-    }
-
     const currentKey = `${selectedStory.id}:${stepIdParam ?? ''}`;
     if (restoreKeyRef.current === currentKey) {
       return;
@@ -271,32 +544,31 @@ export default function StoryRunner({
     restoreKeyRef.current = currentKey;
 
     const saved = progress.loadProgress();
-    const routeStep = stepIdParam ? selectedStory.steps.find((step) => step.id === stepIdParam) : null;
+    const routeStep = stepIdParam
+      ? selectedStory.steps.find((step) => step.id === stepIdParam)
+      : null;
     const savedStep =
       !routeStep && saved?.step_id
         ? selectedStory.steps.find((step) => step.id === saved.step_id)
         : null;
     const targetStep = routeStep ?? savedStep ?? selectedStory.steps[0] ?? null;
+    const completedLevels = routeStep ? [] : saved?.completed_levels ?? [];
 
-    send({ type: 'RESET' });
+    send({
+      type: 'INIT',
+      steps: selectedStory.steps.map((step) => ({ id: step.id, level: step.level })),
+      startStepId: targetStep?.id ?? selectedStory.steps[0]?.id ?? null,
+      completedLevels,
+    });
     setLayer('joyful');
-    setPayloadByLevel({});
+    setPayloadByStep({});
+    setCheckResultByStep({});
+    setResponseByStep({});
     setStartedAt(Date.now());
     setCompletedAt(null);
     setSubmitError(null);
+    setStepFeedback(null);
     submitMutation.reset();
-
-    if (!targetStep) {
-      return;
-    }
-
-    const targetIndex = selectedStory.steps.findIndex((step) => step.id === targetStep.id);
-    const replaySteps = selectedStory.steps.slice(0, Math.max(0, targetIndex));
-
-    for (const step of replaySteps) {
-      send({ type: 'SUBMIT_LEVEL', level: step.level, data: validPayloadByLevel[step.level] });
-      setPayloadByLevel((prev) => ({ ...prev, [step.level]: validPayloadByLevel[step.level] }));
-    }
 
     if (!searchParams.get('mode') || !searchParams.get('variant')) {
       const nextSearch = new URLSearchParams(searchParams);
@@ -307,9 +579,9 @@ export default function StoryRunner({
   }, [
     mode,
     progress,
-    scenarioEngineEnabled,
     searchParams,
-    selectedStory,
+    selectedStory.id,
+    selectedStory.steps,
     send,
     setSearchParams,
     stepIdParam,
@@ -318,7 +590,15 @@ export default function StoryRunner({
   ]);
 
   useEffect(() => {
-    if (!scenarioEngineEnabled || !selectedStory || !activeStep) {
+    if (!activeStep) {
+      return;
+    }
+
+    if (!activeStep.variants.includes(variant)) {
+      const nextSearch = new URLSearchParams(searchParams);
+      nextSearch.set('mode', mode);
+      nextSearch.set('variant', activeStep.variants[0] ?? 'happy');
+      setSearchParams(nextSearch, { replace: true });
       return;
     }
 
@@ -346,9 +626,9 @@ export default function StoryRunner({
     mode,
     navigate,
     progress,
-    scenarioEngineEnabled,
     searchParams,
-    selectedStory,
+    selectedStory.id,
+    setSearchParams,
     variant,
   ]);
 
@@ -364,6 +644,27 @@ export default function StoryRunner({
   }, [activeStep?.id, activeLevel, layer, mode, variant]);
 
   const elapsedSeconds = Math.max(0, Math.floor(((completedAt ?? clockNow) - startedAt) / 1000));
+  const scorePreview = computeLoopForgeScore({
+    errors: state.context.errors,
+    hints: state.context.hints,
+    totalSeconds: elapsedSeconds,
+    perfectLevels: state.context.perfectLevels,
+  });
+
+  const currentObjective = getObjective(levels, activeLevel, activeStep?.intent ?? '');
+  const currentPayloadPreview = activeStep ? payloadByStep[activeStep.id] ?? null : null;
+  const currentCheckResult = activeStep ? checkResultByStep[activeStep.id] ?? null : null;
+  const currentResponsePreview = activeStep ? responseByStep[activeStep.id] ?? null : null;
+
+  const derivedHint = useMemo(() => {
+    if (!activeStep) {
+      return 'Review step details and technical checks.';
+    }
+    if (activeStep.interaction?.hint_text) {
+      return activeStep.interaction.hint_text;
+    }
+    return deriveHintFromFailures(currentCheckResult?.failures ?? []);
+  }, [activeStep, currentCheckResult?.failures]);
 
   const completedLevels = useMemo(
     () => ({
@@ -376,53 +677,71 @@ export default function StoryRunner({
     [state.context.levelStats],
   );
 
-  const scorePreview = computeLoopForgeScore({
-    errors: state.context.errors,
-    hints: state.context.hints,
-    totalSeconds: elapsedSeconds,
-    perfectLevels: state.context.perfectLevels,
-  });
-
-  const payloadPreview = {
-    level: activeLevel,
-    payload: payloadByLevel[activeLevel] ?? null,
-    metrics: {
-      errors: state.context.errors,
-      hints: state.context.hints,
-      perfectLevels: state.context.perfectLevels,
-    },
-    scenario: selectedStory?.id ?? null,
-    step: activeStep?.id ?? null,
-  };
-
-  const handleSubmitLevel = (level: CirpassLevelKey, payload: PayloadShape) => {
+  const handleSubmitLevel = (payload: Record<string, unknown>) => {
+    if (!activeStep) {
+      return;
+    }
     const started = Date.now();
-    const isValid = validatePayload(level, payload);
-    setPayloadByLevel((prev) => ({ ...prev, [level]: payload }));
-    send({ type: 'SUBMIT_LEVEL', level, data: payload });
+    const status = resolveStepStatus(activeStep, variant);
+    const responseBody = buildResponseBody(activeStep, payload);
+    const checkResult = evaluateStepChecks(activeStep, {
+      payload,
+      response_status: status,
+      response_body: responseBody,
+      mode,
+      variant,
+    });
 
-    emitTelemetry('step_submit', isValid ? 'success' : 'error', { level, variant }, Date.now() - started);
+    setPayloadByStep((prev) => ({ ...prev, [activeStep.id]: payload }));
+    setResponseByStep((prev) => ({ ...prev, [activeStep.id]: { status, body: responseBody } }));
+    setCheckResultByStep((prev) => ({ ...prev, [activeStep.id]: checkResult }));
+    setStepFeedback(
+      checkResult.passed
+        ? activeStep.interaction?.success_message ?? `${activeStep.level.toUpperCase()} step passed.`
+        : activeStep.interaction?.failure_message ?? deriveHintFromFailures(checkResult.failures),
+    );
+
+    send({
+      type: 'SUBMIT_STEP',
+      stepId: activeStep.id,
+      level: activeStep.level,
+      isValid: checkResult.passed,
+    });
+
+    emitTelemetry(
+      'step_submit',
+      checkResult.passed ? 'success' : 'error',
+      { level: activeStep.level, variant },
+      Date.now() - started,
+    );
   };
 
-  const handleHint = (level: CirpassLevelKey) => {
-    send({ type: 'HINT_USED', level });
-    emitTelemetry('hint', 'info', { level });
+  const handleHint = () => {
+    if (!activeStep) {
+      return;
+    }
+    send({ type: 'HINT_USED', stepId: activeStep.id, level: activeStep.level });
+    setStepFeedback(derivedHint);
+    emitTelemetry('hint', 'info', { level: activeStep.level });
   };
 
   const handleReset = () => {
     send({ type: 'RESET' });
     setLayer('joyful');
-    setPayloadByLevel({});
+    setPayloadByStep({});
+    setCheckResultByStep({});
+    setResponseByStep({});
     setStartedAt(Date.now());
     setCompletedAt(null);
     setSubmitError(null);
+    setStepFeedback(null);
     submitMutation.reset();
-    emitTelemetry('reset_story', 'info', { source: 'reset-run' });
   };
 
   const handleResetStory = () => {
     progress.resetStory();
     handleReset();
+    emitTelemetry('reset_story', 'info', { source: 'reset-story' });
   };
 
   const handleResetAll = () => {
@@ -466,7 +785,7 @@ export default function StoryRunner({
   };
 
   const handleCopyStepLink = async () => {
-    if (!selectedStory || !activeStep) {
+    if (!activeStep) {
       return;
     }
     const url = `${window.location.origin}/cirpass-lab/story/${selectedStory.id}/step/${activeStep.id}?mode=${mode}&variant=${variant}`;
@@ -487,6 +806,9 @@ export default function StoryRunner({
       ? activeStep.variants
       : ['happy', 'unauthorized', 'not_found'];
 
+  const liveModeEnabled = manifest?.feature_flags.live_mode_enabled ?? false;
+  const inspectorEnabled = manifest?.feature_flags.inspector_enabled ?? true;
+
   return (
     <>
       {manifestFallbackWarning && (
@@ -499,10 +821,11 @@ export default function StoryRunner({
         <TwinLayerShell
           layer={layer}
           onToggleLayer={() => {
-            setLayer((prev) => (prev === 'joyful' ? 'technical' : 'joyful'));
+            const nextLayer = layer === 'joyful' ? 'technical' : 'joyful';
+            setLayer(nextLayer);
             emitTelemetry('mode_switch', 'info', {
               from: layer,
-              to: layer === 'joyful' ? 'technical' : 'joyful',
+              to: nextLayer,
             });
           }}
           joyfulView={
@@ -510,20 +833,30 @@ export default function StoryRunner({
               currentLevel={activeLevel}
               completedLevels={completedLevels}
               latestMessage={state.context.lastMessage}
+              story={selectedStory}
+              step={activeStep}
             />
           }
           technicalView={
             <TechnicalLayer
               currentLevel={activeLevel}
               completedLevels={completedLevels}
-              payloadPreview={payloadPreview}
+              story={selectedStory}
+              step={activeStep}
+              payloadPreview={currentPayloadPreview}
+              responsePreview={currentResponsePreview}
+              checkResult={currentCheckResult}
             />
           }
         />
 
         <div className="space-y-5">
           <ScoreHud
-            currentLevelLabel={completed ? 'Simulation Completed' : levelLabels[activeLevel]}
+            currentLevelLabel={
+              completed
+                ? 'Simulation Completed'
+                : `${levelLabels[activeLevel]} · Step ${activeStepIndex + 1}/${selectedStory.steps.length}`
+            }
             elapsedSeconds={elapsedSeconds}
             errors={state.context.errors}
             hints={state.context.hints}
@@ -543,7 +876,7 @@ export default function StoryRunner({
                   onChange={(event) => {
                     const nextMode = event.target.value as CirpassLabMode;
                     const next = new URLSearchParams(searchParams);
-                    next.set('mode', nextMode === 'live' && !manifestQuery.data?.feature_flags.live_mode_enabled ? 'mock' : nextMode);
+                    next.set('mode', nextMode === 'live' && !liveModeEnabled ? 'mock' : nextMode);
                     next.set('variant', variant);
                     setSearchParams(next, { replace: true });
                   }}
@@ -551,8 +884,8 @@ export default function StoryRunner({
                   data-testid="cirpass-mode-select"
                 >
                   <option value="mock">mock (recommended)</option>
-                  <option value="live" disabled={!manifestQuery.data?.feature_flags.live_mode_enabled}>
-                    live {manifestQuery.data?.feature_flags.live_mode_enabled ? '' : '(disabled)'}
+                  <option value="live" disabled={!liveModeEnabled}>
+                    live {liveModeEnabled ? '' : '(disabled)'}
                   </option>
                 </select>
               </label>
@@ -579,40 +912,42 @@ export default function StoryRunner({
               </label>
             </div>
 
-            {scenarioEngineEnabled && selectedStory && activeStep ? (
-              <div className="mt-4 space-y-2 text-sm">
-                <p className="font-semibold text-landing-ink">{selectedStory.title}</p>
-                <p className="text-landing-muted">
-                  Step: <span className="font-semibold text-landing-ink">{activeStep.title}</span> · Actor:{' '}
-                  {activeStep.actor}
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="font-semibold text-landing-ink">{selectedStory.title}</p>
+              <p className="text-landing-muted">
+                Step: <span className="font-semibold text-landing-ink">{activeStep.title}</span> · Actor:{' '}
+                {activeStep.actor}
+              </p>
+              <p className="text-landing-muted">{activeStep.explanation_md}</p>
+              {variantGuidance && (
+                <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800" data-testid="cirpass-variant-guidance">
+                  {variantGuidance}
                 </p>
-                <p className="text-landing-muted">{activeStep.explanation_md}</p>
-                {variantGuidance && (
-                  <p className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800" data-testid="cirpass-variant-guidance">
-                    {variantGuidance}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleCopyStepLink} data-testid="cirpass-copy-step-link">
-                    {shareCopied ? 'Link copied' : 'Copy step link'}
-                  </Button>
-                  <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleResetStory} data-testid="cirpass-reset-story">
-                    Reset story
-                  </Button>
-                  <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleResetAll} data-testid="cirpass-reset-all">
-                    Reset all
-                  </Button>
-                </div>
+              )}
+              {stepFeedback && (
+                <p className="rounded-xl border border-landing-ink/12 bg-landing-surface-0/70 px-3 py-2 text-xs font-medium text-landing-ink">
+                  {stepFeedback}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleCopyStepLink} data-testid="cirpass-copy-step-link">
+                  {shareCopied ? 'Link copied' : 'Copy step link'}
+                </Button>
+                <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleResetStory} data-testid="cirpass-reset-story">
+                  Reset story
+                </Button>
+                <Button type="button" variant="outline" className="rounded-full px-4" onClick={handleResetAll} data-testid="cirpass-reset-all">
+                  Reset all
+                </Button>
               </div>
-            ) : (
-              <p className="mt-4 text-sm text-landing-muted">Fallback runner active with base lifecycle objectives.</p>
-            )}
+            </div>
           </section>
 
           {!completed && (
-            <MissionPanel
-              currentLevel={activeLevel}
-              levels={levels}
+            <StepInteractionRenderer
+              step={activeStep}
+              objective={currentObjective}
+              derivedHint={derivedHint}
               onSubmit={handleSubmitLevel}
               onHint={handleHint}
             />
@@ -651,7 +986,7 @@ export default function StoryRunner({
         </div>
       </div>
 
-      {scenarioEngineEnabled && manifestQuery.data?.feature_flags.inspector_enabled && (
+      {inspectorEnabled && (
         <div className="mt-6 grid gap-4 xl:grid-cols-3">
           <ApiInspector api={activeStep?.api} mode={mode} variant={variant} />
           <ArtifactDiffInspector artifacts={activeStep?.artifacts} />
@@ -713,17 +1048,16 @@ export default function StoryRunner({
         </p>
       )}
 
-      {scenarioEngineEnabled && selectedStory && (
-        <p className="mt-4 break-all text-xs text-landing-muted">
-          Deep link:{' '}
-          <Link
-            to={`/cirpass-lab/story/${selectedStory.id}/step/${activeStep?.id ?? selectedStory.steps[0]?.id}?mode=${mode}&variant=${variant}`}
-            className="underline break-all"
-          >
-            /cirpass-lab/story/{selectedStory.id}/step/{activeStep?.id ?? selectedStory.steps[0]?.id}
-          </Link>
-        </p>
-      )}
+      <p className="mt-4 break-all text-xs text-landing-muted">
+        Deep link:{' '}
+        <Link
+          to={`/cirpass-lab/story/${selectedStory.id}/step/${activeStep?.id ?? selectedStory.steps[0]?.id}?mode=${mode}&variant=${variant}`}
+          className="underline break-all"
+        >
+          /cirpass-lab/story/{selectedStory.id}/step/{activeStep?.id ?? selectedStory.steps[0]?.id}
+        </Link>
+      </p>
     </>
   );
 }
+

@@ -42,6 +42,44 @@ export const cirpassUiActionSchema = z.object({
   kind: z.enum(['click', 'form', 'scan', 'select']),
 });
 
+export const cirpassInteractionValidationSchema = z.object({
+  min_length: z.number().int().min(0).optional(),
+  max_length: z.number().int().min(0).optional(),
+  gt: z.number().optional(),
+  gte: z.number().optional(),
+  lt: z.number().optional(),
+  lte: z.number().optional(),
+  pattern: z.string().trim().min(1).optional(),
+  equals: z.union([z.string(), z.number(), z.boolean()]).optional(),
+});
+
+export const cirpassInteractionOptionSchema = z.object({
+  label: z.string().trim().min(1),
+  value: z.string().trim().min(1),
+});
+
+export const cirpassInteractionFieldSchema = z.object({
+  name: z.string().trim().min(1),
+  label: z.string().trim().min(1),
+  type: z.enum(['text', 'textarea', 'number', 'checkbox', 'select']),
+  placeholder: z.string().trim().optional(),
+  required: z.boolean().default(false),
+  hint: z.string().trim().optional(),
+  validation: cirpassInteractionValidationSchema.optional(),
+  options: z.array(cirpassInteractionOptionSchema).optional(),
+  test_id: z.string().trim().min(1).optional(),
+});
+
+export const cirpassStepInteractionSchema = z.object({
+  kind: z.enum(['click', 'form', 'scan', 'select']).default('form'),
+  submit_label: z.string().trim().min(1).default('Validate & Continue'),
+  hint_text: z.string().trim().min(1).optional(),
+  success_message: z.string().trim().min(1).optional(),
+  failure_message: z.string().trim().min(1).optional(),
+  fields: z.array(cirpassInteractionFieldSchema).default([]),
+  options: z.array(cirpassInteractionOptionSchema).optional(),
+});
+
 export const cirpassArtifactsSchema = z.object({
   before: z.record(z.unknown()).optional(),
   after: z.record(z.unknown()).optional(),
@@ -68,6 +106,10 @@ export const cirpassStepSchema = z.object({
   intent: z.string().trim().min(1),
   explanation_md: z.string().trim().min(1),
   ui_action: cirpassUiActionSchema.optional(),
+  interaction: cirpassStepInteractionSchema.optional(),
+  actor_goal: z.string().trim().min(1).optional(),
+  physical_story_md: z.string().trim().min(1).optional(),
+  why_it_matters_md: z.string().trim().min(1).optional(),
   api: cirpassApiCallSchema.optional(),
   artifacts: cirpassArtifactsSchema.optional(),
   checks: z.array(cirpassStepCheckSchema).default([]),
@@ -107,3 +149,4 @@ export type CirpassLevelKey = z.infer<typeof cirpassLevelKeySchema>;
 export type CirpassLabManifest = z.infer<typeof cirpassLabManifestSchema>;
 export type CirpassLabStory = z.infer<typeof cirpassStorySchema>;
 export type CirpassLabStep = z.infer<typeof cirpassStepSchema>;
+export type CirpassLabStepInteraction = z.infer<typeof cirpassStepInteractionSchema>;

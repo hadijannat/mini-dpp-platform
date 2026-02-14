@@ -3,36 +3,46 @@ import { createActor } from 'xstate';
 import { cirpassMachine } from './cirpassMachine';
 
 describe('cirpassMachine', () => {
-  it('blocks invalid transitions and progresses on valid submissions', () => {
+  it('blocks skipping and progresses in ordered valid submissions', () => {
     const actor = createActor(cirpassMachine);
     actor.start();
 
     actor.send({
-      type: 'SUBMIT_LEVEL',
-      level: 'create',
-      data: {
-        identifier: '',
-        materialComposition: '',
-        carbonFootprint: null,
-      },
+      type: 'INIT',
+      steps: [
+        { id: 'create-passport', level: 'create' },
+        { id: 'access-routing', level: 'access' },
+      ],
     });
 
-    expect(actor.getSnapshot().value).toBe('create');
+    actor.send({
+      type: 'SUBMIT_STEP',
+      stepId: 'access-routing',
+      level: 'access',
+      isValid: true,
+    });
+
+    expect(actor.getSnapshot().value).toBe('running');
     expect(actor.getSnapshot().context.errors).toBe(1);
 
     actor.send({
-      type: 'SUBMIT_LEVEL',
+      type: 'SUBMIT_STEP',
+      stepId: 'create-passport',
       level: 'create',
-      data: {
-        identifier: 'did:web:dpp.eu:product:test',
-        materialComposition: 'aluminum',
-        carbonFootprint: 12.4,
-      },
+      isValid: true,
     });
 
-    expect(actor.getSnapshot().value).toBe('access');
+    expect(actor.getSnapshot().context.currentStepIndex).toBe(1);
 
-    actor.send({ type: 'HINT_USED', level: 'access' });
+    actor.send({ type: 'HINT_USED', stepId: 'access-routing', level: 'access' });
     expect(actor.getSnapshot().context.hints).toBe(1);
+
+    actor.send({
+      type: 'SUBMIT_STEP',
+      stepId: 'access-routing',
+      level: 'access',
+      isValid: true,
+    });
+    expect(actor.getSnapshot().value).toBe('completed');
   });
 });
