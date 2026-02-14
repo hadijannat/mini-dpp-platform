@@ -149,37 +149,23 @@
 
   .landing-aas-shell {
     position: relative;
-    overflow: hidden;
-    border-radius: 1.2rem;
+    border-radius: 1rem;
     border: 1px solid hsl(var(--landing-ink) / 0.12);
-    background:
-      radial-gradient(
-        360px 180px at 25% 18%,
-        hsl(var(--landing-accent-cyan) / 0.12),
-        transparent 75%
-      ),
-      linear-gradient(
-        180deg,
-        hsl(var(--landing-surface-0) / 0.85) 0%,
-        hsl(var(--landing-surface-1) / 0.72) 100%
-      );
-    padding: 0.85rem;
+    background: linear-gradient(
+      180deg,
+      hsl(var(--landing-surface-0) / 0.85) 0%,
+      hsl(var(--landing-surface-1) / 0.72) 100%
+    );
+    padding: 0.75rem;
   }
 
-  .landing-aas-shell-arch {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    height: 100%;
-    width: 100%;
-    opacity: 0.9;
+  .landing-tabs-scroll {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
 
-  .landing-dpp-tab-vertical {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    line-height: 1.1;
-    letter-spacing: 0.015em;
+  .landing-tabs-scroll::-webkit-scrollbar {
+    display: none;
   }
 
   .landing-dpp-lane-box {
