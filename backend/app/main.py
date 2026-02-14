@@ -33,6 +33,7 @@ from app.modules.dpps.router import router as dpps_router
 from app.modules.epcis.public_router import router as public_epcis_router
 from app.modules.epcis.router import router as epcis_router
 from app.modules.export.router import router as export_router
+from app.modules.lab.router import router as lab_router
 from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
 from app.modules.onboarding.role_request_router import router as role_request_router
@@ -241,6 +242,11 @@ window.onload = function() {{
         public_cirpass_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public CIRPASS"],
+    )
+    app.include_router(
+        lab_router,
+        prefix=f"{settings.api_v1_prefix}/lab",
+        tags=["Lab Sandbox"],
     )
 
     # Onboarding (authenticated, not tenant-scoped)

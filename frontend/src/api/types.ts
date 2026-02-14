@@ -42,6 +42,16 @@ export interface LandingSummary {
 }
 
 export type CirpassLevelKey = 'create' | 'access' | 'update' | 'transfer' | 'deactivate';
+export type CirpassLabMode = 'mock' | 'live';
+export type CirpassLabVariant = 'happy' | 'unauthorized' | 'not_found';
+export type CirpassLabTelemetryEventType =
+  | 'step_view'
+  | 'step_submit'
+  | 'hint'
+  | 'mode_switch'
+  | 'reset_story'
+  | 'reset_all';
+export type CirpassLabTelemetryResult = 'success' | 'error' | 'info';
 
 export interface CirpassStory {
   id: string;
@@ -100,6 +110,105 @@ export interface CirpassLeaderboardSubmitResponse {
   rank: number | null;
   best_score: number | null;
   version: string;
+}
+
+export interface CirpassLabReference {
+  label: string;
+  ref: string;
+}
+
+export interface CirpassLabUiAction {
+  label: string;
+  kind: 'click' | 'form' | 'scan' | 'select';
+}
+
+export interface CirpassLabApiCall {
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  path: string;
+  auth: 'none' | 'user' | 'service';
+  request_example?: Record<string, unknown> | null;
+  expected_status?: number | null;
+  response_example?: Record<string, unknown> | null;
+}
+
+export interface CirpassLabStepCheck {
+  type: 'jsonpath' | 'jmespath' | 'status' | 'schema';
+  expression?: string | null;
+  expected?: unknown;
+}
+
+export interface CirpassLabArtifacts {
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  diff_hint?: string | null;
+}
+
+export interface CirpassLabPolicyInspector {
+  required_role?: string | null;
+  opa_policy?: string | null;
+  expected_decision?: 'allow' | 'deny' | 'mask' | null;
+  note?: string | null;
+}
+
+export interface CirpassLabStep {
+  id: string;
+  level: CirpassLevelKey;
+  title: string;
+  actor: string;
+  intent: string;
+  explanation_md: string;
+  ui_action?: CirpassLabUiAction | null;
+  api?: CirpassLabApiCall | null;
+  artifacts?: CirpassLabArtifacts | null;
+  checks: CirpassLabStepCheck[];
+  policy?: CirpassLabPolicyInspector | null;
+  variants: CirpassLabVariant[];
+}
+
+export interface CirpassLabStory {
+  id: string;
+  title: string;
+  summary: string;
+  personas: string[];
+  learning_goals: string[];
+  preconditions_md?: string | null;
+  references: CirpassLabReference[];
+  version?: string | null;
+  last_reviewed?: string | null;
+  steps: CirpassLabStep[];
+}
+
+export interface CirpassLabFeatureFlags {
+  scenario_engine_enabled: boolean;
+  live_mode_enabled: boolean;
+  inspector_enabled: boolean;
+}
+
+export interface CirpassLabManifest {
+  manifest_version: string;
+  story_version: string;
+  generated_at: string;
+  source_status: 'fresh' | 'fallback';
+  stories: CirpassLabStory[];
+  feature_flags: CirpassLabFeatureFlags;
+}
+
+export interface CirpassLabEventRequest {
+  session_token: string;
+  story_id: string;
+  step_id: string;
+  event_type: CirpassLabTelemetryEventType;
+  mode: CirpassLabMode;
+  variant: CirpassLabVariant;
+  result: CirpassLabTelemetryResult;
+  latency_ms?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CirpassLabEventResponse {
+  accepted: boolean;
+  event_id: string;
+  stored_at: string;
 }
 
 // Data carrier types
