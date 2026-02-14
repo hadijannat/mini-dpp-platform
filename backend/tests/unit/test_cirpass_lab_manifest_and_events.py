@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -38,6 +39,34 @@ class _FakeTelemetrySession:
 
     async def flush(self) -> None:  # pragma: no cover - no-op for fake session
         return None
+
+
+def test_manifest_dir_resolution_supports_local_and_container_layouts(tmp_path: Path) -> None:
+    local_root = tmp_path / "local-repo"
+    local_manifest_dir = local_root / "docs/public/cirpass-stories"
+    local_manifest_dir.mkdir(parents=True)
+    local_module_path = local_root / "backend/app/modules/cirpass/service.py"
+    local_module_path.parent.mkdir(parents=True)
+    local_module_path.write_text("# test module path", encoding="utf-8")
+
+    resolved_local = CirpassLabService._resolve_manifest_dir(
+        module_path=local_module_path,
+        cwd=local_root / "backend",
+    )
+    assert resolved_local == local_manifest_dir.resolve()
+
+    container_root = tmp_path / "container-root"
+    container_manifest_dir = container_root / "app/docs/public/cirpass-stories"
+    container_manifest_dir.mkdir(parents=True)
+    container_module_path = container_root / "app/app/modules/cirpass/service.py"
+    container_module_path.parent.mkdir(parents=True)
+    container_module_path.write_text("# test module path", encoding="utf-8")
+
+    resolved_container = CirpassLabService._resolve_manifest_dir(
+        module_path=container_module_path,
+        cwd=container_root / "app",
+    )
+    assert resolved_container == container_manifest_dir.resolve()
 
 
 @pytest.mark.asyncio
