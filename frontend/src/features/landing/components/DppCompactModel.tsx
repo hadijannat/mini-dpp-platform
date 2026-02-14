@@ -1,5 +1,14 @@
 import { useState } from 'react';
-import { ExternalLink, Info, Link2, Lock, ShieldCheck, Users } from 'lucide-react';
+import {
+  ExternalLink,
+  Fingerprint,
+  Info,
+  Link2,
+  Lock,
+  QrCode,
+  ShieldCheck,
+  Users,
+} from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -198,8 +207,121 @@ export default function DppCompactModel() {
           </div>
         </div>
 
+        {/* ── Identifier & Data Carrier Layer ── */}
+        <div className="mt-4 rounded-xl border border-dashed border-landing-ink/15 bg-landing-surface-1/50 p-3">
+          <p className="mb-2.5 text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-landing-muted">
+            DPP4.0 &mdash; Identification &amp; Data Carrier Layer
+          </p>
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            {/* Column 1: Unique Identifier */}
+            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Fingerprint className="h-3.5 w-3.5 text-landing-cyan" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
+                  Unique Identifier
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    Identity levels
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {['Model', 'Batch', 'Item'].map((level) => (
+                      <span
+                        key={level}
+                        className="rounded-full border border-landing-ink/10 bg-landing-surface-1/80 px-1.5 py-px text-[9px] font-medium text-landing-ink"
+                      >
+                        {level}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    Schemes
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-landing-ink">
+                    GS1 GTIN &middot; IEC 61406 &middot; Direct URL
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 2: Data Carrier */}
+            <div className="rounded-lg border-t-2 border-landing-amber/50 bg-white px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <QrCode className="h-3.5 w-3.5 text-landing-amber" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
+                  Data Carrier
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    Carrier types
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {['QR Code', 'DataMatrix', 'NFC'].map((type) => (
+                      <span
+                        key={type}
+                        className="rounded-full border border-landing-ink/10 bg-landing-surface-1/80 px-1.5 py-px text-[9px] font-medium text-landing-ink"
+                      >
+                        {type}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    Lifecycle
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-landing-ink">
+                    Active &rarr; Deprecated &rarr; Withdrawn
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Column 3: Resolution */}
+            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white px-3 py-2.5">
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Link2 className="h-3.5 w-3.5 text-landing-cyan" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
+                  Resolution
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    Protocols
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {['GS1 Digital Link', 'RFC 9264'].map((proto) => (
+                      <span
+                        key={proto}
+                        className="rounded-full border border-landing-ink/10 bg-landing-surface-1/80 px-1.5 py-px text-[9px] font-medium text-landing-ink"
+                      >
+                        {proto}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.06em] text-landing-muted">
+                    URI pattern
+                  </p>
+                  <p className="mt-0.5 font-mono text-[9px] leading-relaxed text-landing-ink">
+                    /01/&#123;gtin&#125;/21/&#123;serial&#125;
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel}>
-          <div className="landing-aas-arch mt-4">
+          <div className="landing-aas-arch mt-3">
             <div className="landing-aas-arch-label">AAS &middot; DPP4.0</div>
 
             <div className="landing-aas-arch-body">
