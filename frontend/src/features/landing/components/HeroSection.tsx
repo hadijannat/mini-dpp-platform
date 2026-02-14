@@ -1,6 +1,7 @@
-import { ArrowRight, CheckCircle2, ExternalLink, Link2, ShieldCheck } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { landingContent } from '../content/landingContent';
+import DppCompactModel from './DppCompactModel';
 
 function openHref(href: string) {
   if (href.startsWith('#')) {
@@ -71,34 +72,7 @@ export default function HeroSection() {
           </div>
 
           <aside className="landing-panel rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
-            <div className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/60 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">Passport preview</p>
-              <h2 className="mt-2 font-display text-2xl font-semibold text-landing-ink">Battery Module BM-2400</h2>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Published
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs font-semibold text-sky-700">
-                  <Link2 className="h-3.5 w-3.5" />
-                  Resolver Ready
-                </span>
-              </div>
-              <dl className="mt-4 grid gap-2 text-sm">
-                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
-                  <dt className="text-landing-muted">AAS ID</dt>
-                  <dd className="font-mono text-xs text-landing-ink">dpp-shell-2f4e5a9a</dd>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
-                  <dt className="text-landing-muted">Carbon Footprint</dt>
-                  <dd className="font-semibold text-landing-ink">12.4 kg CO2e</dd>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-landing-ink/10 bg-white/90 px-3 py-2">
-                  <dt className="text-landing-muted">Data Carrier</dt>
-                  <dd className="font-semibold text-landing-ink">GS1 Digital Link</dd>
-                </div>
-              </dl>
-            </div>
+            <DppCompactModel />
 
             <ul className="mt-5 space-y-2">
               {landingContent.hero.trustBullets.map((bullet) => (

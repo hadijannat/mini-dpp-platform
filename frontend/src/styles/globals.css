@@ -146,6 +146,82 @@
     position: relative;
     backdrop-filter: blur(4px);
   }
+
+  .landing-aas-shell {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1.2rem;
+    border: 1px solid hsl(var(--landing-ink) / 0.12);
+    background:
+      radial-gradient(
+        360px 180px at 25% 18%,
+        hsl(var(--landing-accent-cyan) / 0.12),
+        transparent 75%
+      ),
+      linear-gradient(
+        180deg,
+        hsl(var(--landing-surface-0) / 0.85) 0%,
+        hsl(var(--landing-surface-1) / 0.72) 100%
+      );
+    padding: 0.85rem;
+  }
+
+  .landing-aas-shell-arch {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    height: 100%;
+    width: 100%;
+    opacity: 0.9;
+  }
+
+  .landing-dpp-tab-vertical {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    line-height: 1.1;
+    letter-spacing: 0.015em;
+  }
+
+  .landing-dpp-lane-box {
+    border-radius: 0.75rem;
+    border-width: 2px;
+    border-style: dashed;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.67rem;
+    font-weight: 700;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+  }
+
+  .landing-dpp-lane-core {
+    border-color: hsl(var(--landing-accent-cyan) / 0.55);
+    background: hsl(var(--landing-accent-cyan) / 0.08);
+    color: hsl(var(--landing-ink));
+  }
+
+  .landing-dpp-lane-extension {
+    border-color: hsl(var(--landing-accent-amber) / 0.62);
+    background: hsl(var(--landing-accent-amber) / 0.1);
+    color: hsl(var(--landing-ink));
+  }
+
+  .landing-access-badge-public {
+    border-color: hsl(var(--landing-accent-cyan) / 0.45);
+    background: hsl(var(--landing-accent-cyan) / 0.12);
+    color: hsl(var(--landing-ink));
+  }
+
+  .landing-access-badge-partner {
+    border-color: hsl(var(--landing-accent-amber) / 0.56);
+    background: hsl(var(--landing-accent-amber) / 0.16);
+    color: hsl(var(--landing-ink));
+  }
+
+  .landing-access-badge-restricted {
+    border-color: hsl(var(--landing-ink) / 0.3);
+    background: hsl(var(--landing-ink) / 0.12);
+    color: hsl(var(--landing-ink));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
