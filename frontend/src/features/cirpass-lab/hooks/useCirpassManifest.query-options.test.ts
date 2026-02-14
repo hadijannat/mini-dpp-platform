@@ -103,5 +103,39 @@ describe('useCirpassManifest query options', () => {
       warning: 'Scenario manifest service unavailable. Running bundled manifest.',
     });
   });
-});
 
+  it('falls back to generated manifest when API responds with non-ok status', async () => {
+    const generatedManifest = {
+      manifest_version: 'v1.0.0',
+      story_version: 'V3.1',
+      generated_at: '2026-02-14T00:00:00Z',
+      source_status: 'fresh',
+      stories: [],
+      feature_flags: {
+        scenario_engine_enabled: true,
+        live_mode_enabled: false,
+        inspector_enabled: true,
+      },
+    };
+
+    apiFetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+    });
+    getApiErrorMessageMock.mockResolvedValue('manifest unavailable');
+    loadGeneratedManifestMock.mockReturnValue(generatedManifest);
+
+    useCirpassManifest();
+    const queryConfig = useQueryMock.mock.calls[0]?.[0] as {
+      queryFn: () => Promise<Record<string, unknown>>;
+    };
+
+    const payload = await queryConfig.queryFn();
+    expect(getApiErrorMessageMock).toHaveBeenCalledTimes(1);
+    expect(payload).toEqual({
+      manifest: generatedManifest,
+      resolved_from: 'generated',
+      warning: 'Scenario manifest service unavailable. Running bundled manifest.',
+    });
+  });
+});

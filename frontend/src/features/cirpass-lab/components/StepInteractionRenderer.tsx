@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -230,7 +230,7 @@ export default function StepInteractionRenderer({
       },
     [step.interaction, step.ui_action?.kind, step.ui_action?.label],
   );
-  const interactionOptions = interaction.options ?? [];
+  const interactionOptions = useMemo(() => interaction.options ?? [], [interaction.options]);
   const schema = useMemo(() => buildInteractionSchema(interaction), [interaction]);
   const defaultValues = useMemo(() => buildDefaultValues(interaction), [interaction]);
   const [selectedOption, setSelectedOption] = useState(interactionOptions[0]?.value ?? '');
@@ -241,6 +241,12 @@ export default function StepInteractionRenderer({
     defaultValues,
     mode: 'onSubmit',
   });
+
+  useEffect(() => {
+    form.reset(defaultValues);
+    setSelectedOption(interactionOptions[0]?.value ?? '');
+    setScanValue('');
+  }, [defaultValues, form, interactionOptions, step.id]);
 
   const handleSimpleSubmit = () => {
     if (interaction.kind === 'click') {
