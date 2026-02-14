@@ -1,17 +1,21 @@
 # Public Data Exposure Policy
 
-This policy defines what data is allowed on public landing pages and public summary endpoints.
+This policy defines what data is allowed on public landing pages and CIRPASS public lab APIs.
 
 ## Scope
 
 - Public landing page at `https://dpp-platform.dev/`
 - Public summary endpoint: `GET /api/v1/public/{tenant_slug}/landing/summary`
-- Public CIRPASS feed endpoint: `GET /api/v1/public/cirpass/stories/latest`
-- Public CIRPASS leaderboard endpoints:
+- CIRPASS feed endpoint: `GET /api/v1/public/cirpass/stories/latest`
+- CIRPASS manifest endpoints:
+  - `GET /api/v1/public/cirpass/lab/manifest/latest`
+  - `GET /api/v1/public/cirpass/lab/manifest/{manifest_version}`
+- CIRPASS telemetry endpoint:
+  - `POST /api/v1/public/cirpass/lab/events`
+- CIRPASS leaderboard/session endpoints:
   - `GET /api/v1/public/cirpass/leaderboard`
   - `POST /api/v1/public/cirpass/session`
   - `POST /api/v1/public/cirpass/leaderboard/submit`
-- Audience: manufacturers, regulators, recyclers/repair networks, and consumers
 
 ## Contract: Public Landing Summary
 
@@ -28,42 +32,65 @@ Response cache policy:
 
 - `Cache-Control: public, max-age=15, stale-while-revalidate=15`
 
+## Contract: CIRPASS Manifest + Stories
+
+Allowed manifest data:
+
+- Story metadata and learning text
+- Synthetic step examples (request/response/artifact/policy hints)
+- Feature-flag projection for the lab UI
+
+Not allowed:
+
+- Tenant identifiers
+- Real product payloads
+- Access tokens/secrets
+- Internal policy payloads beyond curated inspector hints
+
+## Contract: CIRPASS Telemetry
+
+Allowed telemetry fields:
+
+- `story_id`, `step_id`, `event_type`, `mode`, `variant`, `result`, `latency_ms`, sanitized `metadata`
+
+Storage guardrails:
+
+- Raw SID: not stored
+- Raw IP: not stored
+- Raw auth token: not stored
+- Raw user agent: not stored
+
+Retention:
+
+- `cirpass_lab_events` retention defaults to 30 days.
+
 ## Allowed vs Blocked Data
 
-| Data item | Show on landing | Rule |
+| Data item | Show/store publicly | Rule |
 |---|---|---|
 | Platform capabilities and standards links | Yes | Static curated copy with evidence links |
 | Aggregate published DPP count | Yes | Integer only from public summary endpoint |
 | Aggregate product family count | Yes | Distinct count only |
 | Aggregate traceability coverage count | Yes | Count only, no raw event payloads |
 | Latest publish timestamp | Yes | Single timestamp only |
-| Product-level identifiers (`serialNumber`, `batchId`, `globalAssetId`, `dpp_id`) | No | Explicitly prohibited |
-| Raw AAS submodel content | No | Restricted to viewer/protected routes |
-| Raw EPCIS event payloads or location fields (`payload`, `read_point`, `biz_location`) | No | Explicitly prohibited |
-| Actor/user metadata | No | Explicitly prohibited |
+| CIRPASS story summaries + synthetic step payload examples | Yes | Must remain synthetic and non-tenant specific |
 | CIRPASS leaderboard nickname + score + completion time + version + rank | Yes | Pseudonymous only, no email/account linkage |
-| CIRPASS session token payload internals (`sid`, `ua_hash`, signature) | No | Never exposed in public responses |
-| Raw source PDFs or non-official scraped sources | No | Only normalized story summaries from official CIRPASS + Zenodo references |
-
-## Landing Claims Source of Truth
-
-| Claim style | Source/evidence | Notes |
-|---|---|---|
-| “Supports ESPR-aligned workflows for supported categories” | [EU ESPR overview](https://commission.europa.eu/energy-climate-change-environment/standards-tools-and-labels/products-labelling-rules-and-requirements/sustainable-products/ecodesign-sustainable-products-regulation_en), [EU 2024/1781](https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng) | Must include qualifier; never imply universal compliance across all categories |
-| AAS and IDTA-oriented interoperability language | [IDTA submodels](https://industrialdigitaltwin.org/en/content-hub/submodels), [AAS specifications](https://industrialdigitaltwin.org/en/content-hub/aasspecifications) | Link to standards and avoid absolute claims |
-| Platform feature claims | `/api/v1/docs` | Claims must match currently exposed behavior |
+| Anonymized telemetry hashes + step metadata | Yes | No reversible identifiers or secrets |
+| Product-level identifiers (`serialNumber`, `batchId`, `globalAssetId`, `dpp_id`) | No | Explicitly prohibited |
+| Raw AAS submodel content from private tenants | No | Restricted to protected routes |
+| Raw EPCIS payloads or location fields (`payload`, `read_point`, `biz_location`) | No | Explicitly prohibited |
+| Actor/user metadata and auth claims | No | Explicitly prohibited |
+| CIRPASS session token internals (`sid`, `ua_hash`, signature) | No | Never exposed in responses |
 
 ## Security Guardrails
 
-- Public responses use allowlisted aggregate fields for landing summaries.
-- Sensitive-key denylist filtering is applied to public data paths to prevent accidental leakage.
-- Public landing UI renders only known aggregate keys and ignores unexpected response fields.
-- CIRPASS source ingestion accepts only official `cirpassproject.eu` and `zenodo.org` URLs.
-- Leaderboard submissions are pseudonymous and protected by signed short-lived browser tokens.
-- Public leaderboard storage excludes direct identifiers (no user ID, email, or tenant linkage).
+- Public responses use allowlisted field contracts.
+- Sensitive-key denylist filtering is applied to public data paths.
+- CIRPASS source ingest accepts only official `cirpassproject.eu` and `zenodo.org` URLs.
+- Leaderboard and telemetry endpoints use signed, short-lived sessions and rate limits.
 
-## Review and Change Management
+## Change Management
 
-- Any new public landing metric requires API contract review and security review.
+- Any new public field requires API contract and security review.
 - Any new public claim requires evidence links or explicit scope qualifiers.
-- Breaking changes to public fields require release-note and docs updates before rollout.
+- Breaking public API changes require docs updates before release.

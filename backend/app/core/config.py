@@ -100,6 +100,24 @@ class Settings(BaseSettings):
         le=500,
         description="Hard maximum rows returned for CIRPASS leaderboard endpoint",
     )
+    cirpass_lab_scenario_engine_enabled: bool = Field(
+        default=True,
+        description="Feature flag for data-driven CIRPASS lab scenario engine",
+    )
+    cirpass_lab_live_mode_enabled: bool = Field(
+        default=False,
+        description="Feature flag for CIRPASS lab live mode against backend APIs",
+    )
+    cirpass_lab_inspector_enabled: bool = Field(
+        default=True,
+        description="Feature flag for under-the-hood inspector panels in CIRPASS lab",
+    )
+    cirpass_lab_telemetry_retention_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Retention window for anonymized CIRPASS lab telemetry rows",
+    )
 
     # ==========================================================================
     # Keycloak / OIDC Configuration

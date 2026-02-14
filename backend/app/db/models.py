@@ -2714,3 +2714,73 @@ class CirpassLeaderboardEntry(Base):
         Index("ix_cirpass_leaderboard_sid_updated", "sid", "updated_at"),
         Index("ix_cirpass_leaderboard_ip_updated", "ip_hash", "updated_at"),
     )
+
+
+class CirpassLabEvent(Base):
+    """Anonymized telemetry events emitted by the CIRPASS lab runner."""
+
+    __tablename__ = "cirpass_lab_events"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    sid_hash: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="HMAC hash derived from signed session sid (no raw sid stored)",
+    )
+    event_type: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="Telemetry event type (step_view, step_submit, hint, etc.)",
+    )
+    story_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="Scenario story identifier",
+    )
+    step_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="Scenario step identifier",
+    )
+    mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        comment="Execution mode (mock/live)",
+    )
+    variant: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        comment="Scenario variant (happy/unauthorized/not_found)",
+    )
+    result: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        comment="Outcome (success/error/info)",
+    )
+    latency_ms: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Optional client-observed latency in milliseconds",
+    )
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Sanitized telemetry metadata without PII",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "latency_ms IS NULL OR latency_ms >= 0", name="ck_cirpass_lab_event_latency"
+        ),
+        Index("ix_cirpass_lab_events_sid_created", "sid_hash", "created_at"),
+        Index("ix_cirpass_lab_events_story_step", "story_id", "step_id", "created_at"),
+    )

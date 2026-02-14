@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:static": "tsc -b && vite build",
+    "generate:cirpass-stories": "node scripts/generate-cirpass-stories.mjs",
+    "check:cirpass-stories": "node scripts/generate-cirpass-stories.mjs --check",
+    "build:static": "npm run generate:cirpass-stories && tsc -b && vite build",
     "prerender:landing": "node scripts/prerender-landing.mjs",
     "build": "npm run build:static && npm run prerender:landing",
     "preview": "vite preview",
@@ -56,6 +58,7 @@
     "tailwind-merge": "^2.2.0",
     "tailwindcss-animate": "^1.0.7",
     "xstate": "^5.23.0",
+    "yaml": "^2.8.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

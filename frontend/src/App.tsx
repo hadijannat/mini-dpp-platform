@@ -172,6 +172,7 @@ function App() {
         {/* Landing page */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/cirpass-lab" element={<CirpassLabPage />} />
+        <Route path="/cirpass-lab/story/:storyId/step/:stepId" element={<CirpassLabPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

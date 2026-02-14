@@ -182,6 +182,7 @@ services:
       - DATASPACE_TCK_ARTIFACT_DIR=${DATASPACE_TCK_ARTIFACT_DIR:-/tmp/dataspace-tck}
     volumes:
       - ./backend:/app:cached
+      - ./docs/public/cirpass-stories:/app/docs/public/cirpass-stories:ro
       - ./shared:/shared:ro
       - backend_cache:/app/.cache
     ports:
