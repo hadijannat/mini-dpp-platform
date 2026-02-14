@@ -131,7 +131,8 @@ jobs:
               local key="$1"
               local file="$2"
               if [ ! -f "$file" ]; then
-                return 1
+                printf ''
+                return 0
               fi
               grep -E "^${key}=" "$file" | tail -n1 | cut -d= -f2- || true
             }
