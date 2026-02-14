@@ -73,49 +73,39 @@ function SubmodelContent({ node, audienceMode }: { node: DppModelNode; audienceM
   const templateValue = node.templateKey ?? 'recyclability-extension';
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-display text-xl font-semibold text-landing-ink">{node.label}</h3>
+        <h3 className="font-display text-base font-semibold text-landing-ink">{node.label}</h3>
         <AccessBadge accessTier={node.accessTier} />
       </div>
 
       {node.idtaTemplateName ? (
-        <p className="text-sm text-landing-muted">
-          Template: <span className="font-semibold text-landing-ink">{node.idtaTemplateName}</span>
+        <p className="text-xs text-landing-muted">
+          IDTA: <span className="font-semibold text-landing-ink">{node.idtaTemplateName}</span>
         </p>
       ) : (
-        <p className="text-sm text-landing-muted">
+        <p className="text-xs text-landing-muted">
           Lane: <span className="font-semibold text-landing-ink">Business-policy extension</span>
         </p>
       )}
 
       {audienceMode === 'general' ? (
-        <div className="space-y-2 text-sm leading-relaxed text-landing-muted">
-          <p>
-            <span className="font-semibold text-landing-ink">What it is:</span> {node.descriptionPublic}
-          </p>
-          <p>
-            <span className="font-semibold text-landing-ink">Why it matters:</span> {node.whyItMattersPublic}
-          </p>
-          <p>
-            <span className="font-semibold text-landing-ink">Who uses it:</span> {node.whoUsesItPublic}
-          </p>
-        </div>
+        <p className="text-sm leading-relaxed text-landing-muted">{node.descriptionPublic}</p>
       ) : (
         <div className="space-y-2 text-sm leading-relaxed text-landing-muted">
           <p>{node.descriptionImpl}</p>
-          <dl className="grid gap-2 rounded-xl border border-landing-ink/12 bg-landing-surface-1/70 p-3">
+          <dl className="grid gap-1.5 rounded-xl border border-landing-ink/12 bg-landing-surface-1/70 p-2.5">
             <div className="flex items-center justify-between gap-2">
               <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-landing-muted">
                 template_key
               </dt>
-              <dd className="font-mono text-xs text-landing-ink">{templateValue}</dd>
+              <dd className="font-mono text-[11px] text-landing-ink">{templateValue}</dd>
             </div>
             <div className="flex items-center justify-between gap-2">
               <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-landing-muted">
                 semantic_id
               </dt>
-              <dd className="break-all text-right font-mono text-xs text-landing-ink">
+              <dd className="break-all text-right font-mono text-[11px] text-landing-ink">
                 {node.semanticId ?? 'n/a'}
               </dd>
             </div>
@@ -123,7 +113,7 @@ function SubmodelContent({ node, audienceMode }: { node: DppModelNode; audienceM
               <dt className="font-mono text-[11px] uppercase tracking-[0.08em] text-landing-muted">
                 api_hint
               </dt>
-              <dd className="font-mono text-xs text-landing-ink">{node.apiHintPath}</dd>
+              <dd className="font-mono text-[11px] text-landing-ink">{node.apiHintPath}</dd>
             </div>
           </dl>
         </div>
@@ -131,11 +121,11 @@ function SubmodelContent({ node, audienceMode }: { node: DppModelNode; audienceM
 
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">Typical fields</p>
-        <ul className="mt-2 flex flex-wrap gap-2">
-          {node.typicalFields.map((field) => (
+        <ul className="mt-1.5 flex flex-wrap gap-1.5">
+          {node.typicalFields.slice(0, 4).map((field) => (
             <li
               key={field}
-              className="rounded-full border border-landing-ink/12 bg-white px-2.5 py-1 text-xs font-medium text-landing-ink"
+              className="rounded-full border border-landing-ink/12 bg-white px-2 py-0.5 text-[11px] font-medium text-landing-ink"
             >
               {field}
             </li>
@@ -143,29 +133,29 @@ function SubmodelContent({ node, audienceMode }: { node: DppModelNode; audienceM
         </ul>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         <a
           href={node.actions.demoHref}
-          className="inline-flex items-center gap-1.5 rounded-full border border-landing-cyan/35 bg-landing-cyan/10 px-3.5 py-1.5 text-xs font-semibold text-landing-cyan transition-colors hover:border-landing-cyan/55 hover:bg-landing-cyan/15"
+          className="inline-flex items-center gap-1 rounded-full border border-landing-cyan/35 bg-landing-cyan/10 px-3 py-1 text-[11px] font-semibold text-landing-cyan transition-colors hover:border-landing-cyan/55 hover:bg-landing-cyan/15"
         >
-          <Link2 className="h-3.5 w-3.5" />
-          View in demo passport
+          <Link2 className="h-3 w-3" />
+          Demo
         </a>
         <a
           href={node.actions.evidenceHref}
           target={actionTarget(node.actions.evidenceHref)}
           rel={actionRel(node.actions.evidenceHref)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-landing-ink/18 bg-white px-3.5 py-1.5 text-xs font-semibold text-landing-ink transition-colors hover:border-landing-ink/35"
+          className="inline-flex items-center gap-1 rounded-full border border-landing-ink/18 bg-white px-3 py-1 text-[11px] font-semibold text-landing-ink transition-colors hover:border-landing-ink/35"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
-          View template spec
+          <ExternalLink className="h-3 w-3" />
+          Spec
         </a>
         <a
           href={node.actions.apiHref}
-          className="inline-flex items-center gap-1.5 rounded-full border border-landing-ink/18 bg-white px-3.5 py-1.5 text-xs font-semibold text-landing-ink transition-colors hover:border-landing-ink/35"
+          className="inline-flex items-center gap-1 rounded-full border border-landing-ink/18 bg-white px-3 py-1 text-[11px] font-semibold text-landing-ink transition-colors hover:border-landing-ink/35"
         >
-          <Info className="h-3.5 w-3.5" />
-          Inspect API surface
+          <Info className="h-3 w-3" />
+          API
         </a>
       </div>
     </div>
@@ -180,14 +170,9 @@ export default function DppCompactModel() {
     <TooltipProvider delayDuration={180}>
       <section className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/65 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
-              Compact model-first preview
-            </p>
-            <h2 className="mt-1 font-display text-xl font-semibold text-landing-ink">
-              Asset Administration Shell (IEC 63278)
-            </h2>
-          </div>
+          <h2 className="font-display text-lg font-semibold text-landing-ink">
+            Asset Administration Shell (IEC 63278)
+          </h2>
           <div className="inline-flex items-center gap-2 rounded-full border border-landing-ink/15 bg-white/90 px-3 py-1.5">
             <span
               className={cn(
@@ -214,55 +199,46 @@ export default function DppCompactModel() {
         </div>
 
         <div className="landing-aas-shell mt-4">
-          <div className="landing-aas-shell-cap">AAS shell with modular DPP submodels</div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-landing-cyan/10 px-2.5 py-1 text-[11px] font-semibold text-landing-ink">
+              <span className="h-1.5 w-1.5 rounded-full bg-landing-cyan" />
+              ESPR core
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-landing-amber/10 px-2.5 py-1 text-[11px] font-semibold text-landing-ink">
+              <span className="h-1.5 w-1.5 rounded-full bg-landing-amber" />
+              Business policy
+            </span>
+          </div>
 
-          <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel} className="relative z-10">
-            <div className="space-y-3">
-              <div className="grid gap-2 lg:grid-cols-[1.8fr_1fr]">
-                <div className="landing-dpp-lane-box landing-dpp-lane-core">
-                  Submodels including DPP information according ESPR
-                </div>
-                <div className="landing-dpp-lane-box landing-dpp-lane-extension">
-                  Submodels for digital services based on business policy
-                </div>
-              </div>
+          <Tabs value={activeSubmodel} onValueChange={setActiveSubmodel}>
+            <TabsList className="landing-tabs-scroll mb-3 flex h-auto w-full flex-wrap justify-start gap-1.5 overflow-x-auto bg-transparent p-0">
+              {dppModelNodes.map((node) => (
+                <TabsTrigger
+                  key={node.id}
+                  value={node.id}
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-full border border-landing-ink/15 bg-white/90 px-3 py-1.5 text-xs font-semibold text-landing-ink shadow-none transition-colors data-[state=active]:border-landing-cyan/55 data-[state=active]:bg-landing-cyan/15',
+                    node.lane === 'extension' &&
+                      'data-[state=active]:border-landing-amber/55 data-[state=active]:bg-landing-amber/15',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      node.lane === 'core' ? 'bg-landing-cyan' : 'bg-landing-amber',
+                    )}
+                  />
+                  {node.tabLabel}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-              <TabsList className="grid h-auto grid-cols-2 gap-2 bg-transparent p-0 sm:grid-cols-3">
-                {dppModelNodes.map((node) => (
-                  <Tooltip key={node.id}>
-                    <TooltipTrigger asChild>
-                      <TabsTrigger
-                        value={node.id}
-                        className={cn(
-                          'h-auto min-h-[56px] w-full rounded-xl border border-landing-ink/14 bg-white/92 px-3 py-2 text-left text-landing-ink shadow-none data-[state=active]:border-landing-cyan/55 data-[state=active]:bg-landing-cyan/14 data-[state=active]:text-landing-ink',
-                          node.lane === 'extension' &&
-                            'sm:col-span-3 data-[state=active]:border-landing-amber/60 data-[state=active]:bg-landing-amber/14',
-                        )}
-                      >
-                        <span className="block text-[10px] font-semibold uppercase tracking-[0.09em] text-landing-muted">
-                          {node.lane === 'core' ? 'Core template' : 'Extension lane'}
-                        </span>
-                        <span className="mt-0.5 block text-sm font-semibold leading-tight">{node.label}</span>
-                      </TabsTrigger>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-[300px] border-landing-ink/15 bg-white text-xs text-landing-muted">
-                      <p className="font-semibold text-landing-ink">{node.label}</p>
-                      <p className="mt-1">{node.descriptionPublic}</p>
-                      <p className="mt-1">{node.whoUsesItPublic}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </TabsList>
-
-              <div className="rounded-2xl border border-landing-ink/12 bg-white/92 p-4 shadow-[0_20px_44px_-34px_rgba(10,33,45,0.72)]">
-                <div className="max-h-[360px] overflow-y-auto pr-1">
-                  {dppModelNodes.map((node) => (
-                    <TabsContent key={node.id} value={node.id} className="mt-0">
-                      <SubmodelContent node={node} audienceMode={audienceMode} />
-                    </TabsContent>
-                  ))}
-                </div>
-              </div>
+            <div className="max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-3.5">
+              {dppModelNodes.map((node) => (
+                <TabsContent key={node.id} value={node.id} className="mt-0">
+                  <SubmodelContent node={node} audienceMode={audienceMode} />
+                </TabsContent>
+              ))}
             </div>
           </Tabs>
         </div>
