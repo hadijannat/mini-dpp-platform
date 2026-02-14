@@ -123,22 +123,45 @@ jobs:
             export VITE_COMMIT_SHA=$(git rev-parse HEAD)
 
             # Ensure CIRPASS session signing secret is available for production migrations/runtime.
-            # Backward-compatible fallback: reuse DPP_SIGNING_KEY when CIRPASS secret is not yet set.
-            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
-              if [ -f .env.prod ]; then
-                CIRPASS_SESSION_TOKEN_SECRET=$(grep -E '^CIRPASS_SESSION_TOKEN_SECRET=' .env.prod | tail -n1 | cut -d= -f2- || true)
-                export CIRPASS_SESSION_TOKEN_SECRET
+            # Resolution order:
+            # 1) CIRPASS_SESSION_TOKEN_SECRET from current env
+            # 2) CIRPASS_SESSION_TOKEN_SECRET from .env.prod/.env
+            # 3) DPP_SIGNING_KEY from current env/.env.prod/.env
+            get_env_var() {
+              local key="$1"
+              local file="$2"
+              if [ ! -f "$file" ]; then
+                return 1
               fi
-            fi
+              grep -E "^${key}=" "$file" | tail -n1 | cut -d= -f2- || true
+            }
+
             if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
-              if [ -f .env.prod ]; then
-                DPP_SIGNING_KEY_FALLBACK=$(grep -E '^DPP_SIGNING_KEY=' .env.prod | tail -n1 | cut -d= -f2- || true)
+              for ENV_FILE in .env.prod .env; do
+                CIRPASS_SECRET_FROM_FILE="$(get_env_var CIRPASS_SESSION_TOKEN_SECRET "$ENV_FILE")"
+                if [ -n "${CIRPASS_SECRET_FROM_FILE:-}" ]; then
+                  export CIRPASS_SESSION_TOKEN_SECRET="$CIRPASS_SECRET_FROM_FILE"
+                  break
+                fi
+              done
+            fi
+
+            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ] && [ -n "${DPP_SIGNING_KEY:-}" ]; then
+              export CIRPASS_SESSION_TOKEN_SECRET="$DPP_SIGNING_KEY"
+              echo "CIRPASS_SESSION_TOKEN_SECRET missing; using DPP_SIGNING_KEY from environment."
+            fi
+
+            if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
+              for ENV_FILE in .env.prod .env; do
+                DPP_SIGNING_KEY_FALLBACK="$(get_env_var DPP_SIGNING_KEY "$ENV_FILE")"
                 if [ -n "${DPP_SIGNING_KEY_FALLBACK:-}" ]; then
                   export CIRPASS_SESSION_TOKEN_SECRET="$DPP_SIGNING_KEY_FALLBACK"
-                  echo "CIRPASS_SESSION_TOKEN_SECRET missing; using DPP_SIGNING_KEY fallback for this deploy."
+                  echo "CIRPASS_SESSION_TOKEN_SECRET missing; using DPP_SIGNING_KEY from ${ENV_FILE}."
+                  break
                 fi
-              fi
+              done
             fi
+
             if [ -z "${CIRPASS_SESSION_TOKEN_SECRET:-}" ]; then
               echo "CIRPASS_SESSION_TOKEN_SECRET is required for production deploy."
               exit 1
