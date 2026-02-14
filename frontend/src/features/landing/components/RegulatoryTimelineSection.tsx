@@ -492,47 +492,49 @@ export default function RegulatoryTimelineSection() {
             <div className="mt-6 hidden md:block">
               <div className="relative">
                 <div
-                  className="pointer-events-none absolute left-0 right-0 top-8 h-px bg-gradient-to-r from-transparent via-landing-ink/20 to-transparent"
-                  data-testid="timeline-axis-rail"
-                />
-                {range && (
-                  <div
-                    className="pointer-events-none absolute top-1 z-[1] flex -translate-x-1/2 flex-col items-center"
-                    style={{ left: `${nowPct * 100}%` }}
-                    data-testid="timeline-now-marker"
-                  >
-                    <div className="h-11 w-px bg-amber-500/60" />
-                    <div className="mt-1 rounded-full border border-amber-500/30 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
-                      Today
-                    </div>
-                  </div>
-                )}
-                <div
                   ref={desktopScrollRef}
-                  className="overflow-x-auto pb-4 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]"
+                  className="overflow-x-auto snap-x snap-mandatory pb-4 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]"
                   data-testid="timeline-scroll-container"
                 >
-                  <div className="flex min-w-max snap-x snap-mandatory gap-3 px-1 pt-6">
-                    <AnimatePresence initial={false} mode="popLayout">
-                      {events.map((event) => (
-                        <motion.div key={event.id} layout className="relative w-[280px] snap-start pt-2">
-                          <span
-                            className={cn(
-                              'pointer-events-none absolute left-6 top-[0.10rem] h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(12,31,46,0.12)]',
-                              trackNodeClass(event.track),
-                            )}
-                            aria-hidden="true"
-                          />
-                          <TimelineCard
-                            event={event}
-                            desktop
-                            testId={`timeline-card-${event.id}`}
-                            shouldReduceMotion={!!shouldReduceMotion}
-                            onSelect={setSelectedEvent}
-                          />
-                        </motion.div>
-                      ))}
-                    </AnimatePresence>
+                  <div className="relative min-w-max px-1 pt-6">
+                    <div
+                      className="pointer-events-none absolute left-1 right-1 top-8 h-px bg-gradient-to-r from-transparent via-landing-ink/20 to-transparent"
+                      data-testid="timeline-axis-rail"
+                    />
+                    {range && (
+                      <div
+                        className="pointer-events-none absolute top-1 z-[1] flex -translate-x-1/2 flex-col items-center"
+                        style={{ left: `${nowPct * 100}%` }}
+                        data-testid="timeline-now-marker"
+                      >
+                        <div className="h-11 w-px bg-amber-500/60" />
+                        <div className="mt-1 rounded-full border border-amber-500/30 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+                          Today
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex gap-3">
+                      <AnimatePresence initial={false} mode="popLayout">
+                        {events.map((event) => (
+                          <motion.div key={event.id} layout className="relative w-[280px] snap-start pt-2">
+                            <span
+                              className={cn(
+                                'pointer-events-none absolute left-6 top-[0.10rem] h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(12,31,46,0.12)]',
+                                trackNodeClass(event.track),
+                              )}
+                              aria-hidden="true"
+                            />
+                            <TimelineCard
+                              event={event}
+                              desktop
+                              testId={`timeline-card-${event.id}`}
+                              shouldReduceMotion={!!shouldReduceMotion}
+                              onSelect={setSelectedEvent}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
