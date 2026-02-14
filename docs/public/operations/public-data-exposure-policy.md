@@ -6,6 +6,7 @@ This policy defines what data is allowed on public landing pages and CIRPASS pub
 
 - Public landing page at `https://dpp-platform.dev/`
 - Public summary endpoint: `GET /api/v1/public/{tenant_slug}/landing/summary`
+- Public regulatory timeline endpoint: `GET /api/v1/public/landing/regulatory-timeline`
 - CIRPASS feed endpoint: `GET /api/v1/public/cirpass/stories/latest`
 - CIRPASS manifest endpoints:
   - `GET /api/v1/public/cirpass/lab/manifest/latest`
@@ -31,6 +32,35 @@ The public summary endpoint returns aggregate-only fields:
 Response cache policy:
 
 - `Cache-Control: public, max-age=15, stale-while-revalidate=15`
+
+## Contract: Public Regulatory Timeline
+
+The public regulatory timeline endpoint returns curated milestone events with verification metadata:
+
+- `generated_at`
+- `fetched_at`
+- `source_status` (`fresh` or `stale`)
+- `refresh_sla_seconds`
+- `digest_sha256`
+- `events[]`
+  - `id`, `date`, `date_precision`, `track`, `title`, `plain_summary`
+  - `audience_tags[]`
+  - `status` (`past`, `today`, `upcoming`)
+  - `verified`
+  - `verification` (`checked_at`, `method`, `confidence`)
+  - `sources[]` (`label`, `url`, `publisher`, `retrieved_at`, `sha256`)
+
+Response cache policy:
+
+- Fresh: `Cache-Control: public, max-age=300, stale-while-revalidate=3600`
+- Stale: `Cache-Control: public, max-age=60, stale-while-revalidate=3600`
+- `ETag` support with conditional `If-None-Match` requests
+
+Verification guardrails:
+
+- Sources are allowlisted to official domains only.
+- `verified=true` requires at least one official source content-match.
+- Month-only milestones use `date_precision=month` and must render as month/year (no inferred day).
 
 ## Contract: CIRPASS Manifest + Stories
 
@@ -73,6 +103,7 @@ Retention:
 | Aggregate product family count | Yes | Distinct count only |
 | Aggregate traceability coverage count | Yes | Count only, no raw event payloads |
 | Latest publish timestamp | Yes | Single timestamp only |
+| Regulatory and standards timeline milestones with official citations | Yes | Curated, allowlisted sources only; includes verification metadata |
 | CIRPASS story summaries + synthetic step payload examples | Yes | Must remain synthetic and non-tenant specific |
 | CIRPASS leaderboard nickname + score + completion time + version + rank | Yes | Pseudonymous only, no email/account linkage |
 | Anonymized telemetry hashes + step metadata | Yes | No reversible identifiers or secrets |

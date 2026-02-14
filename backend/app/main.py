@@ -42,6 +42,9 @@ from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
 from app.modules.registry.public_router import router as public_registry_router
 from app.modules.registry.router import router as registry_router
+from app.modules.regulatory_timeline.public_router import (
+    router as public_regulatory_timeline_router,
+)
 from app.modules.resolver.public_router import router as public_resolver_router
 from app.modules.resolver.router import router as resolver_router
 from app.modules.settings.router import router as settings_router
@@ -242,6 +245,11 @@ window.onload = function() {{
         public_cirpass_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public CIRPASS"],
+    )
+    app.include_router(
+        public_regulatory_timeline_router,
+        prefix=f"{settings.api_v1_prefix}/public",
+        tags=["Public Timeline"],
     )
     app.include_router(
         lab_router,

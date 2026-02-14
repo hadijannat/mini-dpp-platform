@@ -183,6 +183,7 @@ services:
     volumes:
       - ./backend:/app:cached
       - ./docs/public/cirpass-stories:/app/docs/public/cirpass-stories:ro
+      - ./docs/public/regulatory-timeline:/app/docs/public/regulatory-timeline:ro
       - ./shared:/shared:ro
       - backend_cache:/app/.cache
     ports:

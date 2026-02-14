@@ -41,6 +41,51 @@ export interface LandingSummary {
   refresh_sla_seconds?: number | null;
 }
 
+export type RegulatoryTimelineTrack = 'regulation' | 'standards';
+export type RegulatoryTimelineTrackFilter = 'all' | RegulatoryTimelineTrack;
+export type RegulatoryTimelineSourceStatus = 'fresh' | 'stale';
+export type RegulatoryTimelineEventStatus = 'past' | 'today' | 'upcoming';
+export type RegulatoryTimelineDatePrecision = 'day' | 'month';
+export type RegulatoryTimelineVerificationMethod = 'source-hash' | 'content-match' | 'manual';
+export type RegulatoryTimelineConfidence = 'high' | 'medium' | 'low';
+
+export interface RegulatoryTimelineSource {
+  label: string;
+  url: string;
+  publisher: string;
+  retrieved_at: string;
+  sha256?: string | null;
+}
+
+export interface RegulatoryTimelineVerification {
+  checked_at: string;
+  method: RegulatoryTimelineVerificationMethod;
+  confidence: RegulatoryTimelineConfidence;
+}
+
+export interface RegulatoryTimelineEvent {
+  id: string;
+  date: string;
+  date_precision: RegulatoryTimelineDatePrecision;
+  track: RegulatoryTimelineTrack;
+  title: string;
+  plain_summary: string;
+  audience_tags: string[];
+  status: RegulatoryTimelineEventStatus;
+  verified: boolean;
+  verification: RegulatoryTimelineVerification;
+  sources: RegulatoryTimelineSource[];
+}
+
+export interface RegulatoryTimelineResponse {
+  generated_at: string;
+  fetched_at: string;
+  source_status: RegulatoryTimelineSourceStatus;
+  refresh_sla_seconds: number;
+  digest_sha256: string;
+  events: RegulatoryTimelineEvent[];
+}
+
 export type CirpassLevelKey = 'create' | 'access' | 'update' | 'transfer' | 'deactivate';
 export type CirpassLabMode = 'mock' | 'live';
 export type CirpassLabVariant = 'happy' | 'unauthorized' | 'not_found';

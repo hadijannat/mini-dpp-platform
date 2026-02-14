@@ -50,6 +50,8 @@ services:
       DEBUG: "true"
     volumes:
       - ./backend:/app
+      - ./docs/public/cirpass-stories:/app/docs/public/cirpass-stories:ro
+      - ./docs/public/regulatory-timeline:/app/docs/public/regulatory-timeline:ro
       - inspection_evidence:/evidence
     ports:
       - "8001:8000"

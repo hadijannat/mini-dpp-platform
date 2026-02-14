@@ -2578,6 +2578,59 @@ class RoleUpgradeRequest(TenantScopedMixin, Base):
 
 
 # =============================================================================
+# Public Regulatory Timeline
+# =============================================================================
+
+
+class RegulatoryTimelineSnapshot(Base):
+    """Cached snapshot of verified public regulatory and standards milestones."""
+
+    __tablename__ = "regulatory_timeline_snapshots"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    events_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Normalized verified timeline event payload",
+    )
+    digest_sha256: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="SHA-256 digest of canonical timeline payload",
+    )
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        comment="Timestamp of latest successful source verification refresh",
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        comment="Freshness TTL boundary used for stale/fresh status",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_regulatory_timeline_snapshot_fetched_at", "fetched_at"),
+    )
+
+
+# =============================================================================
 # Public CIRPASS Lab
 # =============================================================================
 

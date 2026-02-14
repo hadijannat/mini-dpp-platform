@@ -82,6 +82,84 @@ async function prerenderLanding() {
       });
     });
 
+    await page.route(/\/api\/v1\/public\/landing\/regulatory-timeline(?:\?.*)?$/, async (route) => {
+      const url = route.request().url();
+      const track = new URL(url).searchParams.get('track');
+      const allEvents = [
+        {
+          id: 'espr-entry-into-force',
+          date: '2024-07-18',
+          date_precision: 'day',
+          track: 'regulation',
+          title: 'ESPR entered into force',
+          plain_summary:
+            'Regulation (EU) 2024/1781 is now in force and starts the legal DPP rollout baseline.',
+          audience_tags: ['brands', 'compliance-teams'],
+          status: 'past',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'European Commission — ESPR',
+              url: 'https://commission.europa.eu',
+              publisher: 'European Commission',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'a'.repeat(64),
+            },
+          ],
+        },
+        {
+          id: 'cencenelec-cwa-workshop-launch',
+          date: '2024-06-24',
+          date_precision: 'day',
+          track: 'standards',
+          title: 'CEN workshop on DPP design guidelines launched',
+          plain_summary:
+            'A CEN workshop starts work on practical design guidelines for Digital Product Passports.',
+          audience_tags: ['standards'],
+          status: 'past',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'CEN-CENELEC Workshop Announcement',
+              url: 'https://www.cencenelec.eu',
+              publisher: 'CEN-CENELEC',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'b'.repeat(64),
+            },
+          ],
+        },
+      ];
+      const events =
+        track === 'regulation'
+          ? allEvents.filter((event) => event.track === 'regulation')
+          : track === 'standards'
+            ? allEvents.filter((event) => event.track === 'standards')
+            : allEvents;
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generated_at: '2026-02-10T12:00:00Z',
+          fetched_at: '2026-02-10T12:00:00Z',
+          source_status: 'fresh',
+          refresh_sla_seconds: 82800,
+          digest_sha256: 'c'.repeat(64),
+          events,
+        }),
+      });
+    });
+
     await page.goto(previewUrl, { waitUntil: 'networkidle' });
     await page.waitForSelector('h1');
 
@@ -97,6 +175,12 @@ async function prerenderLanding() {
     }
     if (!renderedHtml.includes('"@type":"FAQPage"')) {
       throw new Error('Prerender validation failed: FAQPage JSON-LD missing.');
+    }
+    if (!renderedHtml.includes('Verified DPP Timeline')) {
+      throw new Error('Prerender validation failed: timeline heading not found.');
+    }
+    if (!renderedHtml.includes('ESPR entered into force')) {
+      throw new Error('Prerender validation failed: timeline event not found.');
     }
 
     const originalIndex = await readFile(distIndexPath, 'utf8');

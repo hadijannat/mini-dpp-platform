@@ -9,6 +9,7 @@ import CirpassLabTeaserSection from './components/CirpassLabTeaserSection';
 import LandingFooter from './components/LandingFooter';
 import LandingHeader from './components/LandingHeader';
 import LandingMetricsSection from './components/LandingMetricsSection';
+import RegulatoryTimelineSection from './components/RegulatoryTimelineSection';
 import SamplePassportSection from './components/SamplePassportSection';
 import { landingContent } from './content/landingContent';
 
@@ -45,6 +46,7 @@ export default function LandingPage() {
 
       <main id="main-content" className="pb-6">
         <HeroSection />
+        <RegulatoryTimelineSection />
         <HowItWorksSection />
         <CirpassLabTeaserSection />
         <SamplePassportSection />

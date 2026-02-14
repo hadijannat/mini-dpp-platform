@@ -51,6 +51,8 @@ COPY backend/ .
 COPY shared/ /shared/
 # Copy CIRPASS lab manifests used by public manifest endpoints.
 COPY docs/public/cirpass-stories/ /app/docs/public/cirpass-stories/
+# Copy regulatory timeline seed used by public timeline endpoint.
+COPY docs/public/regulatory-timeline/ /app/docs/public/regulatory-timeline/
 
 # Development server with hot reload
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
@@ -79,6 +81,8 @@ COPY --chown=appuser:appgroup backend/ .
 COPY --chown=appuser:appgroup shared/ /shared/
 # Copy CIRPASS lab manifests used by public manifest endpoints.
 COPY --chown=appuser:appgroup docs/public/cirpass-stories/ /app/docs/public/cirpass-stories/
+# Copy regulatory timeline seed used by public timeline endpoint.
+COPY --chown=appuser:appgroup docs/public/regulatory-timeline/ /app/docs/public/regulatory-timeline/
 
 USER appuser
 
