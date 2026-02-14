@@ -175,6 +175,7 @@
     transform: rotate(180deg);
     line-height: 1.15;
     letter-spacing: 0.01em;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
   }
 
   .landing-dpp-lane-box {

@@ -43,7 +43,7 @@ export default function HeroSection() {
             {landingContent.hero.proofPills.map((pill) => (
               <span
                 key={pill}
-                className="inline-flex rounded-full border border-landing-ink/14 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-landing-ink"
+                className="inline-flex rounded-full border border-landing-ink/15 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-landing-ink"
               >
                 {pill}
               </span>
@@ -72,10 +72,10 @@ export default function HeroSection() {
         </div>
 
         {/* ── Full-width AAS model ── */}
-        <div className="landing-panel mx-auto mt-10 max-w-4xl rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_28px_60px_-42px_rgba(20,44,55,0.55)] backdrop-blur">
+        <div className="landing-panel mx-auto mt-10 max-w-4xl rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_24px_48px_-36px_rgba(20,44,55,0.45)] backdrop-blur">
           <DppCompactModel />
 
-          <div className="mt-5 grid gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-5 grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {landingContent.hero.trustBullets.map((bullet) => (
               <div key={bullet} className="flex items-start gap-2 text-sm leading-relaxed text-landing-muted">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-landing-cyan" />
