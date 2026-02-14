@@ -155,6 +155,10 @@ skips = ["B101"]  # Allow assert in non-test code (used by Pydantic validators)
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+include = ["app/modules/regulatory_timeline/data/events.seed.yaml"]
+
+[tool.hatch.build.targets.sdist]
+include = ["app/modules/regulatory_timeline/data/events.seed.yaml"]
 
 [dependency-groups]
 dev = [

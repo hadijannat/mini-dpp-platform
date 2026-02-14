@@ -131,6 +131,56 @@ test.describe('Landing page', () => {
           },
           sources: [],
         },
+        {
+          id: 'dpp-registry-deadline',
+          date: '2026-07-19',
+          date_precision: 'day',
+          track: 'regulation',
+          title: 'DPP registry deadline',
+          plain_summary: 'Registry infrastructure deadline.',
+          audience_tags: ['authorities'],
+          status: 'upcoming',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'EUR-Lex',
+              url: 'https://eur-lex.europa.eu',
+              publisher: 'EUR-Lex',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'd'.repeat(64),
+            },
+          ],
+        },
+        {
+          id: 'cwa-comment-close',
+          date: '2025-03-19',
+          date_precision: 'day',
+          track: 'standards',
+          title: 'Draft CWA comment period closes',
+          plain_summary: 'Standards comment period close milestone.',
+          audience_tags: ['standards'],
+          status: 'past',
+          verified: true,
+          verification: {
+            checked_at: '2026-02-10T12:00:00Z',
+            method: 'content-match',
+            confidence: 'high',
+          },
+          sources: [
+            {
+              label: 'CEN-CENELEC Draft CWA News',
+              url: 'https://www.cencenelec.eu',
+              publisher: 'CEN-CENELEC',
+              retrieved_at: '2026-02-10T12:00:00Z',
+              sha256: 'e'.repeat(64),
+            },
+          ],
+        },
       ];
       const events =
         track === 'regulation'
@@ -156,9 +206,20 @@ test.describe('Landing page', () => {
     await page.goto('/');
 
     await expect(page.getByRole('heading', { name: /Verified DPP Timeline/i })).toBeVisible();
+    await expect(page.getByText('Live verified feed')).toBeVisible();
+    await expect(page.getByTestId('timeline-axis-rail')).toBeVisible();
+    await expect(page.getByTestId('timeline-now-marker')).toBeVisible();
     await expect(page.getByTestId('timeline-card-espr-entry-into-force')).toBeVisible();
     await expect(page.getByTestId('timeline-card-battery-passport')).toBeVisible();
-    await expect(page.getByText('Verified').first()).toBeVisible();
+    await expect(page.getByText('Verified (High)').first()).toBeVisible();
+    await expect(page.getByText('Unverified').first()).toBeVisible();
+
+    const scrollContainer = page.getByTestId('timeline-scroll-container');
+    const beforeScrollLeft = await scrollContainer.evaluate((el) => el.scrollLeft);
+    await page.getByTestId('timeline-scroll-right').click();
+    await expect
+      .poll(async () => scrollContainer.evaluate((el) => el.scrollLeft))
+      .toBeGreaterThan(beforeScrollLeft);
 
     await page.getByRole('tab', { name: 'Standards' }).click();
     await expect(page.getByTestId('timeline-card-cencenelec-workshop')).toBeVisible();
