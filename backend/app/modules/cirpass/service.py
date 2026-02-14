@@ -90,7 +90,24 @@ class CirpassLabService:
         self.db = db
         self.settings = get_settings()
         self._parser = CirpassSourceParser(self.settings.cirpass_results_url)
-        self._manifest_dir = Path(__file__).resolve().parents[4] / "docs/public/cirpass-stories"
+        self._manifest_dir = self._resolve_manifest_dir()
+
+    @staticmethod
+    def _resolve_manifest_dir(
+        *,
+        module_path: Path | None = None,
+        cwd: Path | None = None,
+    ) -> Path:
+        """Resolve CIRPASS manifest directory for local and containerized layouts."""
+        manifest_relative = Path("docs/public/cirpass-stories")
+        resolved_module_path = (module_path or Path(__file__)).resolve()
+
+        for ancestor in resolved_module_path.parents:
+            candidate = ancestor / manifest_relative
+            if candidate.exists():
+                return candidate
+
+        return ((cwd or Path.cwd()) / manifest_relative).resolve()
 
     async def get_latest_stories(self) -> CirpassStoryFeedResponse:
         snapshot = await self._load_latest_snapshot()
