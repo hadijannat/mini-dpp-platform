@@ -112,6 +112,9 @@ test('landing teaser links to CIRPASS lab', async ({ page }) => {
   await page.getByTestId('cirpass-teaser-primary').click();
   await expect(page).toHaveURL(/\/cirpass-lab$/);
   await expect(page.getByTestId('cirpass-lab-page')).toBeVisible();
+
+  await page.getByTestId('cirpass-back-home').click();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('complete full 5-level simulator and submit leaderboard score', async ({ page }) => {
