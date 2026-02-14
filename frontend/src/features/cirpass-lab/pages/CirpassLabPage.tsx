@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMachine } from '@xstate/react';
 import * as htmlToImage from 'html-to-image';
+import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import type { CirpassLevel } from '@/api/types';
 import type {
@@ -234,6 +236,19 @@ export default function CirpassLabPage() {
   return (
     <div className="px-4 pb-16 pt-10 sm:px-6 lg:px-8" data-testid="cirpass-lab-page">
       <div className="mx-auto max-w-7xl">
+        <div className="mb-4">
+          <Button
+            asChild
+            variant="ghost"
+            className="rounded-full border border-landing-cyan/35 bg-white/85 text-landing-ink hover:bg-white"
+          >
+            <Link to="/" data-testid="cirpass-back-home">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to homepage
+            </Link>
+          </Button>
+        </div>
+
         <div className="rounded-3xl border border-landing-cyan/25 bg-gradient-to-r from-landing-cyan/10 via-white to-landing-amber/10 p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">LoopForge</p>
           <h1 className="mt-2 font-display text-4xl font-semibold tracking-tight text-landing-ink sm:text-5xl">
