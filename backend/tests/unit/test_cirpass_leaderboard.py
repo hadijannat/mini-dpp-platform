@@ -32,6 +32,11 @@ class _FakeScalars:
 class _FakeScalarResult:
     rows: list[Any]
 
+    def scalar_one(self) -> Any:
+        if len(self.rows) != 1:
+            raise AssertionError(f"Expected single row, got {len(self.rows)}")
+        return self.rows[0]
+
     def scalar_one_or_none(self) -> Any:
         return self.rows[0] if self.rows else None
 
@@ -47,6 +52,42 @@ class _FakeSession:
         sql = str(statement)
         params = statement.compile().params  # type: ignore[attr-defined]
 
+        if "SELECT count(*) AS count_1" in sql and "FROM cirpass_leaderboard_entries" in sql:
+            version = params.get("version_1")
+            score_gt = params.get("score_1")
+            score_eq_1 = params.get("score_2")
+            completion_lt = params.get("completion_seconds_1")
+            score_eq_2 = params.get("score_3")
+            completion_eq = params.get("completion_seconds_2")
+            created_lt = params.get("created_at_1")
+
+            rank_count = 0
+            for entry in self.entries:
+                if entry.version != version:
+                    continue
+                if score_gt is not None and entry.score > score_gt:
+                    rank_count += 1
+                    continue
+                if (
+                    score_eq_1 is not None
+                    and completion_lt is not None
+                    and entry.score == score_eq_1
+                    and entry.completion_seconds < completion_lt
+                ):
+                    rank_count += 1
+                    continue
+                if (
+                    score_eq_2 is not None
+                    and completion_eq is not None
+                    and created_lt is not None
+                    and entry.score == score_eq_2
+                    and entry.completion_seconds == completion_eq
+                    and entry.created_at < created_lt
+                ):
+                    rank_count += 1
+
+            return _FakeScalarResult([rank_count])
+
         if "DELETE FROM cirpass_leaderboard_entries" in sql:
             cutoff = params.get("created_at_1")
             if cutoff is not None:
@@ -56,7 +97,11 @@ class _FakeSession:
         if "FROM cirpass_leaderboard_entries" not in sql:
             return _FakeScalarResult([])
 
-        if "WHERE cirpass_leaderboard_entries.sid" in sql and "version" in sql and "ORDER BY" not in sql:
+        if (
+            "WHERE cirpass_leaderboard_entries.sid" in sql
+            and "version" in sql
+            and "ORDER BY" not in sql
+        ):
             sid = params.get("sid_1")
             version = params.get("version_1")
             for entry in self.entries:
@@ -70,6 +115,10 @@ class _FakeSession:
                 [entry for entry in self.entries if entry.version == version],
                 key=lambda item: (-item.score, item.completion_seconds, item.created_at),
             )
+            if " LIMIT " in sql:
+                limit = params.get("param_1")
+                if isinstance(limit, int):
+                    ranked = ranked[:limit]
             return _FakeScalarResult(ranked)
 
         return _FakeScalarResult([])
@@ -85,7 +134,9 @@ class _FakeSession:
         return None
 
 
-def _payload(token: str, nickname: str = "builder_01", score: int = 420) -> CirpassLeaderboardSubmitRequest:
+def _payload(
+    token: str, nickname: str = "builder_01", score: int = 420
+) -> CirpassLeaderboardSubmitRequest:
     return CirpassLeaderboardSubmitRequest(
         session_token=token,
         nickname=nickname,

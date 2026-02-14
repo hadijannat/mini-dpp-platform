@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 
+from app.core.rate_limit import get_client_ip
 from app.db.session import DbSession
 from app.modules.cirpass.schemas import (
     CirpassLeaderboardResponse,
@@ -30,7 +31,9 @@ async def get_latest_cirpass_stories(db: DbSession, response: Response) -> Cirpa
     try:
         payload = await service.get_latest_stories()
     except CirpassUnavailableError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
 
     if payload.source_status == "stale":
         response.headers["Cache-Control"] = "public, max-age=30, stale-while-revalidate=300"
@@ -67,7 +70,7 @@ async def submit_cirpass_leaderboard_score(
     """Submit a pseudonymous public score for the CIRPASS simulator."""
     service = CirpassLabService(db)
     user_agent = request.headers.get("user-agent", "")
-    client_ip = request.client.host if request.client and request.client.host else "0.0.0.0"
+    client_ip = get_client_ip(request)
 
     try:
         return await service.submit_score(

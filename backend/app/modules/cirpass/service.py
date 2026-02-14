@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import re
 import secrets
 import time
@@ -13,7 +14,7 @@ from typing import Any
 
 import httpx
 import jwt
-from sqlalchemy import asc, delete, desc, select
+from sqlalchemy import and_, asc, delete, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -136,7 +137,7 @@ class CirpassLabService:
             snapshot = await self._load_latest_snapshot()
             effective_version = snapshot.version if snapshot is not None else "V3.1"
 
-        rows = await self._load_ranked_entries(effective_version)
+        rows = await self._load_ranked_entries(effective_version, limit=effective_limit)
         entries = [
             CirpassLeaderboardEntryResponse(
                 rank=idx,
@@ -146,7 +147,7 @@ class CirpassLabService:
                 version=row.version,
                 created_at=row.created_at.isoformat(),
             )
-            for idx, row in enumerate(rows[:effective_limit], start=1)
+            for idx, row in enumerate(rows, start=1)
         ]
         return CirpassLeaderboardResponse(version=effective_version, entries=entries)
 
@@ -158,9 +159,7 @@ class CirpassLabService:
     ) -> CirpassLeaderboardSubmitResponse:
         nickname = payload.nickname.strip()
         if not NICKNAME_PATTERN.fullmatch(nickname):
-            raise CirpassValidationError(
-                "Nickname must match ^[A-Za-z0-9_-]{3,20}$"
-            )
+            raise CirpassValidationError("Nickname must match ^[A-Za-z0-9_-]{3,20}$")
 
         claims = self._decode_session_token(payload.session_token)
         sid = str(claims["sid"])
@@ -169,7 +168,7 @@ class CirpassLabService:
         if ua_hash != expected_hash:
             raise CirpassSessionError("Session token does not match current browser signature")
 
-        ip_hash = hashlib.sha256(client_ip.encode("utf-8")).hexdigest()
+        ip_hash = self._hash_ip(client_ip)
         self._enforce_rate_limits(sid=sid, ip_hash=ip_hash)
 
         cutoff = datetime.now(UTC) - timedelta(days=90)
@@ -184,6 +183,7 @@ class CirpassLabService:
             )
         )
         existing = existing_result.scalar_one_or_none()
+        leaderboard_entry: CirpassLeaderboardEntry
 
         if existing is None:
             entry = CirpassLeaderboardEntry(
@@ -196,13 +196,11 @@ class CirpassLabService:
             )
             self.db.add(entry)
             await self.db.flush()
+            leaderboard_entry = entry
         else:
-            should_replace = (
-                payload.score > existing.score
-                or (
-                    payload.score == existing.score
-                    and payload.completion_seconds < existing.completion_seconds
-                )
+            should_replace = payload.score > existing.score or (
+                payload.score == existing.score
+                and payload.completion_seconds < existing.completion_seconds
             )
             if should_replace:
                 existing.score = payload.score
@@ -210,16 +208,10 @@ class CirpassLabService:
                 existing.nickname = nickname
                 existing.ip_hash = ip_hash
                 await self.db.flush()
+            leaderboard_entry = existing
 
-        ranked_rows = await self._load_ranked_entries(payload.version)
-        rank: int | None = None
-        best_score: int | None = None
-
-        for idx, row in enumerate(ranked_rows, start=1):
-            if row.sid == sid and row.version == payload.version:
-                rank = idx
-                best_score = row.score
-                break
+        rank = await self._compute_rank(version=payload.version, entry=leaderboard_entry)
+        best_score = leaderboard_entry.score
 
         return CirpassLeaderboardSubmitResponse(
             accepted=True,
@@ -280,8 +272,10 @@ class CirpassLabService:
         )
         return result.scalar_one_or_none()
 
-    async def _load_ranked_entries(self, version: str) -> list[CirpassLeaderboardEntry]:
-        result = await self.db.execute(
+    async def _load_ranked_entries(
+        self, version: str, *, limit: int | None = None
+    ) -> list[CirpassLeaderboardEntry]:
+        statement = (
             select(CirpassLeaderboardEntry)
             .where(CirpassLeaderboardEntry.version == version)
             .order_by(
@@ -290,7 +284,38 @@ class CirpassLabService:
                 asc(CirpassLeaderboardEntry.created_at),
             )
         )
+        if limit is not None:
+            statement = statement.limit(limit)
+
+        result = await self.db.execute(statement)
         return list(result.scalars().all())
+
+    async def _compute_rank(self, *, version: str, entry: CirpassLeaderboardEntry) -> int:
+        created_at = entry.created_at or datetime.now(UTC)
+        if entry.created_at is None:
+            entry.created_at = created_at
+
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(CirpassLeaderboardEntry)
+            .where(
+                CirpassLeaderboardEntry.version == version,
+                or_(
+                    CirpassLeaderboardEntry.score > entry.score,
+                    and_(
+                        CirpassLeaderboardEntry.score == entry.score,
+                        CirpassLeaderboardEntry.completion_seconds < entry.completion_seconds,
+                    ),
+                    and_(
+                        CirpassLeaderboardEntry.score == entry.score,
+                        CirpassLeaderboardEntry.completion_seconds == entry.completion_seconds,
+                        CirpassLeaderboardEntry.created_at < created_at,
+                    ),
+                ),
+            )
+        )
+
+        return int(result.scalar_one()) + 1
 
     def _snapshot_to_feed(
         self,
@@ -298,7 +323,9 @@ class CirpassLabService:
         *,
         source_status: str,
     ) -> CirpassStoryFeedResponse:
-        raw_levels = snapshot.stories_json.get("levels") if isinstance(snapshot.stories_json, dict) else []
+        raw_levels = (
+            snapshot.stories_json.get("levels") if isinstance(snapshot.stories_json, dict) else []
+        )
         levels = raw_levels if isinstance(raw_levels, list) else []
 
         return CirpassStoryFeedResponse(
@@ -337,6 +364,7 @@ class CirpassLabService:
 
     def _enforce_rate_limits(self, *, sid: str, ip_hash: str) -> None:
         now = time.time()
+        self._prune_event_maps(now=now)
 
         sid_window = _sid_event_window.setdefault(sid, deque())
         self._trim_window(sid_window, now - 3600)
@@ -355,6 +383,21 @@ class CirpassLabService:
         while window and window[0] < threshold:
             window.popleft()
 
+    def _prune_event_maps(self, *, now: float) -> None:
+        sid_threshold = now - 3600
+        for key in list(_sid_event_window):
+            window = _sid_event_window[key]
+            self._trim_window(window, sid_threshold)
+            if not window:
+                _sid_event_window.pop(key, None)
+
+        ip_threshold = now - 86400
+        for key in list(_ip_event_window):
+            window = _ip_event_window[key]
+            self._trim_window(window, ip_threshold)
+            if not window:
+                _ip_event_window.pop(key, None)
+
     def _resolve_limit(self, requested: int | None) -> int:
         if requested is None:
             return self.settings.cirpass_leaderboard_limit_default
@@ -363,6 +406,11 @@ class CirpassLabService:
     def _hash_user_agent(self, user_agent: str) -> str:
         normalized = (user_agent or "unknown-user-agent").strip().lower()
         return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _hash_ip(self, client_ip: str) -> str:
+        normalized = (client_ip or "unknown-client-ip").strip()
+        secret = self.settings.cirpass_session_token_secret.encode("utf-8")
+        return hmac.new(secret, normalized.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 async def _refresh_in_background() -> None:

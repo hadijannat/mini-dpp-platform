@@ -87,7 +87,9 @@ async def test_parser_extracts_version_date_and_official_links() -> None:
         "files": [
             {
                 "key": "cirpass_user_stories_v3_1.pdf",
-                "links": {"self": "https://zenodo.org/api/records/17979585/files/story.pdf/content"},
+                "links": {
+                    "self": "https://zenodo.org/api/records/17979585/files/story.pdf/content"
+                },
             }
         ],
     }
@@ -169,7 +171,9 @@ async def test_stale_snapshot_returns_stale_and_schedules_single_refresh() -> No
 
     try:
         service = CirpassLabService(fake_db)  # type: ignore[arg-type]
-        first, second = await asyncio.gather(service.get_latest_stories(), service.get_latest_stories())
+        first, second = await asyncio.gather(
+            service.get_latest_stories(), service.get_latest_stories()
+        )
         assert first.source_status == "stale"
         assert second.source_status == "stale"
 
