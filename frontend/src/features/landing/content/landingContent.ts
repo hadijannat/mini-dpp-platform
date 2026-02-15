@@ -36,6 +36,16 @@ export interface HeroContent {
   technicalEvidence: EvidenceLink;
 }
 
+export interface ProofStripContent {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  badges: string[];
+  trustClaims: string[];
+  privacySummary: string;
+  privacyLink: EvidenceLink;
+}
+
 export interface AudienceCardContent {
   id: AudienceType;
   icon: LandingIconKey;
@@ -74,6 +84,18 @@ export interface DemoNode {
   value: string;
 }
 
+export interface SamplePassportContent {
+  title: string;
+  description: string;
+  demoCtaLabel: string;
+  demoCtaHref: string;
+  viewerPathHint: string;
+  businessValue: string;
+  technicalValue: string;
+  nodes: DemoNode[];
+  aasSnippet: string;
+}
+
 export interface FallbackMetric {
   label: string;
   value: string;
@@ -89,6 +111,25 @@ export interface DataExposureRule {
 export interface FaqItem {
   question: string;
   answer: string;
+}
+
+export interface EvidenceRailCard {
+  title: string;
+  claimLevel: ClaimLevel;
+  summary: string;
+  evidence: EvidenceLink;
+}
+
+export interface EvidenceRailContent {
+  eyebrow: string;
+  title: string;
+  subtitle: string;
+  timelineSummary: string;
+  standardsCards: EvidenceRailCard[];
+  policyTitle: string;
+  policySummary: string;
+  blockedKeys: string[];
+  policyLink: EvidenceLink;
 }
 
 export interface FinalCtaContent {
@@ -108,12 +149,10 @@ export interface FooterLink {
 
 export const landingContent = {
   navigation: [
+    { label: 'Proof', href: '#proof-strip' },
     { label: 'Demo', href: '#sample-passport' },
-    { label: 'Timeline', href: '#timeline' },
-    { label: 'CIRPASS Lab', href: '#cirpass-lab' },
-    { label: 'How it works', href: '#workflow' },
-    { label: 'Standards', href: '#standards' },
-    { label: 'FAQ', href: '#faq' },
+    { label: 'Evidence', href: '#evidence-governance' },
+    { label: 'Launch', href: '#launch' },
     {
       label: 'Docs',
       href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
@@ -122,27 +161,26 @@ export const landingContent = {
   ] satisfies NavigationLink[],
 
   hero: {
-    eyebrow: 'Open-source ESPR-ready DPP platform',
-    title: 'Digital Product Passport Platform for ESPR-ready product data',
+    eyebrow: 'Evidence-ready Digital Product Passport platform',
+    title: 'Ship passport experiences fast, with claims technical teams can verify',
     subtitle:
-      'Create, manage, and publish standards-aligned passports using AAS + IDTA DPP4.0 with controlled public sharing.',
-    primaryCta: 'Open demo passport',
+      'Model, publish, and expose ESPR-oriented product data with AAS + IDTA DPP4.0 workflows, aggregate-safe public metrics, and conservative standards language.',
+    primaryCta: 'Open sample passport flow',
     primaryCtaHref: '#sample-passport',
-    secondaryCta: 'Deploy locally in 5 minutes',
-    secondaryCtaHref:
-      'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
+    secondaryCta: 'Explore CIRPASS lab',
+    secondaryCtaHref: '/cirpass-lab',
     proofPills: [
       'Regulation (EU) 2024/1781 aligned posture',
-      'DPP4.0 Template Ingestion',
-      'AAS + Dataspace-ready APIs',
+      'AAS + DPP4.0 implementation evidence',
+      'Aggregate-only public landing contract',
     ],
     trustBullets: [
-      'Regulation (EU) 2024/1781 entered into force on 18 July 2024; delegated acts define category-specific obligations.',
-      'Public landing metrics are aggregate-only by policy, with sensitive keys blocked.',
-      'Production stack: FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.',
+      'Business teams get a clear proof trail from regulatory milestones to concrete capabilities.',
+      'Engineering teams get API-first evidence links and reproducible local deployment paths.',
+      'Public surfaces are aggregate-only by policy; sensitive identifiers and payloads are blocked.',
     ],
     technicalEvidence: {
-      label: 'View technical evidence',
+      label: 'Read architecture and public evidence docs',
       href: 'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
     },
   } satisfies HeroContent,
@@ -150,7 +188,14 @@ export const landingContent = {
   samplePassport: {
     title: 'Sample Passport Flow',
     description:
-      'A compact view of how AAS identifiers resolve into public DPP content, with protected operational details kept out of the landing contract.',
+      'Walk the exact route shape from resolver to viewer while keeping protected operational data out of the landing contract.',
+    demoCtaLabel: 'Open demo passport route',
+    demoCtaHref: '/t/default/p/demo-passport',
+    viewerPathHint: '/t/default/p/{slug}',
+    businessValue:
+      'Business teams can preview how public-facing passport data is exposed without leaking sensitive records.',
+    technicalValue:
+      'Engineers can verify the resolver and viewer contract shape using API docs and route-level evidence.',
     nodes: [
       { label: 'AAS ID', value: 'urn:uuid:dpp-shell-2f4e5a9a' },
       { label: 'Asset ID', value: 'manufacturerPartId=MP-2400' },
@@ -164,7 +209,75 @@ export const landingContent = {
       '  "submodels": ["digital-nameplate", "carbon-footprint", "traceability"]',
       '}',
     ].join('\n'),
-  },
+  } satisfies SamplePassportContent,
+
+  proofStrip: {
+    eyebrow: 'Trust strip',
+    title: 'Evidence first, marketing second',
+    subtitle:
+      'This front page is intentionally conservative: a compact proof layer for both compliance buyers and implementation teams.',
+    badges: ['Aggregate-only metrics', 'Route-level evidence', 'No record-level identifiers'],
+    trustClaims: [
+      'Metrics are sourced from a public summary endpoint with strict scope controls.',
+      'Claims are mapped to implementation evidence and tagged by certainty level.',
+      'Sensitive keys remain blocked from landing and public summary responses.',
+    ],
+    privacySummary:
+      'Public counters and timestamps are allowed. Product identifiers, raw EPCIS payloads, and actor metadata are blocked by default.',
+    privacyLink: {
+      label: 'Review public data exposure policy',
+      href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md',
+    },
+  } satisfies ProofStripContent,
+
+  evidenceRail: {
+    eyebrow: 'Evidence and governance',
+    title: 'Regulatory timing, standards mapping, and public boundary in one place',
+    subtitle:
+      'A single section for due-diligence checks: timeline highlights, implementation claims, and data exposure guardrails.',
+    timelineSummary:
+      'Milestones are sourced from the public regulatory timeline feed with graceful fallback if the feed is unavailable.',
+    standardsCards: [
+      {
+        title: 'AAS shell and service-description routes',
+        claimLevel: 'implements',
+        summary:
+          'Tenant-scoped shell retrieval and service-description routes are implemented and linkable.',
+        evidence: {
+          label: 'Public router evidence',
+          href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/dpps/public_router.py',
+        },
+      },
+      {
+        title: 'DPP4.0 template lifecycle',
+        claimLevel: 'implements',
+        summary:
+          'Template listing and refresh flows are exposed with explicit source and runtime behavior.',
+        evidence: {
+          label: 'Template router evidence',
+          href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/backend/app/modules/templates/router.py',
+        },
+      },
+      {
+        title: 'ESPR claim discipline',
+        claimLevel: 'aligned',
+        summary:
+          'Landing language is aligned with ESPR rollout realities and avoids category-wide compliance guarantees.',
+        evidence: {
+          label: 'ESPR legal text',
+          href: 'https://eur-lex.europa.eu/eli/reg/2024/1781/oj/eng',
+        },
+      },
+    ],
+    policyTitle: 'Public boundary snapshot',
+    policySummary:
+      'Landing and summary endpoints expose aggregates only. Protected views handle record-level identifiers and payload detail.',
+    blockedKeys: ['serialNumber', 'batchId', 'globalAssetId', 'payload', 'read_point', 'actor metadata'],
+    policyLink: {
+      label: 'Public data exposure policy',
+      href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md',
+    },
+  } satisfies EvidenceRailContent,
 
   audienceCards: [
     {
@@ -451,12 +564,12 @@ export const landingContent = {
   ] satisfies DataExposureRule[],
 
   finalCta: {
-    title: 'Ready to publish your first passport?',
+    title: 'Ready to move from proof to implementation?',
     subtitle:
-      'Start with the live demo, then deploy locally to create, validate, and publish your own DPP workflows.',
-    primaryCta: 'Open demo passport',
+      'Start with the sample flow, then run the stack locally to model, publish, and govern your own product passports.',
+    primaryCta: 'Open sample flow',
     primaryCtaHref: '#sample-passport',
-    secondaryCta: 'Start local deployment',
+    secondaryCta: 'Deploy locally',
     secondaryCtaHref:
       'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
   } satisfies FinalCtaContent,
@@ -465,6 +578,7 @@ export const landingContent = {
     developerLinks: [
       { label: 'API docs', href: '/api/v1/docs' },
       { label: 'OpenAPI schema', href: '/api/v1/openapi.json' },
+      { label: 'CIRPASS lab', href: '/cirpass-lab' },
       {
         label: 'Quickstart (README)',
         href: 'https://github.com/hadijannat/mini-dpp-platform#quick-start-docker-compose',
@@ -477,7 +591,7 @@ export const landingContent = {
       },
     ] satisfies FooterLink[],
     policyLinks: [
-      { label: 'Public data boundary', href: '#data-policy' },
+      { label: 'Public data boundary', href: '#evidence-governance' },
       {
         label: 'Public data exposure policy',
         href: 'https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md',

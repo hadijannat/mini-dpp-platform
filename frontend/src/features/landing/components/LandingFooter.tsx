@@ -14,15 +14,15 @@ export default function LandingFooter() {
             <span className="font-display text-xl font-semibold text-landing-ink">DPP Platform</span>
           </div>
           <p className="mt-4 max-w-md text-sm leading-relaxed text-landing-muted">
-            Open-source reference implementation for standards-linked Digital Product Passport
-            workflows with conservative claims and evidence-first messaging.
+            Open-source reference implementation for evidence-linked Digital Product Passport
+            delivery with conservative claims, policy boundaries, and API-first verification paths.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
-              <a href="#sample-passport">Open demo passport</a>
+              <a href="#sample-passport">Open sample flow</a>
             </Button>
             <Button size="sm" className="rounded-full px-4" asChild>
-              <a href="/login">Sign in</a>
+              <a href="#evidence-governance">View evidence rail</a>
             </Button>
           </div>
         </div>

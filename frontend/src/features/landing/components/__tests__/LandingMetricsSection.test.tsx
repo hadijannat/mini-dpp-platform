@@ -100,4 +100,29 @@ describe('LandingMetricsSection', () => {
     expect(screen.getByTestId('landing-metrics-fallback')).toBeTruthy();
     expect(screen.getByText('Live metrics temporarily unavailable')).toBeTruthy();
   });
+
+  it('renders compact variant with aggregate-only cards', () => {
+    mockUseLandingSummary.mockReturnValue({
+      data: {
+        tenant_slug: 'all',
+        published_dpps: 15,
+        active_product_families: 6,
+        dpps_with_traceability: 4,
+        latest_publish_at: '2026-02-09T12:00:00Z',
+        generated_at: '2026-02-10T00:00:00Z',
+        scope: 'all',
+        refresh_sla_seconds: 30,
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<LandingMetricsSection variant="compact" />);
+
+    expect(screen.getByTestId('landing-metrics-compact')).toBeTruthy();
+    expect(screen.getByText('15')).toBeTruthy();
+    expect(screen.getByText('6')).toBeTruthy();
+    expect(screen.getByText('4')).toBeTruthy();
+    expect(screen.getByTestId('landing-metrics-compact-freshness').textContent).toContain('30s refresh');
+  });
 });
