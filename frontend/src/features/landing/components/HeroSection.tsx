@@ -14,7 +14,7 @@ function openHref(href: string) {
 
 export default function HeroSection() {
   return (
-    <section className="relative overflow-hidden px-4 pb-14 pt-20 sm:px-6 sm:pb-16 sm:pt-24 lg:px-8">
+    <section className="relative overflow-hidden px-4 pb-8 pt-12 sm:px-6 sm:pb-10 sm:pt-16 lg:px-8">
       <div
         className="pointer-events-none absolute inset-0 -z-10 opacity-85"
         aria-hidden="true"
@@ -72,10 +72,10 @@ export default function HeroSection() {
         </div>
 
         {/* ── Full-width AAS model ── */}
-        <div className="landing-panel mx-auto mt-10 max-w-4xl rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_24px_48px_-36px_rgba(20,44,55,0.45)] backdrop-blur">
+        <div className="landing-panel mx-auto mt-6 max-w-5xl rounded-3xl border border-landing-cyan/25 bg-white/85 p-6 shadow-[0_20px_40px_-28px_rgba(20,44,55,0.2)] backdrop-blur">
           <DppCompactModel />
 
-          <div className="mt-5 grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid gap-x-6 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-3">
             {landingContent.hero.trustBullets.map((bullet) => (
               <div key={bullet} className="flex items-start gap-2 text-sm leading-relaxed text-landing-muted">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-landing-cyan" />
