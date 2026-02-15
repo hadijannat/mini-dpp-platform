@@ -17,22 +17,25 @@ describe('LandingHeader', () => {
   it('renders desktop CTAs and docs navigation', () => {
     render(<LandingHeader />);
 
-    expect(screen.getAllByRole('link', { name: 'Open demo' })[0].getAttribute('href')).toBe(
+    expect(screen.getAllByRole('link', { name: 'Open sample' })[0].getAttribute('href')).toBe(
       '#sample-passport',
     );
     expect(screen.getAllByRole('link', { name: 'Sign in' })[0].getAttribute('href')).toBe('/login');
     expect(screen.getByRole('link', { name: 'Docs' }).getAttribute('href')).toBe(
       'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
     );
+    expect(screen.getByRole('link', { name: 'Evidence' }).getAttribute('href')).toBe(
+      '#evidence-governance',
+    );
   });
 
-  it('mobile menu reveals FAQ and auth actions', () => {
+  it('mobile menu reveals conversion and auth actions', () => {
     render(<LandingHeader />);
 
     fireEvent.click(screen.getByRole('button', { name: /open menu/i }));
 
-    expect(screen.getAllByRole('link', { name: 'FAQ' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('link', { name: 'Open demo' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Launch' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Open sample' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0);
   });
 });

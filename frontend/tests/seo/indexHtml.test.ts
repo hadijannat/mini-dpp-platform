@@ -26,7 +26,7 @@ describe('index.html SEO metadata', () => {
   it('contains updated title and JSON-LD blocks', () => {
     const html = loadIndexHtml();
 
-    expect(html).toContain('Mini DPP Platform | Digital Product Passport (ESPR) | AAS + DPP4.0');
+    expect(html).toContain('Mini DPP Platform | Evidence-Ready Digital Product Passports');
     expect(html).toContain('"@type":"SoftwareApplication"');
     expect(html).toContain('"@type":"Organization"');
 
