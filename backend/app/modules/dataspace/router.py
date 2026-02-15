@@ -1017,6 +1017,7 @@ async def create_dsp_tck_run(
         created_by_subject=tenant.user.sub,
     )
     await db.commit()
+    await db.refresh(run)
 
     await emit_audit_event(
         db_session=db,
