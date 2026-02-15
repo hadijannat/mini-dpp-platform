@@ -11,7 +11,6 @@ interface LandingMetricsSectionProps {
   tenantSlug?: string;
   scope?: LandingSummaryScope;
   enabled?: boolean;
-  variant?: 'full' | 'compact';
 }
 
 function formatNumber(value: number): string {
@@ -83,104 +82,22 @@ function formatScopeDescription(scope: string | null | undefined, tenantSlug?: s
   return 'Scope: aggregate-only public summary.';
 }
 
-function refreshSeconds(summarySeconds: number | null | undefined): number {
-  return summarySeconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000);
-}
-
 export default function LandingMetricsSection({
   tenantSlug,
   scope = 'all',
   enabled = true,
-  variant = 'full',
 }: LandingMetricsSectionProps) {
   const { data, isLoading, isError } = useLandingSummary(tenantSlug, scope, enabled);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const refreshSlaSeconds = refreshSeconds(data?.refresh_sla_seconds);
-  const freshnessIntervalMs = Math.max(5_000, refreshSlaSeconds * 1000);
-  const compact = variant === 'compact';
+  const freshnessIntervalMs = Math.max(
+    5_000,
+    (data?.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)) * 1000,
+  );
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), freshnessIntervalMs);
     return () => window.clearInterval(intervalId);
   }, [freshnessIntervalMs]);
-
-  if (compact) {
-    return (
-      <section id="metrics" className="scroll-mt-24" data-testid="landing-metrics-compact">
-        <div className="mb-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-landing-muted">
-            Live aggregate metrics
-          </p>
-          <p className="mt-1 text-sm text-landing-muted">
-            Privacy-safe counters from the public summary contract.
-          </p>
-        </div>
-
-        {isLoading && (
-          <div className="grid gap-2 sm:grid-cols-3" data-testid="landing-metrics-compact-loading">
-            {Array.from({ length: 3 }).map((_, idx) => (
-              <div key={`loading-${idx}`} className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-                <div className="h-3 w-1/2 animate-pulse rounded bg-landing-ink/10" />
-                <div className="mt-3 h-6 w-4/5 animate-pulse rounded bg-landing-ink/12" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {isError && (
-          <div className="grid gap-2 sm:grid-cols-2" data-testid="landing-metrics-compact-fallback">
-            {landingContent.fallbackMetrics.slice(0, 2).map((metric) => (
-              <article key={metric.label} className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
-                  {metric.label}
-                </p>
-                <p className="mt-2 font-display text-lg font-semibold text-landing-ink">{metric.value}</p>
-              </article>
-            ))}
-          </div>
-        )}
-
-        {!isLoading && !isError && data && (
-          <div className="grid gap-2 sm:grid-cols-3" aria-live="polite">
-            <article className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-              <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
-                <Layers className="h-3.5 w-3.5" />
-                Published
-              </p>
-              <p className="mt-2 font-display text-2xl font-semibold text-landing-ink">
-                {formatNumber(data.published_dpps)}
-              </p>
-            </article>
-            <article className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-              <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
-                <Boxes className="h-3.5 w-3.5" />
-                Families
-              </p>
-              <p className="mt-2 font-display text-2xl font-semibold text-landing-ink">
-                {formatNumber(data.active_product_families)}
-              </p>
-            </article>
-            <article className="rounded-xl border border-landing-ink/12 bg-white/75 p-3">
-              <p className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-landing-muted">
-                <Activity className="h-3.5 w-3.5" />
-                Traceability
-              </p>
-              <p className="mt-2 font-display text-2xl font-semibold text-landing-ink">
-                {formatNumber(data.dpps_with_traceability)}
-              </p>
-              <p className="mt-2 text-xs text-landing-muted" data-testid="landing-metrics-compact-freshness">
-                {formatFreshnessAge(data.generated_at, nowMs)} · {refreshSlaSeconds}s refresh
-              </p>
-            </article>
-          </div>
-        )}
-
-        {!isLoading && !isError && data && (
-          <p className="mt-3 text-xs text-landing-muted">{formatScopeDescription(data.scope, tenantSlug)}</p>
-        )}
-      </section>
-    );
-  }
 
   return (
     <section id="metrics" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
@@ -247,11 +164,7 @@ export default function LandingMetricsSection({
         )}
 
         {!isLoading && !isError && data && (
-          <div
-            className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
-            aria-live="polite"
-            data-testid="landing-metrics-success"
-          >
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-live="polite" data-testid="landing-metrics-success">
             <article
               className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
               data-testid="landing-metric-published-dpps"
@@ -314,12 +227,14 @@ export default function LandingMetricsSection({
                     className="mt-1 text-xs font-medium uppercase tracking-[0.1em] text-landing-muted"
                     data-testid="landing-metric-freshness-relative"
                   >
-                    {formatFreshnessAge(data.generated_at, nowMs)} · Auto-refreshes every {refreshSlaSeconds}s
+                    {formatFreshnessAge(data.generated_at, nowMs)} · Auto-refreshes every{' '}
+                    {data.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)}s
                   </p>
                 </>
               ) : (
                 <p className="mt-3 text-sm text-landing-muted" data-testid="landing-metric-freshness-unavailable">
-                  Freshness unavailable · Auto-refreshes every {refreshSlaSeconds}s
+                  Freshness unavailable · Auto-refreshes every{' '}
+                  {data.refresh_sla_seconds ?? Math.floor(LANDING_SUMMARY_REFRESH_SLA_MS / 1000)}s
                 </p>
               )}
             </article>

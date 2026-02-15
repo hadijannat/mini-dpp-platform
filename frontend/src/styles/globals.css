@@ -34,34 +34,34 @@
   }
 
   :root {
-    --background: 44 42% 97%;
-    --foreground: 205 39% 11%;
+    --background: 48 38% 97%;
+    --foreground: 204 35% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 205 39% 11%;
+    --card-foreground: 204 35% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 205 39% 11%;
-    --primary: 191 74% 30%;
+    --popover-foreground: 204 35% 12%;
+    --primary: 193 70% 32%;
     --primary-foreground: 45 50% 98%;
-    --secondary: 37 40% 92%;
-    --secondary-foreground: 205 31% 16%;
-    --muted: 39 30% 91%;
-    --muted-foreground: 206 19% 35%;
-    --accent: 39 86% 80%;
-    --accent-foreground: 205 31% 16%;
+    --secondary: 35 42% 93%;
+    --secondary-foreground: 204 28% 17%;
+    --muted: 38 32% 92%;
+    --muted-foreground: 205 17% 40%;
+    --accent: 45 82% 84%;
+    --accent-foreground: 204 28% 17%;
     --destructive: 0 82% 58%;
     --destructive-foreground: 40 50% 98%;
-    --border: 30 29% 82%;
-    --input: 30 29% 82%;
-    --ring: 191 74% 30%;
+    --border: 31 30% 84%;
+    --input: 31 30% 84%;
+    --ring: 193 70% 32%;
     --radius: 0.65rem;
 
-    --landing-ink: 205 45% 13%;
-    --landing-muted: 206 21% 30%;
-    --landing-surface-0: 44 50% 98%;
-    --landing-surface-1: 41 36% 94%;
-    --landing-surface-2: 38 27% 90%;
-    --landing-accent-cyan: 191 78% 31%;
-    --landing-accent-amber: 32 86% 58%;
+    --landing-ink: 204 43% 16%;
+    --landing-muted: 205 20% 32%;
+    --landing-surface-0: 48 45% 98%;
+    --landing-surface-1: 42 34% 95%;
+    --landing-surface-2: 40 24% 91%;
+    --landing-accent-cyan: 192 76% 33%;
+    --landing-accent-amber: 31 84% 62%;
 
     --sidebar-background: 220 14% 10%;
     --sidebar-foreground: 210 40% 98%;
@@ -147,32 +147,6 @@
     backdrop-filter: blur(4px);
   }
 
-  .landing-reveal {
-    opacity: 0;
-    transform: translateY(18px);
-    animation: landing-rise 620ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
-  }
-
-  .landing-reveal-1 {
-    animation-delay: 40ms;
-  }
-
-  .landing-reveal-2 {
-    animation-delay: 140ms;
-  }
-
-  .landing-reveal-3 {
-    animation-delay: 230ms;
-  }
-
-  .landing-reveal-4 {
-    animation-delay: 320ms;
-  }
-
-  .landing-reveal-5 {
-    animation-delay: 400ms;
-  }
-
   .landing-aas-arch {
     border-radius: 1.25rem 1.25rem 0.75rem 0.75rem;
     background: hsl(var(--landing-accent-cyan));
@@ -244,27 +218,10 @@
     background: hsl(var(--landing-ink) / 0.12);
     color: hsl(var(--landing-ink));
   }
-
-  @keyframes landing-rise {
-    from {
-      opacity: 0;
-      transform: translateY(18px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .landing-shell::after {
     display: none;
-  }
-
-  .landing-reveal {
-    opacity: 1;
-    transform: none;
-    animation: none;
   }
 }

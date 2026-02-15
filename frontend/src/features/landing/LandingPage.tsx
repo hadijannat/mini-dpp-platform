@@ -1,17 +1,27 @@
+import { lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
-import EvidenceGovernanceSection from './components/EvidenceGovernanceSection';
+import DeferredSection from './components/DeferredSection';
+import DataExposureSection from './components/DataExposureSection';
+import FAQSection from './components/FAQSection';
 import HeroSection from './components/HeroSection';
+import HowItWorksSection from './components/HowItWorksSection';
+import CirpassLabTeaserSection from './components/CirpassLabTeaserSection';
 import LandingFooter from './components/LandingFooter';
 import LandingHeader from './components/LandingHeader';
-import ProofStripSection from './components/ProofStripSection';
+import LandingMetricsSection from './components/LandingMetricsSection';
+import RegulatoryTimelineSection from './components/RegulatoryTimelineSection';
 import SamplePassportSection from './components/SamplePassportSection';
 import { landingContent } from './content/landingContent';
+
+const StandardsMapSection = lazy(() => import('./components/StandardsMapSection'));
+const DataspaceReadySection = lazy(() => import('./components/DataspaceReadySection'));
+const DeveloperTrustSection = lazy(() => import('./components/DeveloperTrustSection'));
 
 export default function LandingPage() {
   const faqJsonLd = JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    mainEntity: landingContent.faq.slice(0, 3).map((entry) => ({
+    mainEntity: landingContent.faq.map((entry) => ({
       '@type': 'Question',
       name: entry.question,
       acceptedAnswer: {
@@ -34,21 +44,40 @@ export default function LandingPage() {
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: faqJsonLd }} />
 
-      <main id="main-content" className="pb-8">
-        <div className="landing-reveal landing-reveal-1">
-          <HeroSection />
-        </div>
-        <div className="landing-reveal landing-reveal-2">
-          <ProofStripSection />
-        </div>
-        <div className="landing-reveal landing-reveal-3">
-          <SamplePassportSection />
-        </div>
-        <div className="landing-reveal landing-reveal-4">
-          <EvidenceGovernanceSection />
-        </div>
+      <main id="main-content" className="pb-6">
+        <HeroSection />
+        <RegulatoryTimelineSection />
+        <HowItWorksSection />
+        <CirpassLabTeaserSection />
+        <SamplePassportSection />
 
-        <section id="launch" className="landing-reveal landing-reveal-5 px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+        <DeferredSection minHeight={360} sectionId="metrics">
+          <LandingMetricsSection scope="all" />
+        </DeferredSection>
+
+        <DeferredSection minHeight={420} sectionId="standards">
+          <Suspense fallback={<div className="h-[420px]" aria-hidden="true" />}>
+            <StandardsMapSection />
+          </Suspense>
+        </DeferredSection>
+
+        <DeferredSection minHeight={320} sectionId="dataspaces">
+          <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
+            <DataspaceReadySection />
+          </Suspense>
+        </DeferredSection>
+
+        <DeferredSection minHeight={320} sectionId="developers">
+          <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
+            <DeveloperTrustSection />
+          </Suspense>
+        </DeferredSection>
+
+        <FAQSection />
+
+        <DataExposureSection />
+
+        <section className="px-4 pb-16 pt-8 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-6xl rounded-3xl border border-landing-cyan/25 bg-gradient-to-r from-landing-cyan/10 via-white to-landing-amber/10 p-8">
             <h2 className="font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
               {landingContent.finalCta.title}

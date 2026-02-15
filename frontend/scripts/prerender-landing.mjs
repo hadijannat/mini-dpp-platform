@@ -164,11 +164,8 @@ async function prerenderLanding() {
     await page.waitForSelector('h1');
 
     const renderedHtml = await page.content();
-    if (!renderedHtml.includes('Ship passport experiences fast, with claims technical teams can verify')) {
+    if (!renderedHtml.includes('Digital Product Passport Platform for ESPR-ready product data')) {
       throw new Error('Prerender validation failed: hero heading not found in rendered HTML.');
-    }
-    if (!renderedHtml.includes('Evidence first, marketing second')) {
-      throw new Error('Prerender validation failed: proof strip heading not found.');
     }
     if (!renderedHtml.includes('"@type":"SoftwareApplication"')) {
       throw new Error('Prerender validation failed: SoftwareApplication JSON-LD missing.');
@@ -179,7 +176,7 @@ async function prerenderLanding() {
     if (!renderedHtml.includes('"@type":"FAQPage"')) {
       throw new Error('Prerender validation failed: FAQPage JSON-LD missing.');
     }
-    if (!renderedHtml.includes('Regulatory timeline highlights')) {
+    if (!renderedHtml.includes('Verified DPP Timeline')) {
       throw new Error('Prerender validation failed: timeline heading not found.');
     }
     if (!renderedHtml.includes('ESPR entered into force')) {

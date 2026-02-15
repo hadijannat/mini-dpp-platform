@@ -38,7 +38,7 @@ export default function LandingHeader() {
           <Button size="sm" variant="outline" className="rounded-full px-4" asChild>
             <a href="#sample-passport">
               <PlayCircle className="h-4 w-4" />
-              Open sample
+              Open demo
             </a>
           </Button>
           <Button size="sm" className="rounded-full px-4" asChild>
@@ -85,7 +85,7 @@ export default function LandingHeader() {
                 <Button className="mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
                   <a href="#sample-passport" onClick={() => setMobileOpen(false)}>
                     <PlayCircle className="h-4 w-4" />
-                    Open sample
+                    Open demo
                   </a>
                 </Button>
                 <Button className="w-full rounded-full" size="sm" asChild>
