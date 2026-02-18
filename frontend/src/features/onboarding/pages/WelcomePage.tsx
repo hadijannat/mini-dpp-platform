@@ -25,9 +25,18 @@ interface OnboardingStatus {
   next_actions: string[];
 }
 
+interface ResendVerificationResponse {
+  queued: boolean;
+  cooldown_seconds: number;
+  next_allowed_at: string | null;
+}
+
 interface ApiErrorPayload {
   code: string | null;
   message: string;
+  cooldownSeconds: number | null;
+  nextAllowedAt: string | null;
+  retryAfterSeconds: number | null;
 }
 
 function normalizeStatus(data: Partial<OnboardingStatus>): OnboardingStatus {
@@ -42,11 +51,23 @@ function normalizeStatus(data: Partial<OnboardingStatus>): OnboardingStatus {
 }
 
 async function parseApiError(response: Response, fallback: string): Promise<ApiErrorPayload> {
+  const retryAfterHeader = response.headers.get('Retry-After');
+  const retryAfterSeconds = retryAfterHeader ? Number.parseInt(retryAfterHeader, 10) : Number.NaN;
+  const parsedRetryAfter =
+    Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? retryAfterSeconds : null;
+
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('application/json')) {
     try {
       const body = (await response.json()) as {
-        detail?: string | { code?: string; message?: string };
+        detail?:
+          | string
+          | {
+              code?: string;
+              message?: string;
+              cooldown_seconds?: number;
+              next_allowed_at?: string;
+            };
       };
       if (typeof body.detail === 'object' && body.detail) {
         return {
@@ -55,10 +76,23 @@ async function parseApiError(response: Response, fallback: string): Promise<ApiE
             typeof body.detail.message === 'string' && body.detail.message
               ? body.detail.message
               : fallback,
+          cooldownSeconds:
+            typeof body.detail.cooldown_seconds === 'number' && body.detail.cooldown_seconds > 0
+              ? Math.floor(body.detail.cooldown_seconds)
+              : null,
+          nextAllowedAt:
+            typeof body.detail.next_allowed_at === 'string' ? body.detail.next_allowed_at : null,
+          retryAfterSeconds: parsedRetryAfter,
         };
       }
       if (typeof body.detail === 'string' && body.detail) {
-        return { code: null, message: body.detail };
+        return {
+          code: null,
+          message: body.detail,
+          cooldownSeconds: null,
+          nextAllowedAt: null,
+          retryAfterSeconds: parsedRetryAfter,
+        };
       }
     } catch {
       // Fall back to generic parsing.
@@ -67,6 +101,9 @@ async function parseApiError(response: Response, fallback: string): Promise<ApiE
   return {
     code: null,
     message: await getApiErrorMessage(response, fallback),
+    cooldownSeconds: null,
+    nextAllowedAt: null,
+    retryAfterSeconds: parsedRetryAfter,
   };
 }
 
@@ -83,6 +120,8 @@ export default function WelcomePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [resendCooldownRemaining, setResendCooldownRemaining] = useState(0);
+  const [resendCooldownWindow, setResendCooldownWindow] = useState(30);
 
   const refreshStatus = useCallback(
     async (
@@ -152,6 +191,16 @@ export default function WelcomePage() {
     return () => window.clearInterval(timer);
   }, [refreshStatus, status?.provisioned, status?.role, token]);
 
+  useEffect(() => {
+    if (resendCooldownRemaining <= 0) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setResendCooldownRemaining((previous) => (previous <= 1 ? 0 : previous - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldownRemaining]);
+
   async function handleProvision() {
     if (!token) return;
     setProvisioning(true);
@@ -204,7 +253,7 @@ export default function WelcomePage() {
   }
 
   async function handleResendVerification() {
-    if (!token) return;
+    if (!token || resendCooldownRemaining > 0) return;
     setResending(true);
     setError(null);
     setInfo(null);
@@ -219,9 +268,26 @@ export default function WelcomePage() {
       );
       if (!resp.ok) {
         const parsed = await parseApiError(resp, 'Failed to resend verification email');
+        if (parsed.code === 'verification_resend_cooldown') {
+          const retryAfter =
+            parsed.cooldownSeconds ?? parsed.retryAfterSeconds ?? resendCooldownWindow;
+          setResendCooldownRemaining(retryAfter);
+          setInfo(`Please wait ${retryAfter} seconds before requesting another verification email.`);
+          return;
+        }
         throw new Error(parsed.message);
       }
-      setInfo('Verification email sent. Please check your inbox and spam folder.');
+      const payload = (await resp.json()) as Partial<ResendVerificationResponse>;
+      const cooldownSeconds =
+        typeof payload.cooldown_seconds === 'number' && payload.cooldown_seconds > 0
+          ? Math.floor(payload.cooldown_seconds)
+          : resendCooldownWindow;
+      setResendCooldownWindow(cooldownSeconds);
+      setResendCooldownRemaining(cooldownSeconds);
+      setInfo(
+        'Verification email sent. Please check your inbox and spam folder. ' +
+          `You can resend again in ${cooldownSeconds} seconds.`,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend verification email');
     } finally {
@@ -291,7 +357,7 @@ export default function WelcomePage() {
                 </p>
                 <Button
                   onClick={handleResendVerification}
-                  disabled={resending}
+                  disabled={resending || resendCooldownRemaining > 0}
                   variant="outline"
                   className="w-full"
                 >
@@ -300,8 +366,15 @@ export default function WelcomePage() {
                   ) : (
                     <MailCheck className="mr-2 h-4 w-4" />
                   )}
-                  Resend verification email
+                  {resending
+                    ? 'Sending verification email...'
+                    : resendCooldownRemaining > 0
+                      ? `Resend available in ${resendCooldownRemaining}s`
+                      : 'Resend verification email'}
                 </Button>
+                <p className="text-xs text-muted-foreground">
+                  You can resend every ~{resendCooldownWindow} seconds.
+                </p>
               </div>
             )}
 

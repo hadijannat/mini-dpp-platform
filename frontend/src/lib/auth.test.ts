@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { getUserRoles, hasRoleLevel, isAdmin, isPublisher } from './auth';
+import {
+  canReviewRoleRequests,
+  getUserRoles,
+  hasRoleLevel,
+  isAdmin,
+  isPublisher,
+} from './auth';
 
 /**
  * Helper to build a minimal OIDC User-like object whose `profile` carries the
@@ -131,5 +137,19 @@ describe('isAdmin', () => {
     expect(isAdmin(mockUser({ roles: ['publisher'] }))).toBe(false);
     expect(isAdmin(mockUser({ roles: ['tenant_admin'] }))).toBe(false);
     expect(isAdmin(mockUser({ roles: ['viewer'] }))).toBe(false);
+  });
+});
+
+// ---------- canReviewRoleRequests ----------
+
+describe('canReviewRoleRequests', () => {
+  it('returns true for tenant_admin and admin', () => {
+    expect(canReviewRoleRequests(mockUser({ roles: ['tenant_admin'] }))).toBe(true);
+    expect(canReviewRoleRequests(mockUser({ roles: ['admin'] }))).toBe(true);
+  });
+
+  it('returns false for publisher and viewer', () => {
+    expect(canReviewRoleRequests(mockUser({ roles: ['publisher'] }))).toBe(false);
+    expect(canReviewRoleRequests(mockUser({ roles: ['viewer'] }))).toBe(false);
   });
 });

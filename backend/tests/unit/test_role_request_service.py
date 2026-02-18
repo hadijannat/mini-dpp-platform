@@ -8,7 +8,10 @@ import pytest
 
 from app.core.security.oidc import TokenPayload
 from app.db.models import RoleRequestStatus, RoleUpgradeRequest, TenantMember, TenantRole
-from app.modules.onboarding.role_request_service import RoleRequestService
+from app.modules.onboarding.role_request_service import (
+    IDENTITY_LOOKUP_BATCH_SIZE,
+    RoleRequestService,
+)
 
 
 def _make_user(
@@ -506,3 +509,26 @@ async def test_review_request_does_not_fail_when_notification_pipeline_errors(
 
     assert result.status == RoleRequestStatus.APPROVED
     assert member.role == TenantRole.PUBLISHER
+
+
+@pytest.mark.asyncio
+async def test_get_requester_identity_map_batches_large_subject_lists(mock_db: AsyncMock) -> None:
+    """Identity lookups are chunked to avoid oversized IN clauses."""
+    first_batch_result = MagicMock()
+    first_batch_result.all.return_value = [("user-0000", "first@example.com", "First User")]
+    second_batch_result = MagicMock()
+    second_batch_result.all.return_value = [("user-0500", "second@example.com", "Second User")]
+    third_batch_result = MagicMock()
+    third_batch_result.all.return_value = []
+
+    mock_db.execute = AsyncMock(
+        side_effect=[first_batch_result, second_batch_result, third_batch_result]
+    )
+    svc = RoleRequestService(mock_db)
+    subjects = [f"user-{index:04d}" for index in range((IDENTITY_LOOKUP_BATCH_SIZE * 2) + 1)]
+
+    identity_map = await svc.get_requester_identity_map(subjects)
+
+    assert mock_db.execute.await_count == 3
+    assert identity_map["user-0000"] == ("first@example.com", "First User")
+    assert identity_map["user-0500"] == ("second@example.com", "Second User")

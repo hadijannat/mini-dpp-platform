@@ -26,7 +26,10 @@ import {
   LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isAdmin as checkIsAdmin } from '@/lib/auth';
+import {
+  canReviewRoleRequests as canReviewRoleRequestsByRole,
+  isAdmin as checkIsAdmin,
+} from '@/lib/auth';
 import { useBreadcrumbs } from '@/lib/breadcrumbs';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -82,21 +85,26 @@ export default function PublisherLayout() {
   const location = useLocation();
   const breadcrumbs = useBreadcrumbs();
   const userIsAdmin = checkIsAdmin(auth.user);
+  const canReviewRoleRequests = canReviewRoleRequestsByRole(auth.user);
 
-  const navigation: NavItem[] = userIsAdmin
+  const adminNavigation: NavItem[] = userIsAdmin
     ? [
-        ...baseNavigation,
         { name: 'Admin', href: '/console/admin', icon: BarChart3 },
         { name: 'Audit Trail', href: '/console/audit', icon: ScrollText },
         { name: 'Webhooks', href: '/console/webhooks', icon: Webhook },
         { name: 'Resolver', href: '/console/resolver', icon: Globe },
         { name: 'Registry', href: '/console/registry', icon: Search },
         { name: 'Credentials', href: '/console/credentials', icon: Award },
-        { name: 'Role Requests', href: '/console/role-requests', icon: UserCheck },
         { name: 'Tenants', href: '/console/tenants', icon: Users },
         { name: 'Settings', href: '/console/settings', icon: Settings },
       ]
-    : baseNavigation;
+    : [];
+
+  const reviewerNavigation: NavItem[] = canReviewRoleRequests
+    ? [{ name: 'Role Requests', href: '/console/role-requests', icon: UserCheck }]
+    : [];
+
+  const navigation: NavItem[] = [...baseNavigation, ...reviewerNavigation, ...adminNavigation];
 
   const [collapsed, setCollapsed] = useState(() => {
     try {

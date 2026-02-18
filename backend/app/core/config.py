@@ -646,6 +646,23 @@ class Settings(BaseSettings):
         default=True,
         description="Require email_verified=True in JWT for auto-provisioning",
     )
+    onboarding_verification_resend_cooldown_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=3600,
+        description="Cooldown window in seconds between verification email resend attempts",
+    )
+    onboarding_verification_redirect_uri: str | None = Field(
+        default=None,
+        description=(
+            "Optional redirect URI passed to Keycloak execute-actions-email for VERIFY_EMAIL. "
+            "If unset, backend falls back to first configured CORS origin + /welcome."
+        ),
+    )
+    onboarding_verification_client_id: str = Field(
+        default="dpp-frontend",
+        description="Keycloak client_id used for verification email action links",
+    )
 
     # ==========================================================================
     # Data Carrier / GS1 Configuration

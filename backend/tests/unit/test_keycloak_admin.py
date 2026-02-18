@@ -132,6 +132,16 @@ async def test_send_verify_email_success(kc_client: KeycloakAdminClient) -> None
         )
 
     assert result is True
+    mock_client.put.assert_awaited_once_with(
+        "http://localhost:8080/admin/realms/dpp-platform/users/user-id-1/execute-actions-email",
+        headers={"Authorization": "Bearer test-token"},
+        params={
+            "redirect_uri": "https://dpp-platform.dev/welcome",
+            "client_id": "dpp-frontend",
+        },
+        json=["VERIFY_EMAIL"],
+        timeout=10.0,
+    )
 
 
 @pytest.mark.asyncio

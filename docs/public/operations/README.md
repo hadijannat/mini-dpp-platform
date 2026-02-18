@@ -55,9 +55,51 @@ Critical categories:
 - PostgreSQL/Redis credentials
 - Keycloak admin + Keycloak DB + backend client secret
 - SMTP settings (Keycloak verification + backend notifications)
+- Onboarding verification UX settings (`ONBOARDING_VERIFICATION_*`)
 - MinIO credentials
 - `ENCRYPTION_MASTER_KEY` and signing keys
 - Optional template pin/ref settings
+
+## Keycloak Realm Reconciliation (Production)
+
+`--import-realm` does not overwrite an existing realm. Use an explicit post-deploy reconciliation step.
+
+### Run reconciliation in the running Keycloak container
+
+```bash
+docker compose -f docker-compose.prod.yml exec keycloak \
+  /opt/keycloak/bin/reconcile-prod-realm.sh
+```
+
+The script enforces:
+
+- `registrationAllowed=true`
+- `verifyEmail=true`
+- `realm-management` roles on `service-account-dpp-backend`:
+  - `manage-users`
+  - `view-users`
+  - `query-users`
+  - `view-realm`
+
+### Explicit live realm check command
+
+```bash
+docker compose -f docker-compose.prod.yml exec keycloak \
+  /opt/keycloak/bin/kcadm.sh get realms/dpp-platform \
+  --fields realm,registrationAllowed,verifyEmail,smtpServer
+```
+
+## Auth Onboarding Smoke Test
+
+Run this after IAM or email-related changes:
+
+1. Register a brand-new user via hosted Keycloak registration.
+2. Confirm verification email arrives (inbox + spam/junk).
+3. Complete email verification from the verification link.
+4. Sign in and complete onboarding (`/welcome`) to provision viewer membership.
+5. Submit a `publisher` role request from the welcome flow.
+6. Review and approve request using a `tenant_admin` account in `/console/role-requests`.
+7. Refresh token/sign in again as requester and confirm publisher access.
 
 ## Health, Metrics, and Runtime Checks
 
@@ -118,6 +160,9 @@ TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/dpp_insp
 | Playwright E2E times out at `templates-refresh-all` with Vite overlay import error (`sonner`) | Frontend runtime has stale/invalid `node_modules` for current lockfile | Rebuild/restart frontend runtime and reinstall deps (`docker compose build frontend && docker compose up -d frontend && docker compose exec frontend npm ci`) |
 | Templates not loading and DB errors appear | Migrations missing or failed | Run `docker exec dpp-backend alembic upgrade head` |
 | Keycloak changes from realm export not reflected in existing prod realm | Realm import only applies on first creation | Apply realm changes via `kcadm.sh` or admin UI on existing realm |
+| Verification emails not delivered | SMTP misconfiguration or sender domain not trusted | Validate `KEYCLOAK_SMTP_*`, then run live realm check command and test with a real mailbox |
+| Resend verification always fails with `429` | Cooldown window still active | Respect `Retry-After` header and wait until `next_allowed_at` before retrying |
+| Role approval succeeds in DB but Keycloak role does not sync | Missing backend service-account permissions in Keycloak | Run reconciliation script and verify `realm-management` roles for `service-account-dpp-backend` |
 | Port binding conflicts | Local machine already using default ports | Override host ports in `.env` and restart stack |
 
 ## Related Docs

@@ -167,6 +167,7 @@ services:
       KEYCLOAK_SMTP_PASSWORD: ${KEYCLOAK_SMTP_PASSWORD}
     volumes:
       - ./infra/keycloak/realm-export-prod/dpp-platform-realm-prod.json:/opt/keycloak/data/import/dpp-platform-realm.json:ro
+      - ./infra/keycloak/scripts/reconcile-prod-realm.sh:/opt/keycloak/bin/reconcile-prod-realm.sh:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -296,6 +297,9 @@ services:
       - REGISTRY_EXTERNAL_URL=${REGISTRY_EXTERNAL_URL:-}
       - REGISTRY_EXTERNAL_DISCOVERY_URL=${REGISTRY_EXTERNAL_DISCOVERY_URL:-}
       - AUTO_PROVISION_DEFAULT_TENANT=false
+      - ONBOARDING_VERIFICATION_RESEND_COOLDOWN_SECONDS=${ONBOARDING_VERIFICATION_RESEND_COOLDOWN_SECONDS:-30}
+      - ONBOARDING_VERIFICATION_REDIRECT_URI=${ONBOARDING_VERIFICATION_REDIRECT_URI:-https://dpp-platform.dev/welcome}
+      - ONBOARDING_VERIFICATION_CLIENT_ID=${ONBOARDING_VERIFICATION_CLIENT_ID:-dpp-frontend}
       - NOTIFICATIONS_EMAIL_ENABLED=${NOTIFICATIONS_EMAIL_ENABLED:-false}
       - NOTIFICATIONS_SMTP_HOST=${NOTIFICATIONS_SMTP_HOST:-}
       - NOTIFICATIONS_SMTP_PORT=${NOTIFICATIONS_SMTP_PORT:-587}

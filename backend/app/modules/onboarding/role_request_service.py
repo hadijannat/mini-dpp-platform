@@ -2,6 +2,7 @@
 CRUD service for role upgrade requests.
 """
 
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -29,6 +30,7 @@ from app.db.models import (
 )
 
 logger = get_logger(__name__)
+IDENTITY_LOOKUP_BATCH_SIZE = 500
 
 
 class RoleRequestService:
@@ -128,6 +130,34 @@ class RoleRequestService:
             .order_by(RoleUpgradeRequest.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def get_requester_identity_map(
+        self,
+        user_subjects: Iterable[str],
+    ) -> dict[str, tuple[str | None, str | None]]:
+        """Resolve requester contact/display details for UI rendering."""
+        subjects = sorted(
+            {subject.strip() for subject in user_subjects if subject and subject.strip()}
+        )
+        if not subjects:
+            return {}
+
+        identity_map: dict[str, tuple[str | None, str | None]] = {}
+        for start in range(0, len(subjects), IDENTITY_LOOKUP_BATCH_SIZE):
+            batch = subjects[start : start + IDENTITY_LOOKUP_BATCH_SIZE]
+            result = await self._db.execute(
+                select(User.subject, User.email, User.display_name).where(User.subject.in_(batch))
+            )
+            for subject, email, display_name in result.all():
+                if not isinstance(subject, str):
+                    continue
+                identity_map[subject] = (
+                    email.strip() if isinstance(email, str) and email.strip() else None,
+                    display_name.strip()
+                    if isinstance(display_name, str) and display_name.strip()
+                    else None,
+                )
+        return identity_map
 
     async def review_request(
         self,

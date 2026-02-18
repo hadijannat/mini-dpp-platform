@@ -31,6 +31,15 @@ def _protocol_mapper_names(scope: dict[str, object]) -> set[str]:
     return names
 
 
+def _user_by_username(realm: dict[str, object], username: str) -> dict[str, object]:
+    users = realm.get("users", [])
+    assert isinstance(users, list)
+    for user in users:
+        if isinstance(user, dict) and user.get("username") == username:
+            return user
+    raise AssertionError(f"User '{username}' not found in realm export")
+
+
 def test_keycloak_realm_exports_enforce_email_verification_and_required_scopes() -> None:
     backend_root = Path(__file__).resolve().parents[2]
     local_realm_path = backend_root / "../infra/keycloak/realm-export/dpp-platform-realm.json"
@@ -58,3 +67,14 @@ def test_keycloak_realm_exports_enforce_email_verification_and_required_scopes()
     assert "email verified" in local_mappers
     assert "email" in prod_mappers
     assert "email verified" in prod_mappers
+
+    # Backend service account must retain realm-management roles required by onboarding flows.
+    prod_service_account = _user_by_username(prod_realm, "service-account-dpp-backend")
+    client_roles = prod_service_account.get("clientRoles")
+    assert isinstance(client_roles, dict)
+    realm_management_roles = client_roles.get("realm-management")
+    assert isinstance(realm_management_roles, list)
+    assert "manage-users" in realm_management_roles
+    assert "view-users" in realm_management_roles
+    assert "query-users" in realm_management_roles
+    assert "view-realm" in realm_management_roles

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Fingerprint, LogIn, Menu, PlayCircle } from 'lucide-react';
+import { Fingerprint, LogIn, Menu, PlayCircle, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { landingContent } from '../content/landingContent';
@@ -39,6 +39,12 @@ export default function LandingHeader() {
             <a href="#sample-passport">
               <PlayCircle className="h-4 w-4" />
               Open demo
+            </a>
+          </Button>
+          <Button size="sm" variant="outline" className="rounded-full px-4" asChild>
+            <a href="/login?mode=register">
+              <UserPlus className="h-4 w-4" />
+              Create account
             </a>
           </Button>
           <Button size="sm" className="rounded-full px-4" asChild>
@@ -86,6 +92,12 @@ export default function LandingHeader() {
                   <a href="#sample-passport" onClick={() => setMobileOpen(false)}>
                     <PlayCircle className="h-4 w-4" />
                     Open demo
+                  </a>
+                </Button>
+                <Button className="mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
+                  <a href="/login?mode=register" onClick={() => setMobileOpen(false)}>
+                    <UserPlus className="h-4 w-4" />
+                    Create account
                   </a>
                 </Button>
                 <Button className="w-full rounded-full" size="sm" asChild>
