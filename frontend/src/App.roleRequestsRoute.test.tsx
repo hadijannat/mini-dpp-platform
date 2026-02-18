@@ -45,4 +45,18 @@ describe('App role requests route', () => {
       expect(screen.getByText('Role Requests Page')).toBeTruthy();
     });
   });
+
+  it('redirects non-reviewer publishers to welcome gate', async () => {
+    authState.user = { profile: { roles: ['publisher'] } };
+
+    render(
+      <MemoryRouter initialEntries={['/console/role-requests']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Welcome Page')).toBeTruthy();
+    });
+  });
 });

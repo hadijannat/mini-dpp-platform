@@ -42,11 +42,12 @@ fi
 
 echo "Reconciling realm-management roles for ${service_account_username}..."
 for role in manage-users view-users query-users view-realm; do
+  echo "Ensuring role '${role}' is assigned..."
   "${KCADM_BIN}" add-roles \
     -r "${REALM}" \
     --uid "${service_account_id}" \
     --cclientid realm-management \
-    --rolename "${role}" >/dev/null || true
+    --rolename "${role}" >/dev/null
 done
 
 echo "Realm reconciliation complete."

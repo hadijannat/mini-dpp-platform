@@ -48,7 +48,9 @@ def _make_request(user_subject: str = "user-1") -> RoleUpgradeRequest:
 async def test_list_all_requests_includes_requester_identity() -> None:
     """Admin listing returns requester email/display name when available."""
     req = _make_request()
-    context = SimpleNamespace(tenant_id=req.tenant_id, user=_make_user(sub="admin-1", roles=["admin"]))
+    context = SimpleNamespace(
+        tenant_id=req.tenant_id, user=_make_user(sub="admin-1", roles=["admin"])
+    )
     db = AsyncMock()
 
     with (
@@ -72,7 +74,9 @@ async def test_list_all_requests_includes_requester_identity() -> None:
 async def test_list_my_requests_handles_missing_requester_identity() -> None:
     """User listing keeps requester fields nullable when user profile is unavailable."""
     req = _make_request()
-    context = SimpleNamespace(tenant_id=req.tenant_id, user=_make_user(sub="user-1", roles=["viewer"]))
+    context = SimpleNamespace(
+        tenant_id=req.tenant_id, user=_make_user(sub="user-1", roles=["viewer"])
+    )
     db = AsyncMock()
 
     with (

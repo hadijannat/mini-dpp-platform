@@ -101,9 +101,7 @@ async def resend_verification_email(
             if not cache_key_set:
                 ttl_value = await redis_client.ttl(cache_key)
                 retry_after = (
-                    ttl_value
-                    if isinstance(ttl_value, int) and ttl_value > 0
-                    else cooldown_seconds
+                    ttl_value if isinstance(ttl_value, int) and ttl_value > 0 else cooldown_seconds
                 )
                 raise HTTPException(
                     status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -137,13 +135,29 @@ async def resend_verification_email(
     )
     if not queued:
         if redis_client is not None and cache_key_set:
+            rollback_succeeded = False
             try:
                 await redis_client.delete(cache_key)
+                rollback_succeeded = True
             except Exception:
                 logger.warning(
                     "verification_resend_cooldown_rollback_failed",
                     user_sub=user.sub,
                 )
+            if not rollback_succeeded:
+                rollback_ttl_seconds = min(5, cooldown_seconds)
+                try:
+                    await redis_client.expire(cache_key, rollback_ttl_seconds)
+                    logger.warning(
+                        "verification_resend_cooldown_rollback_degraded",
+                        user_sub=user.sub,
+                        rollback_ttl_seconds=rollback_ttl_seconds,
+                    )
+                except Exception:
+                    logger.exception(
+                        "verification_resend_cooldown_rollback_expire_failed",
+                        user_sub=user.sub,
+                    )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={

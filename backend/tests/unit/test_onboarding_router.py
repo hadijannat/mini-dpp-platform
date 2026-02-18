@@ -92,3 +92,38 @@ async def test_resend_verification_rejects_during_cooldown() -> None:
     assert exc.detail["code"] == "verification_resend_cooldown"
     assert exc.detail["cooldown_seconds"] == 12
     assert isinstance(exc.detail["next_allowed_at"], str)
+
+
+@pytest.mark.asyncio
+async def test_resend_verification_rolls_back_cooldown_when_enqueue_fails() -> None:
+    """Resend endpoint removes cooldown key when Keycloak enqueue fails."""
+    user = _make_user()
+    redis_client = AsyncMock()
+    redis_client.ttl = AsyncMock(return_value=-2)
+    redis_client.set = AsyncMock(return_value=True)
+    redis_client.delete = AsyncMock(return_value=1)
+    redis_client.expire = AsyncMock()
+
+    settings = MagicMock()
+    settings.onboarding_verification_resend_cooldown_seconds = 30
+    settings.onboarding_verification_redirect_uri = "https://dpp-platform.dev/welcome"
+    settings.onboarding_verification_client_id = "dpp-frontend"
+    settings.cors_origins = ["https://dpp-platform.dev"]
+
+    with (
+        patch("app.modules.onboarding.router.get_settings", return_value=settings),
+        patch("app.modules.onboarding.router.get_redis", AsyncMock(return_value=redis_client)),
+        patch("app.modules.onboarding.router.KeycloakAdminClient") as keycloak_client_cls,
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        keycloak_client = MagicMock()
+        keycloak_client.send_verify_email = AsyncMock(return_value=False)
+        keycloak_client_cls.return_value = keycloak_client
+
+        await resend_verification_email(user)
+
+    exc = exc_info.value
+    assert exc.status_code == 503
+    assert exc.detail["code"] == "verification_email_enqueue_failed"
+    redis_client.delete.assert_awaited_once_with("onboarding:resend-verification:user-1")
+    redis_client.expire.assert_not_awaited()
