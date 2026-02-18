@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Fingerprint, LogIn, Menu, PlayCircle, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,8 +14,33 @@ import { landingContent } from '../content/landingContent';
 export default function LandingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      return;
+    }
+
+    const desktopMediaQuery = window.matchMedia('(min-width: 1280px)');
+    const handleDesktopMedia = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) {
+        setMobileOpen(false);
+      }
+    };
+
+    // Close any open mobile sheet when transitioning into desktop layout.
+    handleDesktopMedia(desktopMediaQuery);
+
+    const listener = (event: MediaQueryListEvent) => handleDesktopMedia(event);
+    desktopMediaQuery.addEventListener('change', listener);
+    return () => {
+      desktopMediaQuery.removeEventListener('change', listener);
+    };
+  }, []);
+
   return (
-    <header className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl">
+    <header
+      className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl"
+      data-mobile-open={mobileOpen ? 'true' : 'false'}
+    >
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:gap-6 lg:px-8">
         <a
           href="/"
