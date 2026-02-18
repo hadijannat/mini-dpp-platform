@@ -69,7 +69,12 @@ describe('WelcomePage', () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ queued: true }),
+        json: () =>
+          Promise.resolve({
+            queued: true,
+            cooldown_seconds: 30,
+            next_allowed_at: '2026-02-18T12:00:30Z',
+          }),
       });
 
     renderWelcome('/welcome?reason=insufficient_role');
@@ -90,8 +95,53 @@ describe('WelcomePage', () => {
     });
 
     expect(
-      await screen.findByText('Verification email sent. Please check your inbox and spam folder.'),
+      await screen.findByText(/Verification email sent\. Please check your inbox and spam folder\./),
     ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resend available in 30s' })).toBeTruthy();
+  });
+
+  it('handles resend cooldown responses with retry guidance', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            provisioned: false,
+            tenant_slug: 'default',
+            role: null,
+            email_verified: false,
+            blockers: ['email_unverified'],
+            next_actions: ['resend_verification', 'go_home'],
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        headers: {
+          get: (name: string) => {
+            if (name === 'content-type') return 'application/json';
+            if (name === 'Retry-After') return '12';
+            return null;
+          },
+        },
+        json: () =>
+          Promise.resolve({
+            detail: {
+              code: 'verification_resend_cooldown',
+              message: 'Please wait before retrying.',
+              cooldown_seconds: 12,
+              next_allowed_at: '2026-02-18T12:00:12Z',
+            },
+          }),
+      });
+
+    renderWelcome();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Resend verification email' }));
+
+    expect(
+      await screen.findByText('Please wait 12 seconds before requesting another verification email.'),
+    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resend available in 12s' })).toBeTruthy();
   });
 
   it('renders viewer actions with role request card and supports go-home/signout', async () => {

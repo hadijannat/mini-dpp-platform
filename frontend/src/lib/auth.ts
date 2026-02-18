@@ -99,3 +99,10 @@ export function isAdmin(user: User | null | undefined): boolean {
 export function isPublisher(user: User | null | undefined): boolean {
   return hasRoleLevel(user, 'publisher');
 }
+
+/**
+ * Check if user can review tenant role upgrade requests.
+ */
+export function canReviewRoleRequests(user: User | null | undefined): boolean {
+  return hasAnyRole(user, ['tenant_admin', 'admin']);
+}

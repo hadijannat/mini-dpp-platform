@@ -25,6 +25,8 @@ import { tenantApiFetch, getApiErrorMessage } from '@/lib/api';
 interface RoleRequest {
   id: string;
   user_subject: string;
+  requester_email: string | null;
+  requester_display_name: string | null;
   requested_role: string;
   status: string;
   reason: string | null;
@@ -136,7 +138,7 @@ export default function RoleRequestsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
+                <TableHead>Requester</TableHead>
                 <TableHead>Requested Role</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Status</TableHead>
@@ -147,8 +149,18 @@ export default function RoleRequestsPage() {
             <TableBody>
               {requests.map((req) => (
                 <TableRow key={req.id}>
-                  <TableCell className="font-mono text-xs max-w-[200px] truncate">
-                    {req.user_subject}
+                  <TableCell className="max-w-[260px]">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {req.requester_display_name || req.requester_email || req.user_subject}
+                      </p>
+                      {req.requester_email && (
+                        <p className="truncate text-xs text-muted-foreground">{req.requester_email}</p>
+                      )}
+                      <p className="truncate font-mono text-[11px] text-muted-foreground">
+                        {req.user_subject}
+                      </p>
+                    </div>
                   </TableCell>
                   <TableCell className="capitalize">{req.requested_role}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">

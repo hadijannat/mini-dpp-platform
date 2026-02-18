@@ -21,6 +21,9 @@ export default function LandingFooter() {
             <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
               <a href="#sample-passport">Open demo passport</a>
             </Button>
+            <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
+              <a href="/login?mode=register">Create account</a>
+            </Button>
             <Button size="sm" className="rounded-full px-4" asChild>
               <a href="/login">Sign in</a>
             </Button>

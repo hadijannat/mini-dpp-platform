@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
+import { canReviewRoleRequests } from '@/lib/auth';
 import { LoadingSpinner } from './components/loading-spinner';
 
 // Layouts (kept as static imports -- lightweight, always needed for route groups)
@@ -41,6 +42,11 @@ const RoleRequestsPage = lazy(() => import('./features/admin/pages/RoleRequestsP
 
 function App() {
   const auth = useAuth();
+  const canReviewRequests = canReviewRoleRequests(auth.user);
+  const roleRequestsRedirect = `/welcome?${new URLSearchParams({
+    reason: 'insufficient_role',
+    next: '/console/role-requests',
+  }).toString()}`;
 
   return (
     <Suspense fallback={<LoadingSpinner size="lg" />}>
@@ -162,9 +168,11 @@ function App() {
           <Route
             path="role-requests"
             element={
-              <ProtectedRoute requiredRole="admin">
+              canReviewRequests ? (
                 <RoleRequestsPage />
-              </ProtectedRoute>
+              ) : (
+                <Navigate to={roleRequestsRedirect} replace />
+              )
             }
           />
         </Route>

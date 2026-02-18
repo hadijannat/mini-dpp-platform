@@ -20,6 +20,9 @@ describe('LandingHeader', () => {
     expect(screen.getAllByRole('link', { name: 'Open demo' })[0].getAttribute('href')).toBe(
       '#sample-passport',
     );
+    expect(screen.getAllByRole('link', { name: 'Create account' })[0].getAttribute('href')).toBe(
+      '/login?mode=register',
+    );
     expect(screen.getAllByRole('link', { name: 'Sign in' })[0].getAttribute('href')).toBe('/login');
     expect(screen.getByRole('link', { name: 'Docs' }).getAttribute('href')).toBe(
       'https://github.com/hadijannat/mini-dpp-platform/tree/main/docs/public',
@@ -33,6 +36,7 @@ describe('LandingHeader', () => {
 
     expect(screen.getAllByRole('link', { name: 'FAQ' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Open demo' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Create account' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0);
   });
 });

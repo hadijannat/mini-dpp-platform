@@ -34,6 +34,8 @@ class ResendVerificationResponse(BaseModel):
     """Response for resend verification endpoint."""
 
     queued: bool
+    cooldown_seconds: int
+    next_allowed_at: str | None = None
 
 
 class RoleRequestCreate(BaseModel):
@@ -64,5 +66,7 @@ class RoleRequestResponse(BaseModel):
     review_note: str | None = None
     reviewed_at: str | None = None
     created_at: str
+    requester_email: str | None = None
+    requester_display_name: str | None = None
 
     model_config = {"from_attributes": True}

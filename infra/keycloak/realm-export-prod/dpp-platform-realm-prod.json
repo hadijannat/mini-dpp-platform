@@ -102,6 +102,19 @@
       "realmRoles": [
         "admin"
       ]
+    },
+    {
+      "username": "service-account-dpp-backend",
+      "enabled": true,
+      "serviceAccountClientId": "dpp-backend",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-realm"
+        ]
+      }
     }
   ],
   "clientScopes": [
