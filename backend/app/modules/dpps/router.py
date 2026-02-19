@@ -13,7 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, RootModel, field_validator
 from sqlalchemy import text
 
 from app.core.audit import emit_audit_event
@@ -148,6 +148,21 @@ class AssetIdsInput(BaseModel):
     serialNumber: str | None = None
     batchId: str | None = None
     globalAssetId: str | None = None
+    gtin: str | None = Field(
+        default=None,
+        description="GS1 GTIN (8/12/13/14 digits). Validated via check digit.",
+    )
+
+    @field_validator("gtin")
+    @classmethod
+    def validate_gtin_check_digit(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        from app.modules.qr.service import QRCodeService
+
+        if not QRCodeService.validate_gtin(v):
+            raise ValueError(f"GTIN '{v}' has an invalid check digit")
+        return v
 
 
 class CreateDPPRequest(BaseModel):
