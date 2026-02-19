@@ -224,16 +224,38 @@ jobs:
             done
 
             # Verify OPA has the OPC UA publisher policy loaded after deploy.
-            if ! OPA_OPCUA_DECISION=$(docker compose -f docker-compose.prod.yml exec -T backend python -c 'import json,urllib.request; payload={"input":{"subject":{"sub":"deploy-smoke","email":"deploy-smoke@example.com","roles":["publisher"],"is_admin":False,"is_publisher":True,"is_tenant_admin":False,"tenant_id":"tenant-smoke","tenant_slug":"smoke"},"action":"list","resource":{"type":"opcua_source","tenant_id":"tenant-smoke"},"environment":{}}}; request=urllib.request.Request("http://opa:8181/v1/data/dpp/authz/decision", data=json.dumps(payload).encode("utf-8"), headers={"Content-Type":"application/json"}, method="POST"); result=json.load(urllib.request.urlopen(request, timeout=5)).get("result", {}); print(f"{result.get(\"effect\",\"\")}:{result.get(\"policy_id\",\"\")}")'
+            # Retry to avoid false rollback when OPA is still warming up.
+            OPA_OPCUA_DECISION=""
+            for i in $(seq 1 12); do
+              if OPA_OPCUA_DECISION=$(docker compose -f docker-compose.prod.yml exec -T backend python -c 'import json,urllib.request; payload={"input":{"subject":{"sub":"deploy-smoke","email":"deploy-smoke@example.com","roles":["publisher"],"is_admin":False,"is_publisher":True,"is_tenant_admin":False,"tenant_id":"tenant-smoke","tenant_slug":"smoke"},"action":"list","resource":{"type":"opcua_source","tenant_id":"tenant-smoke"},"environment":{}}}; request=urllib.request.Request("http://opa:8181/v1/data/dpp/authz/decision", data=json.dumps(payload).encode("utf-8"), headers={"Content-Type":"application/json"}, method="POST"); result=json.load(urllib.request.urlopen(request, timeout=5)).get("result", {}); print(f"{result.get(\"effect\",\"\")}:{result.get(\"policy_id\",\"\")}")'); then
+                OPA_OPCUA_DECISION=$(printf '%s' "$OPA_OPCUA_DECISION" | tr -d '\r\n')
+                if [ "$OPA_OPCUA_DECISION" = "allow:opcua-source-read" ]; then
+                  break
+                fi
+              fi
+
+              if [ "$i" -eq 12 ]; then
+                echo "Failed to validate OPA OPC UA allow policy after retries (last='${OPA_OPCUA_DECISION}') — rolling back"
+                git checkout "$PREV_SHA"
+                rollback_backend_services
+                exit 1
+              fi
+
+              echo "OPA policy check not ready yet (attempt ${i}/12, got '${OPA_OPCUA_DECISION}'); retrying in 5s..."
+              sleep 5
+            done
+
+            # Guardrail: non-publisher should not be allowed for OPC UA source listing.
+            if ! OPA_OPCUA_DENY_DECISION=$(docker compose -f docker-compose.prod.yml exec -T backend python -c 'import json,urllib.request; payload={"input":{"subject":{"sub":"deploy-smoke","email":"deploy-smoke@example.com","roles":["viewer"],"is_admin":False,"is_publisher":False,"is_tenant_admin":False,"tenant_id":"tenant-smoke","tenant_slug":"smoke"},"action":"list","resource":{"type":"opcua_source","tenant_id":"tenant-smoke"},"environment":{}}}; request=urllib.request.Request("http://opa:8181/v1/data/dpp/authz/decision", data=json.dumps(payload).encode("utf-8"), headers={"Content-Type":"application/json"}, method="POST"); result=json.load(urllib.request.urlopen(request, timeout=5)).get("result", {}); print(f"{result.get(\"effect\",\"\")}:{result.get(\"policy_id\",\"\")}")'
             ); then
-              echo "Failed to evaluate OPA OPC UA policy — rolling back"
+              echo "Failed to evaluate OPA OPC UA deny policy — rolling back"
               git checkout "$PREV_SHA"
               rollback_backend_services
               exit 1
             fi
-            OPA_OPCUA_DECISION=$(printf '%s' "$OPA_OPCUA_DECISION" | tr -d '\r\n')
-            if [ "$OPA_OPCUA_DECISION" != "allow:opcua-source-read" ]; then
-              echo "Unexpected OPA OPC UA decision (${OPA_OPCUA_DECISION}) — rolling back"
+            OPA_OPCUA_DENY_DECISION=$(printf '%s' "$OPA_OPCUA_DENY_DECISION" | tr -d '\r\n')
+            if [ "${OPA_OPCUA_DENY_DECISION%%:*}" != "deny" ]; then
+              echo "Unexpected OPA OPC UA deny decision (${OPA_OPCUA_DENY_DECISION}) — rolling back"
               git checkout "$PREV_SHA"
               rollback_backend_services
               exit 1
