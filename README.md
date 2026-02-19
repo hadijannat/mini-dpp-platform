@@ -5,11 +5,11 @@
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
 
-A contributor-focused Digital Product Passport (DPP) platform built on Asset Administration Shell (AAS) and IDTA DPP4.0 templates, with FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.
+A multi-tenant Digital Product Passport (DPP) platform built on the Asset Administration Shell (AAS) and IDTA DPP4.0 standards. Integrates OPC UA industrial data, GS1 EPCIS 2.0 supply chain events, Catena-X dataspace connectivity, W3C Verifiable Credentials, and EU ESPR compliance — backed by FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.
 
 ## What This Repository Is
 
-This repository contains a full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. It includes a production-oriented backend and frontend, infra manifests, CI/CD workflows, and an expanding public/internal documentation set.
+A full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. Features include template-driven DPP authoring, AASX/JSON-LD/Turtle export, GS1 Digital Link resolution, OPC UA industrial data ingestion, EPCIS event capture, verifiable credential issuance, and ESPR compliance checking — with a production-oriented backend, React frontend, infrastructure manifests, CI/CD pipelines, and documentation set.
 
 ## Quick Start (Docker Compose)
 
@@ -38,45 +38,61 @@ Use `docker compose up -d --build` on first run or when Dockerfiles/dependencies
 
 You can override ports via `.env` (for example `BACKEND_HOST_PORT`, `KEYCLOAK_HOST_PORT`).
 
+### Default Test Users
+
+| Username | Password | Role |
+|----------|----------|------|
+| publisher | publisher123 | Publisher |
+| viewer | viewer123 | Viewer |
+| admin | admin123 | Admin |
+
 ## Service Endpoints
 
-| Service | URL (default) | Notes |
-|---|---|---|
-| Frontend | http://localhost:5173 | Publisher/admin console and public landing page |
-| API Docs | http://localhost:8000/api/v1/docs | Swagger UI served by custom docs endpoint |
-| API OpenAPI | http://localhost:8000/api/v1/openapi.json | Contract source for client generation |
-| API Health | http://localhost:8000/health | Returns `healthy` or `degraded` with dependency checks |
-| Keycloak | http://localhost:8080 | Realm `dpp-platform`; admin console at `/admin` |
-| OPA | http://localhost:8181/health | Policy engine health endpoint |
-| MinIO API | http://localhost:9000 | S3-compatible object storage |
-| MinIO Console | http://localhost:9001 | Local object storage console |
+| Service | Local | Production |
+|---------|-------|------------|
+| Frontend | http://localhost:5173 | https://dpp-platform.dev |
+| Backend API | http://localhost:8000/api/v1 | https://dpp-platform.dev/api/v1 |
+| API Docs (Swagger) | http://localhost:8000/api/v1/docs | https://dpp-platform.dev/api/v1/docs |
+| Keycloak | http://localhost:8080 | https://auth.dpp-platform.dev |
+| Health | http://localhost:8000/health | https://dpp-platform.dev/health |
+| OPA | http://localhost:8181/health | — |
+| MinIO API | http://localhost:9000 | — |
+| MinIO Console | http://localhost:9001 | — |
 
 ## Project Structure at a Glance
 
 ```text
 mini-dpp-platform/
-├── backend/                  # FastAPI app, modules, DB models/migrations, tests
-├── frontend/                 # React + Vite app, feature modules, Playwright/Vitest tests
-├── infra/                    # Keycloak, OPA, Helm, monitoring, ArgoCD, postgres init
+├── backend/                        # FastAPI app, modules, DB models/migrations, tests
+├── frontend/                       # React + Vite app, feature modules, Playwright/Vitest tests
+├── infra/                          # Keycloak, OPA, Helm, monitoring, ArgoCD, postgres init
 ├── docs/
-│   ├── public/               # Public contributor/operator docs
-│   └── internal/             # Audits, evidence, planning, internal reviews
-├── docker-compose.yml        # Default local development stack
-├── docker-compose.prod.yml   # Production-oriented compose profile
-└── .github/workflows/        # CI, security, docs quality, deploy workflows
+│   ├── public/                     # Public contributor/operator docs
+│   └── internal/                   # Audits, evidence, planning, internal reviews
+├── docker-compose.yml              # Default local development stack
+├── docker-compose.prod.yml         # Production-oriented compose profile
+├── docker-compose.edc.yml          # EDC overlay (Tractus-X connector sidecar)
+├── docker-compose.dtr.yml          # Digital Twin Registry overlay
+├── docker-compose.inspection.yml   # Isolated inspection stack (ports 5433/6380/8001/8081)
+├── Caddyfile                       # Production reverse proxy config (HTTPS)
+└── .github/workflows/              # CI, deploy, security, docs quality, pipeline workflows
 ```
 
 ## Capabilities by Module
 
-| Area | Key Backend Modules | Key Frontend Features |
-|---|---|---|
-| Tenant & Access | `tenants`, `policies`, `shares`, `onboarding` | `admin`, `onboarding`, role-gated routes |
-| DPP Lifecycle | `dpps`, `masters`, `templates` | `publisher`, `editor` |
-| Public Consumption | `dpps/public_router`, `registry/public_router`, `resolver/public_router` | `viewer` |
-| Exports & Carriers | `export`, `qr` | `publisher/DataCarriersPage` |
-| Compliance & Audit | `compliance`, `audit`, `activity` | `compliance`, `audit`, `activity` |
-| Supply Chain Events | `epcis`, `digital_thread`, `lca` | `epcis`, dashboard EPCIS widgets |
-| Dataspace/Registry Integrations | `connectors`, `registry`, `resolver`, `credentials` | `connectors`, admin registry/resolver/credentials pages |
+| Area | Backend Modules | Frontend Features |
+|------|----------------|-------------------|
+| Tenant & Access | `tenants`, `policies`, `onboarding` | `admin`, `onboarding`, role-gated routes |
+| DPP Lifecycle | `dpps`, `templates`, `masters` | `publisher`, `editor`, `dpp-outline` |
+| Public Consumption | `dpps/public_router`, `registry/public_router`, `resolver/public_router`, `credentials/public_router` | `viewer`, `landing` |
+| Exports & Carriers | `export`, `qr`, `data_carriers` | `publisher` (multi-select export, batch) |
+| Compliance & Audit | `compliance`, `audit` | `compliance`, `audit` |
+| Supply Chain Events | `epcis`, `digital_thread`, `lca` | `epcis` |
+| OPC UA Integration | `opcua` (sources, nodesets, mappings, dataspace) | `opcua` (4-tab CRUD page) |
+| Dataspace & Registry | `connectors`, `registry`, `resolver`, `credentials`, `dataspace` | `connectors`, admin pages |
+| Sharing & Activity | `shares`, `activity` | `activity` |
+| Regulatory | `cirpass`, `regulatory_timeline` | `cirpass-lab` |
+| Submodel Browsing | `aas`, `templates` | `submodels` |
 | Platform Settings | `settings`, `webhooks` | admin settings + webhooks pages |
 
 ## Developer Workflows
@@ -94,7 +110,11 @@ uv run mypy app
 uv run python tools/check_plaintext_connector_secrets.py
 ```
 
-Backend test fixtures default to a PostgreSQL endpoint on `localhost:5433`. For a reproducible full run, start `docker-compose.inspection.yml` or set `TEST_DATABASE_URL` explicitly (see Validation Snapshot).
+Backend test fixtures default to a PostgreSQL endpoint on `localhost:5433`. For a reproducible full run, start the inspection stack or set `TEST_DATABASE_URL` explicitly:
+
+```bash
+docker compose -f docker-compose.inspection.yml up -d
+```
 
 `tools/check_plaintext_connector_secrets.py` is a rollout guardrail that fails if legacy connector config fields or dataspace connector secret records contain plaintext values.
 
@@ -113,36 +133,39 @@ npm run generate-api
 
 `npm run generate-api` expects a running backend on `http://localhost:8000`.
 
-## Validation Snapshot (2026-02-10)
+## CI/CD Workflows
+
+| Workflow | File | Trigger | Purpose |
+|----------|------|---------|---------|
+| CI | `ci.yml` | Push/PR to `main`, `develop` | Lint, test, SAST, Docker build |
+| Deploy | `deploy.yml` | Auto on CI success (main) or manual | GHCR images, Trivy scan, SSH deploy |
+| DPP Pipeline | `dpp-pipeline.yml` | Push/PR to `main`, `develop` | Full Docker stack E2E + golden files |
+| Dataspace Conformance | `dataspace-conformance.yml` | Daily cron + manual | Dataspace protocol conformance |
+| Security | `security.yml` | Push/PR + manual | Security scanning (pip-audit, Trivy) |
+| Docs Quality | `docs-quality.yml` | Push/PR to `main`, `develop` | Markdown lint + link validation |
+| Regulatory Timeline | `regulatory-timeline-refresh.yml` | Daily cron + manual | Automated regulatory timeline refresh |
+
+## Infrastructure
+
+- **Helm chart**: `infra/helm/dpp-platform/` — Kubernetes deployment manifests
+- **ArgoCD**: `infra/argocd/` — Multi-environment GitOps configuration
+- **Monitoring**: Prometheus + Grafana (4 dashboards) + Alertmanager (`infra/monitoring/`)
+- **Reverse proxy**: Caddy for production HTTPS termination and routing (`Caddyfile`)
+- **Keycloak realm**: `infra/keycloak/realm-export/dpp-platform-realm.json`
+
+## Validation Snapshot (2026-02-19)
 
 | Area | Command | Result |
-|---|---|---|
-| Backend lint | `uv run ruff check .` (in `backend/`) | Pass |
-| Backend typecheck | `uv run mypy app` (in `backend/`) | Pass |
-| Backend tests (default env) | `uv run pytest -q` (in `backend/`) | Fails integration setup (test fixture expects `localhost:5433` test DB credentials) |
-| Backend tests (aligned env) | `TEST_DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5433/dpp_inspection uv run pytest -q` | Pass (`1104 passed`, `34 skipped`) |
-| Frontend unit tests | `npm test -- --run` (in `frontend/`) | Pass (`28 files`, `263 tests`) |
-| Frontend lint | `npm run lint` (in `frontend/`) | Pass with 2 warnings |
-| Frontend typecheck | `npm run typecheck` (in `frontend/`) | Pass |
-| Frontend E2E | `npm run test:e2e` (in `frontend/`) | Fail (`15/15` timeout waiting for `templates-refresh-all`; Vite overlay import error: `sonner`) |
+|------|---------|--------|
+| Backend lint | `uv run ruff check .` | Pass |
+| Backend typecheck | `uv run mypy app` | Pass |
+| Backend tests | `uv run pytest -q` (with inspection DB) | `1104 passed`, `34 skipped` |
+| Frontend unit tests | `npm test -- --run` | `75 files`, `398 tests` — all pass |
+| Frontend lint | `npm run lint` | Pass |
+| Frontend typecheck | `npm run typecheck` | Pass |
+| Frontend E2E | `npm run test:e2e` | Requires running stack (`docker compose up -d --build`) |
 | Docs lint | `npx markdownlint-cli2 'README.md' 'CHANGELOG.md' 'docs/**/*.md'` | Pass |
 | Link check | `lychee --config .lychee.toml README.md 'docs/**/*.md'` | Pass |
-
-## Known E2E Caveat
-
-The current Playwright E2E failures are not random: all failing scenarios time out while waiting for `data-testid="templates-refresh-all"`, and failure traces show the Vite overlay error:
-
-`[plugin:vite:import-analysis] Failed to resolve import "sonner" from "src/main.tsx"`
-
-Observed precondition: running E2E against a frontend container/runtime with stale dependencies after lockfile changes. Before rerunning E2E, rebuild/reinstall frontend dependencies in the active runtime:
-
-```bash
-docker compose build frontend
-docker compose up -d frontend
-docker compose exec frontend npm ci
-```
-
-Failure traces and screenshots are stored under `frontend/test-results/`.
 
 ## Standards Alignment
 
@@ -153,7 +176,13 @@ Failure traces and screenshots are stored under `frontend/test-results/`.
 | IDTA DPP4.0 templates | Dynamic template-driven DPP authoring and validation |
 | Eclipse BaSyx Python SDK 2.0.0 | AAS object model and serialization/deserialization |
 | GS1 Digital Link | Data carrier and resolver flows |
-| EU ESPR context | Public viewer categorization and disclosure framing |
+| GS1 EPCIS 2.0 | Supply chain event capture and query |
+| W3C Verifiable Credentials 2.0 | DPP credential issuance (`did:web`, `JsonWebSignature2020`) |
+| RFC 9264 Linkset | Resolver link format for GS1 Digital Link |
+| IEC 61406 | Industrial identification for data carriers |
+| OPC UA | Industrial data source integration |
+| ODRL | Dataspace policy language (Eclipse Dataspace Connector) |
+| EU ESPR | Public viewer categorization and compliance checking |
 
 ## Where to Go Next
 
