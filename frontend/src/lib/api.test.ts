@@ -39,6 +39,7 @@ describe('apiFetch', () => {
     const expectedUrl = baseUrl ? `${baseUrl}/api/test` : '/api/test';
 
     expect(fetchMock).toHaveBeenCalledWith(expectedUrl, {
+      cache: 'no-store',
       headers: {
         'X-Test': '1',
         Authorization: 'Bearer token-abc',
