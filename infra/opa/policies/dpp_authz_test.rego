@@ -138,3 +138,163 @@ test_espr_consumer_submodel_hide_when_not_allowed {
     result.effect == "hide"
     result.policy_id == "espr-consumer-submodel-hide"
 }
+
+# --- OPC UA Source ---
+
+test_opcua_source_read_allowed_for_publisher {
+    result := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "read",
+        "resource": {
+            "type": "opcua_source",
+            "tenant_id": "tenant-a",
+            "owner_subject": "publisher-1",
+        },
+    }
+    result.effect == "allow"
+    result.policy_id == "opcua-source-read"
+}
+
+test_opcua_source_denied_for_viewer {
+    result := decision with input as {
+        "subject": {
+            "sub": "viewer-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": false,
+        },
+        "action": "read",
+        "resource": {
+            "type": "opcua_source",
+            "tenant_id": "tenant-a",
+        },
+    }
+    result.effect == "deny"
+    result.policy_id == "opcua-source-deny-viewer"
+}
+
+test_opcua_source_manage_requires_owner {
+    denied := decision with input as {
+        "subject": {
+            "sub": "publisher-2",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "delete",
+        "resource": {
+            "type": "opcua_source",
+            "tenant_id": "tenant-a",
+            "owner_subject": "publisher-1",
+        },
+    }
+    denied.effect == "deny"
+
+    allowed := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "delete",
+        "resource": {
+            "type": "opcua_source",
+            "tenant_id": "tenant-a",
+            "owner_subject": "publisher-1",
+        },
+    }
+    allowed.effect == "allow"
+    allowed.policy_id == "opcua-source-manage"
+}
+
+test_opcua_source_cross_tenant_denied {
+    result := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-b",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "read",
+        "resource": {
+            "type": "opcua_source",
+            "tenant_id": "tenant-a",
+            "owner_subject": "publisher-1",
+        },
+    }
+    result.effect == "deny"
+}
+
+# --- OPC UA Mapping ---
+
+test_opcua_mapping_write_allowed_for_publisher {
+    result := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "validate",
+        "resource": {
+            "type": "opcua_mapping",
+            "tenant_id": "tenant-a",
+        },
+    }
+    result.effect == "allow"
+    result.policy_id == "opcua-mapping-write"
+}
+
+# --- OPC UA Dead Letter ---
+
+test_opcua_deadletter_read_allowed_for_publisher {
+    result := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "list",
+        "resource": {
+            "type": "opcua_deadletter",
+            "tenant_id": "tenant-a",
+        },
+    }
+    result.effect == "allow"
+    result.policy_id == "opcua-deadletter-read"
+}
+
+# --- Dataspace Publication ---
+
+test_ds_publication_create_allowed_for_publisher {
+    result := decision with input as {
+        "subject": {
+            "sub": "publisher-1",
+            "tenant_id": "tenant-a",
+            "is_admin": false,
+            "is_tenant_admin": false,
+            "is_publisher": true,
+        },
+        "action": "create",
+        "resource": {
+            "type": "dataspace_publication",
+            "tenant_id": "tenant-a",
+        },
+    }
+    result.effect == "allow"
+    result.policy_id == "ds-publication-create"
+}

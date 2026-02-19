@@ -532,6 +532,56 @@ class Settings(BaseSettings):
     )
 
     # ==========================================================================
+    # OPC UA Ingestion
+    # ==========================================================================
+    opcua_enabled: bool = Field(
+        default=False, description="Enable OPC UA ingestion pipeline and endpoints"
+    )
+    opcua_agent_poll_interval_seconds: int = Field(
+        default=5, ge=1, le=300, description="Agent polling interval for new/changed mappings"
+    )
+    opcua_max_connections_per_tenant: int = Field(
+        default=5, ge=1, le=50, description="Maximum OPC UA connections per tenant"
+    )
+    opcua_max_subscriptions_per_source: int = Field(
+        default=3, ge=1, le=20, description="Maximum OPC UA subscriptions per source"
+    )
+    opcua_max_monitored_items_per_subscription: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+        description="Maximum monitored items per OPC UA subscription",
+    )
+    opcua_default_sampling_interval_ms: int = Field(
+        default=1000, ge=100, le=60000, description="Default OPC UA sampling interval (ms)"
+    )
+    opcua_default_publishing_interval_ms: int = Field(
+        default=1000, ge=100, le=60000, description="Default OPC UA publishing interval (ms)"
+    )
+    opcua_batch_commit_interval_seconds: int = Field(
+        default=10,
+        ge=1,
+        le=300,
+        description="Interval for coalesced DPP revision commits from OPC UA data",
+    )
+    opcua_batch_max_operations: int = Field(
+        default=500,
+        ge=1,
+        le=10000,
+        description="Maximum patch operations per commit window",
+    )
+    opcua_deadletter_retention_days: int = Field(
+        default=7,
+        ge=1,
+        le=365,
+        description="Days to retain failed mapping records in dead-letter queue",
+    )
+    opcua_nodeset_bucket: str = Field(
+        default="dpp-nodesets",
+        description="MinIO bucket for NodeSet XML and companion spec storage",
+    )
+
+    # ==========================================================================
     # Webhooks
     # ==========================================================================
     webhook_enabled: bool = Field(default=False, description="Enable webhook notifications")

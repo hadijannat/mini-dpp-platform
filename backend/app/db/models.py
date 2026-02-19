@@ -233,6 +233,47 @@ class DataCarrierArtifactType(str, PyEnum):
     CSV = "csv"
 
 
+class OPCUAAuthType(str, PyEnum):
+    """Authentication method for OPC UA source connections."""
+
+    ANONYMOUS = "anonymous"
+    USERNAME_PASSWORD = "username_password"
+    CERTIFICATE = "certificate"
+
+
+class OPCUAConnectionStatus(str, PyEnum):
+    """Health status of an OPC UA source connection."""
+
+    DISABLED = "disabled"
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    ERROR = "error"
+
+
+class OPCUAMappingType(str, PyEnum):
+    """Discriminator for how an OPC UA mapping is applied."""
+
+    AAS_PATCH = "aas_patch"
+    EPCIS_EVENT = "epcis_event"
+
+
+class DPPBindingMode(str, PyEnum):
+    """How an OPC UA mapping resolves to a target DPP."""
+
+    BY_DPP_ID = "by_dpp_id"
+    BY_ASSET_IDS = "by_asset_ids"
+    BY_SERIAL_SCAN = "by_serial_scan"
+
+
+class DataspacePublicationStatus(str, PyEnum):
+    """Status of a dataspace publication job."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 # =============================================================================
 # Tenant Models
 # =============================================================================
@@ -2834,4 +2875,456 @@ class CirpassLabEvent(Base):
         ),
         Index("ix_cirpass_lab_events_sid_created", "sid_hash", "created_at"),
         Index("ix_cirpass_lab_events_story_step", "story_id", "step_id", "created_at"),
+    )
+
+
+# =============================================================================
+# OPC UA Ingestion Pipeline
+# =============================================================================
+
+
+class OPCUASource(TenantScopedMixin, Base):
+    """
+    OPC UA server source configuration.
+
+    Stores connection details for an OPC UA endpoint.
+    Password is encrypted at rest via ConnectorConfigEncryptor.
+    """
+
+    __tablename__ = "opcua_sources"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    endpoint_url: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="OPC UA endpoint URL, e.g. opc.tcp://host:4840",
+    )
+    security_policy: Mapped[str | None] = mapped_column(
+        String(100),
+        comment="e.g. Basic256Sha256",
+    )
+    security_mode: Mapped[str | None] = mapped_column(
+        String(50),
+        comment="e.g. SignAndEncrypt",
+    )
+    auth_type: Mapped[OPCUAAuthType] = mapped_column(
+        Enum(OPCUAAuthType, values_callable=lambda e: [m.value for m in e]),
+        default=OPCUAAuthType.ANONYMOUS,
+        nullable=False,
+    )
+    username: Mapped[str | None] = mapped_column(String(255))
+    password_encrypted: Mapped[str | None] = mapped_column(
+        Text,
+        comment="AES-256-GCM encrypted password (enc:v1: prefix)",
+    )
+    client_cert_ref: Mapped[str | None] = mapped_column(
+        Text,
+        comment="MinIO object key for client certificate",
+    )
+    client_key_ref: Mapped[str | None] = mapped_column(
+        Text,
+        comment="MinIO object key for client private key",
+    )
+    server_cert_pinned_sha256: Mapped[str | None] = mapped_column(
+        String(64),
+        comment="Optional SHA-256 pin of server certificate",
+    )
+    connection_status: Mapped[OPCUAConnectionStatus] = mapped_column(
+        Enum(OPCUAConnectionStatus, values_callable=lambda e: [m.value for m in e]),
+        default=OPCUAConnectionStatus.DISABLED,
+        nullable=False,
+    )
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="OIDC subject of creator",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    nodesets: Mapped[list["OPCUANodeSet"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+    )
+    mappings: Mapped[list["OPCUAMapping"]] = relationship(
+        back_populates="source",
+        cascade="all, delete-orphan",
+    )
+
+    __table_args__ = (
+        Index("ix_opcua_sources_status", "connection_status"),
+        Index("ix_opcua_sources_endpoint", "endpoint_url"),
+    )
+
+
+class OPCUANodeSet(TenantScopedMixin, Base):
+    """
+    Uploaded OPC UA NodeSet2.xml companion spec.
+
+    Stores parsed metadata and a reference to the XML file in object storage.
+    The parsed_node_graph JSONB column holds the full node hierarchy for
+    search and mapping assistance.
+    """
+
+    __tablename__ = "opcua_nodesets"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    source_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("opcua_sources.id", ondelete="SET NULL"),
+        comment="Optional link to a source (standalone uploads allowed)",
+    )
+    namespace_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    nodeset_version: Mapped[str | None] = mapped_column(String(100))
+    publication_date: Mapped[date | None] = mapped_column(Date)
+    companion_spec_name: Mapped[str | None] = mapped_column(String(255))
+    companion_spec_version: Mapped[str | None] = mapped_column(String(100))
+    nodeset_file_ref: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="MinIO object key for NodeSet2.xml",
+    )
+    companion_spec_file_ref: Mapped[str | None] = mapped_column(
+        Text,
+        comment="MinIO object key for companion spec PDF",
+    )
+    hash_sha256: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        comment="SHA-256 of the uploaded NodeSet XML",
+    )
+    parsed_node_graph: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Full parsed node hierarchy for search and mapping",
+    )
+    parsed_summary_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+        comment="Counts: objects, variables, datatypes, engineering units",
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    source: Mapped["OPCUASource | None"] = relationship(back_populates="nodesets")
+
+    __table_args__ = (
+        Index("ix_opcua_nodesets_namespace", "tenant_id", "namespace_uri"),
+        Index(
+            "ix_opcua_nodesets_node_graph",
+            "parsed_node_graph",
+            postgresql_using="gin",
+        ),
+    )
+
+
+class OPCUAMapping(TenantScopedMixin, Base):
+    """
+    Mapping from an OPC UA node to an AAS submodel path or EPCIS event.
+
+    Dual-purpose: AAS_PATCH applies value changes to DPP revisions,
+    EPCIS_EVENT emits traceability events on trigger conditions.
+    """
+
+    __tablename__ = "opcua_mappings"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opcua_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nodeset_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("opcua_nodesets.id", ondelete="SET NULL"),
+        comment="Optional link for validation context",
+    )
+    mapping_type: Mapped[OPCUAMappingType] = mapped_column(
+        Enum(OPCUAMappingType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    opcua_node_id: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="OPC UA NodeId, e.g. ns=4;s=Temperature",
+    )
+    opcua_browse_path: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Human-readable browse path for display",
+    )
+    opcua_datatype: Mapped[str | None] = mapped_column(String(100))
+    sampling_interval_ms: Mapped[int | None] = mapped_column(
+        Integer,
+        comment="Override default sampling interval (ms)",
+    )
+    # DPP binding
+    dpp_binding_mode: Mapped[DPPBindingMode] = mapped_column(
+        Enum(DPPBindingMode, values_callable=lambda e: [m.value for m in e]),
+        default=DPPBindingMode.BY_DPP_ID,
+        nullable=False,
+    )
+    dpp_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("dpps.id", ondelete="SET NULL"),
+        comment="Target DPP when binding_mode=BY_DPP_ID",
+    )
+    asset_id_query: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        comment="Query for BY_ASSET_IDS mode, e.g. {gtin, serialNumber}",
+    )
+    # AAS target
+    target_template_key: Mapped[str | None] = mapped_column(String(100))
+    target_submodel_id: Mapped[str | None] = mapped_column(Text)
+    target_aas_path: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Canonical patch path within AAS submodel",
+    )
+    patch_op: Mapped[str | None] = mapped_column(
+        String(50),
+        comment="Canonical op: set_value, set_multilang, add_list_item, etc.",
+    )
+    value_transform_expr: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Transform DSL expression, e.g. scale:0.001|round:2",
+    )
+    unit_hint: Mapped[str | None] = mapped_column(String(50))
+    # SAMM metadata
+    samm_aspect_urn: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Catena-X SAMM aspect model URN",
+    )
+    samm_property: Mapped[str | None] = mapped_column(String(255))
+    samm_version: Mapped[str | None] = mapped_column(String(50))
+    # EPCIS metadata (used when mapping_type=EPCIS_EVENT)
+    epcis_event_type: Mapped[str | None] = mapped_column(String(50))
+    epcis_biz_step: Mapped[str | None] = mapped_column(Text)
+    epcis_disposition: Mapped[str | None] = mapped_column(Text)
+    epcis_action: Mapped[str | None] = mapped_column(String(20))
+    epcis_read_point: Mapped[str | None] = mapped_column(Text)
+    epcis_biz_location: Mapped[str | None] = mapped_column(Text)
+    epcis_source_event_id_template: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Template for idempotent event ID generation",
+    )
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    source: Mapped["OPCUASource"] = relationship(back_populates="mappings")
+
+    __table_args__ = (
+        Index("ix_opcua_mappings_source", "source_id"),
+        Index("ix_opcua_mappings_dpp", "dpp_id"),
+        Index("ix_opcua_mappings_type", "mapping_type"),
+    )
+
+
+class OPCUAJob(TenantScopedMixin, Base):
+    """
+    Worker state tracking for an active OPC UA mapping subscription.
+
+    The agent uses this to track which mappings are subscribed and the
+    last flushed value/timestamp per mapping.
+    """
+
+    __tablename__ = "opcua_jobs"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opcua_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    mapping_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opcua_mappings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="idle",
+        nullable=False,
+        comment="idle, subscribed, paused, error",
+    )
+    last_value_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        comment="Last received OPC UA value + quality + timestamp",
+    )
+    last_flush_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint("mapping_id", name="uq_opcua_jobs_mapping"),
+        Index("ix_opcua_jobs_source", "source_id"),
+    )
+
+
+class OPCUADeadLetter(TenantScopedMixin, Base):
+    """
+    Dead-letter record for failed OPC UA → DPP mapping operations.
+
+    Tracks persistent failures so operators can diagnose and fix mappings.
+    Count is incremented on repeated failures for the same mapping.
+    """
+
+    __tablename__ = "opcua_deadletters"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    mapping_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opcua_mappings.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    value_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        comment="OPC UA value that failed to apply (may be redacted)",
+    )
+    error: Mapped[str] = mapped_column(Text, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_opcua_deadletters_mapping", "mapping_id"),
+        Index("ix_opcua_deadletters_last_seen", "last_seen_at"),
+    )
+
+
+class OPCUAInventorySnapshot(TenantScopedMixin, Base):
+    """
+    Cached snapshot of an OPC UA server's browse results.
+
+    Stores NamespaceArray, server info, and discovered nodes for
+    offline reference and mapping assistance.
+    """
+
+    __tablename__ = "opcua_inventory_snapshots"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    source_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opcua_sources.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        comment="Server browse results: namespaces, capabilities, node summary",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    __table_args__ = (Index("ix_opcua_snapshots_source", "source_id"),)
+
+
+class DataspacePublicationJob(TenantScopedMixin, Base):
+    """
+    Tracks publication of a DPP to dataspace components (DTR, EDC).
+
+    State machine: queued → running → succeeded | failed.
+    Retryable on failure.
+    """
+
+    __tablename__ = "dataspace_publication_jobs"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    status: Mapped[DataspacePublicationStatus] = mapped_column(
+        Enum(
+            DataspacePublicationStatus,
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        default=DataspacePublicationStatus.QUEUED,
+        nullable=False,
+    )
+    target: Mapped[str] = mapped_column(
+        String(50),
+        default="catena-x",
+        nullable=False,
+        comment="Target ecosystem, e.g. catena-x",
+    )
+    artifact_refs: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        comment="Published artifact references (DTR IDs, EDC asset IDs, etc.)",
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_ds_pub_jobs_dpp", "dpp_id"),
+        Index("ix_ds_pub_jobs_status", "status"),
     )
