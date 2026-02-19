@@ -67,6 +67,31 @@ class IngestionBuffer:
         async with self._lock:
             self._entries[key] = entry
 
+    async def put_entry(self, entry: BufferEntry) -> None:
+        """Insert a pre-built buffer entry."""
+        key: _BufferKey = (
+            entry.tenant_id,
+            entry.dpp_id,
+            entry.target_submodel_id,
+            entry.target_aas_path,
+        )
+        async with self._lock:
+            self._entries[key] = entry
+
+    async def put_entries(self, entries: list[BufferEntry]) -> None:
+        """Insert multiple entries atomically."""
+        if not entries:
+            return
+        async with self._lock:
+            for entry in entries:
+                key: _BufferKey = (
+                    entry.tenant_id,
+                    entry.dpp_id,
+                    entry.target_submodel_id,
+                    entry.target_aas_path,
+                )
+                self._entries[key] = entry
+
     async def drain(self) -> list[BufferEntry]:
         """Atomically drain all entries and return them as a list."""
         async with self._lock:

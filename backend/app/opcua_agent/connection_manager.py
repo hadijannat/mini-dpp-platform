@@ -116,3 +116,7 @@ class ConnectionManager:
         """Return the OPC UA client for a source, or None if not connected."""
         entry = self._connections.get(source_id)
         return entry.client if entry is not None else None
+
+    def connected_source_ids(self) -> set[UUID]:
+        """Return source IDs with active connections."""
+        return set(self._connections.keys())

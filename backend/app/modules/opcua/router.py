@@ -23,6 +23,7 @@ from app.core.audit import emit_audit_event
 from app.core.config import get_settings
 from app.core.security import require_access
 from app.core.security.resource_context import (
+    build_dpp_resource_context,
     build_opcua_mapping_resource_context,
     build_opcua_nodeset_resource_context,
     build_opcua_source_resource_context,
@@ -54,7 +55,12 @@ from .schemas import (
     OPCUASourceUpdate,
     TestConnectionResult,
 )
-from .service import MappingService, NodeSetService, OPCUASourceService
+from .service import (
+    MappingService,
+    NodeSetService,
+    NodeSetStorageError,
+    OPCUASourceService,
+)
 
 router = APIRouter()
 
@@ -154,6 +160,40 @@ async def _get_mapping_or_404(
         tenant=tenant,
     )
     return mapping
+
+
+async def _get_dpp_or_404(
+    dpp_id: UUID,
+    tenant: TenantPublisher,
+    db: DbSession,
+    *,
+    action: str = "read",
+    request: Request | None = None,
+) -> object:
+    """Load a DPP and check ABAC access for the requested action."""
+    from app.modules.dpps.service import DPPService
+
+    svc = DPPService(db)
+    dpp = await svc.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+    shared_with_current_user = await svc.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        action,
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        request=request,
+        tenant=tenant,
+    )
+    return dpp
 
 
 def _source_to_response(source: OPCUASource) -> OPCUASourceResponse:
@@ -414,6 +454,11 @@ async def upload_nodeset(
             meta,
             tenant.user.sub,
         )
+    except NodeSetStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -459,11 +504,15 @@ async def download_nodeset(
     """Generate a presigned download URL for the NodeSet XML."""
     _require_opcua_enabled()
     nodeset = await _get_nodeset_or_404(nodeset_id, tenant, db, request, action="download")
-    # In production, inject the MinIO client.  For now return the file ref.
-    return {
-        "download_url": nodeset.nodeset_file_ref,
-        "message": "Presigned URL generation requires MinIO client injection",
-    }
+    svc = NodeSetService(db)
+    try:
+        download_url = svc.generate_download_url(nodeset)
+    except NodeSetStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    return {"download_url": download_url}
 
 
 @router.get("/nodesets/{nodeset_id}/nodes", response_model=list[NodeSearchResult])
@@ -573,6 +622,11 @@ async def create_mapping(
         request=request,
         tenant=tenant,
     )
+    await _get_source_or_404(data.source_id, tenant, db, request, action="read")
+    if data.nodeset_id is not None:
+        await _get_nodeset_or_404(data.nodeset_id, tenant, db, request, action="read")
+    if data.dpp_id is not None:
+        await _get_dpp_or_404(data.dpp_id, tenant, db, action="read", request=request)
 
     # Validate transform expression at creation time
     if data.value_transform_expr:
@@ -635,6 +689,11 @@ async def update_mapping(
     """Update an existing mapping."""
     _require_opcua_enabled()
     mapping = await _get_mapping_or_404(mapping_id, tenant, db, request, action="update")
+    update_data = data.model_dump(exclude_unset=True)
+    if update_data.get("nodeset_id") is not None:
+        await _get_nodeset_or_404(update_data["nodeset_id"], tenant, db, request, action="read")
+    if update_data.get("dpp_id") is not None:
+        await _get_dpp_or_404(update_data["dpp_id"], tenant, db, action="read", request=request)
 
     # Re-validate transform expression if changed
     if data.value_transform_expr is not None:
@@ -756,19 +815,12 @@ def _nodeset_to_response(nodeset: OPCUANodeSet) -> OPCUANodeSetResponse:
 )
 async def publish_to_dataspace(
     body: DataspacePublishRequest,
+    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:
     _require_opcua_enabled()
-    from app.modules.dpps.service import DPPService
-
-    dpp_svc = DPPService(db)
-    dpp = await dpp_svc.get_dpp(body.dpp_id, tenant.tenant_id)
-    if not dpp:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"DPP {body.dpp_id} not found",
-        )
+    await _get_dpp_or_404(body.dpp_id, tenant, db, action="publish", request=request)
     from .dataspace import DataspacePublicationService
 
     ds_svc = DataspacePublicationService(db)
@@ -795,6 +847,7 @@ async def publish_to_dataspace(
     summary="List dataspace publication jobs",
 )
 async def list_publication_jobs(
+    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
     dpp_id: UUID | None = Query(default=None, alias="dppId"),
@@ -802,6 +855,18 @@ async def list_publication_jobs(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> DataspacePublicationJobListResponse:
     _require_opcua_enabled()
+    await require_access(
+        tenant.user,
+        "list",
+        {"type": "dataspace_publication", "tenant_id": str(tenant.tenant_id)},
+        request=request,
+        tenant=tenant,
+    )
+    if dpp_id is not None:
+        await _get_dpp_or_404(dpp_id, tenant, db, action="read", request=request)
+
+    from app.modules.dpps.service import DPPService
+
     from .dataspace import DataspacePublicationService
 
     ds_svc = DataspacePublicationService(db)
@@ -811,6 +876,48 @@ async def list_publication_jobs(
         offset=offset,
         limit=limit,
     )
+
+    if dpp_id is None and items:
+        dpp_svc = DPPService(db)
+        visible_items = []
+        access_cache: dict[UUID, bool] = {}
+        for job in items:
+            allowed = access_cache.get(job.dpp_id)
+            if allowed is None:
+                dpp = await dpp_svc.get_dpp(job.dpp_id, tenant.tenant_id)
+                if dpp is None:
+                    access_cache[job.dpp_id] = False
+                    continue
+                shared_with_current_user = await dpp_svc.is_resource_shared_with_user(
+                    tenant_id=tenant.tenant_id,
+                    resource_type="dpp",
+                    resource_id=dpp.id,
+                    user_subject=tenant.user.sub,
+                )
+                try:
+                    await require_access(
+                        tenant.user,
+                        "read",
+                        build_dpp_resource_context(
+                            dpp, shared_with_current_user=shared_with_current_user
+                        ),
+                        request=request,
+                        tenant=tenant,
+                    )
+                    allowed = True
+                except HTTPException as exc:
+                    if exc.status_code not in {
+                        status.HTTP_403_FORBIDDEN,
+                        status.HTTP_404_NOT_FOUND,
+                    }:
+                        raise
+                    allowed = False
+                access_cache[job.dpp_id] = allowed
+            if allowed:
+                visible_items.append(job)
+        items = visible_items
+        total = len(visible_items)
+
     return DataspacePublicationJobListResponse(
         items=[DataspacePublicationJobResponse.model_validate(j) for j in items],
         total=total,
@@ -824,10 +931,18 @@ async def list_publication_jobs(
 )
 async def get_publication_job(
     job_id: UUID,
+    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:
     _require_opcua_enabled()
+    await require_access(
+        tenant.user,
+        "read",
+        {"type": "dataspace_publication", "tenant_id": str(tenant.tenant_id)},
+        request=request,
+        tenant=tenant,
+    )
     from .dataspace import DataspacePublicationService
 
     ds_svc = DataspacePublicationService(db)
@@ -837,6 +952,7 @@ async def get_publication_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Publication job {job_id} not found",
         )
+    await _get_dpp_or_404(job.dpp_id, tenant, db, action="read", request=request)
     return DataspacePublicationJobResponse.model_validate(job)
 
 
@@ -847,10 +963,18 @@ async def get_publication_job(
 )
 async def retry_publication_job(
     job_id: UUID,
+    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:
     _require_opcua_enabled()
+    await require_access(
+        tenant.user,
+        "create",
+        {"type": "dataspace_publication", "tenant_id": str(tenant.tenant_id)},
+        request=request,
+        tenant=tenant,
+    )
     from .dataspace import DataspacePublicationService
 
     ds_svc = DataspacePublicationService(db)
@@ -860,6 +984,7 @@ async def retry_publication_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Publication job {job_id} not found",
         )
+    await _get_dpp_or_404(job.dpp_id, tenant, db, action="publish", request=request)
     try:
         job = await ds_svc.retry_publication_job(job)
     except ValueError as exc:

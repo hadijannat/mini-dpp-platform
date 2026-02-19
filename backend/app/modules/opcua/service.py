@@ -10,12 +10,15 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import io
 import logging
 import re
 import time
+from datetime import timedelta
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
+from minio import Minio
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,6 +54,29 @@ _NODE_ID_RE = re.compile(r"^ns=\d+;[sigb]=.+$")
 _AAS_PATH_RE = re.compile(r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")
 # Regex for SAMM URN
 _SAMM_URN_RE = re.compile(r"^urn:samm:")
+
+
+class NodeSetStorageError(RuntimeError):
+    """Raised when NodeSet object storage operations fail."""
+
+
+def _build_minio_client() -> Minio:
+    """Create a MinIO client from application settings."""
+    settings = get_settings()
+    return Minio(
+        endpoint=settings.minio_endpoint,
+        access_key=settings.minio_access_key,
+        secret_key=settings.minio_secret_key,
+        secure=settings.minio_secure,
+    )
+
+
+async def _ensure_bucket(client: Minio, bucket: str) -> None:
+    """Ensure the bucket exists before object operations."""
+    exists = await asyncio.to_thread(client.bucket_exists, bucket)
+    if exists:
+        return
+    await asyncio.to_thread(client.make_bucket, bucket)
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +342,7 @@ class NodeSetService:
         meta: OPCUANodeSetUploadMeta,
         user_sub: str,
         *,
-        minio_client: Any = None,
+        minio_client: Minio | None = None,
     ) -> OPCUANodeSet:
         """Parse a NodeSet2.xml and persist metadata + file to MinIO.
 
@@ -333,22 +359,26 @@ class NodeSetService:
         # Store XML in MinIO
         settings = get_settings()
         bucket = settings.opcua_nodeset_bucket
-        nodeset_id_placeholder = str(
-            (await self._session.execute(select(func.uuid_generate_v7()))).scalar_one()
-        )
-        object_key = f"{tenant_id}/opcua_nodesets/{nodeset_id_placeholder}/nodeset.xml"
-
-        if minio_client is not None:
-            import io
-
+        object_key = f"{tenant_id}/opcua_nodesets/{uuid4()}/nodeset.xml"
+        client = minio_client or _build_minio_client()
+        await _ensure_bucket(client, bucket)
+        try:
             await asyncio.to_thread(
-                minio_client.put_object,
+                client.put_object,
                 bucket,
                 object_key,
                 io.BytesIO(xml_bytes),
                 len(xml_bytes),
                 content_type="application/xml",
             )
+        except Exception as exc:
+            logger.exception(
+                "opcua_nodeset_upload_failed",
+                tenant_id=str(tenant_id),
+                bucket=bucket,
+                object_key=object_key,
+            )
+            raise NodeSetStorageError("Failed to store NodeSet XML in object storage") from exc
 
         nodeset = OPCUANodeSet(
             tenant_id=tenant_id,
@@ -381,13 +411,14 @@ class NodeSetService:
         self,
         nodeset: OPCUANodeSet,
         *,
-        minio_client: Any = None,
+        minio_client: Minio | None = None,
     ) -> None:
         """Remove a nodeset from DB and MinIO."""
-        if minio_client is not None and nodeset.nodeset_file_ref:
+        client = minio_client or _build_minio_client()
+        if nodeset.nodeset_file_ref:
             try:
                 await asyncio.to_thread(
-                    minio_client.remove_object,
+                    client.remove_object,
                     get_settings().opcua_nodeset_bucket,
                     nodeset.nodeset_file_ref,
                 )
@@ -400,7 +431,7 @@ class NodeSetService:
             if nodeset.companion_spec_file_ref:
                 with contextlib.suppress(Exception):
                     await asyncio.to_thread(
-                        minio_client.remove_object,
+                        client.remove_object,
                         get_settings().opcua_nodeset_bucket,
                         nodeset.companion_spec_file_ref,
                     )
@@ -418,17 +449,19 @@ class NodeSetService:
     def generate_download_url(
         self,
         nodeset: OPCUANodeSet,
-        minio_client: Any,
+        minio_client: Minio | None = None,
     ) -> str:
         """Generate a presigned MinIO download URL (1h expiry)."""
-        from datetime import timedelta
-
-        url: str = minio_client.presigned_get_object(
-            get_settings().opcua_nodeset_bucket,
-            nodeset.nodeset_file_ref,
-            expires=timedelta(hours=1),
-        )
-        return url
+        client = minio_client or _build_minio_client()
+        try:
+            url: str = client.presigned_get_object(
+                get_settings().opcua_nodeset_bucket,
+                nodeset.nodeset_file_ref,
+                expires=timedelta(hours=1),
+            )
+            return url
+        except Exception as exc:
+            raise NodeSetStorageError("Failed to generate NodeSet download URL") from exc
 
     @staticmethod
     def search_nodes(
