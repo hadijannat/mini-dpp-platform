@@ -2164,7 +2164,7 @@ async def get_dpp_digital_link(
     request: Request,
     db: DbSession,
     tenant: TenantContextDep,
-):
+) -> dict[str, str | bool | None]:
     """Return the canonical GS1 Digital Link URI for a DPP with GTIN."""
     service = DPPService(db)
 
