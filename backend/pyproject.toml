@@ -26,58 +26,52 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn[standard]>=0.27.0",
     "python-multipart>=0.0.9",
-
     # Database
     "sqlalchemy[asyncio]>=2.0.25",
     "asyncpg>=0.29.0",
     "alembic>=1.13.0",
     "greenlet>=3.0.0",
-
     # Caching
     "redis>=5.0.0",
     "hiredis>=2.3.0",
-
     # Authentication & Security
     "PyJWT[crypto]>=2.8.0",
     "passlib[bcrypt]>=1.7.4",
     "httpx>=0.26.0",
     "cryptography>=42.0.0",
-
     # AAS Processing
     "xmltodict>=0.13.0",
     "jsonschema>=4.21.0",
     "basyx-python-sdk==2.0.0",
     "rdflib>=7.0.0",
-
     # Validation & Serialization
     "pydantic>=2.6.0",
     "pydantic-settings>=2.1.0",
     "orjson>=3.9.0",
-
     # QR Code Generation
     "qrcode[pil]>=7.4.0",
     "pillow>=10.2.0",
-
     # Object Storage
     "minio>=7.2.0",
-
     # PDF Export
     "fpdf2>=2.7.8",
     "pypdf>=5.1.0",
-
     # Cryptographic Audit Trail
     "asn1crypto>=1.5.0",
-
     # Metrics
     "prometheus-fastapi-instrumentator>=7.0.0",
-
     # YAML processing
     "pyyaml>=6.0.0",
-
     # Utilities
     "python-dateutil>=2.8.2",
     "tenacity>=8.2.0",
     "structlog>=24.1.0",
+    # OPC UA Client
+    "asyncua>=1.1.0",
+    # Lightweight HTTP server (OPC UA agent health)
+    "aiohttp>=3.9.0",
+    # Prometheus metrics exposition
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -133,7 +127,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["app/db/migrations/"]
 
 [[tool.mypy.overrides]]
-module = ["yaml", "asn1crypto", "asn1crypto.*"]
+module = ["yaml", "asn1crypto", "asn1crypto.*", "asyncua", "asyncua.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

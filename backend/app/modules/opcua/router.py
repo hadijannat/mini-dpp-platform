@@ -33,6 +33,9 @@ from app.db.session import DbSession
 from app.modules.webhooks.service import trigger_webhooks
 
 from .schemas import (
+    DataspacePublicationJobListResponse,
+    DataspacePublicationJobResponse,
+    DataspacePublishRequest,
     DryRunRequest,
     MappingDryRunResult,
     MappingValidationResult,
@@ -738,3 +741,137 @@ def _nodeset_to_response(nodeset: OPCUANodeSet) -> OPCUANodeSetResponse:
     resp = OPCUANodeSetResponse.model_validate(nodeset)
     resp.node_count = (nodeset.parsed_summary_json or {}).get("total_nodes", 0)
     return resp
+
+
+# ==========================================================================
+# Dataspace publication endpoints (4)
+# ==========================================================================
+
+
+@router.post(
+    "/dataspace/publish",
+    response_model=DataspacePublicationJobResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Queue a DPP for dataspace publication",
+)
+async def publish_to_dataspace(
+    body: DataspacePublishRequest,
+    tenant: TenantPublisher,
+    db: DbSession,
+) -> DataspacePublicationJobResponse:
+    _require_opcua_enabled()
+    from app.modules.dpps.service import DPPService
+
+    dpp_svc = DPPService(db)
+    dpp = await dpp_svc.get_dpp(body.dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {body.dpp_id} not found",
+        )
+    from .dataspace import DataspacePublicationService
+
+    ds_svc = DataspacePublicationService(db)
+    job = await ds_svc.create_publication_job(
+        tenant_id=tenant.tenant_id,
+        dpp_id=body.dpp_id,
+        target=body.target,
+    )
+    await emit_audit_event(
+        db_session=db,
+        action="dataspace.publish.queued",
+        resource_type="dataspace_publication_job",
+        resource_id=job.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        metadata={"dpp_id": str(body.dpp_id), "target": body.target},
+    )
+    return DataspacePublicationJobResponse.model_validate(job)
+
+
+@router.get(
+    "/dataspace/jobs",
+    response_model=DataspacePublicationJobListResponse,
+    summary="List dataspace publication jobs",
+)
+async def list_publication_jobs(
+    tenant: TenantPublisher,
+    db: DbSession,
+    dpp_id: UUID | None = Query(default=None, alias="dppId"),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> DataspacePublicationJobListResponse:
+    _require_opcua_enabled()
+    from .dataspace import DataspacePublicationService
+
+    ds_svc = DataspacePublicationService(db)
+    items, total = await ds_svc.list_publication_jobs(
+        tenant.tenant_id,
+        dpp_id=dpp_id,
+        offset=offset,
+        limit=limit,
+    )
+    return DataspacePublicationJobListResponse(
+        items=[DataspacePublicationJobResponse.model_validate(j) for j in items],
+        total=total,
+    )
+
+
+@router.get(
+    "/dataspace/jobs/{job_id}",
+    response_model=DataspacePublicationJobResponse,
+    summary="Get a publication job",
+)
+async def get_publication_job(
+    job_id: UUID,
+    tenant: TenantPublisher,
+    db: DbSession,
+) -> DataspacePublicationJobResponse:
+    _require_opcua_enabled()
+    from .dataspace import DataspacePublicationService
+
+    ds_svc = DataspacePublicationService(db)
+    job = await ds_svc.get_publication_job(job_id, tenant.tenant_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Publication job {job_id} not found",
+        )
+    return DataspacePublicationJobResponse.model_validate(job)
+
+
+@router.post(
+    "/dataspace/jobs/{job_id}/retry",
+    response_model=DataspacePublicationJobResponse,
+    summary="Retry a failed publication job",
+)
+async def retry_publication_job(
+    job_id: UUID,
+    tenant: TenantPublisher,
+    db: DbSession,
+) -> DataspacePublicationJobResponse:
+    _require_opcua_enabled()
+    from .dataspace import DataspacePublicationService
+
+    ds_svc = DataspacePublicationService(db)
+    job = await ds_svc.get_publication_job(job_id, tenant.tenant_id)
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Publication job {job_id} not found",
+        )
+    try:
+        job = await ds_svc.retry_publication_job(job)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    await emit_audit_event(
+        db_session=db,
+        action="dataspace.publish.retried",
+        resource_type="dataspace_publication_job",
+        resource_id=job.id,
+        tenant_id=tenant.tenant_id,
+        user=tenant.user,
+        metadata={"dpp_id": str(job.dpp_id)},
+    )
+    return DataspacePublicationJobResponse.model_validate(job)
