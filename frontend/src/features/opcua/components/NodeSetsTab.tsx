@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState, useDeferredValue } from 'react';
 import { Upload, FileCode, Trash2, Search, Download, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -222,8 +222,9 @@ interface NodeSearchPanelProps {
 
 function NodeSearchPanel({ nodesetId }: NodeSearchPanelProps) {
   const [query, setQuery] = useState('');
+  const deferredQuery = useDeferredValue(query);
   const { data: results, isLoading } = useSearchNodesetNodes(nodesetId, {
-    q: query,
+    q: deferredQuery,
     limit: 50,
   });
 
@@ -397,9 +398,8 @@ export function NodeSetsTab() {
             </TableHeader>
             <TableBody>
               {nodesets.map((ns) => (
-                <>
+                <Fragment key={ns.id}>
                   <TableRow
-                    key={ns.id}
                     className="cursor-pointer"
                     onClick={() => handleRowClick(ns.id)}
                     data-state={expandedId === ns.id ? 'selected' : undefined}
@@ -460,7 +460,7 @@ export function NodeSetsTab() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { Plus, GitBranch, Pencil, Trash2, CheckCircle, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -321,8 +321,8 @@ export function MappingsTab() {
             </TableHeader>
             <TableBody>
               {mappings.map((m) => (
-                <>
-                  <TableRow key={m.id}>
+                <Fragment key={m.id}>
+                  <TableRow>
                     <TableCell className="text-sm">
                       {sourceNameMap.get(m.source_id) ?? m.source_id.slice(0, 8)}
                     </TableCell>
@@ -410,7 +410,7 @@ export function MappingsTab() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               ))}
             </TableBody>
           </Table>
