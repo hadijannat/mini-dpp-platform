@@ -42,12 +42,12 @@ async function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const { default: OPCUASourcesPage } = await import('../OPCUASourcesPage');
+  const { default: OPCUAPage } = await import('../OPCUAPage');
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <OPCUASourcesPage />
+      <MemoryRouter initialEntries={['/console/opcua#sources']}>
+        <OPCUAPage />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -57,11 +57,20 @@ async function renderPage() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('OPCUASourcesPage', () => {
+describe('OPCUAPage — Sources tab', () => {
   afterEach(() => cleanup());
   beforeEach(() => {
     mockApiResponse = { items: [], total: 0 };
     mockApiStatus = 200;
+  });
+
+  it('renders page header and tabs', async () => {
+    await renderPage();
+    expect(await screen.findByText('OPC UA')).toBeTruthy();
+    expect(screen.getByText('Sources')).toBeTruthy();
+    expect(screen.getByText('NodeSets')).toBeTruthy();
+    expect(screen.getByText('Mappings')).toBeTruthy();
+    expect(screen.getByText('Dataspace')).toBeTruthy();
   });
 
   it('renders empty state when no sources exist', async () => {
@@ -111,11 +120,5 @@ describe('OPCUASourcesPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/OPC UA integration is not enabled/)).toBeTruthy();
     });
-  });
-
-  it('renders page header with Add Source button', async () => {
-    await renderPage();
-    expect(await screen.findByText('OPC UA Sources')).toBeTruthy();
-    expect(screen.getByText('Add Source')).toBeTruthy();
   });
 });
