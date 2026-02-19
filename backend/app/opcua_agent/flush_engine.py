@@ -80,17 +80,17 @@ async def flush_buffer(
             try:
                 async with session_factory() as dl_session, dl_session.begin():
                     for entry in group_entries:
-                            await record_dead_letter(
-                                session=dl_session,
-                                tenant_id=tenant_id,
-                                mapping_id=entry.mapping_id,
-                                value_payload={
-                                    "value": entry.value,
-                                    "path": entry.target_aas_path,
-                                    "submodel_id": entry.target_submodel_id,
-                                },
-                                error=f"Flush failed for DPP {dpp_id}",
-                            )
+                        await record_dead_letter(
+                            session=dl_session,
+                            tenant_id=tenant_id,
+                            mapping_id=entry.mapping_id,
+                            value_payload={
+                                "value": entry.value,
+                                "path": entry.target_aas_path,
+                                "submodel_id": entry.target_submodel_id,
+                            },
+                            error=f"Flush failed for DPP {dpp_id}",
+                        )
             except Exception:
                 logger.exception("Failed to record dead letters for DPP %s", dpp_id)
 

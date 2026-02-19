@@ -756,7 +756,6 @@ def _nodeset_to_response(nodeset: OPCUANodeSet) -> OPCUANodeSetResponse:
 )
 async def publish_to_dataspace(
     body: DataspacePublishRequest,
-    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:
@@ -796,7 +795,6 @@ async def publish_to_dataspace(
     summary="List dataspace publication jobs",
 )
 async def list_publication_jobs(
-    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
     dpp_id: UUID | None = Query(default=None, alias="dppId"),
@@ -826,7 +824,6 @@ async def list_publication_jobs(
 )
 async def get_publication_job(
     job_id: UUID,
-    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:
@@ -850,7 +847,6 @@ async def get_publication_job(
 )
 async def retry_publication_job(
     job_id: UUID,
-    request: Request,
     tenant: TenantPublisher,
     db: DbSession,
 ) -> DataspacePublicationJobResponse:

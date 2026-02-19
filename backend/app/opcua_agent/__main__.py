@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import sys
 
 from app.opcua_agent.main import run_agent
 
 
 def main() -> None:
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(run_agent())
-    except KeyboardInterrupt:
-        pass
     sys.exit(0)
 
 

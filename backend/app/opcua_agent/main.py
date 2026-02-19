@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import signal
 
@@ -60,11 +61,8 @@ async def run_agent(*, max_cycles: int = 0) -> None:
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
-        try:
+        with contextlib.suppress(NotImplementedError):
             loop.add_signal_handler(sig, _handle_signal)
-        except NotImplementedError:
-            # Windows doesn't support add_signal_handler
-            pass
 
     _shutdown.clear()
     poll_interval = settings.opcua_agent_poll_interval_seconds
@@ -101,13 +99,11 @@ async def run_agent(*, max_cycles: int = 0) -> None:
             if max_cycles > 0 and cycle >= max_cycles:
                 break
 
-            try:
+            with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(
                     _shutdown.wait(),
                     timeout=poll_interval,
                 )
-            except asyncio.TimeoutError:
-                pass
     finally:
         await health_runner.cleanup()
         await conn_manager.disconnect_all()

@@ -81,14 +81,14 @@ def create_health_app() -> web.Application:
     return app
 
 
-async def _healthz(request: web.Request) -> web.Response:
+async def _healthz(_request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
-async def _readyz(request: web.Request) -> web.Response:
+async def _readyz(_request: web.Request) -> web.Response:
     return web.json_response({"status": "ready"})
 
 
-async def _metrics(request: web.Request) -> web.Response:
+async def _metrics(_request: web.Request) -> web.Response:
     body = generate_latest(REGISTRY)
     return web.Response(body=body, content_type="text/plain; version=0.0.4")
