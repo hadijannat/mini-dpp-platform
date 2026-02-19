@@ -69,6 +69,21 @@ _RLS_0029 = {
     "data_carrier_artifacts",
 }
 
+# Tables with RLS from migration 0035
+_RLS_0035 = {
+    "opcua_sources",
+    "opcua_nodesets",
+    "opcua_mappings",
+    "opcua_jobs",
+    "opcua_deadletters",
+    "opcua_inventory_snapshots",
+}
+
+# Tables with RLS from migration 0036
+_RLS_0036 = {
+    "dataspace_publication_jobs",
+}
+
 TABLES_WITH_RLS = (
     _RLS_0005
     | _RLS_0008_0009
@@ -78,6 +93,8 @@ TABLES_WITH_RLS = (
     | _RLS_0027
     | _RLS_0028
     | _RLS_0029
+    | _RLS_0035
+    | _RLS_0036
 )
 
 

@@ -195,7 +195,7 @@ class OPCUASourceService:
         Does NOT create subscriptions.
         """
         try:
-            from asyncua import Client as OPCUAClient  # type: ignore[import-untyped]
+            from asyncua import Client as OPCUAClient  # type: ignore[import-untyped,import-not-found,unused-ignore]  # noqa: E501,I001
         except ImportError:
             return TestConnectionResult(
                 success=False,

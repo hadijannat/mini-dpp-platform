@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-from lxml import etree
+from lxml import etree  # type: ignore[import-untyped,unused-ignore]
 
 # OPC UA NodeSet2 XML namespace
 _UA_NS = "http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
@@ -102,7 +102,8 @@ def _extract_description(node_elem: etree._Element) -> str | None:
     """Extract first Description text from a node element."""
     desc = node_elem.find("ua:Description", _NS_MAP)
     if desc is not None and desc.text:
-        return desc.text.strip()
+        result: str = desc.text.strip()
+        return result
     return None
 
 
@@ -120,9 +121,11 @@ def _extract_engineering_unit(node_elem: etree._Element) -> str | None:
         if tag.endswith("}DisplayName") or tag == "DisplayName":
             text_elem = ext.find(f"{{{_UA_NS}}}Text") if _UA_NS in tag else ext.find("Text")
             if text_elem is not None and text_elem.text:
-                return text_elem.text.strip()
+                val: str = text_elem.text.strip()
+                return val
             if ext.text and ext.text.strip():
-                return ext.text.strip()
+                val2: str = ext.text.strip()
+                return val2
     return None
 
 
@@ -146,7 +149,8 @@ def _resolve_parent(node_elem: etree._Element) -> str | None:
             )
             and ref.text
         ):
-            return ref.text.strip()
+            parent_id: str = ref.text.strip()
+            return parent_id
     return None
 
 
