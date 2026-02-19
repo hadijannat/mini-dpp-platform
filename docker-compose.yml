@@ -227,6 +227,32 @@ services:
     networks:
       - dpp-network
 
+  # =============================================================================
+  # OPC UA Agent - Background Worker
+  # =============================================================================
+  opcua-agent:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: development
+    container_name: dpp-opcua-agent
+    command: >
+      sh -c "python -m app.opcua_agent"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql+asyncpg://dpp_user:dpp_dev_password_2024@postgres:5432/dpp_platform
+      - REDIS_URL=redis://redis:6379/0
+      - ENCRYPTION_MASTER_KEY=${ENCRYPTION_MASTER_KEY:-dGVzdC1rZXktMzItYnl0ZXMtbG9uZy4uLg==}
+      - OPCUA_ENABLED=${OPCUA_ENABLED:-false}
+    volumes:
+      - ./backend:/app:cached
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - dpp-network
+
 networks:
   dpp-network:
     driver: bridge

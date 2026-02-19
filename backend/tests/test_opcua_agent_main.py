@@ -39,6 +39,7 @@ async def test_agent_runs_limited_cycles() -> None:
         mock_settings.return_value.database_pool_timeout = 30
         mock_settings.return_value.debug = False
         mock_settings.return_value.opcua_agent_poll_interval_seconds = 1
+        mock_settings.return_value.opcua_max_connections_per_tenant = 5
 
         from app.opcua_agent.main import run_agent
 
@@ -56,7 +57,10 @@ async def test_agent_disposes_engine_on_exception() -> None:
     with (
         patch("app.opcua_agent.main.get_settings") as mock_settings,
         patch("app.opcua_agent.main.create_async_engine", return_value=mock_engine),
-        patch("app.opcua_agent.main.asyncio.sleep", side_effect=RuntimeError("boom")),
+        patch(
+            "app.opcua_agent.main._sync_subscriptions",
+            side_effect=RuntimeError("boom"),
+        ),
     ):
         mock_settings.return_value.opcua_enabled = True
         mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
@@ -65,10 +69,13 @@ async def test_agent_disposes_engine_on_exception() -> None:
         mock_settings.return_value.database_pool_timeout = 30
         mock_settings.return_value.debug = False
         mock_settings.return_value.opcua_agent_poll_interval_seconds = 1
+        mock_settings.return_value.opcua_max_connections_per_tenant = 5
 
         from app.opcua_agent.main import run_agent
 
-        with pytest.raises(RuntimeError, match="boom"):
-            await run_agent(max_cycles=0)
+        # _sync_subscriptions raises but it's caught by the except block,
+        # so the agent continues and exits after max_cycles=1.
+        # Engine is disposed in the finally block.
+        await run_agent(max_cycles=1)
 
     mock_engine.dispose.assert_awaited_once()
