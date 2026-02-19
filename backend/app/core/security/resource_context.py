@@ -56,3 +56,29 @@ def build_connector_resource_context(
         "visibility_scope": str(visibility_scope),
         "shared_with_current_user": shared_with_current_user,
     }
+
+
+def build_opcua_source_resource_context(source: Any) -> dict[str, Any]:
+    """Build ABAC payload for an OPC UA source resource."""
+    return {
+        "type": "opcua_source",
+        "id": str(source.id),
+        "owner_subject": getattr(source, "created_by", ""),
+    }
+
+
+def build_opcua_nodeset_resource_context(nodeset: Any) -> dict[str, Any]:
+    """Build ABAC payload for an OPC UA nodeset resource."""
+    return {
+        "type": "opcua_nodeset",
+        "id": str(nodeset.id),
+        "owner_subject": getattr(nodeset, "created_by", ""),
+    }
+
+
+def build_opcua_mapping_resource_context(mapping: Any) -> dict[str, Any]:
+    """Build ABAC payload for an OPC UA mapping resource."""
+    return {
+        "type": "opcua_mapping",
+        "id": str(mapping.id),
+    }

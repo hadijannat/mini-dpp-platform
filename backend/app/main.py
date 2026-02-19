@@ -38,6 +38,7 @@ from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
 from app.modules.onboarding.role_request_router import router as role_request_router
 from app.modules.onboarding.router import router as onboarding_router
+from app.modules.opcua.router import router as opcua_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
 from app.modules.registry.public_router import router as public_registry_router
@@ -380,6 +381,11 @@ window.onload = function() {{
         role_request_router,
         prefix=f"{tenant_prefix}/role-requests",
         tags=["Role Requests"],
+    )
+    app.include_router(
+        opcua_router,
+        prefix=f"{tenant_prefix}/opcua",
+        tags=["OPC UA"],
     )
 
     # Prometheus metrics endpoint
