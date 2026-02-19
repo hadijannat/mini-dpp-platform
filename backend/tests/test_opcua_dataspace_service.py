@@ -12,7 +12,7 @@ from app.db.models import DataspacePublicationStatus
 async def test_create_publication_job():
     from app.modules.opcua.dataspace import DataspacePublicationService
 
-    mock_session = AsyncMock()
+    mock_session = MagicMock()
     mock_session.flush = AsyncMock()
     svc = DataspacePublicationService(mock_session)
     job = await svc.create_publication_job(
@@ -30,10 +30,10 @@ async def test_create_publication_job():
 async def test_get_publication_job():
     from app.modules.opcua.dataspace import DataspacePublicationService
 
-    mock_session = AsyncMock()
+    mock_session = MagicMock()
     mock_job = MagicMock()
     mock_job.tenant_id = uuid.uuid4()
-    mock_session.get.return_value = mock_job
+    mock_session.get = AsyncMock(return_value=mock_job)
     svc = DataspacePublicationService(mock_session)
     result = await svc.get_publication_job(uuid.uuid4(), mock_job.tenant_id)
     assert result is mock_job

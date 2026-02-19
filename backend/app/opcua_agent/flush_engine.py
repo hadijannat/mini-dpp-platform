@@ -6,7 +6,8 @@ import hashlib
 import json
 import logging
 from collections import defaultdict
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 from uuid import UUID
 
 from sqlalchemy import select, text
@@ -18,6 +19,14 @@ from app.opcua_agent.deadletter import record_dead_letter
 from app.opcua_agent.ingestion_buffer import BufferEntry, IngestionBuffer
 
 logger = logging.getLogger("opcua_agent.flush")
+
+
+@dataclass(frozen=True)
+class FlushOutcome:
+    """Outcome for flushing one DPP group."""
+
+    status: Literal["ok", "retry", "deadletter"]
+    reason: str | None = None
 
 
 def _group_entries_by_dpp(
@@ -62,18 +71,35 @@ async def flush_buffer(
 
     grouped = _group_entries_by_dpp(entries)
     success_count = 0
+    retry_entries: list[BufferEntry] = []
 
     for (tenant_id, dpp_id), group_entries in grouped.items():
         try:
             async with session_factory() as session, session.begin():
-                ok = await _flush_single_dpp(
+                outcome = await _flush_single_dpp(
                     session=session,
                     tenant_id=tenant_id,
                     dpp_id=dpp_id,
                     entries=group_entries,
                 )
-                if ok:
+                if outcome.status == "ok":
                     success_count += 1
+                elif outcome.status == "retry":
+                    retry_entries.extend(group_entries)
+                elif outcome.status == "deadletter":
+                    async with session_factory() as dl_session, dl_session.begin():
+                        for entry in group_entries:
+                            await record_dead_letter(
+                                session=dl_session,
+                                tenant_id=tenant_id,
+                                mapping_id=entry.mapping_id,
+                                value_payload={
+                                    "value": entry.value,
+                                    "path": entry.target_aas_path,
+                                    "submodel_id": entry.target_submodel_id,
+                                },
+                                error=outcome.reason or f"Flush failed for DPP {dpp_id}",
+                            )
         except Exception:
             logger.exception("Failed to flush DPP %s for tenant %s", dpp_id, tenant_id)
             # Record dead letters for each entry in the failed group
@@ -94,10 +120,15 @@ async def flush_buffer(
             except Exception:
                 logger.exception("Failed to record dead letters for DPP %s", dpp_id)
 
+    if retry_entries:
+        await buffer.put_entries(retry_entries)
+        logger.info("Requeued %d buffered entries for retry", len(retry_entries))
+
     logger.info(
-        "Flush complete: %d/%d DPP groups succeeded",
+        "Flush complete: %d/%d DPP groups succeeded (requeued=%d)",
         success_count,
         len(grouped),
+        len(retry_entries),
     )
     return success_count
 
@@ -108,12 +139,11 @@ async def _flush_single_dpp(
     tenant_id: UUID,
     dpp_id: UUID,
     entries: list[BufferEntry],
-) -> bool:
+) -> FlushOutcome:
     """Flush entries for a single DPP within an existing transaction.
 
     Uses a PostgreSQL advisory lock to prevent concurrent flushes for the
-    same DPP.  Returns ``True`` on success, ``False`` if the lock could
-    not be acquired.
+    same DPP.
     """
     lock_key = f"opcua_flush:{tenant_id}:{dpp_id}"
     lock_result = await session.execute(
@@ -126,13 +156,13 @@ async def _flush_single_dpp(
             "Could not acquire advisory lock for DPP %s — skipping flush",
             dpp_id,
         )
-        return False
+        return FlushOutcome(status="retry", reason=f"Advisory lock unavailable for DPP {dpp_id}")
 
     # Load the DPP
     dpp = await session.get(DPP, dpp_id)
     if dpp is None:
         logger.warning("DPP %s not found — skipping flush", dpp_id)
-        return False
+        return FlushOutcome(status="deadletter", reason=f"DPP {dpp_id} not found")
 
     # Load the latest revision
     latest_rev_stmt = (
@@ -144,7 +174,10 @@ async def _flush_single_dpp(
     latest_rev = (await session.scalars(latest_rev_stmt)).first()
     if latest_rev is None:
         logger.warning("DPP %s has no revisions — skipping flush", dpp_id)
-        return False
+        return FlushOutcome(
+            status="deadletter",
+            reason=f"DPP {dpp_id} has no revisions available for patching",
+        )
 
     # Build and apply patches
     patches = _build_patch_operations(entries)
@@ -186,4 +219,4 @@ async def _flush_single_dpp(
         new_revision_no,
         len(entries),
     )
-    return True
+    return FlushOutcome(status="ok")

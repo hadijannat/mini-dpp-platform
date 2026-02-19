@@ -63,6 +63,7 @@ def build_opcua_source_resource_context(source: Any) -> dict[str, Any]:
     return {
         "type": "opcua_source",
         "id": str(source.id),
+        "tenant_id": str(source.tenant_id),
         "owner_subject": getattr(source, "created_by", ""),
     }
 
@@ -72,6 +73,7 @@ def build_opcua_nodeset_resource_context(nodeset: Any) -> dict[str, Any]:
     return {
         "type": "opcua_nodeset",
         "id": str(nodeset.id),
+        "tenant_id": str(nodeset.tenant_id),
         "owner_subject": getattr(nodeset, "created_by", ""),
     }
 
@@ -81,4 +83,6 @@ def build_opcua_mapping_resource_context(mapping: Any) -> dict[str, Any]:
     return {
         "type": "opcua_mapping",
         "id": str(mapping.id),
+        "tenant_id": str(mapping.tenant_id),
+        "owner_subject": getattr(mapping, "created_by", ""),
     }
