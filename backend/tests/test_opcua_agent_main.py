@@ -1,0 +1,74 @@
+"""Tests for opcua_agent entry point — verifies graceful shutdown."""
+
+from __future__ import annotations
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_agent_exits_when_opcua_disabled() -> None:
+    """Agent should exit immediately if opcua_enabled=False."""
+    with patch("app.opcua_agent.main.get_settings") as mock_settings:
+        mock_settings.return_value.opcua_enabled = False
+        mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
+        mock_settings.return_value.database_pool_size = 5
+        mock_settings.return_value.database_max_overflow = 10
+        mock_settings.return_value.database_pool_timeout = 30
+        mock_settings.return_value.debug = False
+        from app.opcua_agent.main import run_agent
+
+        await run_agent(max_cycles=1)
+
+
+@pytest.mark.asyncio
+async def test_agent_runs_limited_cycles() -> None:
+    """Agent should exit after max_cycles when opcua_enabled=True."""
+    mock_engine = AsyncMock()
+    mock_engine.dispose = AsyncMock()
+
+    with (
+        patch("app.opcua_agent.main.get_settings") as mock_settings,
+        patch("app.opcua_agent.main.create_async_engine", return_value=mock_engine),
+    ):
+        mock_settings.return_value.opcua_enabled = True
+        mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
+        mock_settings.return_value.database_pool_size = 5
+        mock_settings.return_value.database_max_overflow = 10
+        mock_settings.return_value.database_pool_timeout = 30
+        mock_settings.return_value.debug = False
+        mock_settings.return_value.opcua_agent_poll_interval_seconds = 1
+
+        from app.opcua_agent.main import run_agent
+
+        await run_agent(max_cycles=2)
+
+    mock_engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_agent_disposes_engine_on_exception() -> None:
+    """Engine must be disposed even if an exception occurs in the poll loop."""
+    mock_engine = AsyncMock()
+    mock_engine.dispose = AsyncMock()
+
+    with (
+        patch("app.opcua_agent.main.get_settings") as mock_settings,
+        patch("app.opcua_agent.main.create_async_engine", return_value=mock_engine),
+        patch("app.opcua_agent.main.asyncio.sleep", side_effect=RuntimeError("boom")),
+    ):
+        mock_settings.return_value.opcua_enabled = True
+        mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
+        mock_settings.return_value.database_pool_size = 5
+        mock_settings.return_value.database_max_overflow = 10
+        mock_settings.return_value.database_pool_timeout = 30
+        mock_settings.return_value.debug = False
+        mock_settings.return_value.opcua_agent_poll_interval_seconds = 1
+
+        from app.opcua_agent.main import run_agent
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await run_agent(max_cycles=0)
+
+    mock_engine.dispose.assert_awaited_once()
