@@ -6,11 +6,13 @@ import asyncio
 import logging
 import signal
 
+from aiohttp import web
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_settings
 from app.opcua_agent.connection_manager import ConnectionManager
 from app.opcua_agent.flush_engine import flush_buffer
+from app.opcua_agent.health import create_health_app
 from app.opcua_agent.ingestion_buffer import IngestionBuffer
 
 logger = logging.getLogger(__name__)
@@ -67,6 +69,14 @@ async def run_agent(*, max_cycles: int = 0) -> None:
     _shutdown.clear()
     poll_interval = settings.opcua_agent_poll_interval_seconds
 
+    # Start health server
+    health_app = create_health_app()
+    health_runner = web.AppRunner(health_app)
+    await health_runner.setup()
+    health_site = web.TCPSite(health_runner, "0.0.0.0", 8090)
+    await health_site.start()
+    logger.info("Health server started on port 8090")
+
     logger.info("OPC UA agent started — poll interval %ds", poll_interval)
 
     cycle = 0
@@ -99,6 +109,7 @@ async def run_agent(*, max_cycles: int = 0) -> None:
             except asyncio.TimeoutError:
                 pass
     finally:
+        await health_runner.cleanup()
         await conn_manager.disconnect_all()
         await engine.dispose()
         logger.info("OPC UA agent stopped after %d cycles", cycle)

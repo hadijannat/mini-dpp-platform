@@ -7,6 +7,22 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+def _mock_health_server():
+    """Return patch context managers for the health server components."""
+    mock_runner = AsyncMock()
+    mock_runner.setup = AsyncMock()
+    mock_runner.cleanup = AsyncMock()
+
+    mock_site = AsyncMock()
+    mock_site.start = AsyncMock()
+
+    return (
+        patch("app.opcua_agent.main.web.AppRunner", return_value=mock_runner),
+        patch("app.opcua_agent.main.web.TCPSite", return_value=mock_site),
+        mock_runner,
+    )
+
+
 @pytest.mark.asyncio
 async def test_agent_exits_when_opcua_disabled() -> None:
     """Agent should exit immediately if opcua_enabled=False."""
@@ -28,9 +44,13 @@ async def test_agent_runs_limited_cycles() -> None:
     mock_engine = AsyncMock()
     mock_engine.dispose = AsyncMock()
 
+    runner_patch, site_patch, mock_runner = _mock_health_server()
+
     with (
         patch("app.opcua_agent.main.get_settings") as mock_settings,
         patch("app.opcua_agent.main.create_async_engine", return_value=mock_engine),
+        runner_patch,
+        site_patch,
     ):
         mock_settings.return_value.opcua_enabled = True
         mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
@@ -46,6 +66,7 @@ async def test_agent_runs_limited_cycles() -> None:
         await run_agent(max_cycles=2)
 
     mock_engine.dispose.assert_awaited_once()
+    mock_runner.cleanup.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -54,6 +75,8 @@ async def test_agent_disposes_engine_on_exception() -> None:
     mock_engine = AsyncMock()
     mock_engine.dispose = AsyncMock()
 
+    runner_patch, site_patch, mock_runner = _mock_health_server()
+
     with (
         patch("app.opcua_agent.main.get_settings") as mock_settings,
         patch("app.opcua_agent.main.create_async_engine", return_value=mock_engine),
@@ -61,6 +84,8 @@ async def test_agent_disposes_engine_on_exception() -> None:
             "app.opcua_agent.main._sync_subscriptions",
             side_effect=RuntimeError("boom"),
         ),
+        runner_patch,
+        site_patch,
     ):
         mock_settings.return_value.opcua_enabled = True
         mock_settings.return_value.database_url = "postgresql+asyncpg://x@localhost/x"
@@ -79,3 +104,4 @@ async def test_agent_disposes_engine_on_exception() -> None:
         await run_agent(max_cycles=1)
 
     mock_engine.dispose.assert_awaited_once()
+    mock_runner.cleanup.assert_awaited_once()
