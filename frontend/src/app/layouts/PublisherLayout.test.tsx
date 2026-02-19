@@ -11,7 +11,7 @@ const authState = {
   },
   signoutRedirect: vi.fn(),
 };
-let opcuaEnabled = true;
+let opcuaStatusMode: 'enabled' | 'disabled' | 'error' = 'enabled';
 
 vi.mock('react-oidc-context', () => ({
   useAuth: () => authState,
@@ -26,7 +26,12 @@ vi.mock('@/lib/breadcrumbs', () => ({
 }));
 
 vi.mock('@/features/opcua/lib/opcuaApi', () => ({
-  fetchOpcuaFeatureStatus: vi.fn(() => Promise.resolve({ enabled: opcuaEnabled })),
+  fetchOpcuaFeatureStatus: vi.fn(() => {
+    if (opcuaStatusMode === 'error') {
+      return Promise.reject(new Error('status fetch failed'));
+    }
+    return Promise.resolve({ enabled: opcuaStatusMode === 'enabled' });
+  }),
 }));
 
 vi.mock('../components/SidebarNav', () => ({
@@ -69,7 +74,7 @@ describe('PublisherLayout role request navigation', () => {
       access_token: 'fake-token',
       profile: { roles: ['viewer'], sub: 'user-123' },
     };
-    opcuaEnabled = true;
+    opcuaStatusMode = 'enabled';
   });
 
   it('shows Role Requests for tenant_admin users', async () => {
@@ -106,7 +111,7 @@ describe('PublisherLayout OPC UA nav gating', () => {
   });
 
   it('hides OPC UA navigation when backend reports feature disabled', async () => {
-    opcuaEnabled = false;
+    opcuaStatusMode = 'disabled';
 
     renderLayout();
 
@@ -116,7 +121,15 @@ describe('PublisherLayout OPC UA nav gating', () => {
   });
 
   it('shows OPC UA navigation when backend reports feature enabled', async () => {
-    opcuaEnabled = true;
+    opcuaStatusMode = 'enabled';
+
+    renderLayout();
+
+    expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
+  });
+
+  it('fails open and shows OPC UA navigation when status fetch fails', async () => {
+    opcuaStatusMode = 'error';
 
     renderLayout();
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.core.config import get_settings
@@ -39,3 +40,16 @@ def test_opcua_status_returns_enabled_when_feature_flag_on(
         assert response.json() == {"enabled": True}
     finally:
         get_settings.cache_clear()
+
+
+def test_opcua_status_route_requires_tenant_publisher_dependency() -> None:
+    app = create_application()
+    status_route = next(
+        route
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and route.path == "/api/v1/tenants/{tenant_slug}/opcua/status"
+        and "GET" in route.methods
+    )
+    dependency_calls = {dep.call for dep in status_route.dependant.dependencies}
+    assert require_tenant_publisher in dependency_calls
