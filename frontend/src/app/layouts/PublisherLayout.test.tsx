@@ -1,19 +1,37 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
 const authState = {
-  user: { profile: { roles: ['viewer'] } },
+  user: {
+    access_token: 'fake-token',
+    profile: { roles: ['viewer'], sub: 'user-123' },
+  },
   signoutRedirect: vi.fn(),
 };
+let opcuaStatusMode: 'enabled' | 'disabled' | 'error' = 'enabled';
 
 vi.mock('react-oidc-context', () => ({
   useAuth: () => authState,
 }));
 
+vi.mock('@/lib/tenant', () => ({
+  getTenantSlug: () => 'default',
+}));
+
 vi.mock('@/lib/breadcrumbs', () => ({
   useBreadcrumbs: () => [],
+}));
+
+vi.mock('@/features/opcua/lib/opcuaApi', () => ({
+  fetchOpcuaFeatureStatus: vi.fn(() => {
+    if (opcuaStatusMode === 'error') {
+      return Promise.reject(new Error('status fetch failed'));
+    }
+    return Promise.resolve({ enabled: opcuaStatusMode === 'enabled' });
+  }),
 }));
 
 vi.mock('../components/SidebarNav', () => ({
@@ -32,34 +50,89 @@ vi.mock('../components/SidebarUserFooter', () => ({
 
 import PublisherLayout from './PublisherLayout';
 
-describe('PublisherLayout role request navigation', () => {
-  beforeEach(() => {
-    authState.user = { profile: { roles: ['viewer'] } };
+afterEach(() => {
+  cleanup();
+});
+
+function renderLayout() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
   });
 
-  it('shows Role Requests for tenant_admin users', () => {
-    authState.user = { profile: { roles: ['tenant_admin'] } };
-
-    render(
+  return render(
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter>
         <PublisherLayout />
-      </MemoryRouter>,
-    );
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+describe('PublisherLayout role request navigation', () => {
+  beforeEach(() => {
+    authState.user = {
+      access_token: 'fake-token',
+      profile: { roles: ['viewer'], sub: 'user-123' },
+    };
+    opcuaStatusMode = 'enabled';
+  });
+
+  it('shows Role Requests for tenant_admin users', async () => {
+    authState.user = {
+      access_token: 'fake-token',
+      profile: { roles: ['tenant_admin'], sub: 'user-123' },
+    };
+    renderLayout();
 
     expect(screen.queryAllByText('Role Requests').length).toBeGreaterThan(0);
     expect(screen.queryAllByText('Admin').length).toBe(0);
+    expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
   });
 
-  it('shows Role Requests and Admin navigation for platform admin users', () => {
-    authState.user = { profile: { roles: ['admin'] } };
-
-    render(
-      <MemoryRouter>
-        <PublisherLayout />
-      </MemoryRouter>,
-    );
+  it('shows Role Requests and Admin navigation for platform admin users', async () => {
+    authState.user = {
+      access_token: 'fake-token',
+      profile: { roles: ['admin'], sub: 'user-123' },
+    };
+    renderLayout();
 
     expect(screen.queryAllByText('Role Requests').length).toBeGreaterThan(0);
     expect(screen.queryAllByText('Admin').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
+  });
+});
+
+describe('PublisherLayout OPC UA nav gating', () => {
+  beforeEach(() => {
+    authState.user = {
+      access_token: 'fake-token',
+      profile: { roles: ['viewer'], sub: 'user-123' },
+    };
+  });
+
+  it('hides OPC UA navigation when backend reports feature disabled', async () => {
+    opcuaStatusMode = 'disabled';
+
+    renderLayout();
+
+    await waitFor(() => {
+      expect(screen.queryAllByText('OPC UA')).toHaveLength(0);
+    });
+  });
+
+  it('shows OPC UA navigation when backend reports feature enabled', async () => {
+    opcuaStatusMode = 'enabled';
+
+    renderLayout();
+
+    expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
+  });
+
+  it('fails open and shows OPC UA navigation when status fetch fails', async () => {
+    opcuaStatusMode = 'error';
+
+    renderLayout();
+
+    expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
   });
 });

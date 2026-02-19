@@ -1,8 +1,8 @@
 """API router for OPC UA sources, nodesets, and mappings.
 
-Provides 19 CRUD + utility endpoints mounted at
-``{tenant_prefix}/opcua``.  All endpoints require the ``publisher`` role
-and are gated behind the ``opcua_enabled`` feature flag.
+Provides CRUD + utility endpoints mounted at ``{tenant_prefix}/opcua``.
+All endpoints require the ``publisher`` role. Most endpoints are gated
+behind the ``opcua_enabled`` feature flag.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ from .schemas import (
     MappingDryRunResult,
     MappingValidationResult,
     NodeSearchResult,
+    OPCUAFeatureStatusResponse,
     OPCUAMappingCreate,
     OPCUAMappingListResponse,
     OPCUAMappingResponse,
@@ -77,6 +78,16 @@ def _require_opcua_enabled() -> None:
             status_code=status.HTTP_410_GONE,
             detail="OPC UA feature is not enabled",
         )
+
+
+@router.get("/status", response_model=OPCUAFeatureStatusResponse)
+async def get_opcua_feature_status(
+    *,
+    tenant: TenantPublisher,
+) -> OPCUAFeatureStatusResponse:
+    """Return whether OPC UA endpoints are enabled in this environment."""
+    del tenant
+    return OPCUAFeatureStatusResponse(enabled=get_settings().opcua_enabled)
 
 
 # ---------------------------------------------------------------------------

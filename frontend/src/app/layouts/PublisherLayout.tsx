@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
 import {
   LayoutDashboard,
@@ -32,6 +33,7 @@ import {
   isAdmin as checkIsAdmin,
 } from '@/lib/auth';
 import { useBreadcrumbs } from '@/lib/breadcrumbs';
+import { getTenantSlug } from '@/lib/tenant';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
@@ -52,6 +54,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { fetchOpcuaFeatureStatus } from '@/features/opcua/lib/opcuaApi';
 import SidebarNav, { type NavItem } from '../components/SidebarNav';
 import SidebarUserFooter from '../components/SidebarUserFooter';
 
@@ -59,7 +62,7 @@ const STORAGE_KEY = 'sidebar-collapsed';
 const SIDEBAR_FULL = 256;
 const SIDEBAR_COLLAPSED = 48;
 
-const baseNavigation: NavItem[] = [
+const baseNavigationBeforeOpcua: NavItem[] = [
   { name: 'Dashboard', href: '/console', icon: LayoutDashboard },
   { name: 'DPPs', href: '/console/dpps', icon: FileText },
   { name: 'Masters', href: '/console/masters', icon: Layers },
@@ -68,7 +71,11 @@ const baseNavigation: NavItem[] = [
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
   { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
-  { name: 'OPC UA', href: '/console/opcua', icon: Radio },
+];
+
+const opcuaNavigationItem: NavItem = { name: 'OPC UA', href: '/console/opcua', icon: Radio };
+
+const baseNavigationAfterOpcua: NavItem[] = [
   { name: 'Batch Import', href: '/console/batch-import', icon: PackagePlus },
   { name: 'Activity', href: '/console/activity', icon: ScrollText },
 ];
@@ -88,6 +95,27 @@ export default function PublisherLayout() {
   const breadcrumbs = useBreadcrumbs();
   const userIsAdmin = checkIsAdmin(auth.user);
   const canReviewRoleRequests = canReviewRoleRequestsByRole(auth.user);
+  const token = auth.user?.access_token ?? '';
+  const tenantSlug = getTenantSlug();
+  const userSubject = (auth.user?.profile?.sub as string | undefined) ?? '';
+
+  const opcuaStatusQuery = useQuery({
+    queryKey: ['opcua-feature-status', tenantSlug, userSubject],
+    queryFn: () => fetchOpcuaFeatureStatus(token),
+    enabled: !!token,
+    staleTime: 60_000,
+    retry: 0,
+  });
+
+  // Fail open on transient errors to avoid accidental navigation lockout.
+  const isOpcuaEnabled = opcuaStatusQuery.data?.enabled ?? true;
+  const featureNavigation: NavItem[] = useMemo(() => {
+    return [
+      ...baseNavigationBeforeOpcua,
+      ...(isOpcuaEnabled ? [opcuaNavigationItem] : []),
+      ...baseNavigationAfterOpcua,
+    ];
+  }, [isOpcuaEnabled]);
 
   const adminNavigation: NavItem[] = userIsAdmin
     ? [
@@ -106,7 +134,7 @@ export default function PublisherLayout() {
     ? [{ name: 'Role Requests', href: '/console/role-requests', icon: UserCheck }]
     : [];
 
-  const navigation: NavItem[] = [...baseNavigation, ...reviewerNavigation, ...adminNavigation];
+  const navigation: NavItem[] = [...featureNavigation, ...reviewerNavigation, ...adminNavigation];
 
   const [collapsed, setCollapsed] = useState(() => {
     try {

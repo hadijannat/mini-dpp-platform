@@ -352,6 +352,32 @@ services:
       - dpp-network
 
   # =============================================================================
+  # OPC UA Agent - Background Worker (Production)
+  # =============================================================================
+  opcua-agent:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: production
+    image: dpp-backend:prod
+    container_name: dpp-opcua-agent
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "1.0"
+    command: python -m app.opcua_agent
+    environment: *backend-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - dpp-network
+
+  # =============================================================================
   # Frontend - React Application (Production via nginx)
   # =============================================================================
   frontend:

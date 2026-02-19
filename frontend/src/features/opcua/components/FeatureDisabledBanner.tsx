@@ -6,8 +6,9 @@ export function FeatureDisabledBanner() {
     <Alert>
       <AlertCircle className="h-4 w-4" />
       <AlertDescription>
-        OPC UA integration is not enabled for this environment. Contact your
-        administrator to enable it.
+        OPC UA integration is not enabled for this environment. Ask your
+        administrator to enable the backend flag (<code>OPCUA_ENABLED=true</code>)
+        and restart the platform services.
       </AlertDescription>
     </Alert>
   );
