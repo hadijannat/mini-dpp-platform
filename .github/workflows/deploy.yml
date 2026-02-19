@@ -183,9 +183,25 @@ jobs:
             # Normalize expected runtime flag value for deployment decisions/checks.
             EXPECTED_OPCUA_ENABLED=$(printf '%s' "${OPCUA_ENABLED:-true}" | tr '[:upper:]' '[:lower:]')
 
+            compose_has_service() {
+              docker compose -f docker-compose.prod.yml config --services | grep -qx "$1"
+            }
+
+            rollback_backend_services() {
+              if [ "$EXPECTED_OPCUA_ENABLED" = "true" ] && compose_has_service "opcua-agent"; then
+                docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
+              else
+                docker compose -f docker-compose.prod.yml up -d --build backend
+                docker compose -f docker-compose.prod.yml stop opcua-agent >/dev/null 2>&1 || true
+              fi
+            }
+
             # Restart application + monitoring services
-            if [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
+            if [ "$EXPECTED_OPCUA_ENABLED" = "true" ] && compose_has_service "opcua-agent"; then
               docker compose -f docker-compose.prod.yml up -d --no-deps backend opcua-agent frontend caddy prometheus grafana
+            elif [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
+              echo "OPCUA_ENABLED=true but opcua-agent service is missing in compose; starting core services only."
+              docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy prometheus grafana
             else
               docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy prometheus grafana
               # Avoid restart loops when OPC UA is intentionally disabled.
@@ -201,12 +217,7 @@ jobs:
               if [ "$i" -eq 30 ]; then
                 echo "Backend unhealthy — rolling back"
                 git checkout "$PREV_SHA"
-                if [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
-                  docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
-                else
-                  docker compose -f docker-compose.prod.yml up -d --build backend
-                  docker compose -f docker-compose.prod.yml stop opcua-agent >/dev/null 2>&1 || true
-                fi
+                rollback_backend_services
                 exit 1
               fi
               sleep 10
@@ -217,21 +228,23 @@ jobs:
             if [ "$ACTUAL_OPCUA_ENABLED" != "$EXPECTED_OPCUA_ENABLED" ]; then
               echo "OPCUA_ENABLED mismatch — expected ${EXPECTED_OPCUA_ENABLED}, got ${ACTUAL_OPCUA_ENABLED}. Rolling back."
               git checkout "$PREV_SHA"
-              if [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
-                docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
-              else
-                docker compose -f docker-compose.prod.yml up -d --build backend
-                docker compose -f docker-compose.prod.yml stop opcua-agent >/dev/null 2>&1 || true
-              fi
+              rollback_backend_services
               exit 1
             fi
 
             # If OPC UA is enabled, ensure agent container is up.
             if [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
+              if ! compose_has_service "opcua-agent"; then
+                echo "OPCUA_ENABLED=true but opcua-agent service is missing in compose — rolling back"
+                git checkout "$PREV_SHA"
+                rollback_backend_services
+                exit 1
+              fi
               if ! docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx "opcua-agent"; then
                 echo "OPC UA agent is not running — rolling back"
+                docker compose -f docker-compose.prod.yml logs --tail=200 opcua-agent || true
                 git checkout "$PREV_SHA"
-                docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
+                rollback_backend_services
                 exit 1
               fi
               echo "OPC UA agent healthy"
