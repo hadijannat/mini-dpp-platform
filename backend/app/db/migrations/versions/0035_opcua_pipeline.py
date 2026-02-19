@@ -554,8 +554,40 @@ def upgrade() -> None:
 
     op.create_index("ix_opcua_snapshots_source", "opcua_inventory_snapshots", ["source_id"])
 
+    # Enable Row Level Security on all tenant-scoped tables
+    _opcua_rls_tables = [
+        "opcua_sources",
+        "opcua_nodesets",
+        "opcua_mappings",
+        "opcua_jobs",
+        "opcua_deadletters",
+        "opcua_inventory_snapshots",
+    ]
+    for table_name in _opcua_rls_tables:
+        op.execute(f"ALTER TABLE {table_name} ENABLE ROW LEVEL SECURITY")
+        op.execute(
+            f"""
+            CREATE POLICY {table_name}_tenant_isolation
+            ON {table_name}
+            USING (tenant_id = current_setting('app.current_tenant', true)::uuid)
+            """
+        )
+
 
 def downgrade() -> None:
+    # Disable RLS on all tables (reverse order)
+    _opcua_rls_tables = [
+        "opcua_inventory_snapshots",
+        "opcua_deadletters",
+        "opcua_jobs",
+        "opcua_mappings",
+        "opcua_nodesets",
+        "opcua_sources",
+    ]
+    for table_name in _opcua_rls_tables:
+        op.execute(f"DROP POLICY IF EXISTS {table_name}_tenant_isolation ON {table_name}")
+        op.execute(f"ALTER TABLE {table_name} DISABLE ROW LEVEL SECURITY")
+
     # Drop tables in reverse dependency order
     op.drop_index("ix_opcua_snapshots_source", table_name="opcua_inventory_snapshots")
     op.drop_table("opcua_inventory_snapshots")

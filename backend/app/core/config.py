@@ -580,6 +580,12 @@ class Settings(BaseSettings):
         default="dpp-nodesets",
         description="MinIO bucket for NodeSet XML and companion spec storage",
     )
+    opcua_nodeset_max_upload_bytes: int = Field(
+        default=10_485_760,
+        ge=1024,
+        le=104_857_600,
+        description="Maximum NodeSet XML upload size in bytes (default 10 MB)",
+    )
 
     # ==========================================================================
     # Webhooks

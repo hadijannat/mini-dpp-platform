@@ -7,10 +7,12 @@ for direct ORM mapping.
 from __future__ import annotations
 
 from datetime import date, datetime
+from ipaddress import ip_address
 from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.db.models import (
     DPPBindingMode,
@@ -18,6 +20,35 @@ from app.db.models import (
     OPCUAConnectionStatus,
     OPCUAMappingType,
 )
+
+
+def _validate_opcua_endpoint_url(url: str) -> str:
+    """Validate OPC UA endpoint URL: must be opc.tcp:// and not target private IPs.
+
+    Prevents SSRF by blocking loopback, link-local, and RFC 1918 private addresses.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "opc.tcp":
+        raise ValueError("Endpoint URL must use the opc.tcp:// scheme")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Endpoint URL must include a hostname")
+    # Block known dangerous hostnames
+    _blocked = {"localhost", "metadata.google.internal", "169.254.169.254"}
+    if hostname.lower() in _blocked:
+        raise ValueError(f"Endpoint URL hostname '{hostname}' is not allowed")
+    # Try to parse as IP and block private/loopback/link-local ranges
+    try:
+        addr = ip_address(hostname)
+        if addr.is_loopback or addr.is_private or addr.is_link_local or addr.is_reserved:
+            raise ValueError(
+                f"Endpoint URL must not target private/loopback/link-local address: {hostname}"
+            )
+    except ValueError as exc:
+        # Re-raise our own validation errors; ignore parse failures (hostname is a DNS name)
+        if "must not target" in str(exc) or "not allowed" in str(exc):
+            raise
+    return url
 
 # ---------------------------------------------------------------------------
 # OPC UA Source
@@ -52,6 +83,11 @@ class OPCUASourceCreate(BaseModel):
         max_length=64,
     )
 
+    @field_validator("endpoint_url")
+    @classmethod
+    def validate_endpoint_url(cls, v: str) -> str:
+        return _validate_opcua_endpoint_url(v)
+
 
 class OPCUASourceUpdate(BaseModel):
     """Partial update for an OPC UA source."""
@@ -68,6 +104,13 @@ class OPCUASourceUpdate(BaseModel):
     client_cert_ref: str | None = Field(default=None, alias="clientCertRef")
     client_key_ref: str | None = Field(default=None, alias="clientKeyRef")
     server_cert_pinned_sha256: str | None = Field(default=None, alias="serverCertPinnedSha256")
+
+    @field_validator("endpoint_url")
+    @classmethod
+    def validate_endpoint_url(cls, v: str | None) -> str | None:
+        if v is not None:
+            return _validate_opcua_endpoint_url(v)
+        return v
 
 
 class OPCUASourceResponse(BaseModel):

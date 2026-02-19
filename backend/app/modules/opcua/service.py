@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
+import logging
 import re
 import time
 from typing import Any
@@ -212,7 +213,15 @@ class OPCUASourceService:
                     client.set_user(source.username)
                     client.set_password(password)
                 except Exception:
-                    pass  # Fall back to anonymous if decryption fails
+                    logging.getLogger(__name__).warning(
+                        "Failed to decrypt OPC UA password for source %s — "
+                        "falling back to anonymous",
+                        source.id,
+                    )
+                    return TestConnectionResult(
+                        success=False,
+                        error="Password decryption failed; check encryption key configuration",
+                    )
 
             await asyncio.wait_for(client.connect(), timeout=3.0)
             try:

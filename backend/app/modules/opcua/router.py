@@ -390,6 +390,13 @@ async def upload_nodeset(
             detail="Uploaded XML file is empty",
         )
 
+    max_size = get_settings().opcua_nodeset_max_upload_bytes
+    if len(xml_bytes) > max_size:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"NodeSet XML exceeds maximum upload size of {max_size} bytes",
+        )
+
     meta = OPCUANodeSetUploadMeta(
         source_id=source_id,
         companion_spec_name=companion_spec_name,

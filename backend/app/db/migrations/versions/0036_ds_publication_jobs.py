@@ -92,8 +92,24 @@ def upgrade() -> None:
     op.create_index("ix_ds_pub_jobs_dpp", "dataspace_publication_jobs", ["dpp_id"])
     op.create_index("ix_ds_pub_jobs_status", "dataspace_publication_jobs", ["status"])
 
+    # Enable Row Level Security
+    op.execute("ALTER TABLE dataspace_publication_jobs ENABLE ROW LEVEL SECURITY")
+    op.execute(
+        """
+        CREATE POLICY dataspace_publication_jobs_tenant_isolation
+        ON dataspace_publication_jobs
+        USING (tenant_id = current_setting('app.current_tenant', true)::uuid)
+        """
+    )
+
 
 def downgrade() -> None:
+    op.execute(
+        "DROP POLICY IF EXISTS dataspace_publication_jobs_tenant_isolation"
+        " ON dataspace_publication_jobs"
+    )
+    op.execute("ALTER TABLE dataspace_publication_jobs DISABLE ROW LEVEL SECURITY")
+
     op.drop_index("ix_ds_pub_jobs_status", table_name="dataspace_publication_jobs")
     op.drop_index("ix_ds_pub_jobs_dpp", table_name="dataspace_publication_jobs")
     op.drop_table("dataspace_publication_jobs")

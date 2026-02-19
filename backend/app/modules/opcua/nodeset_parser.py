@@ -184,7 +184,13 @@ def parse_nodeset_xml(xml_bytes: bytes) -> ParsedNodeSet:
     """
     sha256 = hashlib.sha256(xml_bytes).hexdigest()
 
-    root = etree.fromstring(xml_bytes)  # noqa: S320 — trusted input
+    parser = etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        dtd_validation=False,
+        load_dtd=False,
+    )
+    root = etree.fromstring(xml_bytes, parser=parser)  # noqa: S320
 
     # Validate root element
     root_tag = root.tag
