@@ -391,3 +391,40 @@ class MappingDryRunResult(BaseModel):
     diff: list[DryRunDiffEntry] = Field(default_factory=list)
     applied_value: Any | None = Field(default=None, alias="appliedValue")
     transform_output: Any | None = Field(default=None, alias="transformOutput")
+
+
+# ---------------------------------------------------------------------------
+# Dataspace Publication
+# ---------------------------------------------------------------------------
+
+
+class DataspacePublishRequest(BaseModel):
+    """Request to publish a DPP to a dataspace (DTR + EDC)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    dpp_id: UUID = Field(alias="dppId")
+    target: str = Field(default="catena-x", description="Target ecosystem")
+
+
+class DataspacePublicationJobResponse(BaseModel):
+    """Dataspace publication job summary."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    dpp_id: UUID
+    status: str
+    target: str
+    artifact_refs: dict[str, Any] = Field(default_factory=dict)
+    error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DataspacePublicationJobListResponse(BaseModel):
+    """Paginated list of publication jobs."""
+
+    items: list[DataspacePublicationJobResponse]
+    total: int
