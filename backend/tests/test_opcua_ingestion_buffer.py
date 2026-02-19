@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.opcua_agent.ingestion_buffer import BufferEntry, IngestionBuffer
+from app.opcua_agent.ingestion_buffer import IngestionBuffer
 
 
 @pytest.mark.asyncio

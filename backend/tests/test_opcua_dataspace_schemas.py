@@ -2,8 +2,6 @@
 
 import uuid
 
-import pytest
-
 
 def test_dataspace_publish_request():
     from app.modules.opcua.schemas import DataspacePublishRequest

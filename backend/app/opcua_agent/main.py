@@ -71,7 +71,7 @@ async def run_agent(*, max_cycles: int = 0) -> None:
     health_app = create_health_app()
     health_runner = web.AppRunner(health_app)
     await health_runner.setup()
-    health_site = web.TCPSite(health_runner, "0.0.0.0", 8090)
+    health_site = web.TCPSite(health_runner, "0.0.0.0", 8090)  # nosec B104
     await health_site.start()
     logger.info("Health server started on port 8090")
 
