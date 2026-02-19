@@ -78,6 +78,15 @@ dependencies = [
     "python-dateutil>=2.8.2",
     "tenacity>=8.2.0",
     "structlog>=24.1.0",
+
+    # OPC UA Client
+    "asyncua>=1.1.0",
+
+    # Lightweight HTTP server (OPC UA agent health)
+    "aiohttp>=3.9.0",
+
+    # Prometheus metrics exposition
+    "prometheus-client>=0.20.0",
 ]
 
 [project.optional-dependencies]
