@@ -121,6 +121,8 @@ jobs:
 
             # Export commit SHA for frontend version tag
             export VITE_COMMIT_SHA=$(git rev-parse HEAD)
+            # Default OPC UA to enabled in production unless explicitly overridden.
+            export OPCUA_ENABLED="${OPCUA_ENABLED:-true}"
 
             # Ensure CIRPASS session signing secret is available for production migrations/runtime.
             # Resolution order:
@@ -179,7 +181,7 @@ jobs:
             }
 
             # Restart application + monitoring services
-            docker compose -f docker-compose.prod.yml up -d --no-deps backend frontend caddy prometheus grafana
+            docker compose -f docker-compose.prod.yml up -d --no-deps backend opcua-agent frontend caddy prometheus grafana
 
             # Verify backend health (internal — triggers rollback on failure)
             for i in $(seq 1 30); do
@@ -195,6 +197,29 @@ jobs:
               fi
               sleep 10
             done
+
+            # Validate backend runtime setting for OPC UA matches expected deployment env.
+            EXPECTED_OPCUA_ENABLED=$(printf '%s' "${OPCUA_ENABLED:-true}" | tr '[:upper:]' '[:lower:]')
+            ACTUAL_OPCUA_ENABLED=$(docker compose -f docker-compose.prod.yml exec -T backend python -c "from app.core.config import get_settings; print(str(get_settings().opcua_enabled).lower())" | tr -d '\r')
+            if [ "$ACTUAL_OPCUA_ENABLED" != "$EXPECTED_OPCUA_ENABLED" ]; then
+              echo "OPCUA_ENABLED mismatch — expected ${EXPECTED_OPCUA_ENABLED}, got ${ACTUAL_OPCUA_ENABLED}. Rolling back."
+              git checkout "$PREV_SHA"
+              docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
+              exit 1
+            fi
+
+            # If OPC UA is enabled, ensure agent container is up.
+            if [ "$EXPECTED_OPCUA_ENABLED" = "true" ]; then
+              if ! docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx "opcua-agent"; then
+                echo "OPC UA agent is not running — rolling back"
+                git checkout "$PREV_SHA"
+                docker compose -f docker-compose.prod.yml up -d --build backend opcua-agent
+                exit 1
+              fi
+              echo "OPC UA agent healthy"
+            else
+              echo "OPC UA disabled by override; skipping opcua-agent running check."
+            fi
 
       - name: Verify deployment health
         run: |

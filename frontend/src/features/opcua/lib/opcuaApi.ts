@@ -76,6 +76,10 @@ export interface DigitalLinkResponse {
   is_pseudo_gtin: boolean;
 }
 
+export interface OPCUAFeatureStatusResponse {
+  enabled: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Request/create types (camelCase — frontend convention)
 // ---------------------------------------------------------------------------
@@ -131,6 +135,14 @@ export async function fetchSources(
   checkFeatureEnabled(res);
   if (!res.ok) throw new Error(await getApiErrorMessage(res, 'Failed to list OPC UA sources'));
   return res.json() as Promise<OPCUASourceListResponse>;
+}
+
+export async function fetchOpcuaFeatureStatus(token: string): Promise<OPCUAFeatureStatusResponse> {
+  const res = await tenantApiFetch('/opcua/status', {}, token);
+  if (!res.ok) {
+    throw new Error(await getApiErrorMessage(res, 'Failed to load OPC UA feature status'));
+  }
+  return res.json() as Promise<OPCUAFeatureStatusResponse>;
 }
 
 export async function fetchSource(

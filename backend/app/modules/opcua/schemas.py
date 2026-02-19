@@ -154,6 +154,12 @@ class TestConnectionResult(BaseModel):
     latency_ms: float | None = Field(default=None, alias="latencyMs")
 
 
+class OPCUAFeatureStatusResponse(BaseModel):
+    """Runtime feature status for OPC UA integration."""
+
+    enabled: bool
+
+
 # ---------------------------------------------------------------------------
 # OPC UA NodeSet
 # ---------------------------------------------------------------------------
