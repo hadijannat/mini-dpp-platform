@@ -101,10 +101,16 @@ export async function apiFetch(
       ? `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`
       : url;
   const headers = withAuthHeaders(token, options.headers ?? {});
-  return fetch(resolvedUrl, {
+  const requestInit: RequestInit = {
     ...options,
     headers,
-  });
+  };
+  const method = (requestInit.method ?? 'GET').toUpperCase();
+  // Avoid stale browser disk-cache responses for authenticated API reads.
+  if (token && requestInit.cache === undefined && (method === 'GET' || method === 'HEAD')) {
+    requestInit.cache = 'no-store';
+  }
+  return fetch(resolvedUrl, requestInit);
 }
 
 export async function tenantApiFetch(
