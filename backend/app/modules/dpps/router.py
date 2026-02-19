@@ -165,6 +165,19 @@ class AssetIdsInput(BaseModel):
         return v
 
 
+def _build_digital_link_uri(
+    resolver_base_url: str,
+    gtin: str,
+    serial: str | None = None,
+) -> str:
+    """Build a canonical GS1 Digital Link URI."""
+    base = resolver_base_url.rstrip("/")
+    uri = f"{base}/01/{gtin}"
+    if serial:
+        uri += f"/21/{serial}"
+    return uri
+
+
 class CreateDPPRequest(BaseModel):
     """Request model for creating a new DPP."""
 
@@ -2140,3 +2153,57 @@ async def diff_revisions(
         ) from exc
 
     return DPPDiffResult(**result)
+
+
+@router.get(
+    "/{dpp_id}/digital-link",
+    summary="Get GS1 Digital Link URI for a DPP",
+)
+async def get_dpp_digital_link(
+    dpp_id: UUID,
+    request: Request,
+    db: DbSession,
+    tenant: TenantContextDep,
+):
+    """Return the canonical GS1 Digital Link URI for a DPP with GTIN."""
+    service = DPPService(db)
+
+    dpp = await service.get_dpp(dpp_id, tenant.tenant_id)
+    if not dpp:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"DPP {dpp_id} not found",
+        )
+
+    shared_with_current_user = await service.is_resource_shared_with_user(
+        tenant_id=tenant.tenant_id,
+        resource_type="dpp",
+        resource_id=dpp.id,
+        user_subject=tenant.user.sub,
+    )
+    await require_access(
+        tenant.user,
+        "read",
+        build_dpp_resource_context(dpp, shared_with_current_user=shared_with_current_user),
+        tenant=tenant,
+    )
+
+    asset_ids = dpp.asset_ids or {}
+    gtin = asset_ids.get("gtin")
+    if not gtin:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="DPP has no GTIN in asset identifiers",
+        )
+    serial = asset_ids.get("serialNumber")
+    settings = get_settings()
+    resolver_base = settings.resolver_base_url or (
+        f"https://{request.headers.get('host', 'localhost')}"
+    )
+    uri = _build_digital_link_uri(resolver_base, gtin, serial)
+    return {
+        "digital_link_uri": uri,
+        "gtin": gtin,
+        "serial_number": serial,
+        "is_pseudo_gtin": gtin.startswith("0200"),
+    }
