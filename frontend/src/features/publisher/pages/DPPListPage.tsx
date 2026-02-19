@@ -61,6 +61,7 @@ import { toast } from '@/lib/toast';
 import type { DPPResponse, TemplateResponse } from '@/api/types';
 import { hasRole } from '@/lib/auth';
 import { cn } from '@/lib/utils';
+import { validateGTIN } from '@/lib/gtin';
 
 interface MasterItem {
   id: string;
@@ -394,14 +395,27 @@ export default function DPPListPage() {
     ? findUnresolvedPlaceholders(importPayload, importTemplate.variables)
     : [];
 
+  const [gtinError, setGtinError] = useState<string | null>(null);
+
   const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const gtin = (formData.get('gtin') as string)?.trim() || '';
+
+    if (gtin && !validateGTIN(gtin)) {
+      setGtinError('Invalid GTIN — check digit does not match.');
+      return;
+    }
+    setGtinError(null);
+
+    const assetIds: Record<string, unknown> = {
+      manufacturerPartId: formData.get('manufacturerPartId'),
+      serialNumber: formData.get('serialNumber'),
+    };
+    if (gtin) assetIds.gtin = gtin;
+
     createMutation.mutate({
-      asset_ids: {
-        manufacturerPartId: formData.get('manufacturerPartId'),
-        serialNumber: formData.get('serialNumber'),
-      },
+      asset_ids: assetIds,
       selected_templates: selectedTemplates,
     });
   };
@@ -695,6 +709,20 @@ export default function DPPListPage() {
             <div className="space-y-2">
               <Label>Serial Number</Label>
               <Input name="serialNumber" />
+            </div>
+            <div className="space-y-2">
+              <Label>GTIN</Label>
+              <Input
+                name="gtin"
+                placeholder="e.g. 4006381333931"
+                onChange={() => setGtinError(null)}
+              />
+              {gtinError && (
+                <p className="text-sm text-destructive">{gtinError}</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Optional. Used for GS1 Digital Link resolution.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Select Templates</Label>
