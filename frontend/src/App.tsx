@@ -39,6 +39,7 @@ const RegistryPage = lazy(() => import('./features/admin/pages/RegistryPage'));
 const CredentialsPage = lazy(() => import('./features/admin/pages/CredentialsPage'));
 const WelcomePage = lazy(() => import('./features/onboarding/pages/WelcomePage'));
 const RoleRequestsPage = lazy(() => import('./features/admin/pages/RoleRequestsPage'));
+const OPCUASourcesPage = lazy(() => import('./features/opcua/pages/OPCUASourcesPage'));
 
 function App() {
   const auth = useAuth();
@@ -101,6 +102,7 @@ function App() {
           <Route path="epcis" element={<EPCISPage />} />
           <Route path="batch-import" element={<BatchImportPage />} />
           <Route path="activity" element={<ActivityPage />} />
+          <Route path="opcua" element={<OPCUASourcesPage />} />
           <Route
             path="admin"
             element={

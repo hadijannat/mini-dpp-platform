@@ -12,6 +12,7 @@ import {
   Users,
   ShieldCheck,
   Activity,
+  Radio,
   PackagePlus,
   BarChart3,
   ScrollText,
@@ -67,6 +68,7 @@ const baseNavigation: NavItem[] = [
   { name: 'Connectors', href: '/console/connectors', icon: Link2 },
   { name: 'Compliance', href: '/console/compliance', icon: ShieldCheck },
   { name: 'Supply Chain', href: '/console/epcis', icon: Activity },
+  { name: 'OPC UA', href: '/console/opcua', icon: Radio },
   { name: 'Batch Import', href: '/console/batch-import', icon: PackagePlus },
   { name: 'Activity', href: '/console/activity', icon: ScrollText },
 ];
