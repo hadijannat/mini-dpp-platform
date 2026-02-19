@@ -51,13 +51,30 @@ You can override ports via `.env` (for example `BACKEND_HOST_PORT`, `KEYCLOAK_HO
 | Service | Local | Production |
 |---------|-------|------------|
 | Frontend | http://localhost:5173 | https://dpp-platform.dev |
-| Backend API | http://localhost:8000/api/v1 | https://dpp-platform.dev/api/v1 |
+| Backend API | http://localhost:8000/api/v1/openapi.json | https://dpp-platform.dev/api/v1/openapi.json |
 | API Docs (Swagger) | http://localhost:8000/api/v1/docs | https://dpp-platform.dev/api/v1/docs |
 | Keycloak | http://localhost:8080 | https://auth.dpp-platform.dev |
 | Health | http://localhost:8000/health | https://dpp-platform.dev/health |
 | OPA | http://localhost:8181/health | — |
 | MinIO API | http://localhost:9000 | — |
 | MinIO Console | http://localhost:9001 | — |
+
+## OPC UA Enablement Checklist
+
+- Set `OPCUA_ENABLED=true` in your deployment environment (`.env`/`.env.prod` or shell env).
+- Ensure both backend API and OPC UA agent are running:
+
+```bash
+docker compose -f docker-compose.prod.yml up -d backend opcua-agent
+docker compose -f docker-compose.prod.yml ps backend opcua-agent
+```
+
+- Verify runtime flag inside the backend container:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T backend \
+  python -c "from app.core.config import get_settings; print(get_settings().opcua_enabled)"
+```
 
 ## Project Structure at a Glance
 
