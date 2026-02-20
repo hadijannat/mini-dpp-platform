@@ -70,8 +70,9 @@ function buildNodeSchema(node: DefinitionNode, schema?: UISchema): ZodTypeAny {
     case 'AnnotatedRelationshipElement':
       return buildAnnotatedRelationshipSchema(node, schema);
     case 'Property':
-    default:
       return buildPropertySchema(node, schema);
+    default:
+      return z.unknown();
   }
 }
 

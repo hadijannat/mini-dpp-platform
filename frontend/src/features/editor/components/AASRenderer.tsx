@@ -129,8 +129,16 @@ export function AASRenderer({
       );
 
     case 'Property':
-    default:
       return <PropertyField {...fieldProps} />;
+
+    default:
+      return (
+        <UnsupportedField
+          name={basePath}
+          node={node}
+          reason={`Unsupported model type: ${node.modelType}`}
+        />
+      );
   }
 }
 

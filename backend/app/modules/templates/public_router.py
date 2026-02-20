@@ -337,10 +337,80 @@ def _schema_validation_errors(schema: dict[str, Any], data: dict[str, Any]) -> l
     return errors
 
 
+def _build_structured_instance_errors(exc: Exception) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+
+    raw_errors = getattr(exc, "errors", None)
+    if callable(raw_errors):
+        try:
+            extracted = raw_errors()
+        except Exception:  # pragma: no cover - defensive path for third-party errors
+            extracted = []
+        if isinstance(extracted, list):
+            for entry in extracted[:100]:
+                if not isinstance(entry, dict):
+                    continue
+                loc = entry.get("loc")
+                if isinstance(loc, (list, tuple)):
+                    path = ".".join(str(part) for part in loc if part != "__root__") or "root"
+                elif isinstance(loc, str):
+                    path = loc or "root"
+                else:
+                    path = "root"
+                message = str(entry.get("msg") or entry.get("message") or "").strip()
+                if not message:
+                    continue
+                errors.append({"path": path, "message": message})
+
+    if errors:
+        return errors[:100]
+
+    message = str(exc).strip() or exc.__class__.__name__
+    exception_path = getattr(exc, "path", None)
+    if isinstance(exception_path, (list, tuple)):
+        path_value = ".".join(str(part) for part in exception_path) or "root"
+    elif isinstance(exception_path, str):
+        path_value = exception_path or "root"
+    else:
+        path_value = "root"
+    return [{"path": path_value, "message": message}]
+
+
+def _instance_failure_http_exception(*, code: str, message: str, exc: Exception) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={
+            "code": code,
+            "message": message,
+            "errors": _build_structured_instance_errors(exc),
+        },
+    )
+
+
+def _log_instance_failure(
+    request: Request | None,
+    *,
+    template_key: str,
+    version: str | None,
+    phase: str,
+    exc: Exception,
+) -> None:
+    logger.warning(
+        "public_smt_instance_build_failed",
+        template_key=template_key,
+        version=version,
+        phase=phase,
+        error_class=exc.__class__.__name__,
+        request_id=request.headers.get("x-request-id") if request is not None else None,
+        client_ip=get_client_ip(request) if request is not None else None,
+    )
+
+
 async def _prepare_preview(
     *,
     db: DbSession,
     payload: PublicPreviewRequest,
+    request: Request | None = None,
 ) -> PreparedPublicPreview:
     service = TemplateRegistryService(db)
     template = await service.get_template(payload.template_key, payload.version)
@@ -352,7 +422,11 @@ async def _prepare_preview(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(template, template_lookup=template_lookup)
+    contract = service.generate_template_contract(
+        template,
+        template_lookup=template_lookup,
+        strict_unknown_model_types=True,
+    )
     schema = contract.get("schema")
     if not isinstance(schema, dict):
         raise HTTPException(
@@ -376,7 +450,28 @@ async def _prepare_preview(
         )
 
     builder = TemplateInstanceBuilder(service)
-    aas_environment = builder.build_environment(template=template, data=payload.data)
+    try:
+        aas_environment = builder.build_environment(
+            template=template,
+            data=payload.data,
+            template_lookup=template_lookup,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _log_instance_failure(
+            request,
+            template_key=payload.template_key,
+            version=payload.version,
+            phase="build_environment",
+            exc=exc,
+        )
+        raise _instance_failure_http_exception(
+            code="instance_build_failed",
+            message="Unable to build AAS instance from provided template data",
+            exc=exc,
+        ) from exc
+
     validation = validate_aas_environment(aas_environment)
     if not validation.is_valid:
         raise HTTPException(
@@ -526,7 +621,11 @@ async def get_public_template_contract(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(template, template_lookup=template_lookup)
+    contract = service.generate_template_contract(
+        template,
+        template_lookup=template_lookup,
+        strict_unknown_model_types=True,
+    )
     return TemplateContractResponse(
         template_key=template.template_key,
         idta_version=contract["idta_version"],
@@ -550,7 +649,7 @@ async def preview_public_template_instance(
     headers = await _apply_public_smt_rate_limit(request=request, bucket="read")
     response.headers.update(headers)
 
-    prepared = await _prepare_preview(db=db, payload=payload)
+    prepared = await _prepare_preview(db=db, payload=payload, request=request)
     return PublicPreviewResponse(
         template_key=prepared.template_key,
         version=prepared.version,
@@ -573,30 +672,46 @@ async def export_public_template_instance(
         version=payload.version,
         data=payload.data,
     )
-    prepared = await _prepare_preview(db=db, payload=preview_payload)
+    prepared = await _prepare_preview(db=db, payload=preview_payload, request=request)
 
     service = TemplateRegistryService(db)
     builder = TemplateInstanceBuilder(service)
 
     extension = payload.format
-    if payload.format == "json":
-        content = builder.to_json_bytes(prepared.aas_environment)
-        media_type = "application/json"
-    elif payload.format == "aasx":
-        content = builder.to_aasx_bytes(prepared.aas_environment)
-        media_type = "application/asset-administration-shell-package+xml"
-    elif payload.format == "pdf":
-        content = builder.to_pdf_bytes(
-            prepared.aas_environment,
-            template_key=prepared.template_key,
-            version=prepared.version,
+    try:
+        if payload.format == "json":
+            content = builder.to_json_bytes(prepared.aas_environment)
+            media_type = "application/json"
+        elif payload.format == "aasx":
+            content = builder.to_aasx_bytes(prepared.aas_environment)
+            media_type = "application/asset-administration-shell-package+xml"
+        elif payload.format == "pdf":
+            content = builder.to_pdf_bytes(
+                prepared.aas_environment,
+                template_key=prepared.template_key,
+                version=prepared.version,
+            )
+            media_type = "application/pdf"
+        else:  # pragma: no cover - guarded by request model
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported format: {payload.format}",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _log_instance_failure(
+            request,
+            template_key=payload.template_key,
+            version=payload.version,
+            phase=f"serialize_{payload.format}",
+            exc=exc,
         )
-        media_type = "application/pdf"
-    else:  # pragma: no cover - guarded by request model
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported format: {payload.format}",
-        )
+        raise _instance_failure_http_exception(
+            code="instance_serialization_failed",
+            message="Unable to build AAS instance from provided template data",
+            exc=exc,
+        ) from exc
 
     filename = _sanitize_filename(
         f"{prepared.template_key}-{prepared.version}.{extension}",

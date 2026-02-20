@@ -121,6 +121,31 @@ describe('AASRenderer', () => {
     expect(screen.getByText(/Unsupported field/i)).toBeTruthy();
   });
 
+  it('renders unsupported banner for unknown model types instead of Property input', () => {
+    const node: DefinitionNode = {
+      modelType: 'SubmodelElement',
+      idShort: 'genericNode',
+      smt: { form_title: 'Generic Node' },
+    };
+
+    render(
+      <FormWrapper defaultValues={{ genericNode: 'editable-value' }}>
+        {(control) => (
+          <AASRenderer
+            node={node}
+            basePath="genericNode"
+            depth={0}
+            control={control}
+          />
+        )}
+      </FormWrapper>,
+    );
+
+    expect(screen.getByText('Generic Node')).toBeTruthy();
+    expect(screen.getByText(/Unsupported model type: SubmodelElement/i)).toBeTruthy();
+    expect(screen.queryByDisplayValue('editable-value')).toBeNull();
+  });
+
   it('renders ReadOnlyField when access_mode is readonly', () => {
     const node: DefinitionNode = {
       modelType: 'Property',
