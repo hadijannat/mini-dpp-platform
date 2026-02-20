@@ -19,5 +19,7 @@ exclude = [
   "^http://backend:8000",
   "^https://auth\\.dpp-platform\\.dev/admin/",
   "^https://dpp-platform\\.dev/health$",
+  "^https://dpp-platform\\.dev/api/v1/docs$",
+  "^https://dpp-platform\\.dev/api/v1/openapi\\.json$",
   "^https://github\\.com/hadijannat/mini-dpp-platform/actions/workflows/ci\\.yml/badge\\.svg$"
 ]
