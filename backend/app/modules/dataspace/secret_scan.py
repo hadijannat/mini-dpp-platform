@@ -9,6 +9,7 @@ from typing import Any
 SENSITIVE_KEYWORDS = ("secret", "token", "password", "api_key", "apikey")
 SAFE_KEY_SUFFIXES = ("_secret_ref", "secret_ref")
 ENCRYPTED_PREFIX = "enc:v1:"
+ENCRYPTED_PREFIXES = ("enc:v1:", "enc:v2:")
 
 
 @dataclass(slots=True)
@@ -22,7 +23,7 @@ class PlaintextSecretFinding:
 
 def is_encrypted_secret_value(value: Any) -> bool:
     """Return True when a value matches the encrypted payload prefix."""
-    return isinstance(value, str) and value.startswith(ENCRYPTED_PREFIX)
+    return isinstance(value, str) and value.startswith(ENCRYPTED_PREFIXES)
 
 
 def _is_sensitive_key(key: str) -> bool:

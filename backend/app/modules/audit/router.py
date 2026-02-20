@@ -8,14 +8,14 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import desc, func, select
 
-from app.core.crypto.hash_chain import GENESIS_HASH, compute_event_hash
-from app.core.crypto.merkle import MerkleTree
-from app.core.crypto.signing import sign_merkle_root
-from app.core.crypto.verification import verify_hash_chain
+from app.core.config import get_settings
+from app.core.crypto.hash_chain import GENESIS_HASH
+from app.core.crypto.verification import verify_event, verify_hash_chain
 from app.core.logging import get_logger
 from app.core.security.oidc import Admin
 from app.db.models import AuditEvent
 from app.db.session import DbSession
+from app.modules.audit.anchoring_service import AuditAnchoringService
 from app.modules.audit.schemas import (
     AnchorResponse,
     AuditEventListResponse,
@@ -64,6 +64,8 @@ def _event_to_dict(event: AuditEvent) -> dict[str, object]:
         d["event_hash"] = _get_crypto_attr(event, "event_hash")
         d["prev_event_hash"] = _get_crypto_attr(event, "prev_event_hash")
         d["chain_sequence"] = _get_crypto_attr(event, "chain_sequence")
+        d["hash_algorithm"] = _get_crypto_attr(event, "hash_algorithm")
+        d["hash_canonicalization"] = _get_crypto_attr(event, "hash_canonicalization")
 
     return d
 
@@ -118,6 +120,8 @@ async def list_audit_events(
             event_hash=_get_crypto_attr(e, "event_hash"),
             prev_event_hash=_get_crypto_attr(e, "prev_event_hash"),
             chain_sequence=_get_crypto_attr(e, "chain_sequence"),
+            hash_algorithm=_get_crypto_attr(e, "hash_algorithm"),
+            hash_canonicalization=_get_crypto_attr(e, "hash_canonicalization"),
         )
         items.append(item)
 
@@ -198,18 +202,11 @@ async def verify_single_event(
     prev_hash_stored = _get_crypto_attr(event, "prev_event_hash")
     prev_hash = prev_hash_stored if prev_hash_stored else GENESIS_HASH
 
-    # Rebuild event data and recompute hash
     event_dict = _event_to_dict(event)
-    # Strip chain metadata before hashing
-    hashable = {
-        k: v
-        for k, v in event_dict.items()
-        if k not in ("event_hash", "prev_event_hash", "chain_sequence")
-    }
-    recomputed = compute_event_hash(hashable, prev_hash)
+    is_valid = verify_event(event_dict, prev_hash)
 
     return EventVerificationResponse(
-        is_valid=(recomputed == stored_hash),
+        is_valid=is_valid,
         event_id=event_id,
         event_hash=stored_hash,
     )
@@ -220,56 +217,46 @@ async def anchor_merkle_root(
     db: DbSession,
     _user: Admin,
     tenant_id: UUID = Query(..., description="Tenant ID to anchor"),
-    signing_key_pem: str | None = Query(
-        None,
-        description="Ed25519 private key PEM for signing (optional)",
-    ),
 ) -> AnchorResponse:
-    """Compute Merkle root and optionally sign it (admin only)."""
+    """Anchor the next unanchored audit batch (admin only)."""
     if not _has_hash_columns():
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=("Hash chain columns not available. Apply the migration first."),
         )
 
-    query = (
-        select(AuditEvent)
-        .where(AuditEvent.tenant_id == tenant_id)
-        .where(AuditEvent.chain_sequence.is_not(None))
-        .where(AuditEvent.event_hash.is_not(None))
-        .order_by(AuditEvent.chain_sequence)
-    )
-    result = await db.execute(query)
-    events = result.scalars().all()
-
-    if not events:
+    settings = get_settings()
+    if not settings.audit_signing_key:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No hashed audit events found for this tenant",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AUDIT_SIGNING_KEY is not configured",
         )
 
-    hashes = [str(_get_crypto_attr(e, "event_hash")) for e in events]
-    sequences = [int(_get_crypto_attr(e, "chain_sequence")) for e in events]
-
-    tree = MerkleTree(leaves=hashes)
-
-    signature: str | None = None
-    if signing_key_pem:
-        try:
-            signature = sign_merkle_root(tree.root, signing_key_pem)
-        except Exception:
-            logger.warning("merkle_signing_failed", exc_info=True)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=("Failed to sign Merkle root. Check the signing key."),
-            )
+    service = AuditAnchoringService(db, settings=settings)
+    try:
+        anchor = await service.anchor_next_batch(tenant_id=tenant_id)
+    except Exception as exc:
+        logger.warning(
+            "audit_anchor_failed", tenant_id=str(tenant_id), error=str(exc), exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to anchor audit batch: {exc}",
+        ) from exc
+    if anchor is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No unanchored hashed audit events found for this tenant",
+        )
 
     return AnchorResponse(
-        merkle_root=tree.root,
-        event_count=len(events),
-        first_sequence=sequences[0],
-        last_sequence=sequences[-1],
-        signature=signature,
-        tsa_token_present=False,
+        anchor_id=anchor.id,
+        merkle_root=anchor.root_hash,
+        event_count=anchor.event_count,
+        first_sequence=anchor.first_sequence,
+        last_sequence=anchor.last_sequence,
+        signature=anchor.signature,
+        signature_kid=anchor.signature_kid,
+        tsa_token_present=anchor.tsa_token is not None,
         tenant_id=tenant_id,
     )

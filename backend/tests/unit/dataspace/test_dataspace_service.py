@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.core.config import get_settings
 from app.db.models import (
@@ -45,6 +47,14 @@ def _scalar_one_or_none_result(value: object | None) -> object:
     return SimpleNamespace(
         scalar_one_or_none=lambda: value,
     )
+
+
+def _encrypt_v1_token(*, plaintext: str, key_b64: str) -> str:
+    key = base64.b64decode(key_b64)
+    nonce = os.urandom(12)
+    ciphertext = AESGCM(key).encrypt(nonce, plaintext.encode("utf-8"), None)
+    payload = base64.b64encode(nonce + ciphertext).decode("ascii")
+    return f"enc:v1:{payload}"
 
 
 @pytest.mark.asyncio
@@ -95,7 +105,7 @@ async def test_create_connector_encrypts_secret_values(
     assert len(secret_rows) == 1
     secret_row = secret_rows[0]
     assert secret_row.secret_ref == "edc-mgmt-api-key"
-    assert secret_row.encrypted_value.startswith("enc:v1:")
+    assert secret_row.encrypted_value.startswith("enc:v2:")
     assert "super-secret-value" not in secret_row.encrypted_value
 
     get_settings.cache_clear()
@@ -149,8 +159,49 @@ async def test_create_catenax_connector_encrypts_token_secret(
 
     secret_rows = [row for row in added if isinstance(row, DataspaceConnectorSecret)]
     assert len(secret_rows) == 1
-    assert secret_rows[0].encrypted_value.startswith("enc:v1:")
+    assert secret_rows[0].encrypted_value.startswith("enc:v2:")
     assert "dtr-secret-value" not in secret_rows[0].encrypted_value
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_build_runtime_context_lazily_rewraps_legacy_enc_v1_secret(
+    monkeypatch: pytest.MonkeyPatch,
+    encryption_key_b64: str,
+) -> None:
+    monkeypatch.setenv("ENCRYPTION_MASTER_KEY", encryption_key_b64)
+    get_settings.cache_clear()
+
+    tenant_id = uuid4()
+    connector_id = uuid4()
+    secret_row = DataspaceConnectorSecret(
+        tenant_id=tenant_id,
+        connector_id=connector_id,
+        secret_ref="edc-mgmt-api-key",
+        encrypted_value=_encrypt_v1_token(
+            plaintext="legacy-secret-value",
+            key_b64=encryption_key_b64,
+        ),
+    )
+
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_scalar_result([secret_row]))
+    session.flush = AsyncMock()
+
+    service = DataspaceService(session)
+    connector = SimpleNamespace(
+        id=connector_id,
+        tenant_id=tenant_id,
+        runtime=SimpleNamespace(value="edc"),
+        participant_id="BPNL000000000001",
+        runtime_config={"management_url": "http://edc-controlplane:19193/management"},
+    )
+
+    context = await service._build_runtime_context(connector=connector)  # noqa: SLF001
+
+    assert context.resolved_secrets["edc-mgmt-api-key"] == "legacy-secret-value"
+    assert secret_row.encrypted_value.startswith("enc:v2:")
+    session.flush.assert_awaited_once()
     get_settings.cache_clear()
 
 

@@ -611,9 +611,33 @@ class DPPRevision(TenantScopedMixin, Base):
         nullable=False,
         comment="SHA-256 hash of canonicalized AAS environment JSON",
     )
+    digest_algorithm: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="sha-256",
+        comment="Digest algorithm identifier",
+    )
+    digest_canonicalization: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="rfc8785",
+        comment="Canonicalization method used before digesting",
+    )
     signed_jws: Mapped[str | None] = mapped_column(
         Text,
         comment="JWS signature of the digest for integrity verification",
+    )
+    wrapped_dek: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Envelope-wrapped DEK used for encrypted fields in this revision",
+    )
+    kek_id: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="KEK identifier used to wrap wrapped_dek",
+    )
+    dek_wrapping_algorithm: Mapped[str | None] = mapped_column(
+        String(64),
+        comment="Algorithm identifier for DEK wrapping",
     )
     created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
     template_provenance: Mapped[dict[str, Any] | None] = mapped_column(
@@ -1598,6 +1622,18 @@ class AuditEvent(TenantScopedMixin, Base):
     chain_sequence: Mapped[int | None] = mapped_column(
         Integer, comment="Monotonic sequence per tenant"
     )
+    hash_algorithm: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="sha-256",
+        comment="Hash algorithm identifier for event_hash",
+    )
+    hash_canonicalization: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="rfc8785",
+        comment="Canonicalization method used to hash event payload",
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -1655,9 +1691,21 @@ class AuditMerkleRoot(TenantScopedMixin, Base):
         Text,
         comment="Ed25519 signature of root_hash",
     )
+    signature_kid: Mapped[str | None] = mapped_column(
+        String(255),
+        comment="Signing key identifier for signature",
+    )
+    signature_algorithm: Mapped[str | None] = mapped_column(
+        String(64),
+        comment="Signature algorithm identifier",
+    )
     tsa_token: Mapped[bytes | None] = mapped_column(
         LargeBinary,
         comment="RFC 3161 timestamp authority token",
+    )
+    timestamp_hash_algorithm: Mapped[str | None] = mapped_column(
+        String(32),
+        comment="Digest algorithm used when requesting TSA timestamp",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

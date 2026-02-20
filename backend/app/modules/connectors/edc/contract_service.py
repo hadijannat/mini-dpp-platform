@@ -43,8 +43,12 @@ class EDCContractService:
         self._dpp_service = DPPService(session)
         self._encryptor: ConnectorConfigEncryptor | None = None
         settings = get_settings()
-        if settings.encryption_master_key:
-            self._encryptor = ConnectorConfigEncryptor(settings.encryption_master_key)
+        if settings.encryption_keyring:
+            self._encryptor = ConnectorConfigEncryptor(
+                settings.encryption_master_key,
+                keyring=settings.encryption_keyring,
+                active_key_id=settings.encryption_active_key_id,
+            )
 
     async def publish_to_dataspace(
         self,

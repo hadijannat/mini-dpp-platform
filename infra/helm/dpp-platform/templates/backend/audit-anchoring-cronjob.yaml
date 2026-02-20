@@ -1,0 +1,77 @@
+{{- if .Values.backend.auditAnchoring.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "dpp-platform.componentFullname" (dict "context" . "component" "backend") }}-audit-anchoring
+  namespace: {{ include "dpp-platform.namespace" . }}
+  labels:
+    {{- include "dpp-platform.componentLabels" (dict "context" . "component" "backend") | nindent 4 }}
+spec:
+  schedule: {{ .Values.backend.auditAnchoring.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.backend.auditAnchoring.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backend.auditAnchoring.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "dpp-platform.componentLabels" (dict "context" . "component" "backend") | nindent 12 }}
+        spec:
+          {{- include "dpp-platform.imagePullSecrets" . | nindent 10 }}
+          restartPolicy: OnFailure
+          containers:
+            - name: audit-anchoring
+              image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+              imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+              command:
+                - python
+                - tools/run_audit_anchoring.py
+                - --all-tenants
+                {{- if .Values.backend.auditAnchoring.maxBatchesPerTenant }}
+                - --max-batches-per-tenant
+                - {{ .Values.backend.auditAnchoring.maxBatchesPerTenant | quote }}
+                {{- end }}
+              env:
+                - name: ENVIRONMENT
+                  value: {{ .Values.global.environment | quote }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: database-url
+                - name: REDIS_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: redis-url
+                - name: ENCRYPTION_MASTER_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: encryption-master-key
+                - name: ENCRYPTION_KEYRING_JSON
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: encryption-keyring-json
+                - name: ENCRYPTION_ACTIVE_KEY_ID
+                  value: {{ .Values.backend.env.ENCRYPTION_ACTIVE_KEY_ID | quote }}
+                - name: DPP_SIGNING_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: dpp-signing-key
+                - name: AUDIT_SIGNING_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backend.secretRef }}
+                      key: audit-signing-key
+                - name: AUDIT_SIGNING_KEY_ID
+                  value: {{ .Values.backend.env.AUDIT_SIGNING_KEY_ID | quote }}
+                - name: CORS_ORIGINS
+                  value: '["https://{{ .Values.global.domain }}"]'
+                - name: AUTO_PROVISION_DEFAULT_TENANT
+                  value: "false"
+                - name: OPA_ENABLED
+                  value: "true"
+{{- end }}

@@ -68,14 +68,19 @@ class TestAuditSchemas:
 
         from app.modules.audit.schemas import AnchorResponse
 
+        anchor_id = uuid4()
         resp = AnchorResponse(
+            anchor_id=anchor_id,
             merkle_root="a" * 64,
             event_count=100,
             first_sequence=0,
             last_sequence=99,
+            signature_kid="audit-key-1",
             tenant_id=uuid4(),
         )
+        assert resp.anchor_id == anchor_id
         assert resp.signature is None
+        assert resp.signature_kid == "audit-key-1"
         assert resp.tsa_token_present is False
 
     def test_event_list_response(self) -> None:

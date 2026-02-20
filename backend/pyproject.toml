@@ -72,6 +72,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     # Prometheus metrics exposition
     "prometheus-client>=0.20.0",
+    "rfc8785>=0.1.4",
 ]
 
 [project.optional-dependencies]

@@ -6,6 +6,7 @@ import json
 
 from app.core.crypto.hash_chain import (
     GENESIS_HASH,
+    HASH_CANONICALIZATION_LEGACY_JSON_V1,
     canonical_json,
     compute_event_hash,
 )
@@ -46,11 +47,11 @@ class TestCanonicalJson:
         assert result == b"{}"
 
     def test_non_string_values_via_default_str(self) -> None:
-        """Non-serializable values are converted via str()."""
+        """Legacy mode converts non-serializable values via str()."""
         from uuid import UUID
 
         data = {"id": UUID("12345678-1234-5678-1234-567812345678")}
-        result = canonical_json(data)
+        result = canonical_json(data, canonicalization=HASH_CANONICALIZATION_LEGACY_JSON_V1)
         assert b"12345678-1234-5678-1234-567812345678" in result
 
 

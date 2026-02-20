@@ -138,10 +138,15 @@ def _add_legacy_deprecation_headers(response: Response) -> None:
 
 def _decrypt_connector_config(config: dict[str, Any]) -> dict[str, Any]:
     settings = get_settings()
-    if not settings.encryption_master_key:
+    if not settings.encryption_keyring:
         return config
     try:
-        return ConnectorConfigEncryptor(settings.encryption_master_key).decrypt_config(config)
+        encryptor = ConnectorConfigEncryptor(
+            settings.encryption_master_key,
+            keyring=settings.encryption_keyring,
+            active_key_id=settings.encryption_active_key_id,
+        )
+        return encryptor.decrypt_config(config)
     except EncryptionError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

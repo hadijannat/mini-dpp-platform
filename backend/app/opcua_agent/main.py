@@ -156,7 +156,11 @@ async def _sync_subscriptions(
         password: str | None = None
         if source.username and source.password_encrypted:
             try:
-                encryptor = ConnectorConfigEncryptor(settings.encryption_master_key)
+                encryptor = ConnectorConfigEncryptor(
+                    settings.encryption_master_key,
+                    keyring=settings.encryption_keyring,
+                    active_key_id=settings.encryption_active_key_id,
+                )
                 password = encryptor._decrypt_value(source.password_encrypted)
             except Exception:
                 logger.exception(

@@ -40,6 +40,8 @@ backend:
     KEYCLOAK_ALLOWED_CLIENT_IDS: dpp-backend,dpp-frontend
     OPA_URL: ""  # Set via deployment template using service discovery
     LOG_LEVEL: INFO
+    ENCRYPTION_ACTIVE_KEY_ID: default
+    AUDIT_SIGNING_KEY_ID: audit-key-1
   # Secret references — actual values come from secrets.yaml
   secretRef: dpp-platform-backend
 
@@ -53,6 +55,13 @@ backend:
     autoRegister: true
     externalUrl: ""
     externalDiscoveryUrl: ""
+
+  auditAnchoring:
+    enabled: false
+    schedule: "0 * * * *"
+    maxBatchesPerTenant: ""
+    successfulJobsHistoryLimit: 3
+    failedJobsHistoryLimit: 3
 
 # -- Frontend (React + nginx)
 frontend:
@@ -235,7 +244,9 @@ secrets:
   minioAccessKey: "CHANGE_ME"
   minioSecretKey: "CHANGE_ME"
   encryptionMasterKey: "CHANGE_ME"
+  encryptionKeyringJson: ""
   dppSigningKey: "CHANGE_ME"
+  auditSigningKey: "CHANGE_ME"
   edcDatasourceUrl: ""
   edcDatasourceUser: ""
   edcDatasourcePassword: ""

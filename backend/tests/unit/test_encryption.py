@@ -154,7 +154,7 @@ def test_encrypting_same_value_produces_different_ciphertext(
 
 
 def test_empty_master_key_raises() -> None:
-    with pytest.raises(EncryptionError, match="must not be empty"):
+    with pytest.raises(EncryptionError, match="keyring is empty"):
         ConnectorConfigEncryptor("")
 
 

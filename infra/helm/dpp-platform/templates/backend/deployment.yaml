@@ -88,11 +88,25 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.backend.secretRef }}
                   key: encryption-master-key
+            - name: ENCRYPTION_KEYRING_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: encryption-keyring-json
+            - name: ENCRYPTION_ACTIVE_KEY_ID
+              value: {{ .Values.backend.env.ENCRYPTION_ACTIVE_KEY_ID | quote }}
             - name: DPP_SIGNING_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.backend.secretRef }}
                   key: dpp-signing-key
+            - name: AUDIT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.backend.secretRef }}
+                  key: audit-signing-key
+            - name: AUDIT_SIGNING_KEY_ID
+              value: {{ .Values.backend.env.AUDIT_SIGNING_KEY_ID | quote }}
             - name: CORS_ORIGINS
               value: '["https://{{ .Values.global.domain }}"]'
             - name: LOG_LEVEL

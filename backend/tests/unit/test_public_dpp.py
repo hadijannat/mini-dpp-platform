@@ -8,9 +8,10 @@ drafts/archived DPPs return 404.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
+import jwt
 import pytest
 
 from app.db.models import DataCarrierStatus, DPPStatus, TenantStatus
@@ -18,6 +19,7 @@ from app.modules.dpps.public_router import (
     PublicDPPResponse,
     _get_published_revision,
     _resolve_tenant,
+    get_public_dpp_integrity_bundle,
     get_withdrawn_carrier_notice,
 )
 
@@ -55,6 +57,14 @@ def _make_revision(dpp_id: None = None) -> MagicMock:
     rev.revision_no = 1
     rev.aas_env_json = {"submodels": []}
     rev.digest_sha256 = "abc123"
+    rev.digest_algorithm = "sha-256"
+    rev.digest_canonicalization = "rfc8785"
+    rev.signed_jws = jwt.encode(
+        {"sub": "test"},
+        "0123456789abcdef0123456789abcdef",
+        algorithm="HS256",
+        headers={"kid": "dpp-signing-kid"},
+    )
     return rev
 
 
@@ -66,6 +76,19 @@ def _make_carrier(*, tenant_id: None = None) -> MagicMock:
     carrier.status = DataCarrierStatus.WITHDRAWN
     carrier.withdrawn_reason = "Recalled for safety check"
     return carrier
+
+
+def _make_anchor(*, tenant_id: None = None) -> MagicMock:
+    anchor = MagicMock()
+    anchor.id = uuid4()
+    anchor.tenant_id = tenant_id or uuid4()
+    anchor.root_hash = "f" * 64
+    anchor.first_sequence = 10
+    anchor.last_sequence = 20
+    anchor.created_at = datetime.now(UTC)
+    anchor.signature_kid = "audit-signing-kid"
+    anchor.tsa_token = b"tsa-token"
+    return anchor
 
 
 # --------------------------------------------------------------------------
@@ -178,4 +201,67 @@ async def test_withdrawn_carrier_notice_404_when_missing() -> None:
 
     with pytest.raises(HTTPException) as exc_info:
         await get_withdrawn_carrier_notice("default", uuid4(), session)
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+@patch("app.modules.dpps.public_router.get_settings")
+async def test_integrity_bundle_includes_crypto_metadata_and_anchor(
+    mock_settings: MagicMock,
+) -> None:
+    tenant = _make_tenant(slug="default")
+    dpp = _make_dpp(tenant_id=tenant.id)
+    revision = _make_revision(dpp.id)
+    revision.tenant_id = tenant.id
+    dpp.current_published_revision_id = revision.id
+    anchor = _make_anchor(tenant_id=tenant.id)
+
+    settings = MagicMock()
+    settings.api_v1_prefix = "/api/v1"
+    mock_settings.return_value = settings
+
+    session = AsyncMock()
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    dpp_result = MagicMock()
+    dpp_result.scalar_one_or_none.return_value = dpp
+    revision_result = MagicMock()
+    revision_result.scalar_one_or_none.return_value = revision
+    anchor_result = MagicMock()
+    anchor_result.scalar_one_or_none.return_value = anchor
+    session.execute.side_effect = [tenant_result, dpp_result, revision_result, anchor_result]
+
+    response = await get_public_dpp_integrity_bundle("default", dpp.id, session)
+    payload = response.model_dump(by_alias=True)
+
+    assert payload["dpp_id"] == dpp.id
+    assert payload["revision_id"] == revision.id
+    assert payload["digest_sha256"] == "abc123"
+    assert payload["digestAlgorithm"] == "sha-256"
+    assert payload["digestCanonicalization"] == "rfc8785"
+    assert payload["signatureKid"] == "dpp-signing-kid"
+    assert payload["verificationMethodUrls"] == [
+        "/api/v1/public/default/.well-known/did.json",
+        "/api/v1/public/.well-known/jwks.json",
+    ]
+    assert payload["anchor"]["anchor_id"] == anchor.id
+    assert payload["anchor"]["signatureKid"] == "audit-signing-kid"
+    assert payload["anchor"]["tsaTokenPresent"] is True
+
+
+@pytest.mark.asyncio
+async def test_integrity_bundle_404_when_dpp_not_found() -> None:
+    tenant = _make_tenant(slug="default")
+    session = AsyncMock()
+
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = tenant
+    dpp_result = MagicMock()
+    dpp_result.scalar_one_or_none.return_value = None
+    session.execute.side_effect = [tenant_result, dpp_result]
+
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_public_dpp_integrity_bundle("default", uuid4(), session)
     assert exc_info.value.status_code == 404

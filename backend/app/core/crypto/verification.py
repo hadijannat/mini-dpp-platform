@@ -11,7 +11,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.core.crypto.hash_chain import GENESIS_HASH, compute_event_hash
+from app.core.crypto.hash_chain import (
+    GENESIS_HASH,
+    HASH_ALGORITHM_SHA256,
+    HASH_CANONICALIZATION_LEGACY_JSON_V1,
+    HASH_CANONICALIZATION_RFC8785,
+    compute_event_hash,
+)
 
 
 @dataclass
@@ -42,8 +48,34 @@ def _extract_event_data(event: dict[str, Any]) -> dict[str, Any]:
     Strips chain-metadata fields (``event_hash``, ``prev_event_hash``,
     ``chain_sequence``) so that only the original event data is hashed.
     """
-    exclude = {"event_hash", "prev_event_hash", "chain_sequence"}
+    exclude = {
+        "event_hash",
+        "prev_event_hash",
+        "chain_sequence",
+        "hash_algorithm",
+        "hash_canonicalization",
+    }
     return {k: v for k, v in event.items() if k not in exclude}
+
+
+def _event_hash_metadata_candidates(event: dict[str, Any]) -> list[tuple[str, str]]:
+    raw_canonicalization = event.get("hash_canonicalization")
+    canonicalization = str(raw_canonicalization or "").strip()
+    hash_algorithm = str(event.get("hash_algorithm") or HASH_ALGORITHM_SHA256).strip()
+    if hash_algorithm != HASH_ALGORITHM_SHA256:
+        hash_algorithm = HASH_ALGORITHM_SHA256
+
+    if canonicalization in {
+        HASH_CANONICALIZATION_LEGACY_JSON_V1,
+        HASH_CANONICALIZATION_RFC8785,
+    }:
+        return [(canonicalization, hash_algorithm)]
+
+    # Missing/unknown metadata: try both legacy and RFC8785 for compatibility.
+    return [
+        (HASH_CANONICALIZATION_LEGACY_JSON_V1, hash_algorithm),
+        (HASH_CANONICALIZATION_RFC8785, hash_algorithm),
+    ]
 
 
 def verify_event(event: dict[str, Any], prev_hash: str | None) -> bool:
@@ -68,8 +100,16 @@ def verify_event(event: dict[str, Any], prev_hash: str | None) -> bool:
 
     effective_prev = prev_hash if prev_hash is not None else GENESIS_HASH
     event_data = _extract_event_data(event)
-    expected = compute_event_hash(event_data, effective_prev)
-    return bool(stored_hash == expected)
+    for canonicalization, hash_algorithm in _event_hash_metadata_candidates(event):
+        expected = compute_event_hash(
+            event_data,
+            effective_prev,
+            canonicalization=canonicalization,
+            hash_algorithm=hash_algorithm,
+        )
+        if stored_hash == expected:
+            return True
+    return False
 
 
 def verify_hash_chain(
@@ -123,16 +163,23 @@ def verify_hash_chain(
 
         # Recompute and verify
         event_data = _extract_event_data(event)
-        recomputed = compute_event_hash(event_data, expected_prev)
+        matched = False
+        for canonicalization, hash_algorithm in _event_hash_metadata_candidates(event):
+            recomputed = compute_event_hash(
+                event_data,
+                expected_prev,
+                canonicalization=canonicalization,
+                hash_algorithm=hash_algorithm,
+            )
+            if recomputed == stored_hash:
+                matched = True
+                break
 
-        if recomputed != stored_hash:
+        if not matched:
             result.is_valid = False
             if result.first_break_at is None:
                 result.first_break_at = i
-            result.errors.append(
-                f"Event at index {i}: hash mismatch "
-                f"(stored={stored_hash!r}, recomputed={recomputed!r})"
-            )
+            result.errors.append(f"Event at index {i}: hash mismatch (stored={stored_hash!r})")
             break
 
         result.verified_count += 1

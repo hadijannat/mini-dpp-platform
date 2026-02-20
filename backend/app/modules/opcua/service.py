@@ -86,7 +86,12 @@ async def _ensure_bucket(client: Minio, bucket: str) -> None:
 
 def _get_encryptor() -> ConnectorConfigEncryptor:
     """Return a ``ConnectorConfigEncryptor`` using the master key from settings."""
-    return ConnectorConfigEncryptor(get_settings().encryption_master_key)
+    settings = get_settings()
+    return ConnectorConfigEncryptor(
+        settings.encryption_master_key,
+        keyring=settings.encryption_keyring,
+        active_key_id=settings.encryption_active_key_id,
+    )
 
 
 # ---------------------------------------------------------------------------

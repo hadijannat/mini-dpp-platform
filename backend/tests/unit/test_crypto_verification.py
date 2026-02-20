@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from app.core.crypto.hash_chain import GENESIS_HASH, compute_event_hash
+from app.core.crypto.hash_chain import (
+    GENESIS_HASH,
+    HASH_ALGORITHM_SHA256,
+    HASH_CANONICALIZATION_LEGACY_JSON_V1,
+    HASH_CANONICALIZATION_RFC8785,
+    compute_event_hash,
+)
 from app.core.crypto.verification import (
     ChainVerificationResult,
     verify_event,
@@ -169,6 +175,62 @@ class TestVerifyHashChain:
         assert result.first_break_at == 2
         assert result.verified_count == 2  # Only 0 and 1 verified
         assert len(result.errors) == 1
+
+    def test_mixed_canonicalization_chain_verifies(self) -> None:
+        first_payload = {"action": "create", "metadata": {"z": 1, "a": 2}}
+        first_hash = compute_event_hash(
+            first_payload,
+            GENESIS_HASH,
+            canonicalization=HASH_CANONICALIZATION_LEGACY_JSON_V1,
+            hash_algorithm=HASH_ALGORITHM_SHA256,
+        )
+        first_event = {
+            **first_payload,
+            "event_hash": first_hash,
+            "prev_event_hash": GENESIS_HASH,
+            "chain_sequence": 0,
+            "hash_algorithm": HASH_ALGORITHM_SHA256,
+            "hash_canonicalization": HASH_CANONICALIZATION_LEGACY_JSON_V1,
+        }
+
+        second_payload = {"action": "publish", "metadata": {"a": 2, "z": 1}}
+        second_hash = compute_event_hash(
+            second_payload,
+            first_hash,
+            canonicalization=HASH_CANONICALIZATION_RFC8785,
+            hash_algorithm=HASH_ALGORITHM_SHA256,
+        )
+        second_event = {
+            **second_payload,
+            "event_hash": second_hash,
+            "prev_event_hash": first_hash,
+            "chain_sequence": 1,
+            "hash_algorithm": HASH_ALGORITHM_SHA256,
+            "hash_canonicalization": HASH_CANONICALIZATION_RFC8785,
+        }
+
+        result = verify_hash_chain([first_event, second_event])
+        assert result.is_valid
+        assert result.verified_count == 2
+
+    def test_rfc8785_event_without_metadata_verifies_via_compat_fallback(self) -> None:
+        payload = {"action": "update", "metadata": {"b": 1, "a": 2}}
+        event_hash = compute_event_hash(
+            payload,
+            GENESIS_HASH,
+            canonicalization=HASH_CANONICALIZATION_RFC8785,
+            hash_algorithm=HASH_ALGORITHM_SHA256,
+        )
+        event = {
+            **payload,
+            "event_hash": event_hash,
+            "prev_event_hash": GENESIS_HASH,
+            "chain_sequence": 0,
+        }
+
+        result = verify_hash_chain([event])
+        assert result.is_valid
+        assert result.verified_count == 1
 
 
 class TestChainVerificationResult:

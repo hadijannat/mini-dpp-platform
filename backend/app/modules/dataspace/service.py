@@ -68,8 +68,12 @@ class DataspaceService:
         self._dpp_service = DPPService(session)
         self._settings = get_settings()
         self._encryptor: ConnectorConfigEncryptor | None = None
-        if self._settings.encryption_master_key:
-            self._encryptor = ConnectorConfigEncryptor(self._settings.encryption_master_key)
+        if self._settings.encryption_keyring:
+            self._encryptor = ConnectorConfigEncryptor(
+                self._settings.encryption_master_key,
+                keyring=self._settings.encryption_keyring,
+                active_key_id=self._settings.encryption_active_key_id,
+            )
 
     # ------------------------------------------------------------------
     # Connector CRUD
@@ -1231,7 +1235,7 @@ class DataspaceService:
 
         for secret in secrets:
             secret_ref = secret["secret_ref"]
-            encrypted_value = self._encrypt_secret(secret["value"])
+            encrypted_value = self._encrypt_secret(secret["value"], secret_ref=secret_ref)
 
             current = existing_by_ref.get(secret_ref)
             if current is None:
@@ -1258,9 +1262,20 @@ class DataspaceService:
             )
         )
         secrets = result.scalars().all()
-        resolved = {
-            secret.secret_ref: self._decrypt_secret(secret.encrypted_value) for secret in secrets
-        }
+        resolved: dict[str, str] = {}
+        for secret in secrets:
+            decrypted, was_legacy = self._decrypt_secret(
+                secret.encrypted_value,
+                secret_ref=secret.secret_ref,
+            )
+            resolved[secret.secret_ref] = decrypted
+            if was_legacy:
+                secret.encrypted_value = self._encrypt_secret(
+                    decrypted,
+                    secret_ref=secret.secret_ref,
+                )
+        if secrets:
+            await self._session.flush()
         return RuntimeConnectorContext(
             connector_id=str(connector.id),
             runtime=connector.runtime.value,
@@ -1317,28 +1332,27 @@ class DataspaceService:
         )
         return result.scalar_one_or_none()
 
-    def _encrypt_secret(self, value: str) -> str:
+    def _encrypt_secret(self, value: str, *, secret_ref: str) -> str:
         encryptor = self._require_encryptor()
-        payload = encryptor.encrypt_config({"token": value})
-        encrypted = payload.get("token")
-        if not isinstance(encrypted, str):
-            raise DataspaceServiceError("Failed to encrypt secret value")
-        return encrypted
+        try:
+            return encryptor.encrypt_secret_token(value, aad=f"dataspace-secret:{secret_ref}")
+        except Exception as exc:  # pragma: no cover - defensive
+            raise DataspaceServiceError(f"Failed to encrypt secret value: {exc}") from exc
 
-    def _decrypt_secret(self, value: str) -> str:
-        if not value.startswith("enc:v1:"):
-            return value
+    def _decrypt_secret(self, value: str, *, secret_ref: str) -> tuple[str, bool]:
+        if not value.startswith(("enc:v1:", "enc:v2:")):
+            return value, False
         encryptor = self._require_encryptor()
-        payload = encryptor.decrypt_config({"token": value})
-        decrypted = payload.get("token")
-        if not isinstance(decrypted, str):
-            raise DataspaceServiceError("Failed to decrypt secret value")
-        return decrypted
+        try:
+            decrypted = encryptor.decrypt_secret_token(value, aad=f"dataspace-secret:{secret_ref}")
+            return decrypted, value.startswith("enc:v1:")
+        except Exception as exc:
+            raise DataspaceServiceError(f"Failed to decrypt secret value: {exc}") from exc
 
     def _require_encryptor(self) -> ConnectorConfigEncryptor:
         if self._encryptor is None:
             raise DataspaceServiceError(
-                "encryption_master_key must be configured for dataspace secret operations"
+                "encryption keyring must be configured for dataspace secret operations"
             )
         return self._encryptor
 

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+from unittest.mock import MagicMock, patch
+
+import jwt
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa
@@ -334,6 +338,128 @@ class TestVCService:
         result = vc_svc.verify_credential(vc_dict)
         assert result.valid is False
         assert any("expired" in e.lower() for e in result.errors)
+
+    def test_verify_tampered_credential_body_fails(self, rsa_pem: str) -> None:
+        from app.modules.credentials.did import DIDService
+        from app.modules.credentials.schemas import (
+            CredentialSubject,
+            VerifiableCredential,
+        )
+        from app.modules.credentials.vc import VCService
+
+        did_svc = DIDService(
+            base_url="https://dpp-platform.dev",
+            signing_key_pem=rsa_pem,
+        )
+        vc_svc = VCService(did_svc)
+        did = did_svc.generate_did_web("acme")
+        key_id = f"{did}#key-1"
+
+        subject = CredentialSubject(
+            id="urn:uuid:test-dpp",
+            aas_id="urn:uuid:test-dpp",
+            digest_sha256="abc123",
+        )
+        vc = VerifiableCredential(
+            id="urn:uuid:test-vc",
+            issuer=did,
+            issuance_date="2026-01-01T00:00:00Z",
+            credential_subject=subject,
+        )
+        proof = vc_svc._create_jws_proof(
+            payload=vc.model_dump(by_alias=True, exclude={"proof"}),
+            did=did,
+            key_id=key_id,
+        )
+        vc.proof = proof
+        vc_dict = vc.model_dump(by_alias=True)
+
+        # Tamper credential body while keeping the original proof.
+        vc_dict["credentialSubject"]["digestSHA256"] = "tampered"
+
+        result = vc_svc.verify_credential(vc_dict)
+        assert result.valid is False
+        assert any("proof hash does not match" in e.lower() for e in result.errors)
+
+    def test_verify_legacy_proof_binding_still_supported(self, rsa_pem: str) -> None:
+        from app.modules.credentials.did import DIDService
+        from app.modules.credentials.schemas import (
+            CredentialSubject,
+            VCProof,
+            VerifiableCredential,
+        )
+        from app.modules.credentials.vc import VCService, _detect_algorithm
+
+        did_svc = DIDService(
+            base_url="https://dpp-platform.dev",
+            signing_key_pem=rsa_pem,
+        )
+        vc_svc = VCService(did_svc)
+        did = did_svc.generate_did_web("acme")
+        key_id = f"{did}#key-1"
+
+        subject = CredentialSubject(
+            id="urn:uuid:test-dpp",
+            aas_id="urn:uuid:test-dpp",
+            digest_sha256="abc123",
+        )
+        vc = VerifiableCredential(
+            id="urn:uuid:test-vc",
+            issuer=did,
+            issuance_date="2026-01-01T00:00:00Z",
+            credential_subject=subject,
+        )
+        payload = vc.model_dump(by_alias=True, exclude={"proof"})
+        legacy_canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        token = jwt.encode(
+            {"vc": legacy_canonical, "iss": did, "iat": 1_700_000_000},
+            did_svc.private_key,
+            algorithm=_detect_algorithm(did_svc.private_key),
+            headers={"kid": key_id},
+        )
+        vc.proof = VCProof(
+            created="2026-01-01T00:00:00Z",
+            verification_method=key_id,
+            proof_purpose="assertionMethod",
+            jws=token,
+        )
+
+        result = vc_svc.verify_credential(vc.model_dump(by_alias=True))
+        assert result.valid is True
+        assert result.errors == []
+
+
+class TestCredentialPublicRouter:
+    @pytest.mark.asyncio
+    @patch("app.modules.credentials.public_router._get_did_service")
+    @patch("app.modules.credentials.public_router.get_settings")
+    async def test_get_public_jwks_returns_key_with_kid(
+        self,
+        mock_get_settings: MagicMock,
+        mock_get_did_service: MagicMock,
+    ) -> None:
+        from app.modules.credentials.public_router import get_public_jwks
+
+        did_service = MagicMock()
+        did_service.export_public_jwk.return_value = {"kty": "RSA", "n": "abc", "e": "AQAB"}
+        mock_get_did_service.return_value = did_service
+
+        settings = MagicMock()
+        settings.dpp_signing_key_id = "dpp-signing-kid"
+        mock_get_settings.return_value = settings
+
+        response = await get_public_jwks()
+
+        assert response == {
+            "keys": [
+                {
+                    "kty": "RSA",
+                    "n": "abc",
+                    "e": "AQAB",
+                    "kid": "dpp-signing-kid",
+                }
+            ]
+        }
 
 
 # ---------------------------------------------------------------------------

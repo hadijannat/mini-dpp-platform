@@ -79,6 +79,10 @@ class DIDService:
         msg = f"Unsupported key type: {type(pk).__name__}"
         raise TypeError(msg)
 
+    def export_public_jwk(self) -> dict[str, Any]:
+        """Public accessor for verifier key discovery endpoints."""
+        return self._export_public_key_jwk()
+
     @property
     def private_key(
         self,

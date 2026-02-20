@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
@@ -13,6 +11,11 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.core.crypto.canonicalization import (
+    CANONICALIZATION_RFC8785,
+    SHA256_ALGORITHM,
+    sha256_hex_for_canonicalization,
+)
 from app.db.models import DPP, DPPRevision
 from app.modules.dpps.canonical_patch import apply_canonical_patch
 from app.opcua_agent.deadletter import record_dead_letter
@@ -193,9 +196,11 @@ async def _flush_single_dpp(
         )
         current_env = result.aas_env_json
 
-    # Compute digest
-    canonical = json.dumps(current_env, sort_keys=True, separators=(",", ":"))
-    digest = hashlib.sha256(canonical.encode()).hexdigest()
+    # Compute digest using RFC 8785 canonicalization for new writes.
+    digest = sha256_hex_for_canonicalization(
+        current_env,
+        canonicalization=CANONICALIZATION_RFC8785,
+    )
 
     # Create new revision
     new_revision_no = (latest_rev.revision_no or 0) + 1
@@ -206,6 +211,8 @@ async def _flush_single_dpp(
         state=latest_rev.state,
         aas_env_json=current_env,
         digest_sha256=digest,
+        digest_algorithm=SHA256_ALGORITHM,
+        digest_canonicalization=CANONICALIZATION_RFC8785,
         created_by_subject="opcua-agent",
         template_provenance=latest_rev.template_provenance or {},
     )
