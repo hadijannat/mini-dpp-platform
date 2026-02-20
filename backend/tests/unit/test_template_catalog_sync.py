@@ -26,7 +26,9 @@ class _FakeResponse:
 
 
 class _FakeAsyncClient:
-    def __init__(self, tree_payload: dict[str, Any], payload_by_name: dict[str, dict[str, Any]]) -> None:
+    def __init__(
+        self, tree_payload: dict[str, Any], payload_by_name: dict[str, dict[str, Any]]
+    ) -> None:
         self._tree_payload = tree_payload
         self._payload_by_name = payload_by_name
 
@@ -36,7 +38,12 @@ class _FakeAsyncClient:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         return None
 
-    async def get(self, url: str, _headers: dict[str, str] | None = None) -> _FakeResponse:
+    async def get(
+        self,
+        url: str,
+        _headers: dict[str, str] | None = None,
+        **_kwargs: Any,
+    ) -> _FakeResponse:
         if "git/trees/" in url:
             return _FakeResponse(self._tree_payload)
         for filename, payload in self._payload_by_name.items():
@@ -49,7 +56,9 @@ def _ref(iri: str) -> model.Reference:
     return model.ExternalReference((model.Key(model.KeyTypes.GLOBAL_REFERENCE, iri),))
 
 
-def _template_environment(semantic_id: str, property_name: str = "ManufacturerName") -> dict[str, Any]:
+def _template_environment(
+    semantic_id: str, property_name: str = "ManufacturerName"
+) -> dict[str, Any]:
     submodel = model.Submodel(
         id_="urn:test:template",
         id_short="Template",
@@ -100,7 +109,7 @@ async def test_catalog_sync_ingests_published_and_deprecated_with_deterministic_
         # Invalid sample candidate should be ignored in favor of template candidate.
         "nameplate_sample.json": {"foo": "bar"},
         "nameplate_template.json": _template_environment(
-            "https://admin-shell.io/zvei/nameplate/3/0/Nameplate",
+            "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
         ),
         "legacy_template.json": _template_environment(
             "https://example.org/smt/legacy/1/0/Submodel",
@@ -110,6 +119,7 @@ async def test_catalog_sync_ingests_published_and_deprecated_with_deterministic_
 
     def fake_client_factory(*_args: Any, **_kwargs: Any) -> _FakeAsyncClient:
         return _FakeAsyncClient(tree_payload, payload_by_name)
+
     monkeypatch.setattr("app.modules.templates.service.httpx.AsyncClient", fake_client_factory)
 
     stats = await service.sync_catalog(include_deprecated=True)
@@ -135,7 +145,9 @@ async def test_catalog_sync_ingests_published_and_deprecated_with_deterministic_
 
 
 @pytest.mark.asyncio
-async def test_catalog_sync_second_run_is_idempotent(db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_catalog_sync_second_run_is_idempotent(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     service = TemplateRegistryService(db_session)
 
     tree_payload = {
@@ -149,12 +161,13 @@ async def test_catalog_sync_second_run_is_idempotent(db_session, monkeypatch: py
     }
     payload_by_name = {
         "nameplate_template.json": _template_environment(
-            "https://admin-shell.io/zvei/nameplate/3/0/Nameplate",
+            "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
         ),
     }
 
     def fake_client_factory(*_args: Any, **_kwargs: Any) -> _FakeAsyncClient:
         return _FakeAsyncClient(tree_payload, payload_by_name)
+
     monkeypatch.setattr("app.modules.templates.service.httpx.AsyncClient", fake_client_factory)
 
     first = await service.sync_catalog(include_deprecated=False)

@@ -455,7 +455,9 @@ class TemplateRegistryService:
                 return cached
 
         descriptor = get_template_descriptor(template.template_key)
-        expected_semantic_id = descriptor.semantic_id if descriptor is not None else template.semantic_id
+        expected_semantic_id = (
+            descriptor.semantic_id if descriptor is not None else template.semantic_id
+        )
         parsed = self._parse_template_model(template, expected_semantic_id)
         resolution_by_element_id: dict[int, dict[str, Any]] = {}
         if template_lookup:
@@ -892,7 +894,9 @@ class TemplateRegistryService:
                 source_url=source_url,
                 selected_submodel_semantic_id=semantic_id,
                 selection_strategy=SELECTION_STRATEGY,
-                display_name=self._submodel_display_name(parsed.submodel, fallback=candidate["folder"]),
+                display_name=self._submodel_display_name(
+                    parsed.submodel, fallback=candidate["folder"]
+                ),
             )
 
         candidate_aasx = response.content
@@ -922,11 +926,12 @@ class TemplateRegistryService:
         )
 
     def _submodel_display_name(self, submodel: model.Submodel, *, fallback: str) -> str:
-        display_name_values = list(getattr(submodel, "display_name", {}).values())
-        for value in display_name_values:
-            text = str(value).strip()
-            if text:
-                return text
+        display_name = getattr(submodel, "display_name", None)
+        if isinstance(display_name, Mapping):
+            for value in display_name.values():
+                text = str(value).strip()
+                if text:
+                    return text
         id_short = str(getattr(submodel, "id_short", "")).strip()
         if id_short:
             return id_short
@@ -940,7 +945,7 @@ class TemplateRegistryService:
         normalized = normalize_semantic_id(semantic_id) or folder.lower()
         tokens = [token for token in re.split(r"[^a-z0-9]+", normalized) if token]
         base = tokens[-1] if tokens else "template"
-        digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:8]
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
         candidate = f"{base}-{digest}"
         sanitized = re.sub(r"[^a-z0-9-]", "-", candidate.lower()).strip("-")
         if len(sanitized) > 96:

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
 from pydantic import BaseModel, Field
 
 from app.core.config import get_settings
@@ -213,7 +213,9 @@ def _validate_dynamic_id_short_policy(
                     )
             else:
                 if allowed_templates:
-                    patterns = [_allowed_id_short_pattern(template) for template in allowed_templates]
+                    patterns = [
+                        _allowed_id_short_pattern(template) for template in allowed_templates
+                    ]
                     for key in dynamic_keys:
                         if not any(pattern.match(key) for pattern in patterns):
                             errors.append(
@@ -307,8 +309,7 @@ def _validate_complexity_bounds(data: Any) -> None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
-                        "Payload exceeds max array length "
-                        f"({settings.public_smt_max_array_items})"
+                        f"Payload exceeds max array length ({settings.public_smt_max_array_items})"
                     ),
                 )
             for item in node:
@@ -318,8 +319,7 @@ def _validate_complexity_bounds(data: Any) -> None:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=(
-                        "Payload exceeds max object keys "
-                        f"({settings.public_smt_max_object_keys})"
+                        f"Payload exceeds max object keys ({settings.public_smt_max_object_keys})"
                     ),
                 )
             for value in node.values():
@@ -500,7 +500,9 @@ async def list_public_template_versions(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Template '{template_key}' not found",
         )
-    return PublicTemplateVersionsResponse(template_key=template_key, versions=versions, count=len(versions))
+    return PublicTemplateVersionsResponse(
+        template_key=template_key, versions=versions, count=len(versions)
+    )
 
 
 @router.get("/templates/{template_key}/contract", response_model=TemplateContractResponse)

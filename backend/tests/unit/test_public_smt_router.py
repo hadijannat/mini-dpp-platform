@@ -35,7 +35,13 @@ def _template_environment(
                 id_short=property_id_short,
                 value_type=model.datatypes.String,
                 value=None,
-                qualifier=[model.Qualifier(type_="SMT/Cardinality", value="One")],
+                qualifier=[
+                    model.Qualifier(
+                        type_="SMT/Cardinality",
+                        value_type=model.datatypes.String,
+                        value="One",
+                    )
+                ],
             )
         ],
     )
@@ -51,7 +57,7 @@ async def _insert_template(
     template_key: str,
     status: str = "published",
     version: str = "3.0.1",
-    semantic_id: str = "https://admin-shell.io/zvei/nameplate/3/0/Nameplate",
+    semantic_id: str = "https://admin-shell.io/idta/nameplate/3/0/Nameplate",
 ) -> Template:
     template = Template(
         template_key=template_key,
@@ -135,7 +141,9 @@ async def test_export_format_allowlist_rejects_unknown(test_client, db_session) 
 
 
 @pytest.mark.asyncio
-async def test_payload_size_and_depth_limits(test_client, db_session, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_payload_size_and_depth_limits(
+    test_client, db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
     await _insert_template(db_session, template_key="digital-nameplate", status="published")
 
     settings = get_settings()
@@ -190,7 +198,9 @@ async def test_metamodel_invalid_output_is_rejected(
     def _invalid_validator(_aas_env: dict[str, Any]) -> AASValidationResult:
         return AASValidationResult(is_valid=False, errors=["invalid"], warnings=[])
 
-    monkeypatch.setattr("app.modules.templates.public_router.validate_aas_environment", _invalid_validator)
+    monkeypatch.setattr(
+        "app.modules.templates.public_router.validate_aas_environment", _invalid_validator
+    )
 
     response = await test_client.post(
         "/api/v1/public/smt/preview",
