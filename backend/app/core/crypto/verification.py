@@ -179,10 +179,7 @@ def verify_hash_chain(
             result.is_valid = False
             if result.first_break_at is None:
                 result.first_break_at = i
-            result.errors.append(
-                f"Event at index {i}: hash mismatch "
-                f"(stored={stored_hash!r})"
-            )
+            result.errors.append(f"Event at index {i}: hash mismatch (stored={stored_hash!r})")
             break
 
         result.verified_count += 1

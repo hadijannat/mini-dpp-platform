@@ -866,9 +866,7 @@ class Settings(BaseSettings):
             if not self.dpp_signing_key:
                 raise ValueError(f"dpp_signing_key must be set in {self.environment} environment")
             if not self.audit_signing_key:
-                raise ValueError(
-                    f"audit_signing_key must be set in {self.environment} environment"
-                )
+                raise ValueError(f"audit_signing_key must be set in {self.environment} environment")
             if self.audit_signing_key == self.dpp_signing_key:
                 raise ValueError(
                     "audit_signing_key must be different from dpp_signing_key in production/staging"

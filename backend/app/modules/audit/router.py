@@ -236,7 +236,9 @@ async def anchor_merkle_root(
     try:
         anchor = await service.anchor_next_batch(tenant_id=tenant_id)
     except Exception as exc:
-        logger.warning("audit_anchor_failed", tenant_id=str(tenant_id), error=str(exc), exc_info=True)
+        logger.warning(
+            "audit_anchor_failed", tenant_id=str(tenant_id), error=str(exc), exc_info=True
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to anchor audit batch: {exc}",

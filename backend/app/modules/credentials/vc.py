@@ -175,9 +175,7 @@ class VCService:
 
             claim_hash = claims.get("vc_hash")
             claim_hash_alg = str(claims.get("vc_hash_alg", SHA256_ALGORITHM)).strip().lower()
-            claim_canon = str(
-                claims.get("vc_canon", CANONICALIZATION_RFC8785)
-            ).strip().lower()
+            claim_canon = str(claims.get("vc_canon", CANONICALIZATION_RFC8785)).strip().lower()
 
             if claim_hash is not None:
                 if claim_hash_alg != SHA256_ALGORITHM:

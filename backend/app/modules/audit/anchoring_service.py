@@ -38,7 +38,9 @@ class AuditAnchoringService:
         hashes = [str(event.event_hash) for event in events if event.event_hash]
         if not hashes:
             return None
-        sequences = [int(event.chain_sequence) for event in events if event.chain_sequence is not None]
+        sequences = [
+            int(event.chain_sequence) for event in events if event.chain_sequence is not None
+        ]
         tree = MerkleTree(leaves=hashes)
 
         signature = sign_merkle_root(tree.root, self._settings.audit_signing_key)
