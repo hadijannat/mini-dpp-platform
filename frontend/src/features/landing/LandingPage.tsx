@@ -9,6 +9,7 @@ import CirpassLabTeaserSection from './components/CirpassLabTeaserSection';
 import LandingFooter from './components/LandingFooter';
 import LandingHeader from './components/LandingHeader';
 import LandingMetricsSection from './components/LandingMetricsSection';
+import LandingSectionMotion from './components/LandingSectionMotion';
 import RegulatoryTimelineSection from './components/RegulatoryTimelineSection';
 import SamplePassportSection from './components/SamplePassportSection';
 import { landingContent } from './content/landingContent';
@@ -46,61 +47,88 @@ export default function LandingPage() {
 
       <main id="main-content" className="pb-6">
         <HeroSection />
-        <RegulatoryTimelineSection />
-        <HowItWorksSection />
-        <CirpassLabTeaserSection />
-        <SamplePassportSection />
+        <LandingSectionMotion>
+          <RegulatoryTimelineSection />
+        </LandingSectionMotion>
+        <LandingSectionMotion>
+          <HowItWorksSection />
+        </LandingSectionMotion>
+        <LandingSectionMotion>
+          <SamplePassportSection />
+        </LandingSectionMotion>
+        <LandingSectionMotion>
+          <CirpassLabTeaserSection />
+        </LandingSectionMotion>
 
         <DeferredSection minHeight={360} sectionId="metrics">
-          <LandingMetricsSection scope="all" />
+          <LandingSectionMotion>
+            <LandingMetricsSection scope="all" />
+          </LandingSectionMotion>
         </DeferredSection>
 
         <DeferredSection minHeight={420} sectionId="standards">
           <Suspense fallback={<div className="h-[420px]" aria-hidden="true" />}>
-            <StandardsMapSection />
+            <LandingSectionMotion>
+              <StandardsMapSection />
+            </LandingSectionMotion>
           </Suspense>
         </DeferredSection>
 
         <DeferredSection minHeight={320} sectionId="dataspaces">
           <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
-            <DataspaceReadySection />
+            <LandingSectionMotion>
+              <DataspaceReadySection />
+            </LandingSectionMotion>
           </Suspense>
         </DeferredSection>
 
         <DeferredSection minHeight={320} sectionId="developers">
           <Suspense fallback={<div className="h-[320px]" aria-hidden="true" />}>
-            <DeveloperTrustSection />
+            <LandingSectionMotion>
+              <DeveloperTrustSection />
+            </LandingSectionMotion>
           </Suspense>
         </DeferredSection>
 
-        <FAQSection />
+        <LandingSectionMotion>
+          <FAQSection />
+        </LandingSectionMotion>
 
-        <DataExposureSection />
+        <LandingSectionMotion>
+          <DataExposureSection />
+        </LandingSectionMotion>
 
-        <section className="px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-6xl rounded-3xl border border-landing-cyan/25 bg-gradient-to-r from-landing-cyan/10 via-white to-landing-amber/10 p-8">
-            <h2 className="font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
-              {landingContent.finalCta.title}
-            </h2>
-            <p className="mt-3 max-w-3xl text-base leading-relaxed text-landing-muted sm:text-lg">
-              {landingContent.finalCta.subtitle}
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <Button className="rounded-full px-6" asChild>
-                <a href={landingContent.finalCta.primaryCtaHref}>{landingContent.finalCta.primaryCta}</a>
-              </Button>
-              <Button variant="outline" className="rounded-full px-6" asChild>
-                <a
-                  href={landingContent.finalCta.secondaryCtaHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
+        <LandingSectionMotion>
+          <section className="px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+            <div className="landing-container landing-panel-premium p-8 sm:p-10">
+              <p className="landing-kicker text-xs font-semibold uppercase text-landing-muted">
+                Ready to launch
+              </p>
+              <h2 className="landing-section-title mt-4 font-display text-landing-ink">
+                {landingContent.finalCta.title}
+              </h2>
+              <p className="landing-lead mt-4 max-w-3xl text-landing-muted">{landingContent.finalCta.subtitle}</p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <Button className="landing-cta h-12 rounded-full px-7 text-sm font-semibold" asChild>
+                  <a href={landingContent.finalCta.primaryCtaHref}>{landingContent.finalCta.primaryCta}</a>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="landing-cta h-12 rounded-full border-landing-ink/25 bg-white/75 px-7 text-sm font-semibold text-landing-ink"
+                  asChild
                 >
-                  {landingContent.finalCta.secondaryCta}
-                </a>
-              </Button>
+                  <a
+                    href={landingContent.finalCta.secondaryCtaHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {landingContent.finalCta.secondaryCta}
+                  </a>
+                </Button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </LandingSectionMotion>
       </main>
 
       <LandingFooter />

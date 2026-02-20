@@ -4,8 +4,8 @@ import { landingContent } from '../content/landingContent';
 
 export default function LandingFooter() {
   return (
-    <footer className="border-t border-landing-ink/10 bg-landing-surface-1 px-4 py-14 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
+    <footer className="border-t border-landing-ink/10 bg-landing-surface-1/75 px-4 py-14 sm:px-6 lg:px-8">
+      <div className="landing-container grid gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
         <div>
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-landing-cyan/30 bg-landing-cyan/10 p-1.5 text-landing-cyan">
@@ -18,13 +18,13 @@ export default function LandingFooter() {
             workflows with conservative claims and evidence-first messaging.
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
+            <Button variant="outline" size="sm" className="landing-cta rounded-full px-4" asChild>
               <a href="#sample-passport">Open demo passport</a>
             </Button>
-            <Button variant="outline" size="sm" className="rounded-full px-4" asChild>
+            <Button variant="outline" size="sm" className="landing-cta rounded-full px-4" asChild>
               <a href="/login?mode=register">Create account</a>
             </Button>
-            <Button size="sm" className="rounded-full px-4" asChild>
+            <Button size="sm" className="landing-cta rounded-full px-4" asChild>
               <a href="/login">Sign in</a>
             </Button>
           </div>
@@ -69,7 +69,7 @@ export default function LandingFooter() {
         </div>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-2 border-t border-landing-ink/10 pt-6 text-xs text-landing-muted sm:flex-row sm:items-center sm:justify-between">
+      <div className="landing-container mt-10 flex flex-col gap-2 border-t border-landing-ink/10 pt-6 text-xs text-landing-muted sm:flex-row sm:items-center sm:justify-between">
         <p>
           © {new Date().getFullYear()} DPP Platform. Public landing pages are aggregate-only by
           policy.

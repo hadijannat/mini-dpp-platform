@@ -14,16 +14,16 @@ const endpointLinks = [
 
 export default function DeveloperTrustSection() {
   return (
-    <section className="bg-landing-surface-1/30 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <section className="landing-section-spacing bg-landing-surface-1/26 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container">
         <div className="max-w-4xl">
           <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
             Developer trust strip
           </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+          <h2 className="landing-section-title mt-3 font-display text-landing-ink">
             Run today, verify quickly
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
+          <p className="landing-lead mt-4 text-landing-muted">
             API contract clarity, policy and IAM controls, and local reproducibility are surfaced
             directly in the first public experience.
           </p>
@@ -35,7 +35,7 @@ export default function DeveloperTrustSection() {
             return (
               <article
                 key={signal.title}
-                className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_20px_40px_-34px_rgba(16,35,50,0.72)]"
+                className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-white/84 p-5"
               >
                 <p className="inline-flex rounded-full border border-landing-cyan/30 bg-landing-cyan/10 p-2 text-landing-cyan">
                   <Icon className="h-4 w-4" />
@@ -54,7 +54,7 @@ export default function DeveloperTrustSection() {
               href={link.href}
               target={link.href.startsWith('http') ? '_blank' : undefined}
               rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-              className="inline-flex rounded-full border border-landing-ink/18 bg-white px-4 py-2 text-sm font-semibold text-landing-ink transition-colors hover:border-landing-cyan/40 hover:text-landing-cyan"
+              className="landing-cta inline-flex rounded-full border border-landing-ink/18 bg-white px-4 py-2 text-sm font-semibold text-landing-ink transition-colors hover:border-landing-cyan/40 hover:text-landing-cyan"
             >
               {link.label}
             </a>

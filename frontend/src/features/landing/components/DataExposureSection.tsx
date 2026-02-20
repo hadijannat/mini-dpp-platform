@@ -3,16 +3,16 @@ import { landingContent } from '../content/landingContent';
 
 export default function DataExposureSection() {
   return (
-    <section id="data-policy" className="scroll-mt-24 px-4 py-16 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <section id="data-policy" className="landing-section-spacing scroll-mt-24 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container">
         <div className="mb-8 max-w-3xl">
           <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
             Security and privacy disclosure
           </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+          <h2 className="landing-section-title mt-3 font-display text-landing-ink">
             What is public vs what stays protected
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
+          <p className="landing-lead mt-4 text-landing-muted">
             Landing responses are intentionally conservative: aggregate metrics and curated evidence
             links only. Product identifiers, event payloads, and actor metadata are blocked.
           </p>
@@ -20,13 +20,13 @@ export default function DataExposureSection() {
             href="https://github.com/hadijannat/mini-dpp-platform/blob/main/docs/public/operations/public-data-exposure-policy.md"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-flex text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
+            className="landing-cta mt-4 inline-flex text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
           >
             Read full public data exposure policy
           </a>
         </div>
 
-        <div className="overflow-hidden rounded-3xl border border-landing-ink/12 bg-white/80 shadow-[0_24px_50px_-38px_rgba(13,39,50,0.75)]">
+        <div className="landing-panel-premium overflow-hidden rounded-[28px] border-landing-ink/12 bg-white/85 shadow-[0_30px_52px_-38px_rgba(13,39,50,0.75)]">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] table-auto border-collapse text-left">
             <thead className="bg-landing-surface-2/70">

@@ -100,18 +100,18 @@ export default function LandingMetricsSection({
   }, [freshnessIntervalMs]);
 
   return (
-    <section id="metrics" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <section id="metrics" className="landing-section-spacing scroll-mt-24 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container">
         <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
               Trust metrics strip
             </p>
-            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+            <h2 className="landing-section-title mt-3 font-display text-landing-ink">
               Aggregate visibility, privacy by default
             </h2>
           </div>
-          <p className="max-w-xl text-sm leading-relaxed text-landing-muted sm:text-base">
+          <p className="landing-lead max-w-xl text-landing-muted">
             Landing metrics are scope-aware aggregates from a dedicated public summary endpoint. No
             record-level IDs, no raw payloads, and no actor metadata are exposed.
           </p>
@@ -135,7 +135,7 @@ export default function LandingMetricsSection({
             {Array.from({ length: 4 }).map((_, idx) => (
               <div
                 key={`loading-${idx}`}
-                className="rounded-2xl border border-landing-ink/10 bg-white/70 p-5"
+                className="landing-card rounded-[20px] border-landing-ink/10 bg-white/75 p-5"
                 data-testid="landing-metrics-loading-card"
               >
                 <div className="h-4 w-2/5 animate-pulse rounded bg-landing-ink/10" />
@@ -151,7 +151,7 @@ export default function LandingMetricsSection({
             {landingContent.fallbackMetrics.map((metric) => (
               <article
                 key={metric.label}
-                className="rounded-2xl border border-landing-ink/10 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
+                className="landing-card landing-hover-card rounded-[20px] border-landing-ink/10 bg-white/82 p-5"
               >
                 <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
                   {metric.label}
@@ -166,7 +166,7 @@ export default function LandingMetricsSection({
         {!isLoading && !isError && data && (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-live="polite" data-testid="landing-metrics-success">
             <article
-              className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
+              className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-white/84 p-5"
               data-testid="landing-metric-published-dpps"
             >
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
@@ -180,7 +180,7 @@ export default function LandingMetricsSection({
             </article>
 
             <article
-              className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
+              className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-white/84 p-5"
               data-testid="landing-metric-product-families"
             >
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
@@ -194,7 +194,7 @@ export default function LandingMetricsSection({
             </article>
 
             <article
-              className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
+              className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-white/84 p-5"
               data-testid="landing-metric-traceability"
             >
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
@@ -208,7 +208,7 @@ export default function LandingMetricsSection({
             </article>
 
             <article
-              className="rounded-2xl border border-landing-ink/12 bg-white/78 p-5 shadow-[0_24px_40px_-36px_rgba(20,39,53,0.75)]"
+              className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-white/84 p-5"
               data-testid="landing-metric-latest-publish"
             >
               <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">
