@@ -8,7 +8,7 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -390,7 +390,10 @@ class DPPFieldEncryptor:
                 return [_walk(item) for item in node]
             return node
 
-        return _walk(working)
+        decrypted = _walk(working)
+        if not isinstance(decrypted, dict):  # pragma: no cover - defensive
+            raise EncryptionError("Decrypted DPP payload root must be a JSON object")
+        return cast(dict[str, Any], decrypted)
 
     @staticmethod
     def _escape_json_pointer_token(token: str) -> str:

@@ -142,7 +142,7 @@ class DPPService:
 
     async def _decrypt_revision_aas_env(self, revision: DPPRevision) -> dict[str, Any]:
         """Return revision AAS payload with encrypted markers resolved for internal operations."""
-        field_encryptor = getattr(self, "_field_encryptor", None)
+        field_encryptor: DPPFieldEncryptor | None = getattr(self, "_field_encryptor", None)
         wrapped_dek = getattr(revision, "wrapped_dek", None)
         kek_id = getattr(revision, "kek_id", None)
         if wrapped_dek and field_encryptor is None:
@@ -184,7 +184,7 @@ class DPPService:
         kek_id: str | None = None
         dek_wrapping_algorithm: str | None = None
 
-        field_encryptor = getattr(self, "_field_encryptor", None)
+        field_encryptor: DPPFieldEncryptor | None = getattr(self, "_field_encryptor", None)
         if field_encryptor is not None:
             encrypted = field_encryptor.prepare_for_storage(aas_env, tenant_id=tenant_id)
             stored_aas = encrypted.aas_env_json
