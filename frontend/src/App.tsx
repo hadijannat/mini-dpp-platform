@@ -17,6 +17,9 @@ const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 const CirpassLabPage = lazy(() => import('./features/cirpass-lab/pages/CirpassLabPage'));
 const LoginPage = lazy(() => import('./auth/LoginPage'));
 const DPPViewerPage = lazy(() => import('./features/viewer/pages/DPPViewerPage'));
+const PublicIdtaSubmodelEditorPage = lazy(
+  () => import('./features/devtools/pages/PublicIdtaSubmodelEditorPage'),
+);
 const DashboardPage = lazy(() => import('./features/publisher/pages/DashboardPage'));
 const DPPListPage = lazy(() => import('./features/publisher/pages/DPPListPage'));
 const DPPEditorPage = lazy(() => import('./features/publisher/pages/DPPEditorPage'));
@@ -62,6 +65,7 @@ function App() {
           <Route path="/t/:tenantSlug/p/:slug" element={<DPPViewerPage />} />
           <Route path="/dpp/:dppId" element={<DPPViewerPage />} />
           <Route path="/p/:slug" element={<DPPViewerPage />} />
+          <Route path="/tools/idta-submodel-editor" element={<PublicIdtaSubmodelEditorPage />} />
         </Route>
 
         {/* Onboarding (authenticated, any role) */}

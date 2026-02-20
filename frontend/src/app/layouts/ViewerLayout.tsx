@@ -1,6 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, LayoutDashboard, LogIn } from 'lucide-react';
+import { ArrowLeft, LayoutDashboard, LogIn, Wrench } from 'lucide-react';
 import { isPublisher } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +90,16 @@ export default function ViewerLayout() {
                 Dashboard
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/tools/idta-submodel-editor')}
+              data-testid="viewer-aas-sandbox"
+            >
+              <Wrench className="mr-1 h-4 w-4" />
+              AAS Sandbox
+            </Button>
 
             {!isAuthenticated && !auth.isLoading && (
               <Button

@@ -108,6 +108,7 @@ export interface FooterLink {
 
 export const landingContent = {
   navigation: [
+    { label: 'AAS Sandbox', href: '/tools/idta-submodel-editor' },
     { label: 'Demo', href: '#sample-passport' },
     { label: 'Timeline', href: '#timeline' },
     { label: 'CIRPASS Lab', href: '#cirpass-lab' },

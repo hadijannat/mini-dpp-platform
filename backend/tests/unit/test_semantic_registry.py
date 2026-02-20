@@ -11,6 +11,7 @@ from app.modules.semantic_registry import (
     list_dropin_bindings,
     list_espr_tier_prefixes,
     load_semantic_registry,
+    resolve_known_template_key_by_semantic_id,
 )
 
 
@@ -133,6 +134,18 @@ class TestLegacyAliases:
             aliases["urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass"]
             == "battery-passport"
         )
+
+    def test_resolve_known_template_key_by_semantic_id_uses_registry_templates(self) -> None:
+        resolved = resolve_known_template_key_by_semantic_id(
+            "https://admin-shell.io/zvei/nameplate/3/0/Nameplate"
+        )
+        assert resolved == "digital-nameplate"
+
+    def test_resolve_known_template_key_by_semantic_id_uses_legacy_aliases(self) -> None:
+        resolved = resolve_known_template_key_by_semantic_id(
+            "urn:samm:io.catenax.battery.battery_pass:6.0.0#BatteryPass"
+        )
+        assert resolved == "battery-passport"
 
 
 class TestDropinBindings:

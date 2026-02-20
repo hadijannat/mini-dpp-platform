@@ -373,6 +373,41 @@ class Settings(BaseSettings):
         },
         description="Deprecated: prefer template_major_minor_baselines + resolution policy.",
     )
+    public_smt_payload_max_bytes: int = Field(
+        default=524288,
+        ge=1024,
+        description="Maximum payload size for public SMT preview/export requests in bytes",
+    )
+    public_smt_max_depth: int = Field(
+        default=25,
+        ge=1,
+        description="Maximum nested JSON depth for public SMT preview/export requests",
+    )
+    public_smt_max_array_items: int = Field(
+        default=200,
+        ge=1,
+        description="Maximum number of items per array in public SMT payloads",
+    )
+    public_smt_max_object_keys: int = Field(
+        default=500,
+        ge=1,
+        description="Maximum number of keys per object in public SMT payloads",
+    )
+    public_smt_max_total_nodes: int = Field(
+        default=20000,
+        ge=1,
+        description="Maximum total JSON nodes in public SMT payloads",
+    )
+    public_smt_rate_limit_read_per_minute: int = Field(
+        default=60,
+        ge=1,
+        description="Per-IP minute limit for public SMT read/preview endpoints",
+    )
+    public_smt_rate_limit_export_per_minute: int = Field(
+        default=15,
+        ge=1,
+        description="Per-IP minute limit for public SMT export endpoint",
+    )
 
     # ==========================================================================
     # DPP Integrity / JWS Signing Configuration

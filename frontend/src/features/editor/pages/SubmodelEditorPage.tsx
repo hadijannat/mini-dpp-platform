@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { LoadingSpinner } from '@/components/loading-spinner';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -52,6 +52,7 @@ import { useEitherOrGroups } from '../hooks/useEitherOrGroups';
 import { AASRendererList } from '../components/AASRenderer';
 import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
+import { SubmodelEditorShell } from '../components/SubmodelEditorShell';
 import { cn } from '@/lib/utils';
 import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
 import { buildSubmodelEditorOutline } from '@/features/dpp-outline/builders/buildSubmodelEditorOutline';
@@ -988,20 +989,7 @@ export default function SubmodelEditorPage() {
       />
 
       {/* Editor Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <CardTitle className="text-base">Submodel Data</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                {activeView === 'form'
-                  ? 'Edit values using the schema-driven form.'
-                  : 'Edit raw JSON for advanced tweaks.'}
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <SubmodelEditorShell title="Submodel Data" activeViewLabel={activeView}>
           <p className="sr-only" aria-live="polite">
             {updateMutation.isPending ? 'Saving submodel changes' : ''}
           </p>
@@ -1203,8 +1191,7 @@ export default function SubmodelEditorPage() {
               </DialogContent>
             </Dialog>
           )}
-        </CardContent>
-      </Card>
+      </SubmodelEditorShell>
 
       {/* Debug panels */}
       {templateDefinition && (
