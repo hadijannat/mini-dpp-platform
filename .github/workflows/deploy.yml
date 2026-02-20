@@ -170,6 +170,40 @@ jobs:
               exit 1
             fi
 
+            # Ensure audit signing key is available for production migrations/runtime.
+            # Preferred source is AUDIT_SIGNING_KEY; temporary fallback to DPP_SIGNING_KEY
+            # keeps deployment backward-compatible while operators provision a dedicated key.
+            if [ -z "${AUDIT_SIGNING_KEY:-}" ]; then
+              for ENV_FILE in .env.prod .env; do
+                AUDIT_SIGNING_KEY_FROM_FILE="$(get_env_var AUDIT_SIGNING_KEY "$ENV_FILE")"
+                if [ -n "${AUDIT_SIGNING_KEY_FROM_FILE:-}" ]; then
+                  export AUDIT_SIGNING_KEY="$AUDIT_SIGNING_KEY_FROM_FILE"
+                  break
+                fi
+              done
+            fi
+
+            if [ -z "${AUDIT_SIGNING_KEY:-}" ]; then
+              if [ -n "${DPP_SIGNING_KEY:-}" ]; then
+                export AUDIT_SIGNING_KEY="$DPP_SIGNING_KEY"
+                echo "AUDIT_SIGNING_KEY missing; temporarily using DPP_SIGNING_KEY from environment."
+              else
+                for ENV_FILE in .env.prod .env; do
+                  DPP_SIGNING_KEY_FALLBACK="$(get_env_var DPP_SIGNING_KEY "$ENV_FILE")"
+                  if [ -n "${DPP_SIGNING_KEY_FALLBACK:-}" ]; then
+                    export AUDIT_SIGNING_KEY="$DPP_SIGNING_KEY_FALLBACK"
+                    echo "AUDIT_SIGNING_KEY missing; temporarily using DPP_SIGNING_KEY from ${ENV_FILE}."
+                    break
+                  fi
+                done
+              fi
+            fi
+
+            if [ -z "${AUDIT_SIGNING_KEY:-}" ]; then
+              echo "AUDIT_SIGNING_KEY is required for production deploy."
+              exit 1
+            fi
+
             # Build images (does not restart running containers)
             docker compose -f docker-compose.prod.yml build
 
