@@ -175,6 +175,41 @@ npm run generate-api
 - **Reverse proxy**: Caddy for production HTTPS termination and routing (`Caddyfile`)
 - **Keycloak realm**: `infra/keycloak/realm-export/dpp-platform-realm.json`
 
+## Cryptographic Security
+
+### Integrity, authenticity, and non-repudiation
+
+- **DPP revision integrity**: each revision stores `digest_sha256` plus a JWS signature (`signed_jws`) with `kid`.
+- **Canonical hashing/signing**: new writes use RFC 8785 JSON canonicalization (`rfc8785`) with SHA-256.
+- **Legacy compatibility**: verification supports historical `legacy-json-v1` rows where metadata indicates older canonicalization.
+- **VC proof binding**: VC verification validates signature and proof-to-credential binding (`vc_hash`, `vc_hash_alg`, `vc_canon`) with constant-time compare, while keeping legacy proof compatibility.
+- **Audit anchoring**: per-tenant audit events are hash-chained, periodically anchored as Merkle roots, signed with a dedicated audit key, and optionally RFC 3161 timestamped via `TSA_URL`.
+
+### Public verification endpoints
+
+- `GET /api/v1/public/{tenant_slug}/dpps/{dpp_id}/integrity`
+  - Returns digest, signature, digest algorithm/canonicalization, signature `kid`, verification method URLs, and latest anchor reference.
+- `GET /api/v1/public/.well-known/jwks.json`
+  - Publishes verifier keys for signature validation.
+- `GET /api/v1/public/{tenant_slug}/.well-known/did.json`
+  - Publishes tenant DID documents for VC verification workflows.
+
+### Confidentiality and key management
+
+- **Field-level encryption**: AAS elements tagged `Confidentiality=encrypted` are encrypted before storage using AES-256-GCM.
+- **Envelope encryption**: each encrypted revision uses a per-revision DEK wrapped by an active KEK (`wrapped_dek`, `kek_id`, `dek_wrapping_algorithm` metadata on revision).
+- **Connector/dataspace secrets**: new writes use `enc:v2` tokens (key-id aware, AEAD); `enc:v1` remains readable for compatibility.
+- **Key separation (required in staging/production)**: `AUDIT_SIGNING_KEY` must be different from `DPP_SIGNING_KEY`.
+
+### Required crypto environment variables (staging/production)
+
+- `DPP_SIGNING_KEY`, `DPP_SIGNING_KEY_ID`
+- `AUDIT_SIGNING_KEY`, `AUDIT_SIGNING_KEY_ID`
+- `ENCRYPTION_KEYRING_JSON` (preferred) or `ENCRYPTION_MASTER_KEY` (fallback), plus `ENCRYPTION_ACTIVE_KEY_ID`
+- Optional: `TSA_URL` (for RFC 3161 timestamping of signed Merkle roots)
+
+For scheduled anchoring, use `backend/tools/run_audit_anchoring.py` (or the Helm CronJob template `infra/helm/dpp-platform/templates/backend/audit-anchoring-cronjob.yaml`).
+
 ## Validation Snapshot (2026-02-19)
 
 | Area | Command | Result |
