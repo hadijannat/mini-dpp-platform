@@ -828,6 +828,22 @@ class Template(Base):
         nullable=False,
         comment="Template identifier: digital-nameplate, carbon-footprint, etc.",
     )
+    display_name: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        default="",
+        comment="Human-readable template label for UI display",
+    )
+    catalog_status: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="published",
+        comment="Catalog status (published or deprecated)",
+    )
+    catalog_folder: Mapped[str | None] = mapped_column(
+        Text,
+        comment="Folder path under IDTA catalog root (excluding status/version)",
+    )
     idta_version: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
@@ -880,6 +896,7 @@ class Template(Base):
     __table_args__ = (
         UniqueConstraint("template_key", "idta_version", name="uq_template_key_version"),
         Index("ix_templates_template_key", "template_key"),
+        Index("ix_templates_catalog_status", "catalog_status"),
     )
 
 

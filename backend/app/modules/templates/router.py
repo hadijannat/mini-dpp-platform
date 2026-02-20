@@ -25,6 +25,9 @@ class TemplateResponse(BaseModel):
 
     id: UUID
     template_key: str
+    display_name: str
+    catalog_status: str = "published"
+    catalog_folder: str | None = None
     idta_version: str
     resolved_version: str | None = None
     semantic_id: str
@@ -80,6 +83,9 @@ class TemplateSourceMetadataResponse(BaseModel):
     source_kind: str | None = None
     selection_strategy: str | None = None
     source_url: str
+    catalog_status: str | None = None
+    catalog_folder: str | None = None
+    display_name: str | None = None
 
 
 class TemplateRefreshResultResponse(BaseModel):
@@ -114,6 +120,20 @@ class TemplateContractResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class CatalogSyncRequest(BaseModel):
+    include_deprecated: bool = True
+
+
+class CatalogSyncResponse(BaseModel):
+    discovered: int
+    ingested: int
+    updated: int
+    skipped: int
+    failed: int
+    source_repo_ref: str
+    include_deprecated: bool
+
+
 def _build_template_response(template: Any) -> TemplateResponse:
     descriptor = get_template_descriptor(template.template_key)
     support_status = descriptor.support_status if descriptor is not None else "supported"
@@ -122,6 +142,9 @@ def _build_template_response(template: Any) -> TemplateResponse:
     return TemplateResponse(
         id=template.id,
         template_key=template.template_key,
+        display_name=getattr(template, "display_name", template.template_key),
+        catalog_status=getattr(template, "catalog_status", "published"),
+        catalog_folder=getattr(template, "catalog_folder", None),
         idta_version=template.idta_version,
         resolved_version=template.resolved_version,
         semantic_id=template.semantic_id,
@@ -364,3 +387,25 @@ async def refresh_template(
         )
 
     return _build_template_response(template)
+
+
+@router.post("/catalog/sync", response_model=CatalogSyncResponse)
+async def sync_template_catalog(
+    db: DbSession,
+    user: Publisher,
+    payload: CatalogSyncRequest | None = None,
+) -> CatalogSyncResponse:
+    """Sync published/deprecated IDTA templates into DB cache (authenticated)."""
+    await require_access(user, "refresh", {"type": "template"})
+    service = TemplateRegistryService(db)
+    include_deprecated = payload.include_deprecated if payload is not None else True
+    stats = await service.sync_catalog(include_deprecated=include_deprecated)
+    return CatalogSyncResponse(
+        discovered=stats.discovered,
+        ingested=stats.ingested,
+        updated=stats.updated,
+        skipped=stats.skipped,
+        failed=stats.failed,
+        source_repo_ref=stats.source_repo_ref,
+        include_deprecated=stats.include_deprecated,
+    )

@@ -50,6 +50,7 @@ from app.modules.resolver.public_router import router as public_resolver_router
 from app.modules.resolver.router import router as resolver_router
 from app.modules.settings.router import router as settings_router
 from app.modules.shares.router import router as shares_router
+from app.modules.templates.public_router import router as public_smt_router
 from app.modules.templates.router import router as templates_router
 from app.modules.tenants.router import router as tenants_router
 from app.modules.webhooks.router import router as webhooks_router
@@ -251,6 +252,11 @@ window.onload = function() {{
         public_regulatory_timeline_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public Timeline"],
+    )
+    app.include_router(
+        public_smt_router,
+        prefix=f"{settings.api_v1_prefix}/public/smt",
+        tags=["Public SMT Editor"],
     )
     app.include_router(
         lab_router,

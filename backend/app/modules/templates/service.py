@@ -3,6 +3,7 @@ Template Registry Service for IDTA Submodel Templates.
 Handles fetching, parsing, caching, and versioning of DPP4.0 templates.
 """
 
+import hashlib
 import io
 import json
 import re
@@ -24,6 +25,8 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db.models import Template
 from app.modules.aas.references import reference_to_str
+from app.modules.aas.semantic_ids import normalize_semantic_id
+from app.modules.semantic_registry import resolve_known_template_key_by_semantic_id
 from app.modules.templates.basyx_parser import BasyxTemplateParser
 from app.modules.templates.catalog import (
     TemplateDescriptor,
@@ -86,6 +89,18 @@ class TemplateCandidateResolution:
     source_url: str
     selected_submodel_semantic_id: str | None
     selection_strategy: str
+    display_name: str | None = None
+
+
+@dataclass(frozen=True)
+class TemplateCatalogSyncStats:
+    discovered: int
+    ingested: int
+    updated: int
+    skipped: int
+    failed: int
+    source_repo_ref: str
+    include_deprecated: bool
 
 
 class TemplateRegistryService:
@@ -164,6 +179,63 @@ class TemplateRegistryService:
                 "version": row.idta_version,
                 "is_default": row.idta_version == latest,
                 "created_at": row.fetched_at.isoformat() if row.fetched_at else None,
+            }
+            for row in rows
+        ]
+
+    async def list_templates_public(
+        self,
+        *,
+        status_filter: Literal["published", "deprecated", "all"] = "published",
+        search: str | None = None,
+    ) -> list[Template]:
+        """Return latest template row per key for public listing."""
+        query = select(Template)
+        if status_filter != "all":
+            query = query.where(Template.catalog_status == status_filter)
+        if search:
+            like = f"%{search.strip()}%"
+            query = query.where(
+                Template.template_key.ilike(like) | Template.display_name.ilike(like)
+            )
+
+        result = await self._session.execute(
+            query.order_by(
+                Template.template_key.asc(),
+                Template.fetched_at.desc(),
+                Template.idta_version.desc(),
+            )
+        )
+        latest_by_key: dict[str, Template] = {}
+        for template in result.scalars():
+            if template.template_key not in latest_by_key:
+                latest_by_key[template.template_key] = template
+        return [latest_by_key[key] for key in sorted(latest_by_key)]
+
+    async def list_template_versions_public(self, template_key: str) -> list[dict[str, Any]]:
+        """List all cached versions for a template key with public metadata."""
+        result = await self._session.execute(
+            select(
+                Template.idta_version,
+                Template.resolved_version,
+                Template.catalog_status,
+                Template.source_repo_ref,
+                Template.source_file_sha,
+                Template.fetched_at,
+            ).where(Template.template_key == template_key)
+        )
+        rows = list(result.all())
+        rows.sort(key=lambda row: self._version_key(str(row.idta_version)), reverse=True)
+        latest = rows[0].idta_version if rows else None
+        return [
+            {
+                "version": str(row.idta_version),
+                "resolved_version": row.resolved_version or str(row.idta_version),
+                "status": row.catalog_status,
+                "source_repo_ref": row.source_repo_ref,
+                "source_file_sha": row.source_file_sha,
+                "is_default": row.idta_version == latest,
+                "fetched_at": row.fetched_at.isoformat() if row.fetched_at else None,
             }
             for row in rows
         ]
@@ -322,6 +394,9 @@ class TemplateRegistryService:
             existing.source_file_sha = source_file_sha
             existing.source_kind = source_kind
             existing.selection_strategy = selection_strategy
+            existing.catalog_status = existing.catalog_status or "published"
+            existing.display_name = existing.display_name or descriptor.title
+            existing.catalog_folder = existing.catalog_folder or descriptor.repo_folder
             existing.fetched_at = datetime.now(UTC)
             template = existing
         else:
@@ -339,6 +414,9 @@ class TemplateRegistryService:
                 template_aasx=template_aasx,
                 template_json=aas_env_json,
                 fetched_at=datetime.now(UTC),
+                catalog_status="published",
+                display_name=descriptor.title,
+                catalog_folder=descriptor.repo_folder,
             )
             self._session.add(template)
 
@@ -377,10 +455,10 @@ class TemplateRegistryService:
                 return cached
 
         descriptor = get_template_descriptor(template.template_key)
-        if descriptor is None:
-            raise ValueError(f"Unknown template key: {template.template_key}")
-
-        parsed = self._parse_template_model(template, descriptor.semantic_id)
+        expected_semantic_id = (
+            descriptor.semantic_id if descriptor is not None else template.semantic_id
+        )
+        parsed = self._parse_template_model(template, expected_semantic_id)
         resolution_by_element_id: dict[int, dict[str, Any]] = {}
         if template_lookup:
             parsed_by_template: dict[str, Any] = {}
@@ -533,6 +611,412 @@ class TemplateRegistryService:
 
         await self._session.commit()
         return templates, results
+
+    async def sync_catalog(self, *, include_deprecated: bool = True) -> TemplateCatalogSyncStats:
+        """
+        Sync full IDTA template catalog from GitHub tree API into DB cache.
+
+        Anonymous/public routes must stay cache-only; this method is for authenticated
+        operator-triggered sync operations.
+        """
+        repo_ref = self._settings.idta_templates_repo_ref
+        tree_entries = await self._fetch_catalog_tree_entries(include_deprecated=include_deprecated)
+        grouped_candidates = self._group_catalog_candidates(tree_entries)
+
+        discovered = len(grouped_candidates)
+        ingested = 0
+        updated = 0
+        skipped = 0
+        failed = 0
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for (_, folder, version), candidates in grouped_candidates.items():
+                selected = await self._resolve_catalog_group_candidate(
+                    client=client,
+                    candidates=candidates,
+                    folder=folder,
+                    version=version,
+                )
+                if selected is None:
+                    failed += 1
+                    continue
+
+                semantic_id = selected.selected_submodel_semantic_id
+                if not semantic_id:
+                    failed += 1
+                    continue
+                template_key = self._build_deterministic_catalog_key(
+                    semantic_id=semantic_id,
+                    folder=folder,
+                )
+
+                action = await self._upsert_catalog_template(
+                    template_key=template_key,
+                    version=version,
+                    semantic_id=semantic_id,
+                    status=str(candidates[0]["status"]),
+                    folder=folder,
+                    selected=selected,
+                )
+                if action == "ingested":
+                    ingested += 1
+                elif action == "updated":
+                    updated += 1
+                else:
+                    skipped += 1
+
+        await self._session.commit()
+        return TemplateCatalogSyncStats(
+            discovered=discovered,
+            ingested=ingested,
+            updated=updated,
+            skipped=skipped,
+            failed=failed,
+            source_repo_ref=repo_ref,
+            include_deprecated=include_deprecated,
+        )
+
+    async def _fetch_catalog_tree_entries(
+        self,
+        *,
+        include_deprecated: bool,
+    ) -> list[dict[str, Any]]:
+        tree_url = self._build_catalog_tree_url()
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            response = await client.get(tree_url, headers=self._github_headers())
+            response.raise_for_status()
+            payload = response.json()
+
+        entries = payload.get("tree")
+        if not isinstance(entries, list):
+            return []
+
+        allowed_roots = {"published"}
+        if include_deprecated:
+            allowed_roots.add("deprecated")
+
+        filtered: list[dict[str, Any]] = []
+        for item in entries:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") != "blob":
+                continue
+            path = str(item.get("path") or "")
+            if not path:
+                continue
+            root = path.split("/", 1)[0].strip().lower()
+            if root not in allowed_roots:
+                continue
+            lowered = path.lower()
+            if not (lowered.endswith(".json") or lowered.endswith(".aasx")):
+                continue
+            filtered.append(item)
+        return filtered
+
+    def _build_catalog_tree_url(self) -> str:
+        api_root = self._repository_api_root()
+        ref = quote(self._settings.idta_templates_repo_ref, safe="")
+        return f"{api_root}/git/trees/{ref}?recursive=1"
+
+    def _repository_api_root(self) -> str:
+        api_url = self._settings.idta_templates_repo_api_url.rstrip("/")
+        marker = "/contents/"
+        if marker in api_url:
+            return api_url.split(marker, 1)[0]
+        return api_url
+
+    def _group_catalog_candidates(
+        self,
+        entries: list[dict[str, Any]],
+    ) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
+        groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+        for item in entries:
+            path = str(item.get("path") or "")
+            meta = self._catalog_path_metadata(path)
+            if meta is None:
+                continue
+            status, folder, version = meta
+            key = (status, folder, version)
+            groups.setdefault(key, []).append(
+                {
+                    "name": path.rsplit("/", 1)[-1],
+                    "path": path,
+                    "sha": item.get("sha"),
+                    "status": status,
+                    "folder": folder,
+                    "version": version,
+                    "kind": "aasx" if path.lower().endswith(".aasx") else "json",
+                    "download_url": self._build_catalog_download_url(path),
+                }
+            )
+        return groups
+
+    def _catalog_path_metadata(self, path: str) -> tuple[str, str, str] | None:
+        parts = [segment for segment in path.split("/") if segment]
+        if len(parts) < 3:
+            return None
+        status = parts[0].strip().lower()
+        if status not in {"published", "deprecated"}:
+            return None
+
+        non_file = parts[1:-1]
+        file_name = parts[-1]
+        first_numeric_index = next(
+            (idx for idx, segment in enumerate(non_file) if segment.isdigit()),
+            None,
+        )
+
+        if first_numeric_index is None:
+            folder_segments = non_file
+            version = self._infer_version_from_filename(file_name)
+            if version is None:
+                return None
+        else:
+            folder_segments = non_file[:first_numeric_index]
+            numeric_segments = non_file[first_numeric_index:]
+            if len(numeric_segments) >= 3 and all(seg.isdigit() for seg in numeric_segments[:3]):
+                version = f"{numeric_segments[0]}.{numeric_segments[1]}.{numeric_segments[2]}"
+            elif len(numeric_segments) >= 2 and all(seg.isdigit() for seg in numeric_segments[:2]):
+                version = f"{numeric_segments[0]}.{numeric_segments[1]}.0"
+            else:
+                inferred = self._infer_version_from_filename(file_name)
+                if inferred is None:
+                    return None
+                version = inferred
+
+        if not folder_segments:
+            return None
+        folder = "/".join(folder_segments).strip()
+        if not folder:
+            return None
+        return status, folder, version
+
+    def _infer_version_from_filename(self, file_name: str) -> str | None:
+        match = re.search(r"(\d+)[-_](\d+)[-_](\d+)", file_name)
+        if match:
+            return f"{match.group(1)}.{match.group(2)}.{match.group(3)}"
+        match = re.search(r"(\d+)[._-](\d+)(?:\D|$)", file_name)
+        if match:
+            return f"{match.group(1)}.{match.group(2)}.0"
+        return None
+
+    def _build_catalog_download_url(self, path: str) -> str:
+        api_root = self._repository_api_root()
+        parsed = urlparse(api_root)
+        segments = [segment for segment in parsed.path.split("/") if segment]
+        if len(segments) >= 3 and segments[0] == "repos":
+            owner = segments[1]
+            repo = segments[2]
+            encoded_path = "/".join(quote(segment) for segment in path.split("/"))
+            ref = quote(self._settings.idta_templates_repo_ref, safe="")
+            return f"https://raw.githubusercontent.com/{owner}/{repo}/{ref}/{encoded_path}"
+
+        base = self._resolve_base_url().rstrip("/")
+        for suffix in ("/published", "/deprecated"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                break
+        encoded_path = "/".join(quote(segment) for segment in path.split("/"))
+        return f"{base}/{encoded_path}"
+
+    async def _resolve_catalog_group_candidate(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        candidates: list[dict[str, Any]],
+        folder: str,
+        version: str,
+    ) -> TemplateCandidateResolution | None:
+        json_candidates = self._rank_template_files(
+            [candidate for candidate in candidates if candidate["kind"] == "json"],
+            prefer_kind="json",
+        )
+        aasx_candidates = self._rank_template_files(
+            [candidate for candidate in candidates if candidate["kind"] == "aasx"],
+            prefer_kind="aasx",
+        )
+
+        for candidate in [*json_candidates, *aasx_candidates]:
+            resolved = await self._resolve_catalog_candidate(client=client, candidate=candidate)
+            if resolved is not None:
+                return resolved
+
+        logger.warning(
+            "template_catalog_group_unresolved",
+            folder=folder,
+            version=version,
+            candidate_count=len(candidates),
+        )
+        return None
+
+    async def _resolve_catalog_candidate(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        candidate: dict[str, Any],
+    ) -> TemplateCandidateResolution | None:
+        parser = BasyxTemplateParser()
+        source_url = str(candidate.get("download_url") or "")
+        if not source_url:
+            return None
+
+        try:
+            response = await client.get(source_url)
+            response.raise_for_status()
+        except Exception as exc:
+            logger.warning(
+                "template_catalog_candidate_fetch_failed",
+                source_url=source_url,
+                error=str(exc),
+            )
+            return None
+
+        file_kind = cast(Literal["json", "aasx"], candidate.get("kind"))
+        if file_kind == "json":
+            try:
+                payload = response.json()
+                aas_env_json = self._normalize_template_json(payload, "catalog-template")
+                parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
+            except Exception as exc:
+                logger.warning(
+                    "template_catalog_candidate_parse_failed",
+                    source_url=source_url,
+                    file_kind=file_kind,
+                    error=str(exc),
+                )
+                return None
+            semantic_id = reference_to_str(parsed.submodel.semantic_id)
+            return TemplateCandidateResolution(
+                asset=candidate,
+                kind="json",
+                aas_env_json=aas_env_json,
+                aasx_bytes=None,
+                source_url=source_url,
+                selected_submodel_semantic_id=semantic_id,
+                selection_strategy=SELECTION_STRATEGY,
+                display_name=self._submodel_display_name(
+                    parsed.submodel, fallback=candidate["folder"]
+                ),
+            )
+
+        candidate_aasx = response.content
+        if not self._is_valid_aasx(candidate_aasx):
+            return None
+        try:
+            aas_env_json = self._extract_aas_environment(candidate_aasx)
+            parsed = parser.parse_aasx(candidate_aasx)
+        except Exception as exc:
+            logger.warning(
+                "template_catalog_candidate_parse_failed",
+                source_url=source_url,
+                file_kind=file_kind,
+                error=str(exc),
+            )
+            return None
+        semantic_id = reference_to_str(parsed.submodel.semantic_id)
+        return TemplateCandidateResolution(
+            asset=candidate,
+            kind="aasx",
+            aas_env_json=aas_env_json,
+            aasx_bytes=candidate_aasx,
+            source_url=source_url,
+            selected_submodel_semantic_id=semantic_id,
+            selection_strategy=SELECTION_STRATEGY,
+            display_name=self._submodel_display_name(parsed.submodel, fallback=candidate["folder"]),
+        )
+
+    def _submodel_display_name(self, submodel: model.Submodel, *, fallback: str) -> str:
+        display_name = getattr(submodel, "display_name", None)
+        if isinstance(display_name, Mapping):
+            for value in display_name.values():
+                text = str(value).strip()
+                if text:
+                    return text
+        id_short = str(getattr(submodel, "id_short", "")).strip()
+        if id_short:
+            return id_short
+        return fallback.split("/")[-1]
+
+    def _build_deterministic_catalog_key(self, *, semantic_id: str, folder: str) -> str:
+        known_key = resolve_known_template_key_by_semantic_id(semantic_id)
+        if known_key:
+            return known_key
+
+        normalized = normalize_semantic_id(semantic_id) or folder.lower()
+        tokens = [token for token in re.split(r"[^a-z0-9]+", normalized) if token]
+        base = tokens[-1] if tokens else "template"
+        digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:8]
+        candidate = f"{base}-{digest}"
+        sanitized = re.sub(r"[^a-z0-9-]", "-", candidate.lower()).strip("-")
+        if len(sanitized) > 96:
+            sanitized = sanitized[:96].rstrip("-")
+        return sanitized or f"template-{digest}"
+
+    async def _upsert_catalog_template(
+        self,
+        *,
+        template_key: str,
+        version: str,
+        semantic_id: str,
+        status: str,
+        folder: str,
+        selected: TemplateCandidateResolution,
+    ) -> Literal["ingested", "updated", "skipped"]:
+        source_asset = selected.asset or {}
+        source_file_sha = cast(str | None, source_asset.get("sha"))
+        source_file_path = cast(str | None, source_asset.get("path"))
+        display_name = (selected.display_name or folder.split("/")[-1]).strip() or template_key
+        existing = await self.get_template(template_key, version)
+
+        if existing is not None:
+            unchanged = (
+                existing.source_file_sha == source_file_sha
+                and existing.source_kind == selected.kind
+                and existing.catalog_status == status
+                and existing.catalog_folder == folder
+                and existing.display_name == display_name
+            )
+            if unchanged:
+                return "skipped"
+            existing.template_json = selected.aas_env_json
+            existing.template_aasx = selected.aasx_bytes
+            existing.semantic_id = semantic_id
+            existing.source_url = selected.source_url
+            existing.resolved_version = version
+            existing.source_repo_ref = self._settings.idta_templates_repo_ref
+            existing.source_file_path = source_file_path
+            existing.source_file_sha = source_file_sha
+            existing.source_kind = selected.kind
+            existing.selection_strategy = selected.selection_strategy
+            existing.catalog_status = status
+            existing.catalog_folder = folder
+            existing.display_name = display_name
+            existing.fetched_at = datetime.now(UTC)
+            await self._session.flush()
+            _definition_cache.pop((template_key, version, source_file_sha), None)
+            return "updated"
+
+        created = Template(
+            template_key=template_key,
+            idta_version=version,
+            resolved_version=version,
+            semantic_id=semantic_id,
+            source_url=selected.source_url,
+            source_repo_ref=self._settings.idta_templates_repo_ref,
+            source_file_path=source_file_path,
+            source_file_sha=source_file_sha,
+            source_kind=selected.kind,
+            selection_strategy=selected.selection_strategy,
+            template_aasx=selected.aasx_bytes,
+            template_json=selected.aas_env_json,
+            fetched_at=datetime.now(UTC),
+            catalog_status=status,
+            display_name=display_name,
+            catalog_folder=folder,
+        )
+        self._session.add(created)
+        await self._session.flush()
+        return "ingested"
 
     async def _resolve_template_version(self, descriptor: TemplateDescriptor) -> str:
         policy = self._settings.template_version_resolution_policy
@@ -1281,6 +1765,9 @@ class TemplateRegistryService:
             "source_kind": template.source_kind,
             "selection_strategy": template.selection_strategy,
             "source_url": template.source_url,
+            "catalog_status": template.catalog_status,
+            "catalog_folder": template.catalog_folder,
+            "display_name": template.display_name,
         }
 
     def _build_doc_hints(self, *, definition: dict[str, Any], template: Template) -> dict[str, Any]:

@@ -70,6 +70,59 @@ def _normalize_semantic_id(value: str) -> str:
     return value.strip().rstrip("/").lower()
 
 
+def _iter_template_semantic_pairs() -> tuple[tuple[str, str], ...]:
+    templates = load_semantic_registry().get("templates", {})
+    if not isinstance(templates, dict):
+        return ()
+
+    pairs: list[tuple[str, str]] = []
+    for key, entry in templates.items():
+        if not isinstance(key, str) or not key.strip():
+            continue
+        if not isinstance(entry, dict):
+            continue
+        semantic_id = entry.get("semantic_id")
+        if not isinstance(semantic_id, str) or not semantic_id.strip():
+            continue
+        pairs.append((_normalize_semantic_id(semantic_id), key))
+    return tuple(pairs)
+
+
+def _legacy_semantic_aliases() -> dict[str, str]:
+    aliases = load_semantic_registry().get("legacy_semantic_id_aliases", {})
+    if not isinstance(aliases, dict):
+        return {}
+
+    normalized: dict[str, str] = {}
+    for semantic_id, template_key in aliases.items():
+        if not isinstance(semantic_id, str) or not semantic_id.strip():
+            continue
+        if not isinstance(template_key, str) or not template_key.strip():
+            continue
+        normalized[_normalize_semantic_id(semantic_id)] = template_key
+    return normalized
+
+
+def resolve_known_template_key_by_semantic_id(semantic_id: str | None) -> str | None:
+    """
+    Resolve stable template key by semantic ID using registry + legacy aliases.
+
+    This preserves existing core template keys even when upstream semantic IDs
+    have historical variants.
+    """
+    if not semantic_id:
+        return None
+    normalized = _normalize_semantic_id(semantic_id)
+    if not normalized:
+        return None
+
+    for candidate_semantic, template_key in _iter_template_semantic_pairs():
+        if candidate_semantic == normalized:
+            return template_key
+
+    return _legacy_semantic_aliases().get(normalized)
+
+
 def list_dropin_bindings() -> dict[str, list[dict[str, Any]]]:
     """Return registry-configured drop-in bindings keyed by semantic ID."""
     raw = load_semantic_registry().get("dropin_bindings", {})
