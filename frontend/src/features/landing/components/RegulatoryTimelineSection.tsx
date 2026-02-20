@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useSpring } from 'framer-motion';
 import {
   CalendarClock,
   ChevronLeft,
@@ -267,6 +267,11 @@ function TimelineCard({
   shouldReduceMotion,
   onSelect,
 }: TimelineCardProps) {
+  const pointerOffsetX = useMotionValue(0);
+  const pointerOffsetY = useMotionValue(0);
+  const smoothOffsetX = useSpring(pointerOffsetX, { stiffness: 260, damping: 26, mass: 0.48 });
+  const smoothOffsetY = useSpring(pointerOffsetY, { stiffness: 260, damping: 26, mass: 0.48 });
+
   const motionProps = shouldReduceMotion
     ? {}
     : {
@@ -281,10 +286,26 @@ function TimelineCard({
       type="button"
       layout
       onClick={() => onSelect(event)}
-      whileHover={shouldReduceMotion ? undefined : { y: -4 }}
+      whileHover={shouldReduceMotion ? undefined : { scale: 1.01 }}
       whileTap={shouldReduceMotion ? undefined : { scale: 0.99 }}
+      onMouseMove={(pointerEvent) => {
+        if (shouldReduceMotion) {
+          return;
+        }
+
+        const rect = pointerEvent.currentTarget.getBoundingClientRect();
+        const normalizedX = (pointerEvent.clientX - rect.left) / rect.width - 0.5;
+        const normalizedY = (pointerEvent.clientY - rect.top) / rect.height - 0.5;
+        pointerOffsetX.set(normalizedX * 8);
+        pointerOffsetY.set(normalizedY * 6);
+      }}
+      onMouseLeave={() => {
+        pointerOffsetX.set(0);
+        pointerOffsetY.set(0);
+      }}
+      style={shouldReduceMotion ? undefined : { x: smoothOffsetX, y: smoothOffsetY }}
       className={cn(
-        'group rounded-2xl border border-landing-ink/12 bg-white/90 text-left shadow-[0_16px_30px_-24px_rgba(12,31,46,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan',
+        'landing-hover-card group rounded-[20px] border border-landing-ink/14 bg-white/90 text-left shadow-[0_20px_38px_-26px_rgba(12,31,46,0.84)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan',
         desktop ? 'h-full w-[280px] p-4' : 'w-full p-4',
       )}
       data-testid={testId}
@@ -405,17 +426,17 @@ export default function RegulatoryTimelineSection() {
   };
 
   return (
-    <section id="timeline" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl rounded-3xl border border-landing-cyan/30 bg-white/86 p-6 shadow-[0_30px_54px_-42px_rgba(8,35,50,0.85)] sm:p-8">
+    <section id="timeline" className="landing-section-spacing scroll-mt-24 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container landing-panel-premium p-6 sm:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="max-w-3xl">
             <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
               Regulatory intelligence
             </p>
-            <h2 className="mt-2 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+            <h2 className="landing-section-title mt-3 font-display text-landing-ink">
               Verified DPP Timeline
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-landing-muted sm:text-base">
+            <p className="landing-lead mt-4 text-landing-muted">
               Verified from official sources (Commission, EUR-Lex, and standards bodies). Built for
               one-glance understanding across compliance, product, and engineering audiences.
             </p>
@@ -449,7 +470,7 @@ export default function RegulatoryTimelineSection() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-landing-cyan/30 bg-gradient-to-r from-landing-cyan/12 via-white to-landing-amber/12 p-4 md:max-w-xs">
+          <div className="rounded-2xl border border-landing-cyan/35 bg-gradient-to-r from-landing-cyan/16 via-white/88 to-landing-amber/18 p-4 md:max-w-xs">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-landing-muted">Today marker</p>
             <p className="mt-2 font-display text-xl font-semibold text-landing-ink">
               {new Intl.DateTimeFormat(undefined, {
@@ -475,7 +496,7 @@ export default function RegulatoryTimelineSection() {
             onValueChange={(value) => setTrack(value as RegulatoryTimelineTrackFilter)}
             className="w-full md:w-auto"
           >
-            <TabsList className="grid w-full grid-cols-3 bg-landing-surface-1/70 md:w-[360px]">
+            <TabsList className="grid w-full grid-cols-3 border border-landing-ink/10 bg-landing-surface-1/75 md:w-[360px]">
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="regulation">Regulations</TabsTrigger>
               <TabsTrigger value="standards">Standards</TabsTrigger>
@@ -515,12 +536,12 @@ export default function RegulatoryTimelineSection() {
               <div className="relative">
                 <div
                   ref={desktopScrollRef}
-                  className="overflow-x-auto snap-x snap-mandatory pb-4 [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]"
+                  className="overflow-x-auto snap-x snap-mandatory pb-4 [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]"
                   data-testid="timeline-scroll-container"
                 >
                   <div className="relative min-w-max px-1 pt-12">
                     <div
-                      className="pointer-events-none absolute left-1 right-1 top-14 h-px bg-gradient-to-r from-transparent via-landing-ink/20 to-transparent"
+                      className="pointer-events-none absolute left-1 right-1 top-14 h-px bg-gradient-to-r from-transparent via-landing-ink/28 to-transparent"
                       data-testid="timeline-axis-rail"
                     />
                     {todayMarkerLeftPx !== null && (
@@ -541,7 +562,7 @@ export default function RegulatoryTimelineSection() {
                           <motion.div key={event.id} layout className="relative w-[280px] snap-start pt-2">
                             <span
                               className={cn(
-                                'pointer-events-none absolute left-6 top-[0.10rem] h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(12,31,46,0.12)]',
+                                'pointer-events-none absolute left-6 top-[0.10rem] h-3 w-3 rounded-full border-2 border-white shadow-[0_0_0_2px_rgba(12,31,46,0.18)]',
                                 trackNodeClass(event.track),
                               )}
                               aria-hidden="true"
@@ -563,7 +584,7 @@ export default function RegulatoryTimelineSection() {
                   <button
                     type="button"
                     onClick={() => scrollDesktop(-1)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/15 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
+                    className="landing-cta inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/20 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
                     aria-label="Scroll timeline left"
                     data-testid="timeline-scroll-left"
                   >
@@ -577,7 +598,7 @@ export default function RegulatoryTimelineSection() {
                   <button
                     type="button"
                     onClick={() => scrollDesktop(1)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/15 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
+                    className="landing-cta inline-flex h-8 w-8 items-center justify-center rounded-full border border-landing-ink/20 bg-white text-landing-muted transition-colors hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan"
                     aria-label="Scroll timeline right"
                     data-testid="timeline-scroll-right"
                   >

@@ -3,16 +3,16 @@ import { landingContent } from '../content/landingContent';
 
 export default function FAQSection() {
   return (
-    <section id="faq" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl rounded-3xl border border-landing-ink/12 bg-white/82 p-6 shadow-[0_24px_48px_-36px_rgba(12,36,49,0.75)] sm:p-8">
+    <section id="faq" className="landing-section-spacing scroll-mt-24 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container landing-panel-premium p-6 sm:p-8">
         <div className="max-w-3xl">
           <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
             FAQ
           </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+          <h2 className="landing-section-title mt-3 font-display text-landing-ink">
             Common questions from compliance and engineering teams
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
+          <p className="landing-lead mt-4 text-landing-muted">
             Short answers for the questions that usually come up before technical evaluation and pilot rollout.
           </p>
         </div>

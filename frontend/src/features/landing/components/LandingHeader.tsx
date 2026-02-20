@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Fingerprint, LogIn, Menu, PlayCircle, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import { landingContent } from '../content/landingContent';
 
 export default function LandingHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -37,11 +39,14 @@ export default function LandingHeader() {
   }, []);
 
   return (
-    <header
+    <motion.header
       className="sticky top-0 z-50 border-b border-landing-ink/10 bg-[hsl(var(--landing-surface-0)/0.84)] backdrop-blur-xl"
       data-mobile-open={mobileOpen ? 'true' : 'false'}
+      initial={shouldReduceMotion ? false : { opacity: 0, y: -16 }}
+      animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
+      transition={shouldReduceMotion ? undefined : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:gap-6 lg:px-8">
+      <div className="landing-container flex items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:gap-6 lg:px-8">
         <a
           href="/"
           className="group inline-flex shrink-0 items-center gap-2 lg:pr-1"
@@ -76,21 +81,21 @@ export default function LandingHeader() {
           <div className="h-6 w-px bg-landing-ink/15" aria-hidden="true" />
 
           <div className="shrink-0 items-center gap-2 xl:flex">
-            <Button size="sm" variant="outline" className="rounded-full px-3.5 2xl:px-4" asChild>
+            <Button size="sm" variant="outline" className="landing-cta rounded-full px-3.5 2xl:px-4" asChild>
               <a href="#sample-passport">
-                <PlayCircle className="h-4 w-4" />
+                <PlayCircle className="landing-cta-icon h-4 w-4" />
                 Open demo
               </a>
             </Button>
-            <Button size="sm" variant="outline" className="rounded-full px-3.5 2xl:px-4" asChild>
+            <Button size="sm" variant="outline" className="landing-cta rounded-full px-3.5 2xl:px-4" asChild>
               <a href="/login?mode=register">
-                <UserPlus className="h-4 w-4" />
+                <UserPlus className="landing-cta-icon h-4 w-4" />
                 Create account
               </a>
             </Button>
-            <Button size="sm" className="rounded-full px-3.5 2xl:px-4" asChild>
+            <Button size="sm" className="landing-cta rounded-full px-3.5 2xl:px-4" asChild>
               <a href="/login">
-                <LogIn className="h-4 w-4" />
+                <LogIn className="landing-cta-icon h-4 w-4" />
                 Sign in
               </a>
             </Button>
@@ -133,21 +138,21 @@ export default function LandingHeader() {
               ))}
 
               <div className="mt-4 border-t border-landing-ink/10 pt-4">
-                <Button className="mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
+                <Button className="landing-cta mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
                   <a href="#sample-passport" onClick={() => setMobileOpen(false)}>
-                    <PlayCircle className="h-4 w-4" />
+                    <PlayCircle className="landing-cta-icon h-4 w-4" />
                     Open demo
                   </a>
                 </Button>
-                <Button className="mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
+                <Button className="landing-cta mb-2 w-full rounded-full" size="sm" variant="outline" asChild>
                   <a href="/login?mode=register" onClick={() => setMobileOpen(false)}>
-                    <UserPlus className="h-4 w-4" />
+                    <UserPlus className="landing-cta-icon h-4 w-4" />
                     Create account
                   </a>
                 </Button>
-                <Button className="w-full rounded-full" size="sm" asChild>
+                <Button className="landing-cta w-full rounded-full" size="sm" asChild>
                   <a href="/login" onClick={() => setMobileOpen(false)}>
-                    <LogIn className="h-4 w-4" />
+                    <LogIn className="landing-cta-icon h-4 w-4" />
                     Sign in
                   </a>
                 </Button>
@@ -156,6 +161,6 @@ export default function LandingHeader() {
           </SheetContent>
         </Sheet>
       </div>
-    </header>
+    </motion.header>
   );
 }

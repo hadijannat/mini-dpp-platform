@@ -41,8 +41,8 @@ export default function CirpassLabTeaserSection() {
   };
 
   return (
-    <section id="cirpass-lab" className="scroll-mt-24 px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl border border-landing-ink/15 bg-[linear-gradient(135deg,rgba(7,47,60,0.94),rgba(17,24,39,0.95))] p-6 text-white shadow-[0_32px_70px_-46px_rgba(7,47,60,0.88)] sm:p-8">
+    <section id="cirpass-lab" className="landing-section-spacing scroll-mt-24 px-4 sm:px-6 lg:px-8">
+      <div className="landing-container overflow-hidden rounded-[28px] border border-landing-ink/15 bg-[linear-gradient(135deg,rgba(8,42,53,0.96),rgba(16,22,36,0.98))] p-6 text-white shadow-[0_40px_72px_-46px_rgba(7,47,60,0.9)] sm:p-8">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-cyan-200/35 bg-cyan-200/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.13em] text-cyan-100">
@@ -82,19 +82,19 @@ export default function CirpassLabTeaserSection() {
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 asChild
-                className="rounded-full px-6"
+                className="landing-cta rounded-full px-6"
                 data-testid="cirpass-teaser-primary"
                 onMouseEnter={prefetchLab}
                 onFocus={prefetchLab}
               >
                 <a href="/cirpass-lab">
                   Open CIRPASS Lab
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="landing-cta-icon h-4 w-4" />
                 </a>
               </Button>
               <Button
                 variant="outline"
-                className="rounded-full border-white/25 bg-white/10 px-6 text-white hover:bg-white/20"
+                className="landing-cta rounded-full border-white/25 bg-white/10 px-6 text-white hover:bg-white/20"
                 asChild
               >
                 <a
@@ -119,7 +119,7 @@ export default function CirpassLabTeaserSection() {
             <a
               key={card.title}
               href={card.href}
-              className="group rounded-2xl border border-white/20 bg-white/10 p-4 transition hover:bg-white/15"
+              className="landing-hover-card group rounded-2xl border border-white/20 bg-white/10 p-4 transition hover:bg-white/16"
               onMouseEnter={prefetchLab}
               onFocus={prefetchLab}
             >
@@ -128,7 +128,7 @@ export default function CirpassLabTeaserSection() {
               <p className="mt-1 text-sm text-slate-200">{card.description}</p>
               <span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.11em] text-cyan-100">
                 Start role path
-                <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                <ArrowRight className="landing-cta-icon h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
               </span>
             </a>
           ))}

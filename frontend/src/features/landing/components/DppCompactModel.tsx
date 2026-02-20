@@ -177,12 +177,12 @@ export default function DppCompactModel() {
 
   return (
     <TooltipProvider delayDuration={180}>
-      <section className="rounded-2xl border border-landing-ink/10 bg-gradient-to-b from-white to-landing-surface-1/60 p-5">
+      <section className="landing-card rounded-[20px] bg-gradient-to-b from-white/95 to-landing-surface-1/70 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-semibold text-landing-ink">
+          <h2 className="font-display text-lg font-semibold tracking-tight text-landing-ink">
             Asset Administration Shell (IEC 63278)
           </h2>
-          <div className="inline-flex items-center gap-2 rounded-full border border-landing-ink/15 bg-white/90 px-3 py-1.5">
+          <div className="inline-flex items-center gap-2 rounded-full border border-landing-ink/20 bg-white/95 px-3 py-1.5">
             <span
               className={cn(
                 'text-xs font-semibold uppercase tracking-[0.08em]',
@@ -208,13 +208,13 @@ export default function DppCompactModel() {
         </div>
 
         {/* ── Identifier & Data Carrier Layer ── */}
-        <div className="mt-5 rounded-xl border border-dashed border-landing-ink/15 bg-landing-surface-1/50 p-3.5">
+        <div className="mt-5 rounded-xl border border-dashed border-landing-ink/20 bg-landing-surface-1/55 p-3.5">
           <p className="mb-2.5 text-center text-[9px] font-extrabold uppercase tracking-[0.12em] text-landing-muted">
             DPP4.0 &mdash; Identification &amp; Data Carrier Layer
           </p>
           <div className="grid gap-2.5 sm:grid-cols-3">
             {/* Column 1: Unique Identifier */}
-            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white px-3 py-2.5">
+            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white/95 px-3 py-2.5">
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Fingerprint className="h-3.5 w-3.5 text-landing-cyan" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
@@ -249,7 +249,7 @@ export default function DppCompactModel() {
             </div>
 
             {/* Column 2: Data Carrier */}
-            <div className="rounded-lg border-t-2 border-landing-amber/50 bg-white px-3 py-2.5">
+            <div className="rounded-lg border-t-2 border-landing-amber/55 bg-white/95 px-3 py-2.5">
               <div className="mb-1.5 flex items-center gap-1.5">
                 <QrCode className="h-3.5 w-3.5 text-landing-amber" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
@@ -284,7 +284,7 @@ export default function DppCompactModel() {
             </div>
 
             {/* Column 3: Resolution */}
-            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white px-3 py-2.5">
+            <div className="rounded-lg border-t-2 border-landing-cyan/50 bg-white/95 px-3 py-2.5">
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Link2 className="h-3.5 w-3.5 text-landing-cyan" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-landing-ink">
@@ -331,7 +331,7 @@ export default function DppCompactModel() {
                     key={node.id}
                     value={node.id}
                     className={cn(
-                      'landing-aas-card flex h-[120px] flex-1 flex-col items-center justify-center',
+                      'landing-aas-card flex h-[120px] flex-1 flex-col items-center justify-center landing-hover-card',
                       'rounded-lg border border-landing-ink/12 bg-white px-1 py-2',
                       'text-[10px] font-semibold text-landing-ink shadow-none',
                       'data-[state=active]:border-landing-cyan/60 data-[state=active]:bg-landing-cyan/8',
@@ -361,7 +361,7 @@ export default function DppCompactModel() {
             </div>
           </div>
 
-          <div className="mt-3 max-h-[260px] overflow-y-auto rounded-xl border border-landing-ink/12 bg-white/90 p-4">
+          <div className="mt-3 max-h-[280px] overflow-y-auto rounded-xl border border-landing-ink/14 bg-white/92 p-4">
             {dppModelNodes.map((node) => (
               <TabsContent key={node.id} value={node.id} className="mt-0">
                 <SubmodelContent node={node} audienceMode={audienceMode} />

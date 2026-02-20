@@ -49,8 +49,11 @@ export default {
         landing: {
           ink: 'hsl(var(--landing-ink))',
           muted: 'hsl(var(--landing-muted))',
+          paper: 'hsl(var(--landing-paper))',
+          line: 'hsl(var(--landing-line))',
           cyan: 'hsl(var(--landing-accent-cyan))',
           amber: 'hsl(var(--landing-accent-amber))',
+          'surface-base': 'hsl(var(--landing-surface))',
           surface: {
             0: 'hsl(var(--landing-surface-0))',
             1: 'hsl(var(--landing-surface-1))',
@@ -62,6 +65,9 @@ export default {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+      },
+      maxWidth: {
+        landing: '77.5rem',
       },
       fontFamily: {
         sans: ['Manrope', 'Segoe UI', 'sans-serif'],

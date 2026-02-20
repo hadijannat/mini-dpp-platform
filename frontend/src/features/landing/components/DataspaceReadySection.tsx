@@ -3,16 +3,16 @@ import { landingContent } from '../content/landingContent';
 
 export default function DataspaceReadySection() {
   return (
-    <section className="px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <section className="landing-section-spacing px-4 sm:px-6 lg:px-8">
+      <div className="landing-container">
         <div className="max-w-4xl">
           <p className="landing-kicker text-xs font-semibold uppercase tracking-[0.14em] text-landing-muted">
             Dataspace-ready
           </p>
-          <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight text-landing-ink sm:text-4xl">
+          <h2 className="landing-section-title mt-3 font-display text-landing-ink">
             Sovereign sharing language, grounded in implementation
           </h2>
-          <p className="mt-4 text-base leading-relaxed text-landing-muted sm:text-lg">
+          <p className="landing-lead mt-4 text-landing-muted">
             Connectors, resolver pathways, and policy controls are positioned with evidence-first
             claim discipline for technical due diligence.
           </p>
@@ -22,7 +22,7 @@ export default function DataspaceReadySection() {
           {landingContent.dataspaceCards.map((card) => (
             <article
               key={card.title}
-              className="rounded-2xl border border-landing-ink/12 bg-landing-surface-0/70 p-5 shadow-[0_20px_40px_-34px_rgba(16,35,50,0.72)]"
+              className="landing-card landing-hover-card rounded-[20px] border-landing-ink/12 bg-landing-surface-0/84 p-5"
             >
               <div className="flex items-start justify-between gap-2">
                 <h3 className="font-display text-xl font-semibold text-landing-ink">{card.title}</h3>
@@ -33,7 +33,7 @@ export default function DataspaceReadySection() {
                 href={card.evidence.href}
                 target={card.evidence.href.startsWith('http') ? '_blank' : undefined}
                 rel={card.evidence.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                className="mt-4 inline-flex text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
+                className="landing-cta mt-4 inline-flex text-sm font-semibold text-landing-cyan transition-colors hover:text-landing-ink"
               >
                 {card.evidence.label}
               </a>
