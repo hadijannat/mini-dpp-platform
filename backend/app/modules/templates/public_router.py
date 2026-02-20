@@ -422,7 +422,11 @@ async def _prepare_preview(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(template, template_lookup=template_lookup)
+    contract = service.generate_template_contract(
+        template,
+        template_lookup=template_lookup,
+        strict_unknown_model_types=True,
+    )
     schema = contract.get("schema")
     if not isinstance(schema, dict):
         raise HTTPException(
@@ -617,7 +621,11 @@ async def get_public_template_contract(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(template, template_lookup=template_lookup)
+    contract = service.generate_template_contract(
+        template,
+        template_lookup=template_lookup,
+        strict_unknown_model_types=True,
+    )
     return TemplateContractResponse(
         template_key=template.template_key,
         idta_version=contract["idta_version"],

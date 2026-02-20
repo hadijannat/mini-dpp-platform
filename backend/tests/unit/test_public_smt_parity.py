@@ -277,7 +277,11 @@ async def test_unknown_model_types_are_reported_as_unsupported(db_session) -> No
         },
     }
 
-    unsupported = service._collect_unsupported_nodes(definition=definition, schema=schema)
+    unsupported = service._collect_unsupported_nodes(
+        definition=definition,
+        schema=schema,
+        strict_unknown_model_types=True,
+    )
 
     assert unsupported
     assert unsupported[0]["modelType"] == "SubmodelElement"

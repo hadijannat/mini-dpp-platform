@@ -1738,11 +1738,17 @@ class TemplateRegistryService:
         self,
         template: Template,
         template_lookup: Mapping[str, Template] | None = None,
+        *,
+        strict_unknown_model_types: bool = False,
     ) -> dict[str, Any]:
         definition = self._generate_template_definition(template, template_lookup=template_lookup)
         schema = DefinitionToSchemaConverter().convert(definition)
         dropin_resolution_report = self._collect_dropin_resolution_report(definition)
-        unsupported_nodes = self._collect_unsupported_nodes(definition, schema)
+        unsupported_nodes = self._collect_unsupported_nodes(
+            definition,
+            schema,
+            strict_unknown_model_types=strict_unknown_model_types,
+        )
         doc_hints = self._build_doc_hints(definition=definition, template=template)
         return {
             "template_key": template.template_key,
@@ -1942,6 +1948,8 @@ class TemplateRegistryService:
         self,
         definition: dict[str, Any],
         schema: dict[str, Any],
+        *,
+        strict_unknown_model_types: bool = False,
     ) -> list[dict[str, Any]]:
         known_model_types = {
             "Property",
@@ -1970,7 +1978,7 @@ class TemplateRegistryService:
             path = str(node.get("path") or "") or None
             if model_type in unsupported_model_types:
                 reasons.append(f"unsupported_model_type:{model_type}")
-            elif model_type not in known_model_types:
+            elif strict_unknown_model_types and model_type not in known_model_types:
                 reasons.append(f"unsupported_model_type:{model_type or 'unknown'}")
 
             resolution = node.get("x_resolution")

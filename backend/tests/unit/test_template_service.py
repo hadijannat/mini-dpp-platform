@@ -274,6 +274,45 @@ class TestTemplateRegistryService:
         re_derived = DefinitionToSchemaConverter().convert(contract["definition"])
         assert contract["schema"] == re_derived
 
+    def test_unknown_model_types_are_opt_in_for_unsupported_nodes(self):
+        service = TemplateRegistryService(MagicMock())
+        definition = {
+            "submodel": {
+                "idShort": "TechnicalData",
+                "elements": [
+                    {
+                        "path": "TechnicalData.GenericItems",
+                        "idShort": "GenericItems",
+                        "modelType": "SubmodelElement",
+                    }
+                ],
+            }
+        }
+        schema = {
+            "type": "object",
+            "properties": {
+                "GenericItems": {
+                    "type": "object",
+                    "x-readonly": True,
+                }
+            },
+        }
+
+        default_unsupported = service._collect_unsupported_nodes(
+            definition=definition,
+            schema=schema,
+        )
+        strict_unsupported = service._collect_unsupported_nodes(
+            definition=definition,
+            schema=schema,
+            strict_unknown_model_types=True,
+        )
+
+        assert default_unsupported == []
+        assert strict_unsupported
+        assert strict_unsupported[0]["modelType"] == "SubmodelElement"
+        assert "unsupported_model_type:SubmodelElement" in strict_unsupported[0]["reasons"]
+
     def test_generate_template_definition_expands_dropins_from_template_lookup(self):
         service = TemplateRegistryService(MagicMock())
 
