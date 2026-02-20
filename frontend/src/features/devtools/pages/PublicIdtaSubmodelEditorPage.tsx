@@ -15,6 +15,7 @@ import { JsonEditor } from '@/features/editor/components/JsonEditor';
 import { SubmodelEditorShell } from '@/features/editor/components/SubmodelEditorShell';
 import type { TemplateContractResponse, TemplateDefinition } from '@/features/editor/types/definition';
 import type { UISchema } from '@/features/editor/types/uiSchema';
+import { defaultValueForSchema } from '@/features/editor/utils/formDefaults';
 import {
   createSmtDraftId,
   deleteSmtDraft,
@@ -91,6 +92,52 @@ function buildWarningNotice(warnings: string[]): string | null {
   return `${messages.length} notices: ${messages.join(' • ')}`;
 }
 
+function buildSeedFromSchema(schema?: UISchema, required = false): unknown {
+  if (!schema) return undefined;
+
+  if (schema.type === 'object') {
+    const properties = schema.properties ?? {};
+    const requiredKeys = Array.isArray(schema.required) ? schema.required : [];
+    const seed: Record<string, unknown> = {};
+    for (const key of requiredKeys) {
+      const childSchema = properties[key];
+      if (!childSchema) continue;
+      const childSeed = buildSeedFromSchema(childSchema, true);
+      seed[key] = childSeed === undefined ? defaultValueForSchema(childSchema) : childSeed;
+    }
+    return seed;
+  }
+
+  if (schema.type === 'array') {
+    const minimumItems =
+      typeof schema.minItems === 'number'
+        ? Math.max(schema.minItems, 0)
+        : required
+          ? 1
+          : 0;
+    const itemSchema = schema.items;
+    const items = Array.from({ length: minimumItems }, () => {
+      const itemSeed = buildSeedFromSchema(itemSchema, true);
+      return itemSeed === undefined ? defaultValueForSchema(itemSchema) : itemSeed;
+    });
+    return items;
+  }
+
+  if (schema.default !== undefined) {
+    return schema.default;
+  }
+
+  return undefined;
+}
+
+function buildInitialTemplateData(schema?: UISchema): Record<string, unknown> {
+  const seed = buildSeedFromSchema(schema, true);
+  if (!seed || typeof seed !== 'object' || Array.isArray(seed)) {
+    return {};
+  }
+  return seed as Record<string, unknown>;
+}
+
 export default function PublicIdtaSubmodelEditorPage() {
   const [statusFilter, setStatusFilter] = useState<PublicTemplateStatus>('published');
   const [search, setSearch] = useState('');
@@ -156,6 +203,7 @@ export default function PublicIdtaSubmodelEditorPage() {
   const templateDefinition = contractQuery.data?.definition as TemplateDefinition | undefined;
   const uiSchema = contractQuery.data?.schema as UISchema | undefined;
   const { form } = useSubmodelForm(templateDefinition, uiSchema, {});
+  const initialTemplateData = useMemo(() => buildInitialTemplateData(uiSchema), [uiSchema]);
   const hasDefinitionElements = Boolean(templateDefinition?.submodel?.elements?.length);
   const diagnostics = useMemo(() => {
     const unsupported = contractQuery.data?.unsupported_nodes ?? [];
@@ -212,13 +260,15 @@ export default function PublicIdtaSubmodelEditorPage() {
       return;
     }
     setActiveDraftId(null);
-    form.reset({});
-    setRawJson('{}');
-  }, [activeDraftId, contractQuery.data, drafts, form, selectedTemplateKey, selectedVersion]);
+    form.reset(initialTemplateData);
+    setRawJson(JSON.stringify(initialTemplateData, null, 2));
+  }, [activeDraftId, contractQuery.data, drafts, form, initialTemplateData, selectedTemplateKey, selectedVersion]);
 
   useEffect(() => {
     setHasUserInteracted(false);
     setPreviewText('');
+    setError(null);
+    setNotice(null);
   }, [selectedTemplateKey, selectedVersion]);
 
   const [debouncedFormValues, setDebouncedFormValues] = useState(() => form.getValues());
@@ -290,8 +340,10 @@ export default function PublicIdtaSubmodelEditorPage() {
     },
     onError: (previewError) => {
       const rawMessage = previewError instanceof Error ? previewError.message : 'Failed to generate preview';
-      setError(normalizeErrorMessage(rawMessage));
-      setNotice(null);
+      if (activeView === 'preview') {
+        setError(normalizeErrorMessage(rawMessage));
+        setNotice(null);
+      }
     },
   });
 
@@ -299,7 +351,7 @@ export default function PublicIdtaSubmodelEditorPage() {
     if (!hasUserInteracted) return;
     if (!selectedTemplateKey || !contractQuery.data || activeView === 'json') return;
     if (previewMutation.isPending) return;
-    void previewMutation.mutateAsync(debouncedFormValues);
+    previewMutation.mutate(debouncedFormValues);
     // previewMutation object identity may change between renders; triggering on
     // form/template state keeps this effect stable for autosync preview.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -373,7 +425,7 @@ export default function PublicIdtaSubmodelEditorPage() {
       setHasUserInteracted(true);
       const payload = resolveCurrentData();
       if (payload) {
-        void previewMutation.mutateAsync(payload);
+        previewMutation.mutate(payload);
       }
     }
     setActiveView(view);
@@ -663,7 +715,7 @@ export default function PublicIdtaSubmodelEditorPage() {
                         setHasUserInteracted(true);
                         const payload = resolveCurrentData();
                         if (payload) {
-                          void previewMutation.mutateAsync(payload);
+                          previewMutation.mutate(payload);
                         }
                       }}
                       disabled={previewMutation.isPending}
@@ -683,9 +735,12 @@ export default function PublicIdtaSubmodelEditorPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    form.reset({});
+                    form.reset(initialTemplateData);
                     setHasUserInteracted(false);
                     setPreviewText('');
+                    setError(null);
+                    setNotice(null);
+                    setRawJson(JSON.stringify(initialTemplateData, null, 2));
                   }}
                 >
                   Reset

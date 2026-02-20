@@ -195,6 +195,28 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     );
   });
 
+  it('does not show autosync preview errors while still editing the form', async () => {
+    previewPublicTemplateMock.mockRejectedValue(
+      new Error("Template data failed validation: root: 'ProductCarbonFootprints' is a required property"),
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp' },
+    });
+
+    await waitFor(() => {
+      expect(previewPublicTemplateMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.queryByText(/Template data failed validation/i)).toBeNull();
+  });
+
   it('exports JSON via public API', async () => {
     renderPage();
 
@@ -296,5 +318,70 @@ describe('PublicIdtaSubmodelEditorPage', () => {
 
     expect(document.body.textContent).toContain('unsupported_model_type:SubmodelElement');
     expect(document.body.textContent).toContain('source_not_found');
+  });
+
+  it('seeds required list structure from schema so Carbon Footprint starts aligned', async () => {
+    getPublicTemplateContractMock.mockResolvedValue({
+      template_key: 'carbon-footprint',
+      idta_version: '1.0.1',
+      semantic_id: 'https://admin-shell.io/idta/CarbonFootprint/CarbonFootprint/1/0',
+      source_metadata: {
+        resolved_version: '1.0.1',
+        source_repo_ref: 'main',
+        source_url: 'https://example.test',
+      },
+      definition: {
+        submodel: {
+          idShort: 'CarbonFootprint',
+          elements: [
+            {
+              modelType: 'SubmodelElementList',
+              idShort: 'ProductCarbonFootprints',
+              displayName: { en: 'Product carbon footprint' },
+              smt: { cardinality: 'One' },
+              items: {
+                modelType: 'SubmodelElementCollection',
+                children: [
+                  {
+                    modelType: 'Property',
+                    idShort: 'PcfCO2eq',
+                    valueType: 'xs:decimal',
+                    smt: { cardinality: 'One' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+      schema: {
+        type: 'object',
+        required: ['ProductCarbonFootprints'],
+        properties: {
+          ProductCarbonFootprints: {
+            type: 'array',
+            minItems: 1,
+            items: {
+              type: 'object',
+              required: ['PcfCO2eq'],
+              properties: {
+                PcfCO2eq: { type: 'number' },
+              },
+            },
+          },
+        },
+      },
+      dropin_resolution_report: [],
+      unsupported_nodes: [],
+      doc_hints: {},
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(document.body.textContent).toContain('1 item');
+    });
+
+    expect(screen.queryByText(/No items yet/i)).toBeNull();
   });
 });
