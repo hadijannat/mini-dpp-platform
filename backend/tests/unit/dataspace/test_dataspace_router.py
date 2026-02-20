@@ -10,11 +10,10 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, Response, status
 
-from app.db.models import DataspaceRunStatus
+from app.db.models import DataspacePolicyTemplateState, DataspaceRunStatus
 from app.modules.dataspace.router import (
-    apply_manifest as apply_manifest_endpoint,
-)
-from app.modules.dataspace.router import (
+    activate_policy_template,
+    approve_policy_template,
     create_dsp_tck_run,
     get_dpp_regulatory_evidence,
     get_dsp_tck_run,
@@ -24,6 +23,13 @@ from app.modules.dataspace.router import (
     list_connector_conformance_runs,
     list_connector_negotiations,
     list_connector_transfers,
+    list_dataspace_connectors,
+    list_policy_templates,
+    supersede_policy_template,
+    update_policy_template,
+)
+from app.modules.dataspace.router import (
+    apply_manifest as apply_manifest_endpoint,
 )
 from app.modules.dataspace.router import (
     diff_manifest as diff_manifest_endpoint,
@@ -61,6 +67,109 @@ def _manifest() -> ConnectorManifest:
         ),
         policy_templates=[],
     )
+
+
+def _connector_record(*, name: str, owner_subject: str) -> SimpleNamespace:
+    now = datetime.now(UTC)
+    return SimpleNamespace(
+        id=uuid4(),
+        name=name,
+        runtime=SimpleNamespace(value="edc"),
+        participant_id="BPNL000000000001",
+        display_name=None,
+        status=SimpleNamespace(value="disabled"),
+        runtime_config={
+            "management_url": "http://edc-controlplane:19193/management",
+            "management_api_key_secret_ref": "edc-mgmt-api-key",
+            "protocol": "dataspace-protocol-http",
+        },
+        created_by_subject=owner_subject,
+        last_validated_at=None,
+        last_validation_result=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _policy_template_record(*, name: str, owner_subject: str) -> SimpleNamespace:
+    now = datetime.now(UTC)
+    return SimpleNamespace(
+        id=uuid4(),
+        name=name,
+        version="1.0.0",
+        state=SimpleNamespace(value="draft"),
+        description=None,
+        policy={"@type": "Policy"},
+        created_by_subject=owner_subject,
+        approved_by_subject=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_dataspace_connectors_filters_non_accessible_rows() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    allowed = _connector_record(name="allowed-connector", owner_subject=tenant.user.sub)
+    denied = _connector_record(name="denied-connector", owner_subject="other-subject")
+    service = SimpleNamespace(
+        list_connectors=AsyncMock(return_value=[allowed, denied]),
+        get_connector_secret_refs=AsyncMock(side_effect=[["secret-1"]]),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch(
+            "app.modules.dataspace.router.check_access",
+            new=AsyncMock(
+                side_effect=[
+                    SimpleNamespace(is_allowed=True),
+                    SimpleNamespace(is_allowed=False),
+                ]
+            ),
+        ) as check_access,
+    ):
+        response = await list_dataspace_connectors(db=db, tenant=tenant)
+
+    service.list_connectors.assert_awaited_once()
+    assert check_access.await_count == 2
+    service.get_connector_secret_refs.assert_awaited_once_with(
+        tenant_id=tenant.tenant_id,
+        connector_id=allowed.id,
+    )
+    assert response.count == 1
+    assert response.connectors[0].id == allowed.id
+
+
+@pytest.mark.asyncio
+async def test_list_policy_templates_filters_non_accessible_rows() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    allowed = _policy_template_record(name="allowed-policy", owner_subject=tenant.user.sub)
+    denied = _policy_template_record(name="denied-policy", owner_subject="other-subject")
+    service = SimpleNamespace(
+        list_policy_templates=AsyncMock(return_value=[allowed, denied]),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch(
+            "app.modules.dataspace.router.check_access",
+            new=AsyncMock(
+                side_effect=[
+                    SimpleNamespace(is_allowed=True),
+                    SimpleNamespace(is_allowed=False),
+                ]
+            ),
+        ) as check_access,
+    ):
+        response = await list_policy_templates(db=db, tenant=tenant)
+
+    service.list_policy_templates.assert_awaited_once_with(tenant_id=tenant.tenant_id)
+    assert check_access.await_count == 2
+    assert response.count == 1
+    assert response.templates[0].id == allowed.id
 
 
 @pytest.mark.asyncio
@@ -227,6 +336,127 @@ async def test_list_connector_conformance_runs_returns_rows() -> None:
     require_access.assert_awaited_once()
     assert response.count == 1
     assert response.items[0].status == "passed"
+
+
+@pytest.mark.asyncio
+async def test_update_policy_template_requires_owner_scoped_update_access() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    request = MagicMock()
+    policy_template_id = uuid4()
+    existing = _policy_template_record(name="policy-a", owner_subject=tenant.user.sub)
+    existing.id = policy_template_id
+    updated = _policy_template_record(name="policy-a", owner_subject=tenant.user.sub)
+    updated.id = policy_template_id
+    service = SimpleNamespace(
+        get_policy_template=AsyncMock(return_value=existing),
+        update_policy_template=AsyncMock(return_value=updated),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+        patch("app.modules.dataspace.router.emit_audit_event", new=AsyncMock()) as emit_audit,
+    ):
+        response = await update_policy_template(
+            policy_template_id=policy_template_id,
+            body=SimpleNamespace(description="updated description"),
+            request=request,
+            db=db,
+            tenant=tenant,
+        )
+
+    service.get_policy_template.assert_awaited_once_with(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "update"
+    service.update_policy_template.assert_awaited_once()
+    db.commit.assert_awaited_once()
+    emit_audit.assert_awaited_once()
+    assert response.id == policy_template_id
+
+
+@pytest.mark.asyncio
+async def test_update_policy_template_returns_404_when_missing() -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    policy_template_id = uuid4()
+    service = SimpleNamespace(
+        get_policy_template=AsyncMock(return_value=None),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await update_policy_template(
+            policy_template_id=policy_template_id,
+            body=SimpleNamespace(description="updated description"),
+            request=MagicMock(),
+            db=db,
+            tenant=tenant,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("endpoint", "to_state"),
+    [
+        (approve_policy_template, DataspacePolicyTemplateState.APPROVED),
+        (activate_policy_template, DataspacePolicyTemplateState.ACTIVE),
+        (supersede_policy_template, DataspacePolicyTemplateState.SUPERSEDED),
+    ],
+)
+async def test_policy_template_transitions_require_owner_scoped_update_access(
+    endpoint,
+    to_state: DataspacePolicyTemplateState,
+) -> None:
+    tenant = _tenant()
+    db = AsyncMock()
+    request = MagicMock()
+    policy_template_id = uuid4()
+    existing = _policy_template_record(name="policy-a", owner_subject=tenant.user.sub)
+    existing.id = policy_template_id
+    transitioned = _policy_template_record(name="policy-a", owner_subject=tenant.user.sub)
+    transitioned.id = policy_template_id
+    transitioned.state = SimpleNamespace(value=to_state.value)
+    service = SimpleNamespace(
+        get_policy_template=AsyncMock(return_value=existing),
+        transition_policy_template=AsyncMock(return_value=transitioned),
+    )
+
+    with (
+        patch("app.modules.dataspace.router.DataspaceService", return_value=service),
+        patch("app.modules.dataspace.router.require_access", new=AsyncMock()) as require_access,
+        patch("app.modules.dataspace.router.emit_audit_event", new=AsyncMock()) as emit_audit,
+    ):
+        response = await endpoint(
+            policy_template_id=policy_template_id,
+            request=request,
+            db=db,
+            tenant=tenant,
+        )
+
+    service.get_policy_template.assert_awaited_once_with(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    require_access.assert_awaited_once()
+    assert require_access.await_args.args[1] == "update"
+    service.transition_policy_template.assert_awaited_once_with(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+        to_state=to_state,
+        actor_subject=tenant.user.sub,
+    )
+    db.commit.assert_awaited_once()
+    emit_audit.assert_awaited_once()
+    assert response.id == policy_template_id
+    assert response.state == to_state.value
 
 
 @pytest.mark.asyncio
@@ -526,7 +756,7 @@ async def test_get_dsp_tck_run_requires_connector_read_access() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_dsp_tck_run_without_connector_uses_connector_read_permission() -> None:
+async def test_get_dsp_tck_run_without_connector_uses_connector_create_permission() -> None:
     tenant = _tenant()
     db = AsyncMock()
     run_id = uuid4()
@@ -558,7 +788,7 @@ async def test_get_dsp_tck_run_without_connector_uses_connector_read_permission(
         )
 
     require_access.assert_awaited_once()
-    assert require_access.await_args.args[1] == "read"
+    assert require_access.await_args.args[1] == "create"
     assert response.id == run_id
 
 

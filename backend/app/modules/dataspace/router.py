@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Response, status
 
 from app.core.audit import emit_audit_event
-from app.core.security import require_access
+from app.core.security import check_access, require_access
 from app.core.security.resource_context import (
     build_connector_resource_context,
     build_dpp_resource_context,
@@ -223,11 +223,18 @@ async def list_dataspace_connectors(
     tenant: TenantPublisher,
 ) -> DataspaceConnectorListResponse:
     """List dataspace connectors for the active tenant."""
-    await require_access(tenant.user, "list", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
     connectors = await service.list_connectors(tenant_id=tenant.tenant_id)
     response_items: list[DataspaceConnectorResponse] = []
     for connector in connectors:
+        decision = await check_access(
+            tenant.user,
+            "read",
+            build_connector_resource_context(connector),
+            tenant=tenant,
+        )
+        if not decision.is_allowed:
+            continue
         refs = await service.get_connector_secret_refs(
             tenant_id=tenant.tenant_id,
             connector_id=connector.id,
@@ -493,10 +500,19 @@ async def list_policy_templates(
     tenant: TenantPublisher,
 ) -> PolicyTemplateListResponse:
     """List dataspace policy templates for this tenant."""
-    await require_access(tenant.user, "list", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
     templates = await service.list_policy_templates(tenant_id=tenant.tenant_id)
-    response_items = [_policy_template_response(item) for item in templates]
+    response_items: list[PolicyTemplateResponse] = []
+    for template in templates:
+        decision = await check_access(
+            tenant.user,
+            "read",
+            build_connector_resource_context(template),
+            tenant=tenant,
+        )
+        if not decision.is_allowed:
+            continue
+        response_items.append(_policy_template_response(template))
     return PolicyTemplateListResponse(templates=response_items, count=len(response_items))
 
 
@@ -546,8 +562,24 @@ async def update_policy_template(
     tenant: TenantPublisher,
 ) -> PolicyTemplateResponse:
     """Update a draft dataspace policy template."""
-    await require_access(tenant.user, "update", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
+    template = await service.get_policy_template(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    if template is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy template {policy_template_id} not found",
+        )
+
+    await require_access(
+        tenant.user,
+        "update",
+        build_connector_resource_context(template),
+        tenant=tenant,
+    )
+
     try:
         template = await service.update_policy_template(
             tenant_id=tenant.tenant_id,
@@ -581,8 +613,22 @@ async def approve_policy_template(
     tenant: TenantPublisher,
 ) -> PolicyTemplateResponse:
     """Approve a draft policy template."""
-    await require_access(tenant.user, "update", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
+    template = await service.get_policy_template(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    if template is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy template {policy_template_id} not found",
+        )
+    await require_access(
+        tenant.user,
+        "update",
+        build_connector_resource_context(template),
+        tenant=tenant,
+    )
     try:
         template = await service.transition_policy_template(
             tenant_id=tenant.tenant_id,
@@ -616,8 +662,22 @@ async def activate_policy_template(
     tenant: TenantPublisher,
 ) -> PolicyTemplateResponse:
     """Activate an approved policy template."""
-    await require_access(tenant.user, "update", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
+    template = await service.get_policy_template(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    if template is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy template {policy_template_id} not found",
+        )
+    await require_access(
+        tenant.user,
+        "update",
+        build_connector_resource_context(template),
+        tenant=tenant,
+    )
     try:
         template = await service.transition_policy_template(
             tenant_id=tenant.tenant_id,
@@ -652,8 +712,22 @@ async def supersede_policy_template(
     tenant: TenantPublisher,
 ) -> PolicyTemplateResponse:
     """Supersede an approved or active policy template."""
-    await require_access(tenant.user, "update", {"type": "connector"}, tenant=tenant)
     service = DataspaceService(db)
+    template = await service.get_policy_template(
+        tenant_id=tenant.tenant_id,
+        policy_template_id=policy_template_id,
+    )
+    if template is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Policy template {policy_template_id} not found",
+        )
+    await require_access(
+        tenant.user,
+        "update",
+        build_connector_resource_context(template),
+        tenant=tenant,
+    )
     try:
         template = await service.transition_policy_template(
             tenant_id=tenant.tenant_id,
@@ -1045,7 +1119,7 @@ async def get_dsp_tck_run(
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run {run_id} not found")
     if run.connector_id is None:
-        await require_access(tenant.user, "read", {"type": "connector"}, tenant=tenant)
+        await require_access(tenant.user, "create", {"type": "connector"}, tenant=tenant)
     else:
         connector = await service.get_connector(
             tenant_id=tenant.tenant_id,

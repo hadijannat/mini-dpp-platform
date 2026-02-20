@@ -1187,7 +1187,7 @@ export default function ConnectorsPage() {
                 ))}
               </TableBody>
             </Table>
-            {connectors.length === 0 && (
+            {connectors.length === 0 && !isError && (
               <EmptyState
                 icon={Link2}
                 title="No dataspace connectors configured"

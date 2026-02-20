@@ -29,11 +29,11 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
-  canReviewRoleRequests as canReviewRoleRequestsByRole,
   isAdmin as checkIsAdmin,
 } from '@/lib/auth';
 import { useBreadcrumbs } from '@/lib/breadcrumbs';
 import { getTenantSlug } from '@/lib/tenant';
+import { useTenantAccess } from '@/lib/tenant-access';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
@@ -94,7 +94,11 @@ export default function PublisherLayout() {
   const location = useLocation();
   const breadcrumbs = useBreadcrumbs();
   const userIsAdmin = checkIsAdmin(auth.user);
-  const canReviewRoleRequests = canReviewRoleRequestsByRole(auth.user);
+  const tenantAccess = useTenantAccess();
+  const canReviewRoleRequests =
+    userIsAdmin || tenantAccess.hasTenantRoleLevel('tenant_admin');
+  const hasTenantPublisherAccess =
+    userIsAdmin || tenantAccess.hasTenantRoleLevel('publisher');
   const token = auth.user?.access_token ?? '';
   const tenantSlug = getTenantSlug();
   const userSubject = (auth.user?.profile?.sub as string | undefined) ?? '';
@@ -110,12 +114,15 @@ export default function PublisherLayout() {
   // Fail open on transient errors to avoid accidental navigation lockout.
   const isOpcuaEnabled = opcuaStatusQuery.data?.enabled ?? true;
   const featureNavigation: NavItem[] = useMemo(() => {
+    if (!hasTenantPublisherAccess) {
+      return [];
+    }
     return [
       ...baseNavigationBeforeOpcua,
       ...(isOpcuaEnabled ? [opcuaNavigationItem] : []),
       ...baseNavigationAfterOpcua,
     ];
-  }, [isOpcuaEnabled]);
+  }, [hasTenantPublisherAccess, isOpcuaEnabled]);
 
   const adminNavigation: NavItem[] = userIsAdmin
     ? [

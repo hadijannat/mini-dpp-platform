@@ -157,6 +157,11 @@ describe('getApiErrorMessage', () => {
     );
   });
 
+  it('returns backend detail for 403 when present', async () => {
+    const res = mockResponse(403, JSON.stringify({ detail: 'Publisher role required' }));
+    expect(await getApiErrorMessage(res, 'fallback')).toBe('Publisher role required');
+  });
+
   it('extracts a string detail from JSON body', async () => {
     const res = mockResponse(422, JSON.stringify({ detail: 'some error' }));
     expect(await getApiErrorMessage(res, 'fallback')).toBe('some error');
