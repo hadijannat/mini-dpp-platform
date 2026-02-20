@@ -184,6 +184,22 @@ describe('getApiErrorMessage', () => {
     );
   });
 
+  it('preserves entry messages in detail.errors payloads', async () => {
+    const body = {
+      detail: {
+        message: 'Template data failed validation',
+        errors: [
+          { path: 'root', message: "Required property 'ProductCarbonFootprint' is missing" },
+          { path: 'root', message: "Required property 'ProductCarbonFootprint' is missing" },
+        ],
+      },
+    };
+    const res = mockResponse(422, JSON.stringify(body));
+    expect(await getApiErrorMessage(res, 'fallback')).toBe(
+      "Template data failed validation: root: Required property 'ProductCarbonFootprint' is missing",
+    );
+  });
+
   it('formats detail object with only message', async () => {
     const body = { detail: { message: 'Something went wrong' } };
     const res = mockResponse(500, JSON.stringify(body));

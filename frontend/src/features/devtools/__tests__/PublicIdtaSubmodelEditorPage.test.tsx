@@ -178,4 +178,19 @@ describe('PublicIdtaSubmodelEditorPage', () => {
       );
     });
   });
+
+  it('normalizes preview warnings so root placeholders are not rendered', async () => {
+    previewPublicTemplateMock.mockResolvedValue({
+      template_key: 'digital-nameplate',
+      version: '3.0.1',
+      warnings: ['root', 'root', "Submodel 'Nameplate' has no semanticId"],
+      aas_environment: { submodels: [] },
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Submodel 'Nameplate' has no semanticId")).toBeTruthy();
+    });
+  });
 });

@@ -41,22 +41,37 @@ export async function getApiErrorMessage(
           ? (detail as { errors?: Array<Record<string, unknown>> }).errors ?? []
           : [];
       if (errors.length > 0) {
-        const messages = errors
-          .map((entry) => {
-            const name = typeof entry.name === 'string' ? entry.name : '';
-            const code = typeof entry.code === 'string' ? entry.code : '';
-            const path =
-              typeof entry.path === 'string'
-                ? entry.path
-                : Array.isArray(entry.paths)
-                  ? (entry.paths[0] as { jsonPointer?: string })?.jsonPointer ?? ''
-                  : '';
-            const suffix = [code, name, path].filter(Boolean).join(': ');
-            return suffix || JSON.stringify(entry);
-          })
-          .filter(Boolean)
-          .join(' | ');
-        return messages || rawText || fallback;
+        const detailMessageValue = (detail as { message?: string } | undefined)?.message;
+        const detailMessage = typeof detailMessageValue === 'string' ? detailMessageValue.trim() : '';
+        const messages = Array.from(
+          new Set(
+            errors
+              .map((entry) => {
+                const message = typeof entry.message === 'string' ? entry.message.trim() : '';
+                const name = typeof entry.name === 'string' ? entry.name : '';
+                const code = typeof entry.code === 'string' ? entry.code : '';
+                const path =
+                  typeof entry.path === 'string'
+                    ? entry.path
+                    : Array.isArray(entry.paths)
+                      ? (entry.paths[0] as { jsonPointer?: string })?.jsonPointer ?? ''
+                      : '';
+                if (message && path) {
+                  return `${path}: ${message}`;
+                }
+                if (message) {
+                  return message;
+                }
+                const suffix = [code, name, path].filter(Boolean).join(': ');
+                return suffix || JSON.stringify(entry);
+              })
+              .filter((item) => item.length > 0),
+          ),
+        ).join(' | ');
+        if (detailMessage && messages) {
+          return `${detailMessage}: ${messages}`;
+        }
+        return detailMessage || messages || rawText || fallback;
       }
       if (detail && typeof detail === 'object') {
         const message =
