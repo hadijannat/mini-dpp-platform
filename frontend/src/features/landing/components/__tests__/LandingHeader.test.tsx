@@ -27,7 +27,7 @@ describe('LandingHeader', () => {
       configurable: true,
       writable: true,
       value: (query: string) => ({
-        matches: query === '(min-width: 1280px)' ? desktopBreakpointMatch : false,
+        matches: query === '(min-width: 1536px)' ? desktopBreakpointMatch : false,
         media: query,
         onchange: null,
         addEventListener: (_type: 'change', listener: (event: MediaQueryListEvent) => void) => {

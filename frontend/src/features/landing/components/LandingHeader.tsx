@@ -21,7 +21,7 @@ export default function LandingHeader() {
       return;
     }
 
-    const desktopMediaQuery = window.matchMedia('(min-width: 1280px)');
+    const desktopMediaQuery = window.matchMedia('(min-width: 1536px)');
     const handleDesktopMedia = (event: MediaQueryListEvent | MediaQueryList) => {
       if (event.matches) {
         setMobileOpen(false);
@@ -46,7 +46,7 @@ export default function LandingHeader() {
       animate={shouldReduceMotion ? undefined : { opacity: 1, y: 0 }}
       transition={shouldReduceMotion ? undefined : { duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="landing-container flex items-center justify-between gap-4 px-4 py-2.5 sm:px-6 lg:gap-5 lg:px-8">
+      <div className="mx-auto flex w-full max-w-[94rem] items-center justify-between gap-4 px-4 py-2.5 sm:px-6 lg:gap-5 lg:px-8">
         <a
           href="/"
           className="group inline-flex shrink-0 items-center gap-2.5 rounded-full border border-transparent pr-1 transition-colors hover:border-landing-ink/10"
@@ -63,26 +63,26 @@ export default function LandingHeader() {
           </span>
         </a>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 xl:flex">
-          <nav className="min-w-0 items-center gap-1 rounded-full border border-landing-ink/12 bg-white/62 p-1 shadow-[0_14px_28px_-24px_rgba(10,36,52,0.6)] xl:flex">
+        <div className="hidden min-w-0 flex-1 items-center justify-end gap-3 2xl:flex">
+          <nav className="min-w-0 items-center gap-0.5 rounded-full border border-landing-ink/12 bg-white/62 p-1 shadow-[0_14px_28px_-24px_rgba(10,36,52,0.6)] 2xl:flex">
             {landingContent.navigation.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
                 target={link.external ? '_blank' : undefined}
                 rel={link.external ? 'noopener noreferrer' : undefined}
-                className="whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium text-landing-muted transition-colors hover:bg-white hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan/40"
+                className="whitespace-nowrap rounded-full px-2.5 py-1.5 text-sm font-medium text-landing-muted transition-colors hover:bg-white hover:text-landing-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-landing-cyan/40"
               >
                 {link.label}
               </a>
             ))}
           </nav>
 
-          <div className="shrink-0 items-center gap-2 rounded-full border border-landing-ink/12 bg-white/62 p-1 shadow-[0_14px_28px_-24px_rgba(10,36,52,0.6)] xl:flex">
+          <div className="shrink-0 items-center gap-1.5 rounded-full border border-landing-ink/12 bg-white/62 p-1 shadow-[0_14px_28px_-24px_rgba(10,36,52,0.6)] 2xl:flex">
             <Button
               size="sm"
               variant="outline"
-              className="landing-cta h-9 rounded-full border-landing-ink/18 bg-white/75 px-3.5 text-landing-ink hover:bg-white 2xl:px-4"
+              className="landing-cta h-9 rounded-full border-landing-ink/18 bg-white/75 px-3 text-landing-ink hover:bg-white 2xl:px-3.5"
               asChild
             >
               <a href="#sample-passport">
@@ -93,7 +93,7 @@ export default function LandingHeader() {
             <Button
               size="sm"
               variant="outline"
-              className="landing-cta h-9 rounded-full border-landing-ink/18 bg-white/75 px-3.5 text-landing-ink hover:bg-white 2xl:px-4"
+              className="landing-cta h-9 rounded-full border-landing-ink/18 bg-white/75 px-3 text-landing-ink hover:bg-white 2xl:px-3.5"
               asChild
             >
               <a href="/login?mode=register">
@@ -101,7 +101,7 @@ export default function LandingHeader() {
                 Create account
               </a>
             </Button>
-            <Button size="sm" className="landing-cta h-9 rounded-full px-3.5 2xl:px-4" asChild>
+            <Button size="sm" className="landing-cta h-9 rounded-full px-3 2xl:px-3.5" asChild>
               <a href="/login">
                 <LogIn className="landing-cta-icon h-4 w-4" />
                 Sign in
@@ -115,7 +115,7 @@ export default function LandingHeader() {
             <Button
               variant="ghost"
               size="icon"
-              className="rounded-full border border-landing-ink/12 bg-white/75 text-landing-ink hover:bg-white xl:hidden"
+              className="rounded-full border border-landing-ink/12 bg-white/75 text-landing-ink hover:bg-white 2xl:hidden"
             >
               <Menu className="h-5 w-5" />
               <span className="sr-only">Open menu</span>
