@@ -7,6 +7,11 @@
 
 A multi-tenant Digital Product Passport (DPP) platform built on the Asset Administration Shell (AAS) and IDTA DPP4.0 standards. Integrates OPC UA industrial data, GS1 EPCIS 2.0 supply chain events, Catena-X dataspace connectivity, W3C Verifiable Credentials, and EU ESPR compliance — backed by FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.
 
+## Live Deployment
+
+- Main application: [https://dpp-platform.dev/](https://dpp-platform.dev/)
+- Additional production URLs (API, docs, health, auth) are listed in [Service Endpoints](#service-endpoints).
+
 ## What This Repository Is
 
 A full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. Features include template-driven DPP authoring, AASX/JSON-LD/Turtle export, GS1 Digital Link resolution, OPC UA industrial data ingestion, EPCIS event capture, verifiable credential issuance, and ESPR compliance checking — with a production-oriented backend, React frontend, infrastructure manifests, CI/CD pipelines, and documentation set.
