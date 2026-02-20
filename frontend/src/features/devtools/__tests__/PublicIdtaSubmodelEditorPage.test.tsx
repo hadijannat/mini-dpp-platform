@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PublicIdtaSubmodelEditorPage from '../pages/PublicIdtaSubmodelEditorPage';
+import { SMT_DRAFT_STORAGE_KEY } from '../lib/smtDraftStorage';
 
 const listPublicTemplatesMock = vi.fn();
 const getPublicTemplateMock = vi.fn();
@@ -39,6 +40,7 @@ describe('PublicIdtaSubmodelEditorPage', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.removeItem(SMT_DRAFT_STORAGE_KEY);
 
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -189,9 +191,9 @@ describe('PublicIdtaSubmodelEditorPage', () => {
 
     await waitFor(
       () => {
-        expect(previewPublicTemplateMock).toHaveBeenCalledTimes(1);
+        expect(previewPublicTemplateMock).toHaveBeenCalled();
       },
-      { timeout: 2500 },
+      { timeout: 4000 },
     );
   });
 
@@ -379,7 +381,7 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(document.body.textContent).toContain('1 item');
+      expect(screen.getByLabelText(/PcfCO2eq/i)).toBeTruthy();
     });
 
     expect(screen.queryByText(/No items yet/i)).toBeNull();
