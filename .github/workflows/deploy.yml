@@ -278,8 +278,20 @@ jobs:
                 rollback_backend_services
                 exit 1
               fi
-              if ! docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx "opcua-agent"; then
-                echo "OPC UA agent is not running — rolling back"
+
+              OPCUA_AGENT_RUNNING=0
+              for i in $(seq 1 12); do
+                if docker compose -f docker-compose.prod.yml ps --status running --services | grep -qx "opcua-agent"; then
+                  OPCUA_AGENT_RUNNING=1
+                  break
+                fi
+                echo "OPC UA agent not running yet (attempt ${i}/12); retrying in 5s..."
+                sleep 5
+              done
+
+              if [ "$OPCUA_AGENT_RUNNING" -ne 1 ]; then
+                echo "OPC UA agent is not running after retries — rolling back"
+                docker compose -f docker-compose.prod.yml ps opcua-agent || true
                 docker compose -f docker-compose.prod.yml logs --tail=200 opcua-agent || true
                 git checkout "$PREV_SHA"
                 rollback_backend_services
