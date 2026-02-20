@@ -299,6 +299,17 @@ class Settings(BaseSettings):
     encryption_master_key: str = Field(
         default="", description="Base64-encoded 256-bit master key for envelope encryption"
     )
+    encryption_active_key_id: str = Field(
+        default="default",
+        description="Active KEK ID used for new encryption operations",
+    )
+    encryption_keyring_json: str | None = Field(
+        default=None,
+        description=(
+            "JSON object mapping KEK IDs to base64 AES keys, "
+            'e.g. {"default":"<base64-32-byte-key>","next":"..."}'
+        ),
+    )
 
     metrics_auth_token: str = Field(
         default="",
@@ -480,6 +491,10 @@ class Settings(BaseSettings):
     # ==========================================================================
     audit_signing_key: str = Field(
         default="", description="PEM Ed25519 private key for audit signing"
+    )
+    audit_signing_key_id: str = Field(
+        default="audit-key-1",
+        description="Key ID (kid) for audit Merkle root signatures",
     )
     audit_signing_public_key: str = Field(default="", description="PEM Ed25519 public key")
     tsa_url: str = Field(default="", description="RFC 3161 TSA endpoint URL")
@@ -796,6 +811,32 @@ class Settings(BaseSettings):
                 return [str(item).strip() for item in parsed if str(item).strip()]
         return [item.strip() for item in raw.split(",") if item.strip()]
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def encryption_keyring(self) -> dict[str, str]:
+        """Resolved KEK keyring map (kid -> base64 key), with legacy fallback."""
+        parsed: dict[str, str] = {}
+        raw = self.encryption_keyring_json
+        if raw:
+            raw = raw.strip()
+            if raw:
+                try:
+                    maybe_map = json.loads(raw)
+                except json.JSONDecodeError as exc:
+                    raise ValueError("encryption_keyring_json must be valid JSON object") from exc
+                if not isinstance(maybe_map, dict):
+                    raise ValueError("encryption_keyring_json must be a JSON object")
+                for key_id, key_value in maybe_map.items():
+                    kid = str(key_id).strip()
+                    val = str(key_value).strip()
+                    if kid and val:
+                        parsed[kid] = val
+
+        if not parsed and self.encryption_master_key:
+            fallback_kid = self.encryption_active_key_id.strip() or "default"
+            parsed[fallback_kid] = self.encryption_master_key
+        return parsed
+
     # ==========================================================================
     # Identifier Configuration
     # ==========================================================================
@@ -818,12 +859,20 @@ class Settings(BaseSettings):
     def _validate_production_settings(self) -> Self:
         """Enforce critical security settings in production/staging."""
         if self.environment in ("production", "staging"):
-            if not self.encryption_master_key:
+            if not self.encryption_keyring:
                 raise ValueError(
-                    f"encryption_master_key must be set in {self.environment} environment"
+                    f"encryption keyring must be set in {self.environment} environment"
                 )
             if not self.dpp_signing_key:
                 raise ValueError(f"dpp_signing_key must be set in {self.environment} environment")
+            if not self.audit_signing_key:
+                raise ValueError(
+                    f"audit_signing_key must be set in {self.environment} environment"
+                )
+            if self.audit_signing_key == self.dpp_signing_key:
+                raise ValueError(
+                    "audit_signing_key must be different from dpp_signing_key in production/staging"
+                )
             if self.debug:
                 raise ValueError(f"debug must be False in {self.environment} environment")
             if self.cors_origins == self._DEFAULT_CORS_ORIGINS:
@@ -844,16 +893,22 @@ class Settings(BaseSettings):
                     "cirpass_session_token_secret must be explicitly set in production/staging"
                 )
         else:
-            if not self.encryption_master_key:
+            if not self.encryption_keyring:
                 warnings.warn(
-                    "encryption_master_key is empty — encrypted fields "
-                    "will not work. Set it before deploying.",
+                    "encryption keyring is empty — encrypted fields will not work. "
+                    "Set ENCRYPTION_KEYRING_JSON or ENCRYPTION_MASTER_KEY before deploying.",
                     UserWarning,
                     stacklevel=2,
                 )
             if not self.dpp_signing_key:
                 warnings.warn(
                     "dpp_signing_key is empty — published DPPs will not be signed.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            if not self.audit_signing_key:
+                warnings.warn(
+                    "audit_signing_key is empty — audit Merkle roots will not be signed.",
                     UserWarning,
                     stacklevel=2,
                 )

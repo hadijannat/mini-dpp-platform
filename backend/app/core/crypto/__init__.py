@@ -9,6 +9,14 @@ Pure library modules for tamper-evident integrity:
 - **verification**: Chain and event verification utilities
 """
 
+from app.core.crypto.canonicalization import (
+    CANONICALIZATION_LEGACY_JSON_V1,
+    CANONICALIZATION_RFC8785,
+    SHA256_ALGORITHM,
+    canonicalize_jcs_bytes,
+    canonicalize_legacy_json_v1_bytes,
+    sha256_hex_jcs,
+)
 from app.core.crypto.hash_chain import canonical_json, compute_event_hash
 from app.core.crypto.merkle import (
     MerkleTree,
@@ -30,6 +38,12 @@ from app.core.crypto.verification import (
 __all__ = [
     "canonical_json",
     "compute_event_hash",
+    "canonicalize_jcs_bytes",
+    "canonicalize_legacy_json_v1_bytes",
+    "sha256_hex_jcs",
+    "CANONICALIZATION_RFC8785",
+    "CANONICALIZATION_LEGACY_JSON_V1",
+    "SHA256_ALGORITHM",
     "MerkleTree",
     "compute_merkle_root",
     "compute_inclusion_proof",

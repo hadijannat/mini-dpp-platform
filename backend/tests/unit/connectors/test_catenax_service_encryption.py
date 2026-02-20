@@ -51,8 +51,8 @@ async def test_create_connector_encrypts_sensitive_fields(
     )
 
     assert connector.name == "legacy-connector"
-    assert connector.config["token"].startswith("enc:v1:")
-    assert connector.config["client_secret"].startswith("enc:v1:")
+    assert connector.config["token"].startswith("enc:v2:")
+    assert connector.config["client_secret"].startswith("enc:v2:")
     assert connector.config["dtr_base_url"] == "https://dtr.example.com"
 
     decrypted = service._decrypt_config(connector.config)  # noqa: SLF001 - integration assertion
@@ -74,7 +74,7 @@ async def test_create_connector_requires_encryption_key_for_sensitive_config(
     session.add = Mock()
 
     service = CatenaXConnectorService(session)
-    with pytest.raises(ValueError, match="encryption_master_key"):
+    with pytest.raises(ValueError, match="encryption keyring"):
         await service.create_connector(
             tenant_id=uuid4(),
             name="legacy-connector",

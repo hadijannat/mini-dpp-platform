@@ -13,14 +13,16 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import UUID
 
+import jwt
 from fastapi import APIRouter, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
 from app.db.models import (
     DPP,
+    AuditMerkleRoot,
     DataCarrier,
     DataCarrierStatus,
     DPPRevision,
@@ -162,6 +164,37 @@ class PublicLandingSummaryResponse(BaseModel):
     generated_at: str
     scope: str | None = None
     refresh_sla_seconds: int | None = None
+
+
+class PublicIntegrityAnchorRef(BaseModel):
+    """Latest tenant audit anchor metadata exposed for external verification context."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    anchor_id: UUID
+    merkle_root: str
+    first_sequence: int
+    last_sequence: int
+    created_at: str
+    signature_kid: str | None = Field(default=None, alias="signatureKid")
+    tsa_token_present: bool = Field(default=False, alias="tsaTokenPresent")
+
+
+class PublicDPPIntegrityResponse(BaseModel):
+    """Integrity bundle for public verification clients."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    dpp_id: UUID
+    revision_id: UUID
+    revision_no: int
+    digest_sha256: str
+    signed_jws: str | None = None
+    digest_algorithm: str = Field(alias="digestAlgorithm")
+    digest_canonicalization: str = Field(alias="digestCanonicalization")
+    signature_kid: str | None = Field(default=None, alias="signatureKid")
+    verification_method_urls: list[str] = Field(alias="verificationMethodUrls")
+    anchor: PublicIntegrityAnchorRef | None = None
 
 
 async def _resolve_tenant(db: DbSession, tenant_slug: str) -> Tenant:
@@ -473,6 +506,81 @@ async def get_published_dpp(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=_filter_public_aas_environment(revision.aas_env_json) if revision else None,
         digest_sha256=revision.digest_sha256 if revision else None,
+    )
+
+
+@router.get(
+    "/{tenant_slug}/dpps/{dpp_id}/integrity",
+    response_model=PublicDPPIntegrityResponse,
+)
+async def get_public_dpp_integrity_bundle(
+    tenant_slug: str,
+    dpp_id: UUID,
+    db: DbSession,
+) -> PublicDPPIntegrityResponse:
+    """Return integrity metadata for external digest/signature verification."""
+    tenant = await _resolve_tenant(db, tenant_slug)
+    result = await db.execute(
+        select(DPP).where(
+            DPP.id == dpp_id,
+            DPP.tenant_id == tenant.id,
+            DPP.status == DPPStatus.PUBLISHED,
+        )
+    )
+    dpp = result.scalar_one_or_none()
+    if dpp is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    revision = await _get_published_revision(db, dpp)
+    if revision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    signature_kid: str | None = None
+    if revision.signed_jws:
+        try:
+            header = jwt.get_unverified_header(revision.signed_jws)
+            raw_kid = header.get("kid")
+            if isinstance(raw_kid, str) and raw_kid.strip():
+                signature_kid = raw_kid.strip()
+        except Exception:
+            signature_kid = None
+
+    settings = get_settings()
+    verification_urls = [
+        f"{settings.api_v1_prefix}/public/{tenant.slug}/.well-known/did.json",
+        f"{settings.api_v1_prefix}/public/.well-known/jwks.json",
+    ]
+
+    anchor_result = await db.execute(
+        select(AuditMerkleRoot)
+        .where(AuditMerkleRoot.tenant_id == tenant.id)
+        .order_by(AuditMerkleRoot.created_at.desc())
+        .limit(1)
+    )
+    latest_anchor = anchor_result.scalar_one_or_none()
+    anchor: PublicIntegrityAnchorRef | None = None
+    if latest_anchor is not None:
+        anchor = PublicIntegrityAnchorRef(
+            anchor_id=latest_anchor.id,
+            merkle_root=latest_anchor.root_hash,
+            first_sequence=latest_anchor.first_sequence,
+            last_sequence=latest_anchor.last_sequence,
+            created_at=latest_anchor.created_at.isoformat(),
+            signature_kid=latest_anchor.signature_kid,
+            tsa_token_present=latest_anchor.tsa_token is not None,
+        )
+
+    return PublicDPPIntegrityResponse(
+        dpp_id=dpp.id,
+        revision_id=revision.id,
+        revision_no=revision.revision_no,
+        digest_sha256=revision.digest_sha256,
+        signed_jws=revision.signed_jws,
+        digest_algorithm=revision.digest_algorithm or "sha-256",
+        digest_canonicalization=revision.digest_canonicalization or "legacy-json-v1",
+        signature_kid=signature_kid,
+        verification_method_urls=verification_urls,
+        anchor=anchor,
     )
 
 

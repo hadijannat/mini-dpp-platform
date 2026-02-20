@@ -88,7 +88,7 @@ async def scan_plaintext_connector_secrets(session: AsyncSession) -> list[dict[s
                 "connector_id": str(secret.connector_id),
                 "secret_ref": secret.secret_ref,
                 "secret_id": str(secret.id),
-                "issue": "encrypted_value is not prefixed with enc:v1:",
+                "issue": "encrypted_value is not prefixed with enc:v1:/enc:v2:",
                 "value_preview": (
                     f"{secret.encrypted_value[:12]}..." if secret.encrypted_value else "<empty>"
                 ),

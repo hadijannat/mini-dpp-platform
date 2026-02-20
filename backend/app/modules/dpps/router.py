@@ -1288,6 +1288,27 @@ async def get_dpp_by_slug(
         tenant,
         shared_with_current_user=shared_with_current_user,
     )
+    try:
+        aas_environment = await service.get_revision_aas_for_reader(revision) if revision else None
+    except Exception as exc:
+        await emit_audit_event(
+            db_session=db,
+            action="decrypt_dpp_failed",
+            resource_type="dpp",
+            resource_id=dpp.id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            decision="deny",
+            request=None,
+            metadata={
+                "revision_id": str(revision.id) if revision else None,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt encrypted DPP fields",
+        ) from exc
     submodel_bindings = await service.get_submodel_bindings(revision=revision)
     constraints = await service.get_revision_publish_constraints(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
@@ -1300,7 +1321,7 @@ async def get_dpp_by_slug(
             shared_with_current_user=shared_with_current_user,
         ).model_dump(),
         current_revision_no=revision.revision_no if revision else None,
-        aas_environment=revision.aas_env_json if revision else None,
+        aas_environment=aas_environment,
         digest_sha256=revision.digest_sha256 if revision else None,
         required_specific_asset_ids=constraints["required_specific_asset_ids"],
         missing_required_specific_asset_ids=constraints["missing_required_specific_asset_ids"],
@@ -1364,6 +1385,27 @@ async def get_dpp(
         tenant,
         shared_with_current_user=shared_with_current_user,
     )
+    try:
+        aas_environment = await service.get_revision_aas_for_reader(revision) if revision else None
+    except Exception as exc:
+        await emit_audit_event(
+            db_session=db,
+            action="decrypt_dpp_failed",
+            resource_type="dpp",
+            resource_id=dpp.id,
+            tenant_id=tenant.tenant_id,
+            user=tenant.user,
+            decision="deny",
+            request=None,
+            metadata={
+                "revision_id": str(revision.id) if revision else None,
+                "error": str(exc),
+            },
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to decrypt encrypted DPP fields",
+        ) from exc
     submodel_bindings = await service.get_submodel_bindings(revision=revision)
     constraints = await service.get_revision_publish_constraints(revision=revision)
     owners = await load_users_by_subject(db, [dpp.owner_subject])
@@ -1376,7 +1418,7 @@ async def get_dpp(
             shared_with_current_user=shared_with_current_user,
         ).model_dump(),
         current_revision_no=revision.revision_no if revision else None,
-        aas_environment=revision.aas_env_json if revision else None,
+        aas_environment=aas_environment,
         digest_sha256=revision.digest_sha256 if revision else None,
         required_specific_asset_ids=constraints["required_specific_asset_ids"],
         missing_required_specific_asset_ids=constraints["missing_required_specific_asset_ids"],

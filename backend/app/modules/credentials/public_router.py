@@ -45,6 +45,19 @@ def _get_did_service() -> DIDService:
 
 
 @router.get(
+    "/.well-known/jwks.json",
+    response_model=dict[str, Any],
+)
+async def get_public_jwks() -> dict[str, Any]:
+    """Return JWKS for public signature verification."""
+    did_svc = _get_did_service()
+    settings = get_settings()
+    jwk = did_svc.export_public_jwk()
+    jwk["kid"] = settings.dpp_signing_key_id
+    return {"keys": [jwk]}
+
+
+@router.get(
     "/{tenant_slug}/.well-known/did.json",
     response_model=dict[str, Any],
 )

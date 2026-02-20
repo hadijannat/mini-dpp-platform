@@ -40,8 +40,12 @@ class CatenaXConnectorService:
         self._dpp_service = DPPService(session)
         self._encryptor: ConnectorConfigEncryptor | None = None
         settings = get_settings()
-        if settings.encryption_master_key:
-            self._encryptor = ConnectorConfigEncryptor(settings.encryption_master_key)
+        if settings.encryption_keyring:
+            self._encryptor = ConnectorConfigEncryptor(
+                settings.encryption_master_key,
+                keyring=settings.encryption_keyring,
+                active_key_id=settings.encryption_active_key_id,
+            )
 
     async def get_connector(self, connector_id: UUID, tenant_id: UUID) -> Connector | None:
         """Get a connector by ID."""
@@ -344,7 +348,7 @@ class CatenaXConnectorService:
         if self._encryptor is None:
             if config.get("token") or config.get("client_secret"):
                 raise ValueError(
-                    "encryption_master_key must be configured before storing connector secrets"
+                    "encryption keyring must be configured before storing connector secrets"
                 )
             return config
         try:

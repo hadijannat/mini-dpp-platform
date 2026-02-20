@@ -19,6 +19,10 @@ from uuid import UUID
 
 from fastapi import Request
 
+from app.core.crypto.hash_chain import (
+    HASH_ALGORITHM_SHA256,
+    HASH_CANONICALIZATION_RFC8785,
+)
 from app.core.logging import get_logger
 from app.core.security.oidc import TokenPayload
 from app.db.models import AuditEvent
@@ -170,11 +174,20 @@ async def emit_audit_event(
                 user_agent=user_agent,
                 metadata=metadata,
             )
-            event_hash = compute_event_hash(event_data, prev_hash)
+            event_hash = compute_event_hash(
+                event_data,
+                prev_hash,
+                canonicalization=HASH_CANONICALIZATION_RFC8785,
+                hash_algorithm=HASH_ALGORITHM_SHA256,
+            )
 
             event.event_hash = event_hash
             event.prev_event_hash = prev_hash
             event.chain_sequence = prev_seq + 1
+            if hasattr(event, "hash_algorithm"):
+                event.hash_algorithm = HASH_ALGORITHM_SHA256
+            if hasattr(event, "hash_canonicalization"):
+                event.hash_canonicalization = HASH_CANONICALIZATION_RFC8785
         except Exception:
             # If hash computation fails for any reason (missing columns,
             # migration not applied, etc.), log and continue without hashing

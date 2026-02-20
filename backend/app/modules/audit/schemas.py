@@ -30,6 +30,8 @@ class AuditEventResponse(BaseModel):
     event_hash: str | None = None
     prev_event_hash: str | None = None
     chain_sequence: int | None = None
+    hash_algorithm: str | None = None
+    hash_canonicalization: str | None = None
 
 
 class AuditEventListResponse(BaseModel):
@@ -62,10 +64,12 @@ class EventVerificationResponse(BaseModel):
 class AnchorResponse(BaseModel):
     """Result of a Merkle anchor operation."""
 
+    anchor_id: UUID | None = None
     merkle_root: str
     event_count: int
     first_sequence: int
     last_sequence: int
     signature: str | None = None
+    signature_kid: str | None = None
     tsa_token_present: bool = False
     tenant_id: UUID

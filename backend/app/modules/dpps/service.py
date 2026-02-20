@@ -3,7 +3,6 @@ DPP (Digital Product Passport) Core Service.
 Handles DPP lifecycle, revision management, and data hydration.
 """
 
-import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -18,6 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
+from app.core.crypto.canonicalization import (
+    CANONICALIZATION_RFC8785,
+    SHA256_ALGORITHM,
+    sha256_hex_for_canonicalization,
+)
+from app.core.encryption import ConnectorConfigEncryptor, DPPFieldEncryptor, EncryptionError
 from app.core.identifiers import (
     IdentifierValidationError,
     build_global_asset_id,
@@ -34,6 +39,7 @@ from app.db.models import (
     DataCarrierStatus,
     DPPRevision,
     DPPStatus,
+    EncryptedValue,
     ResourceShare,
     RevisionState,
     Template,
@@ -100,6 +106,14 @@ class DPPService:
         self._settings = get_settings()
         self._template_service = TemplateRegistryService(session)
         self._basyx_builder = BasyxDppBuilder(self._template_service)
+        self._field_encryptor: DPPFieldEncryptor | None = None
+        if self._settings.encryption_keyring:
+            key_encryptor = ConnectorConfigEncryptor(
+                self._settings.encryption_master_key,
+                keyring=self._settings.encryption_keyring,
+                active_key_id=self._settings.encryption_active_key_id,
+            )
+            self._field_encryptor = DPPFieldEncryptor(key_encryptor)
 
     @staticmethod
     def _is_aasd120_list_idshort_error(exc: Exception) -> bool:
@@ -125,6 +139,108 @@ class DPPService:
         """Return a manifest dict from revision-like objects, defaulting safely for mocks/legacy data."""
         value = getattr(revision, field, None)
         return value if isinstance(value, dict) else {}
+
+    async def _decrypt_revision_aas_env(self, revision: DPPRevision) -> dict[str, Any]:
+        """Return revision AAS payload with encrypted markers resolved for internal operations."""
+        field_encryptor = getattr(self, "_field_encryptor", None)
+        wrapped_dek = getattr(revision, "wrapped_dek", None)
+        kek_id = getattr(revision, "kek_id", None)
+        if wrapped_dek and field_encryptor is None:
+            raise ValueError("Encryption keyring is not configured for encrypted DPP revision")
+        if field_encryptor is None or not wrapped_dek or not kek_id:
+            return revision.aas_env_json
+        result = await self._session.execute(
+            select(EncryptedValue).where(EncryptedValue.revision_id == revision.id)
+        )
+        encrypted_rows = list(result.scalars().all())
+        if not encrypted_rows:
+            return revision.aas_env_json
+        try:
+            return field_encryptor.decrypt_for_read(
+                revision.aas_env_json,
+                tenant_id=revision.tenant_id,
+                encrypted_rows=encrypted_rows,
+                wrapped_dek=wrapped_dek,
+                kek_id=kek_id,
+                dek_wrapping_algorithm=getattr(revision, "dek_wrapping_algorithm", None),
+            )
+        except EncryptionError as exc:
+            raise ValueError(f"Failed to decrypt encrypted revision payload: {exc}") from exc
+
+    async def get_revision_aas_for_reader(self, revision: DPPRevision) -> dict[str, Any]:
+        """Return reader-facing AAS payload with encrypted markers decrypted."""
+        return await self._decrypt_revision_aas_env(revision)
+
+    async def _prepare_revision_payload(
+        self,
+        *,
+        tenant_id: UUID,
+        aas_env: dict[str, Any],
+    ) -> tuple[dict[str, Any], list[EncryptedValue], dict[str, Any]]:
+        """Apply field-level encryption and digest metadata for a revision write."""
+        stored_aas = aas_env
+        encrypted_rows: list[EncryptedValue] = []
+        wrapped_dek: str | None = None
+        kek_id: str | None = None
+        dek_wrapping_algorithm: str | None = None
+
+        field_encryptor = getattr(self, "_field_encryptor", None)
+        if field_encryptor is not None:
+            encrypted = field_encryptor.prepare_for_storage(aas_env, tenant_id=tenant_id)
+            stored_aas = encrypted.aas_env_json
+            wrapped_dek = encrypted.wrapped_dek
+            kek_id = encrypted.kek_id
+            dek_wrapping_algorithm = encrypted.dek_wrapping_algorithm
+            encrypted_rows = [
+                EncryptedValue(
+                    tenant_id=tenant_id,
+                    id=item.ref_id,
+                    revision_id=UUID(int=0),  # temporary placeholder, set after revision flush
+                    json_pointer_path=item.json_pointer_path,
+                    cipher_text=item.cipher_text,
+                    key_id=item.key_id,
+                    nonce=item.nonce,
+                    algorithm=item.algorithm,
+                )
+                for item in encrypted.encrypted_fields
+            ]
+        elif self._aas_requires_field_encryption(aas_env):
+            raise ValueError(
+                "Confidentiality=encrypted elements require ENCRYPTION_KEYRING_JSON "
+                "(or ENCRYPTION_MASTER_KEY fallback) to be configured"
+            )
+
+        digest = self._calculate_digest(stored_aas)
+        metadata = {
+            "digest_sha256": digest,
+            "digest_algorithm": SHA256_ALGORITHM,
+            "digest_canonicalization": CANONICALIZATION_RFC8785,
+            "wrapped_dek": wrapped_dek,
+            "kek_id": kek_id,
+            "dek_wrapping_algorithm": dek_wrapping_algorithm,
+        }
+        return stored_aas, encrypted_rows, metadata
+
+    def _aas_requires_field_encryption(self, aas_env: dict[str, Any]) -> bool:
+        def _walk(node: Any) -> bool:
+            if isinstance(node, dict):
+                qualifiers = node.get("qualifiers")
+                if isinstance(qualifiers, list):
+                    for qualifier in qualifiers:
+                        if not isinstance(qualifier, dict):
+                            continue
+                        if (
+                            str(qualifier.get("type", "")).strip().lower() == "confidentiality"
+                            and str(qualifier.get("value", "")).strip().lower() == "encrypted"
+                            and node.get("value") is not None
+                        ):
+                            return True
+                return any(_walk(value) for value in node.values())
+            if isinstance(node, list):
+                return any(_walk(item) for item in node)
+            return False
+
+        return _walk(aas_env)
 
     async def _ensure_user_exists(self, subject: str) -> User:
         """
@@ -350,9 +466,6 @@ class DPPService:
             initial_data or {},
         )
 
-        # Calculate content digest
-        digest = self._calculate_digest(aas_env)
-
         # Create DPP record
         dpp = DPP(
             tenant_id=tenant_id,
@@ -373,6 +486,10 @@ class DPPService:
 
         # Capture template provenance for audit trail
         template_provenance = await self._build_template_provenance(selected_templates)
+        stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+            tenant_id=tenant_id,
+            aas_env=aas_env,
+        )
 
         # Create initial revision
         revision = DPPRevision(
@@ -380,8 +497,13 @@ class DPPService:
             dpp_id=dpp.id,
             revision_no=1,
             state=RevisionState.DRAFT,
-            aas_env_json=aas_env,
-            digest_sha256=digest,
+            aas_env_json=stored_aas,
+            digest_sha256=digest_metadata["digest_sha256"],
+            digest_algorithm=digest_metadata["digest_algorithm"],
+            digest_canonicalization=digest_metadata["digest_canonicalization"],
+            wrapped_dek=digest_metadata["wrapped_dek"],
+            kek_id=digest_metadata["kek_id"],
+            dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
             created_by_subject=owner_subject,
             template_provenance=template_provenance,
             supplementary_manifest={},
@@ -389,6 +511,11 @@ class DPPService:
         )
         self._session.add(revision)
         await self._session.flush()
+        if encrypted_rows:
+            for row in encrypted_rows:
+                row.revision_id = revision.id
+                self._session.add(row)
+            await self._session.flush()
 
         logger.info(
             "dpp_created",
@@ -443,7 +570,10 @@ class DPPService:
                 if manufacturer_part_id:
                     asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
 
-        digest = self._calculate_digest(aas_env)
+        stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+            tenant_id=tenant_id,
+            aas_env=aas_env,
+        )
 
         dpp = DPP(
             tenant_id=tenant_id,
@@ -466,8 +596,13 @@ class DPPService:
             dpp_id=dpp.id,
             revision_no=1,
             state=RevisionState.DRAFT,
-            aas_env_json=aas_env,
-            digest_sha256=digest,
+            aas_env_json=stored_aas,
+            digest_sha256=digest_metadata["digest_sha256"],
+            digest_algorithm=digest_metadata["digest_algorithm"],
+            digest_canonicalization=digest_metadata["digest_canonicalization"],
+            wrapped_dek=digest_metadata["wrapped_dek"],
+            kek_id=digest_metadata["kek_id"],
+            dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
             created_by_subject=owner_subject,
             template_provenance={},
             supplementary_manifest=supplementary_manifest or {},
@@ -475,6 +610,11 @@ class DPPService:
         )
         self._session.add(revision)
         await self._session.flush()
+        if encrypted_rows:
+            for row in encrypted_rows:
+                row.revision_id = revision.id
+                self._session.add(row)
+            await self._session.flush()
 
         logger.info("dpp_imported", dpp_id=str(dpp.id), owner=owner_subject)
 
@@ -1234,7 +1374,7 @@ class DPPService:
         if dpp and dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot update an archived DPP")
 
-        base_env = current_revision.aas_env_json
+        base_env = await self._decrypt_revision_aas_env(current_revision)
         if self._is_legacy_environment(base_env):
             raise ValueError(
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
@@ -1347,7 +1487,7 @@ class DPPService:
         if dpp and dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot update an archived DPP")
 
-        base_env = current_revision.aas_env_json
+        base_env = await self._decrypt_revision_aas_env(current_revision)
         if self._is_legacy_environment(base_env):
             raise ValueError(
                 "Legacy AAS environment detected. Recreate this DPP after updating templates."
@@ -1501,7 +1641,7 @@ class DPPService:
         updated_by_subject: str,
         asset_ids: dict[str, Any],
     ) -> DPPRevision:
-        base_env = current_revision.aas_env_json
+        base_env = await self._decrypt_revision_aas_env(current_revision)
         applied_autofix = False
         autofix_stats = SanitizationStats()
         try:
@@ -1562,15 +1702,23 @@ class DPPService:
         updated_by_subject: str,
         doc_hints_manifest: dict[str, Any] | None,
     ) -> DPPRevision:
-        digest = self._calculate_digest(aas_env)
+        stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+            tenant_id=tenant_id,
+            aas_env=aas_env,
+        )
         new_revision_no = current_revision.revision_no + 1
         revision = DPPRevision(
             tenant_id=tenant_id,
             dpp_id=dpp_id,
             revision_no=new_revision_no,
             state=RevisionState.DRAFT,
-            aas_env_json=aas_env,
-            digest_sha256=digest,
+            aas_env_json=stored_aas,
+            digest_sha256=digest_metadata["digest_sha256"],
+            digest_algorithm=digest_metadata["digest_algorithm"],
+            digest_canonicalization=digest_metadata["digest_canonicalization"],
+            wrapped_dek=digest_metadata["wrapped_dek"],
+            kek_id=digest_metadata["kek_id"],
+            dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
             created_by_subject=updated_by_subject,
             template_provenance=current_revision.template_provenance or {},
             supplementary_manifest=self._revision_manifest(
@@ -1580,6 +1728,11 @@ class DPPService:
         )
         self._session.add(revision)
         await self._session.flush()
+        if encrypted_rows:
+            for row in encrypted_rows:
+                row.revision_id = revision.id
+                self._session.add(row)
+            await self._session.flush()
         return revision
 
     def _build_patch_ops_from_form_payload(
@@ -1708,8 +1861,9 @@ class DPPService:
             operation="refresh_rebuild",
             dpp_id=dpp_id,
         )
+        current_plain_env = await self._decrypt_revision_aas_env(current_revision)
         bindings = resolve_submodel_bindings(
-            aas_env_json=current_revision.aas_env_json,
+            aas_env_json=current_plain_env,
             templates=refreshed_templates,
             template_provenance=current_revision.template_provenance or {},
         )
@@ -1750,7 +1904,7 @@ class DPPService:
                 continue
 
             submodel = self._find_submodel_json_by_id(
-                current_revision.aas_env_json,
+                current_plain_env,
                 binding.submodel_id,
             )
             if submodel is None:
@@ -1784,6 +1938,7 @@ class DPPService:
                 current_revision = await self.get_latest_revision(dpp_id, tenant_id)
                 if current_revision is None:
                     raise ValueError("Failed to reload revision after rebuild")
+                current_plain_env = await self._decrypt_revision_aas_env(current_revision)
             except Exception as exc:
                 summary["failed"].append(
                     {
@@ -1885,7 +2040,7 @@ class DPPService:
                     summary["skipped"] += 1
                     continue
 
-                aas_env_json = current_revision.aas_env_json
+                aas_env_json = await self._decrypt_revision_aas_env(current_revision)
                 try:
                     self._basyx_builder._load_environment(aas_env_json)  # noqa: SLF001
                     summary["skipped"] += 1
@@ -1917,15 +2072,23 @@ class DPPService:
                     summary["repaired"] += 1
                     continue
 
-                digest = self._calculate_digest(sanitized_env)
+                stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+                    tenant_id=tenant_id,
+                    aas_env=sanitized_env,
+                )
                 new_revision_no = current_revision.revision_no + 1
                 revision = DPPRevision(
                     tenant_id=tenant_id,
                     dpp_id=dpp.id,
                     revision_no=new_revision_no,
                     state=RevisionState.DRAFT,
-                    aas_env_json=sanitized_env,
-                    digest_sha256=digest,
+                    aas_env_json=stored_aas,
+                    digest_sha256=digest_metadata["digest_sha256"],
+                    digest_algorithm=digest_metadata["digest_algorithm"],
+                    digest_canonicalization=digest_metadata["digest_canonicalization"],
+                    wrapped_dek=digest_metadata["wrapped_dek"],
+                    kek_id=digest_metadata["kek_id"],
+                    dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
                     created_by_subject=updated_by_subject,
                     template_provenance=current_revision.template_provenance or {},
                     supplementary_manifest=self._revision_manifest(
@@ -1937,6 +2100,11 @@ class DPPService:
                 )
                 self._session.add(revision)
                 await self._session.flush()
+                if encrypted_rows:
+                    for row in encrypted_rows:
+                        row.revision_id = revision.id
+                        self._session.add(row)
+                    await self._session.flush()
                 await self._cleanup_old_draft_revisions(dpp.id, tenant_id)
                 summary["repaired"] += 1
             except Exception as exc:  # pragma: no cover - defensive
@@ -2016,19 +2184,27 @@ class DPPService:
                 templates=current_templates,
             )
 
-        # Sign the digest on publish for tamper-evidence
-        signed_jws = self._sign_digest(latest_revision.digest_sha256)
-
         if latest_revision.state == RevisionState.PUBLISHED:
             # Already published, create new revision
+            latest_plain_aas = await self._decrypt_revision_aas_env(latest_revision)
+            stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+                tenant_id=tenant_id,
+                aas_env=latest_plain_aas,
+            )
+            signed_jws = self._sign_digest(digest_metadata["digest_sha256"])
             new_revision_no = latest_revision.revision_no + 1
             revision = DPPRevision(
                 tenant_id=tenant_id,
                 dpp_id=dpp_id,
                 revision_no=new_revision_no,
                 state=RevisionState.PUBLISHED,
-                aas_env_json=latest_revision.aas_env_json,
-                digest_sha256=latest_revision.digest_sha256,
+                aas_env_json=stored_aas,
+                digest_sha256=digest_metadata["digest_sha256"],
+                digest_algorithm=digest_metadata["digest_algorithm"],
+                digest_canonicalization=digest_metadata["digest_canonicalization"],
+                wrapped_dek=digest_metadata["wrapped_dek"],
+                kek_id=digest_metadata["kek_id"],
+                dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
                 signed_jws=signed_jws,
                 created_by_subject=published_by_subject,
                 template_provenance=latest_revision.template_provenance or {},
@@ -2039,8 +2215,14 @@ class DPPService:
             )
             self._session.add(revision)
             await self._session.flush()
+            if encrypted_rows:
+                for row in encrypted_rows:
+                    row.revision_id = revision.id
+                    self._session.add(row)
+                await self._session.flush()
         else:
             # Mark current draft as published
+            signed_jws = self._sign_digest(latest_revision.digest_sha256)
             latest_revision.state = RevisionState.PUBLISHED
             latest_revision.signed_jws = signed_jws
             revision = latest_revision
@@ -2080,7 +2262,7 @@ class DPPService:
             dpp_id=dpp.id,
         )
 
-        base_env = current_revision.aas_env_json
+        base_env = await self._decrypt_revision_aas_env(current_revision)
         applied_autofix = False
         autofix_stats = SanitizationStats()
 
@@ -2134,7 +2316,10 @@ class DPPService:
 
         self._assert_conformant_environment(aas_env, context="rebuild_from_templates")
 
-        digest = self._calculate_digest(aas_env)
+        stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
+            tenant_id=dpp.tenant_id,
+            aas_env=aas_env,
+        )
         new_revision_no = current_revision.revision_no + 1
 
         revision = DPPRevision(
@@ -2142,8 +2327,13 @@ class DPPService:
             dpp_id=dpp.id,
             revision_no=new_revision_no,
             state=RevisionState.DRAFT,
-            aas_env_json=aas_env,
-            digest_sha256=digest,
+            aas_env_json=stored_aas,
+            digest_sha256=digest_metadata["digest_sha256"],
+            digest_algorithm=digest_metadata["digest_algorithm"],
+            digest_canonicalization=digest_metadata["digest_canonicalization"],
+            wrapped_dek=digest_metadata["wrapped_dek"],
+            kek_id=digest_metadata["kek_id"],
+            dek_wrapping_algorithm=digest_metadata["dek_wrapping_algorithm"],
             created_by_subject=updated_by_subject,
             template_provenance=await self._build_provenance_from_db_templates(templates),
             supplementary_manifest=self._revision_manifest(
@@ -2153,6 +2343,11 @@ class DPPService:
         )
         self._session.add(revision)
         await self._session.flush()
+        if encrypted_rows:
+            for row in encrypted_rows:
+                row.revision_id = revision.id
+                self._session.add(row)
+            await self._session.flush()
 
         logger.info(
             "dpp_rebuilt_from_templates_basyx",
@@ -2697,15 +2892,21 @@ class DPPService:
 
         return element
 
-    def _calculate_digest(self, aas_env: dict[str, Any]) -> str:
+    def _calculate_digest(
+        self,
+        aas_env: dict[str, Any],
+        *,
+        canonicalization: str = CANONICALIZATION_RFC8785,
+    ) -> str:
         """
         Calculate SHA-256 digest of canonicalized AAS environment.
 
         Uses deterministic JSON serialization for consistent hashing.
         """
-        # Canonical JSON: sorted keys, no extra whitespace
-        canonical = json.dumps(aas_env, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode()).hexdigest()
+        return sha256_hex_for_canonicalization(
+            aas_env,
+            canonicalization=canonicalization,
+        )
 
     def _sign_digest(self, digest: str) -> str | None:
         """
@@ -2747,7 +2948,7 @@ class DPPService:
             payload = api_jws.decode(
                 signed_jws,
                 public_key,
-                algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"],
+                algorithms=["RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "EdDSA"],
             )
             return bool(payload.decode("utf-8") == expected_digest)
         except PyJWTError:

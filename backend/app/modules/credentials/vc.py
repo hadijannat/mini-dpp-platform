@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -12,6 +13,12 @@ from cryptography.hazmat.primitives.asymmetric import ec, ed25519, rsa
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.crypto.canonicalization import (
+    CANONICALIZATION_LEGACY_JSON_V1,
+    CANONICALIZATION_RFC8785,
+    SHA256_ALGORITHM,
+    sha256_hex_for_canonicalization,
+)
 from app.db.models import DPP, DPPRevision, IssuedCredential
 from app.modules.credentials.did import DIDService
 from app.modules.credentials.schemas import (
@@ -141,20 +148,60 @@ class VCService:
                 subject_id=_extract_subject_id(credential),
             )
 
+        claims: dict[str, Any] | None = None
+
         # Verify JWS signature using only the algorithm matching our key type
         try:
             algorithm = _detect_algorithm(self._did.private_key)
             public_key = self._did.private_key.public_key()
-            jwt.decode(
+            claims_obj = jwt.decode(
                 jws_token,
                 public_key,
                 algorithms=[algorithm],
                 options={"verify_exp": False, "verify_aud": False},
             )
+            claims = claims_obj if isinstance(claims_obj, dict) else {}
         except jwt.InvalidTokenError as e:
             errors.append(f"Invalid JWS signature: {e}")
         except (ValueError, TypeError, KeyError) as e:
             errors.append(f"Verification error: {e}")
+
+        # Verify proof is bound to submitted credential bytes.
+        if claims is not None:
+            if str(claims.get("iss", "")).strip() != issuer_did:
+                errors.append("Proof issuer claim does not match credential issuer")
+            unsigned_credential = dict(credential)
+            unsigned_credential.pop("proof", None)
+
+            claim_hash = claims.get("vc_hash")
+            claim_hash_alg = str(claims.get("vc_hash_alg", SHA256_ALGORITHM)).strip().lower()
+            claim_canon = str(
+                claims.get("vc_canon", CANONICALIZATION_RFC8785)
+            ).strip().lower()
+
+            if claim_hash is not None:
+                if claim_hash_alg != SHA256_ALGORITHM:
+                    errors.append(f"Unsupported vc_hash_alg in proof: {claim_hash_alg}")
+                elif claim_canon not in {
+                    CANONICALIZATION_RFC8785,
+                    CANONICALIZATION_LEGACY_JSON_V1,
+                }:
+                    errors.append(f"Unsupported vc_canon in proof: {claim_canon}")
+                else:
+                    computed = sha256_hex_for_canonicalization(
+                        unsigned_credential,
+                        canonicalization=claim_canon,
+                    )
+                    if not hmac.compare_digest(str(claim_hash), computed):
+                        errors.append("Proof hash does not match submitted credential")
+            elif "vc" in claims:
+                legacy_canonical = json.dumps(
+                    unsigned_credential, sort_keys=True, separators=(",", ":")
+                )
+                if not hmac.compare_digest(str(claims.get("vc", "")), legacy_canonical):
+                    errors.append("Legacy proof payload does not match submitted credential")
+            else:
+                errors.append("Proof does not contain vc_hash or legacy vc payload binding")
 
         # Check expiration
         exp_date = credential.get("expirationDate")
@@ -218,10 +265,22 @@ class VCService:
     ) -> VCProof:
         """Create a JWS proof over the credential payload."""
         now = datetime.now(UTC)
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         algorithm = _detect_algorithm(self._did.private_key)
+        vc_hash = sha256_hex_for_canonicalization(
+            payload,
+            canonicalization=CANONICALIZATION_RFC8785,
+        )
+        legacy_canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         token: str = jwt.encode(
-            {"vc": canonical, "iss": did, "iat": int(now.timestamp())},
+            {
+                "iss": did,
+                "iat": int(now.timestamp()),
+                "vc_hash": vc_hash,
+                "vc_hash_alg": SHA256_ALGORITHM,
+                "vc_canon": CANONICALIZATION_RFC8785,
+                # Keep legacy claim for compatibility with old verification tooling.
+                "vc": legacy_canonical,
+            },
             self._did.private_key,
             algorithm=algorithm,
             headers={"kid": key_id},
