@@ -1,19 +1,26 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from 'react-oidc-context';
 import { hasRoleLevel } from '@/lib/auth';
+import { useTenantAccess } from '@/lib/tenant-access';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: 'viewer' | 'publisher' | 'tenant_admin' | 'admin';
+  roleSource?: 'token' | 'tenant';
 }
 
 function allowsViewerConsoleReadOnly(pathname: string): boolean {
   return /^\/console\/dpps\/[^/]+$/.test(pathname);
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({
+  children,
+  requiredRole,
+  roleSource = 'token',
+}: ProtectedRouteProps) {
   const auth = useAuth();
   const location = useLocation();
+  const tenantAccess = useTenantAccess();
 
   if (!auth.isAuthenticated) {
     // Store the intended destination for post-login redirect
@@ -23,9 +30,29 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  // Check role if required (extracts from both realm and client roles)
-  if (requiredRole && !hasRoleLevel(auth.user, requiredRole)) {
-    if (requiredRole !== 'viewer' && hasRoleLevel(auth.user, 'viewer')) {
+  const hasRequiredRole =
+    requiredRole === undefined
+      ? true
+      : roleSource === 'tenant'
+        ? tenantAccess.hasTenantRoleLevel(requiredRole)
+        : hasRoleLevel(auth.user, requiredRole);
+
+  const hasViewerLevelAccess =
+    roleSource === 'tenant'
+      ? tenantAccess.hasTenantRoleLevel('viewer')
+      : hasRoleLevel(auth.user, 'viewer');
+
+  if (requiredRole && roleSource === 'tenant' && tenantAccess.isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Check role if required.
+  if (requiredRole && !hasRequiredRole) {
+    if (requiredRole !== 'viewer' && hasViewerLevelAccess) {
       if (requiredRole === 'publisher' && allowsViewerConsoleReadOnly(location.pathname)) {
         return <>{children}</>;
       }
@@ -33,6 +60,9 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
         reason: 'insufficient_role',
         next: `${location.pathname}${location.search}`,
       });
+      if (roleSource === 'tenant' && tenantAccess.tenantSlug) {
+        params.set('tenant', tenantAccess.tenantSlug);
+      }
       return <Navigate to={`/welcome?${params.toString()}`} replace />;
     }
     return (

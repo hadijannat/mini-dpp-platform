@@ -17,11 +17,10 @@ export async function getApiErrorMessage(
   response: Response,
   fallback: string
 ): Promise<string> {
+  const forbiddenFallback = 'You do not have permission to perform this action.';
+  const defaultFallback = response.status === 403 ? forbiddenFallback : fallback;
   if (response.status === 401) {
     return 'Session expired. Please sign in again.';
-  }
-  if (response.status === 403) {
-    return 'You do not have permission to perform this action.';
   }
   const contentType = response.headers.get('content-type') ?? '';
   const rawText = await response.text();
@@ -33,7 +32,7 @@ export async function getApiErrorMessage(
       };
       const detail = body?.detail;
       if (typeof detail === 'string') {
-        return detail || rawText || fallback;
+        return detail || rawText || defaultFallback;
       }
       const errors = Array.isArray(body?.errors)
         ? body.errors
@@ -71,7 +70,7 @@ export async function getApiErrorMessage(
         if (detailMessage && messages) {
           return `${detailMessage}: ${messages}`;
         }
-        return detailMessage || messages || rawText || fallback;
+        return detailMessage || messages || rawText || defaultFallback;
       }
       if (detail && typeof detail === 'object') {
         const message =
@@ -90,10 +89,13 @@ export async function getApiErrorMessage(
         }
         return JSON.stringify(detail);
       }
-      return rawText || fallback;
+      return rawText || defaultFallback;
     } catch {
-      return rawText || fallback;
+      return rawText || defaultFallback;
     }
+  }
+  if (response.status === 403) {
+    return rawText || forbiddenFallback;
   }
   return rawText || fallback;
 }

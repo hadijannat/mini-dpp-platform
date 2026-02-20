@@ -4,6 +4,8 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 
+type TenantRole = 'viewer' | 'publisher' | 'tenant_admin' | 'admin';
+
 const authState = {
   user: {
     access_token: 'fake-token',
@@ -11,7 +13,30 @@ const authState = {
   },
   signoutRedirect: vi.fn(),
 };
+const tenantAccessState: {
+  role: TenantRole | null;
+  isLoading: boolean;
+  isError: boolean;
+} = {
+  role: 'publisher',
+  isLoading: false,
+  isError: false,
+};
 let opcuaStatusMode: 'enabled' | 'disabled' | 'error' = 'enabled';
+
+const roleRank: Record<TenantRole, number> = {
+  viewer: 0,
+  publisher: 1,
+  tenant_admin: 2,
+  admin: 3,
+};
+
+function hasTenantRoleLevel(requiredRole: TenantRole): boolean {
+  if (tenantAccessState.isLoading || tenantAccessState.isError || !tenantAccessState.role) {
+    return false;
+  }
+  return roleRank[tenantAccessState.role] >= roleRank[requiredRole];
+}
 
 vi.mock('react-oidc-context', () => ({
   useAuth: () => authState,
@@ -19,6 +44,16 @@ vi.mock('react-oidc-context', () => ({
 
 vi.mock('@/lib/tenant', () => ({
   getTenantSlug: () => 'default',
+}));
+
+vi.mock('@/lib/tenant-access', () => ({
+  useTenantAccess: () => ({
+    tenantSlug: 'default',
+    activeTenantRole: tenantAccessState.role,
+    hasTenantRoleLevel,
+    isLoading: tenantAccessState.isLoading,
+    isError: tenantAccessState.isError,
+  }),
 }));
 
 vi.mock('@/lib/breadcrumbs', () => ({
@@ -74,14 +109,14 @@ describe('PublisherLayout role request navigation', () => {
       access_token: 'fake-token',
       profile: { roles: ['viewer'], sub: 'user-123' },
     };
+    tenantAccessState.role = 'publisher';
+    tenantAccessState.isLoading = false;
+    tenantAccessState.isError = false;
     opcuaStatusMode = 'enabled';
   });
 
-  it('shows Role Requests for tenant_admin users', async () => {
-    authState.user = {
-      access_token: 'fake-token',
-      profile: { roles: ['tenant_admin'], sub: 'user-123' },
-    };
+  it('shows Role Requests for active-tenant tenant_admin users', async () => {
+    tenantAccessState.role = 'tenant_admin';
     renderLayout();
 
     expect(screen.queryAllByText('Role Requests').length).toBeGreaterThan(0);
@@ -89,11 +124,25 @@ describe('PublisherLayout role request navigation', () => {
     expect((await screen.findAllByText('OPC UA')).length).toBeGreaterThan(0);
   });
 
+  it('hides Role Requests when token is tenant_admin but active tenant role is viewer', async () => {
+    authState.user = {
+      access_token: 'fake-token',
+      profile: { roles: ['tenant_admin'], sub: 'user-123' },
+    };
+    tenantAccessState.role = 'viewer';
+    renderLayout();
+
+    await waitFor(() => {
+      expect(screen.queryAllByText('Role Requests')).toHaveLength(0);
+    });
+  });
+
   it('shows Role Requests and Admin navigation for platform admin users', async () => {
     authState.user = {
       access_token: 'fake-token',
       profile: { roles: ['admin'], sub: 'user-123' },
     };
+    tenantAccessState.role = 'viewer';
     renderLayout();
 
     expect(screen.queryAllByText('Role Requests').length).toBeGreaterThan(0);
@@ -108,6 +157,9 @@ describe('PublisherLayout OPC UA nav gating', () => {
       access_token: 'fake-token',
       profile: { roles: ['viewer'], sub: 'user-123' },
     };
+    tenantAccessState.role = 'publisher';
+    tenantAccessState.isLoading = false;
+    tenantAccessState.isError = false;
   });
 
   it('hides OPC UA navigation when backend reports feature disabled', async () => {

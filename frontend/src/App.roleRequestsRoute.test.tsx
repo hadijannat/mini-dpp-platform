@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 
 const authState = {
   isAuthenticated: true,
@@ -9,8 +9,26 @@ const authState = {
   user: { profile: { roles: ['tenant_admin'] } },
 };
 
+const tenantAccessState = {
+  tenantSlug: 'default',
+  hasTenantRoleLevel: (
+    requiredRole: 'viewer' | 'publisher' | 'tenant_admin' | 'admin',
+  ): boolean =>
+    requiredRole === 'viewer',
+};
+
 vi.mock('react-oidc-context', () => ({
   useAuth: () => authState,
+}));
+
+vi.mock('@/lib/tenant-access', () => ({
+  useTenantAccess: () => ({
+    tenantSlug: tenantAccessState.tenantSlug,
+    activeTenantRole: null,
+    hasTenantRoleLevel: tenantAccessState.hasTenantRoleLevel,
+    isLoading: false,
+    isError: false,
+  }),
 }));
 
 vi.mock('./app/layouts/PublisherLayout', async () => {
@@ -26,14 +44,37 @@ vi.mock('./features/admin/pages/RoleRequestsPage', () => ({
 }));
 
 vi.mock('./features/onboarding/pages/WelcomePage', () => ({
-  default: () => <div>Welcome Page</div>,
+  default: function WelcomeProbe() {
+    const location = useLocation();
+    return <div>Welcome Page {location.search}</div>;
+  },
 }));
 
 import App from './App';
 
 describe('App role requests route', () => {
-  it('allows tenant_admin to access /console/role-requests', async () => {
+  it('denies tenant-admin token users when active tenant role is viewer', async () => {
     authState.user = { profile: { roles: ['tenant_admin'] } };
+    tenantAccessState.hasTenantRoleLevel = (requiredRole) => requiredRole === 'viewer';
+
+    render(
+      <MemoryRouter initialEntries={['/console/role-requests']}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Welcome Page/)).toBeTruthy();
+    });
+    expect(screen.getByText(/reason=insufficient_role/)).toBeTruthy();
+    expect(screen.getByText(/tenant=default/)).toBeTruthy();
+    expect(screen.getByText(/next=%2Fconsole%2Frole-requests/)).toBeTruthy();
+  });
+
+  it('allows route access when active tenant role is tenant_admin', async () => {
+    authState.user = { profile: { roles: ['tenant_admin'] } };
+    tenantAccessState.hasTenantRoleLevel = (requiredRole) =>
+      requiredRole === 'viewer' || requiredRole === 'publisher' || requiredRole === 'tenant_admin';
 
     render(
       <MemoryRouter initialEntries={['/console/role-requests']}>
@@ -43,20 +84,6 @@ describe('App role requests route', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Role Requests Page')).toBeTruthy();
-    });
-  });
-
-  it('redirects non-reviewer publishers to welcome gate', async () => {
-    authState.user = { profile: { roles: ['publisher'] } };
-
-    render(
-      <MemoryRouter initialEntries={['/console/role-requests']}>
-        <App />
-      </MemoryRouter>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByText('Welcome Page')).toBeTruthy();
     });
   });
 });

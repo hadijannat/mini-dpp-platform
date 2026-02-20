@@ -300,6 +300,27 @@ export default function WelcomePage() {
   const canProvision = status?.next_actions.includes('provision') ?? false;
   const canRequestRoleUpgrade = status?.next_actions.includes('request_role_upgrade') ?? false;
   const insufficientRoleReason = searchParams.get('reason') === 'insufficient_role';
+  const insufficientRoleTenant = useMemo(() => {
+    const rawValue = searchParams.get('tenant');
+    if (!rawValue) {
+      return null;
+    }
+    const normalized = rawValue.trim().toLowerCase();
+    return normalized.length > 0 ? normalized : null;
+  }, [searchParams]);
+
+  const roleRequestTenantSlug = useMemo(() => {
+    if (insufficientRoleTenant) {
+      return insufficientRoleTenant;
+    }
+    if (status?.tenant_slug && status.tenant_slug.trim().length > 0) {
+      return status.tenant_slug;
+    }
+    return 'default';
+  }, [insufficientRoleTenant, status?.tenant_slug]);
+
+  const showRoleRequestCard =
+    (status?.provisioned && canRequestRoleUpgrade) || insufficientRoleReason;
 
   const description = useMemo(() => {
     if (status?.provisioned) {
@@ -330,7 +351,9 @@ export default function WelcomePage() {
           <CardContent className="space-y-4">
             {insufficientRoleReason && (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                Your current role cannot access the publisher console. You can continue here.
+                Your current role cannot access the publisher console
+                {insufficientRoleTenant ? ` for tenant "${insufficientRoleTenant}"` : ''}. You can
+                continue here.
               </div>
             )}
 
@@ -427,8 +450,8 @@ export default function WelcomePage() {
           </CardContent>
         </Card>
 
-        {status?.provisioned && canRequestRoleUpgrade && (
-          <RoleRequestCard tenantSlug={status.tenant_slug ?? 'default'} />
+        {showRoleRequestCard && (
+          <RoleRequestCard tenantSlug={roleRequestTenantSlug} />
         )}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

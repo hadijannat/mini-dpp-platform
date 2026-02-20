@@ -144,6 +144,30 @@ describe('WelcomePage', () => {
     expect(screen.getByRole('button', { name: 'Resend available in 12s' })).toBeTruthy();
   });
 
+  it('uses tenant query context for insufficient-role guidance and role requests', async () => {
+    (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          provisioned: true,
+          tenant_slug: 'default',
+          role: 'viewer',
+          email_verified: true,
+          blockers: [],
+          next_actions: ['go_home'],
+        }),
+    });
+
+    renderWelcome('/welcome?reason=insufficient_role&tenant=acme');
+
+    expect(
+      await screen.findByText(
+        'Your current role cannot access the publisher console for tenant "acme". You can continue here.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText('Role request card for acme')).toBeTruthy();
+  });
+
   it('renders viewer actions with role request card and supports go-home/signout', async () => {
     (apiFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
