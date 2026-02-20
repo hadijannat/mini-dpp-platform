@@ -51,6 +51,46 @@ function sanitizeDraftFilename(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]/g, '-');
 }
 
+function normalizeDiagnosticEntry(entry: string): string | null {
+  const compact = entry.replace(/\s+/g, ' ').trim();
+  if (!compact) return null;
+  if (/^root$/i.test(compact)) return null;
+  if (/^root(?:\s*[|/,:>]\s*root)+$/i.test(compact)) return null;
+  if (/^root[.:]\s*/i.test(compact)) {
+    const withoutRoot = compact.replace(/^root[.:]\s*/i, '').trim();
+    return withoutRoot || null;
+  }
+  return compact;
+}
+
+function normalizeDiagnosticMessages(values: string[]): string[] {
+  const deduped = new Set<string>();
+  for (const value of values) {
+    for (const segment of value.split('|')) {
+      const normalized = normalizeDiagnosticEntry(segment);
+      if (normalized) {
+        deduped.add(normalized);
+      }
+    }
+  }
+  return Array.from(deduped);
+}
+
+function normalizeErrorMessage(value: string): string {
+  const messages = normalizeDiagnosticMessages([value]);
+  if (messages.length === 0) {
+    return 'Validation failed. Review required fields and try again.';
+  }
+  return messages.join(' • ');
+}
+
+function buildWarningNotice(warnings: string[]): string | null {
+  const messages = normalizeDiagnosticMessages(warnings);
+  if (messages.length === 0) return null;
+  if (messages.length === 1) return messages[0];
+  return `${messages.length} notices: ${messages.join(' • ')}`;
+}
+
 export default function PublicIdtaSubmodelEditorPage() {
   const [statusFilter, setStatusFilter] = useState<PublicTemplateStatus>('published');
   const [search, setSearch] = useState('');
@@ -225,10 +265,12 @@ export default function PublicIdtaSubmodelEditorPage() {
       if (!result || typeof result !== 'object') return;
       setPreviewText(JSON.stringify(result.aas_environment, null, 2));
       setError(null);
-      setNotice(result.warnings.length > 0 ? result.warnings.join(' | ') : null);
+      setNotice(buildWarningNotice(result.warnings));
     },
     onError: (previewError) => {
-      setError(previewError instanceof Error ? previewError.message : 'Failed to generate preview');
+      const rawMessage = previewError instanceof Error ? previewError.message : 'Failed to generate preview';
+      setError(normalizeErrorMessage(rawMessage));
+      setNotice(null);
     },
   });
 
@@ -264,9 +306,11 @@ export default function PublicIdtaSubmodelEditorPage() {
     onSuccess: (result) => {
       downloadBlob(result.blob, result.filename);
       setError(null);
+      setNotice(`Exported ${result.filename}`);
     },
     onError: (exportError) => {
-      setError(exportError instanceof Error ? exportError.message : 'Failed to export');
+      const rawMessage = exportError instanceof Error ? exportError.message : 'Failed to export';
+      setError(normalizeErrorMessage(rawMessage));
     },
   });
 
@@ -344,7 +388,8 @@ export default function PublicIdtaSubmodelEditorPage() {
       setNotice(`Loaded draft: ${parsed.name}`);
       setError(null);
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Invalid draft file');
+      const rawMessage = uploadError instanceof Error ? uploadError.message : 'Invalid draft file';
+      setError(normalizeErrorMessage(rawMessage));
     } finally {
       event.target.value = '';
     }
