@@ -1943,6 +1943,22 @@ class TemplateRegistryService:
         definition: dict[str, Any],
         schema: dict[str, Any],
     ) -> list[dict[str, Any]]:
+        known_model_types = {
+            "Property",
+            "SubmodelElementCollection",
+            "SubmodelElementList",
+            "MultiLanguageProperty",
+            "Range",
+            "File",
+            "Blob",
+            "ReferenceElement",
+            "Entity",
+            "RelationshipElement",
+            "AnnotatedRelationshipElement",
+            "Operation",
+            "Capability",
+            "BasicEventElement",
+        }
         unsupported_model_types = {"Blob", "Operation", "Capability", "BasicEventElement"}
         root_id_short = str((definition.get("submodel") or {}).get("idShort") or "").strip() or None
         unsupported: list[dict[str, Any]] = []
@@ -1954,6 +1970,8 @@ class TemplateRegistryService:
             path = str(node.get("path") or "") or None
             if model_type in unsupported_model_types:
                 reasons.append(f"unsupported_model_type:{model_type}")
+            elif model_type not in known_model_types:
+                reasons.append(f"unsupported_model_type:{model_type or 'unknown'}")
 
             resolution = node.get("x_resolution")
             if isinstance(resolution, dict):

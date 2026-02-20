@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, cast
 
@@ -32,18 +33,21 @@ class TemplateInstanceBuilder:
         *,
         template: Template,
         data: dict[str, Any],
+        template_lookup: Mapping[str, Template] | None = None,
     ) -> dict[str, Any]:
         """Build AAS environment with one shell and one instantiated submodel."""
         asset_ids = {
             "manufacturerPartId": "sandbox",
             "globalAssetId": f"urn:dpp:sandbox:{template.template_key}",
         }
+        resolved_lookup = dict(template_lookup or {template.template_key: template})
+        resolved_lookup.setdefault(template.template_key, template)
 
         parsed = self._delegate._parse_template(
             template,
             template.semantic_id,
             template_key=template.template_key,
-            template_lookup={template.template_key: template},
+            template_lookup=resolved_lookup,
         )
         submodel = self._delegate._instantiate_submodel(
             template.template_key,

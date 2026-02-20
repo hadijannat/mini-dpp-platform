@@ -101,6 +101,7 @@ export default function PublicIdtaSubmodelEditorPage() {
   const [previewText, setPreviewText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
   const [drafts, setDrafts] = useState<SmtDraftRecord[]>(() => listSmtDrafts());
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const pendingDraftRef = useRef<SmtDraftRecord | null>(null);
@@ -156,11 +157,23 @@ export default function PublicIdtaSubmodelEditorPage() {
   const uiSchema = contractQuery.data?.schema as UISchema | undefined;
   const { form } = useSubmodelForm(templateDefinition, uiSchema, {});
   const hasDefinitionElements = Boolean(templateDefinition?.submodel?.elements?.length);
+  const diagnostics = useMemo(() => {
+    const unsupported = contractQuery.data?.unsupported_nodes ?? [];
+    const report = contractQuery.data?.dropin_resolution_report ?? [];
+    const unresolved = report.filter((entry) => {
+      if (!entry || typeof entry !== 'object') return false;
+      const statusValue = (entry as { status?: unknown }).status;
+      const status = typeof statusValue === 'string' ? statusValue.toLowerCase() : '';
+      return status !== 'resolved' && status !== 'skipped';
+    });
+    return { unsupported, unresolved };
+  }, [contractQuery.data?.dropin_resolution_report, contractQuery.data?.unsupported_nodes]);
 
   const syncDraftList = () => setDrafts(listSmtDrafts());
 
   const applyDraft = (draft: SmtDraftRecord) => {
     pendingDraftRef.current = draft;
+    setHasUserInteracted(false);
     setActiveDraftId(draft.draftId);
     if (selectedTemplateKey !== draft.templateKey) {
       setSelectedTemplateKey(draft.templateKey);
@@ -203,10 +216,18 @@ export default function PublicIdtaSubmodelEditorPage() {
     setRawJson('{}');
   }, [activeDraftId, contractQuery.data, drafts, form, selectedTemplateKey, selectedVersion]);
 
+  useEffect(() => {
+    setHasUserInteracted(false);
+    setPreviewText('');
+  }, [selectedTemplateKey, selectedVersion]);
+
   const [debouncedFormValues, setDebouncedFormValues] = useState(() => form.getValues());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
-    const subscription = form.watch((values) => {
+    const subscription = form.watch((values, meta) => {
+      if (meta?.type === 'change' || meta?.type === 'blur') {
+        setHasUserInteracted(true);
+      }
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         setDebouncedFormValues({ ...values } as Record<string, unknown>);
@@ -275,13 +296,26 @@ export default function PublicIdtaSubmodelEditorPage() {
   });
 
   useEffect(() => {
+    if (!hasUserInteracted) return;
     if (!selectedTemplateKey || !contractQuery.data || activeView === 'json') return;
     if (previewMutation.isPending) return;
     void previewMutation.mutateAsync(debouncedFormValues);
     // previewMutation object identity may change between renders; triggering on
     // form/template state keeps this effect stable for autosync preview.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeView, contractQuery.data, debouncedFormValues, selectedTemplateKey, selectedVersion]);
+  }, [
+    activeView,
+    contractQuery.data,
+    debouncedFormValues,
+    hasUserInteracted,
+    selectedTemplateKey,
+    selectedVersion,
+  ]);
+
+  const handleRawJsonChange = (value: string) => {
+    setRawJson(value);
+    setHasUserInteracted(true);
+  };
 
   const resolveCurrentData = (): Record<string, unknown> | null => {
     if (activeView === 'json') {
@@ -336,6 +370,7 @@ export default function PublicIdtaSubmodelEditorPage() {
       setRawJson(JSON.stringify(form.getValues(), null, 2));
     }
     if (view === 'preview') {
+      setHasUserInteracted(true);
       const payload = resolveCurrentData();
       if (payload) {
         void previewMutation.mutateAsync(payload);
@@ -497,6 +532,35 @@ export default function PublicIdtaSubmodelEditorPage() {
             </div>
           )}
 
+          {contractQuery.data && (
+            <div className="space-y-2 rounded-md border bg-muted/25 p-3 text-xs">
+              <p className="font-medium">Template diagnostics</p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={diagnostics.unsupported.length > 0 ? 'destructive' : 'secondary'}>
+                  Unsupported nodes: {diagnostics.unsupported.length}
+                </Badge>
+                <Badge variant={diagnostics.unresolved.length > 0 ? 'destructive' : 'secondary'}>
+                  Unresolved drop-ins: {diagnostics.unresolved.length}
+                </Badge>
+              </div>
+              {diagnostics.unsupported.slice(0, 3).map((entry, index) => (
+                <p key={`unsupported-${entry.path ?? 'root'}-${index}`} className="text-muted-foreground">
+                  {(entry.path ?? 'root')}: {(entry.reasons ?? []).join(', ') || 'unsupported'}
+                </p>
+              ))}
+              {diagnostics.unresolved.slice(0, 3).map((entry, index) => {
+                const record = entry as Record<string, unknown>;
+                const pathValue = typeof record.path === 'string' ? record.path : 'root';
+                const reasonValue = typeof record.reason === 'string' ? record.reason : 'unresolved';
+                return (
+                  <p key={`unresolved-${pathValue}-${index}`} className="text-muted-foreground">
+                    {pathValue}: {reasonValue}
+                  </p>
+                );
+              })}
+            </div>
+          )}
+
           <div className="space-y-2 rounded-md border p-3">
             <Label>Drafts</Label>
             <Select
@@ -588,7 +652,7 @@ export default function PublicIdtaSubmodelEditorPage() {
                   )}
                 </TabsContent>
                 <TabsContent value="json">
-                  <JsonEditor value={rawJson} onChange={setRawJson} />
+                  <JsonEditor value={rawJson} onChange={handleRawJsonChange} />
                 </TabsContent>
                 <TabsContent value="preview">
                   <div className="mb-3 flex items-center gap-2">
@@ -596,6 +660,7 @@ export default function PublicIdtaSubmodelEditorPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
+                        setHasUserInteracted(true);
                         const payload = resolveCurrentData();
                         if (payload) {
                           void previewMutation.mutateAsync(payload);
@@ -614,7 +679,17 @@ export default function PublicIdtaSubmodelEditorPage() {
               </Tabs>
 
               <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-                <Button size="sm" variant="outline" onClick={() => form.reset({})}>Reset</Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    form.reset({});
+                    setHasUserInteracted(false);
+                    setPreviewText('');
+                  }}
+                >
+                  Reset
+                </Button>
                 <Button size="sm" variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
                 <Button size="sm" variant="outline" onClick={handleSaveAs}>Save As</Button>
                 <Button

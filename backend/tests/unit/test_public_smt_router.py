@@ -216,6 +216,79 @@ async def test_metamodel_invalid_output_is_rejected(
 
 
 @pytest.mark.asyncio
+async def test_preview_maps_instance_build_errors_to_structured_422(
+    test_client,
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _insert_template(db_session, template_key="digital-nameplate", status="published")
+
+    def _raise_build_failure(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise RuntimeError("build failed")
+
+    monkeypatch.setattr(
+        "app.modules.templates.public_router.TemplateInstanceBuilder.build_environment",
+        _raise_build_failure,
+    )
+
+    response = await test_client.post(
+        "/api/v1/public/smt/preview",
+        json={
+            "template_key": "digital-nameplate",
+            "data": {"ManufacturerName": "ACME"},
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "instance_build_failed"
+    assert detail["message"] == "Unable to build AAS instance from provided template data"
+    assert detail["errors"][0]["path"] == "root"
+
+
+@pytest.mark.asyncio
+async def test_export_maps_instance_serialization_errors_to_structured_422(
+    test_client,
+    db_session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _insert_template(db_session, template_key="digital-nameplate", status="published")
+
+    def _mock_build_environment(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {"assetAdministrationShells": [], "submodels": [], "conceptDescriptions": []}
+
+    def _raise_serialization_failure(*_args: Any, **_kwargs: Any) -> bytes:
+        raise RuntimeError("serialization failed")
+
+    monkeypatch.setattr(
+        "app.modules.templates.public_router.TemplateInstanceBuilder.build_environment",
+        _mock_build_environment,
+    )
+    monkeypatch.setattr(
+        "app.modules.templates.public_router.TemplateInstanceBuilder.to_json_bytes",
+        _raise_serialization_failure,
+    )
+    monkeypatch.setattr(
+        "app.modules.templates.public_router.validate_aas_environment",
+        lambda _aas_env: AASValidationResult(is_valid=True, errors=[], warnings=[]),
+    )
+
+    response = await test_client.post(
+        "/api/v1/public/smt/export",
+        json={
+            "template_key": "digital-nameplate",
+            "data": {"ManufacturerName": "ACME"},
+            "format": "json",
+        },
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert detail["code"] == "instance_serialization_failed"
+    assert detail["message"] == "Unable to build AAS instance from provided template data"
+
+
+@pytest.mark.asyncio
 async def test_export_sets_sanitized_content_disposition_and_media_types(
     test_client,
     db_session,

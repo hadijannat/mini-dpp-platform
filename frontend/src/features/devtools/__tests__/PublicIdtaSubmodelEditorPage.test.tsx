@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PublicIdtaSubmodelEditorPage from '../pages/PublicIdtaSubmodelEditorPage';
 
@@ -33,6 +33,10 @@ function renderPage() {
 }
 
 describe('PublicIdtaSubmodelEditorPage', () => {
+  beforeEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -160,6 +164,37 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     expect(screen.getByRole('button', { name: /Export JSON/i })).toBeTruthy();
   });
 
+  it('does not trigger preview on initial load before user interaction', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Export JSON/i })).toBeTruthy();
+    });
+
+    expect(previewPublicTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('starts debounced preview after first form interaction', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
+    });
+
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp' },
+    });
+
+    expect(previewPublicTemplateMock).not.toHaveBeenCalled();
+
+    await waitFor(
+      () => {
+        expect(previewPublicTemplateMock).toHaveBeenCalledTimes(1);
+      },
+      { timeout: 2500 },
+    );
+  });
+
   it('exports JSON via public API', async () => {
     renderPage();
 
@@ -190,7 +225,76 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText("Submodel 'Nameplate' has no semanticId")).toBeTruthy();
+      expect(screen.getByRole('tab', { name: /AAS JSON Preview/i })).toBeTruthy();
     });
+
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: /AAS JSON Preview/i }));
+
+    await waitFor(() => {
+      expect(previewPublicTemplateMock).toHaveBeenCalled();
+    });
+
+    expect(screen.queryByText(/^root$/i)).toBeNull();
+    expect(document.body.textContent).not.toContain('root | root');
+  });
+
+  it('shows contract diagnostics counts and entries', async () => {
+    getPublicTemplateContractMock.mockResolvedValue({
+      template_key: 'digital-nameplate',
+      idta_version: '3.0.1',
+      semantic_id: 'https://admin-shell.io/zvei/nameplate/3/0/Nameplate',
+      source_metadata: {
+        resolved_version: '3.0.1',
+        source_repo_ref: 'main',
+        source_url: 'https://example.test',
+      },
+      definition: {
+        submodel: {
+          idShort: 'Nameplate',
+          elements: [
+            {
+              modelType: 'Property',
+              idShort: 'ManufacturerName',
+              valueType: 'xs:string',
+              smt: { cardinality: 'One' },
+            },
+          ],
+        },
+      },
+      schema: {
+        type: 'object',
+        required: ['ManufacturerName'],
+        properties: {
+          ManufacturerName: { type: 'string' },
+        },
+      },
+      dropin_resolution_report: [
+        { path: 'Nameplate.Address', status: 'unresolved', reason: 'source_not_found' },
+        { path: 'Nameplate.ProductClass', status: 'resolved', reason: 'resolved' },
+      ],
+      unsupported_nodes: [
+        {
+          path: 'Nameplate.GenericItems',
+          idShort: 'GenericItems',
+          modelType: 'SubmodelElement',
+          reasons: ['unsupported_model_type:SubmodelElement'],
+        },
+      ],
+      doc_hints: {},
+    });
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Template diagnostics/i)).toBeTruthy();
+      expect(screen.getByText(/Unsupported nodes: 1/i)).toBeTruthy();
+      expect(screen.getByText(/Unresolved drop-ins: 1/i)).toBeTruthy();
+    });
+
+    expect(document.body.textContent).toContain('unsupported_model_type:SubmodelElement');
+    expect(document.body.textContent).toContain('source_not_found');
   });
 });

@@ -76,6 +76,23 @@ describe('buildZodSchema', () => {
     });
   });
 
+  it('treats unknown model types as unknown schema instead of property-like validation', () => {
+    const definition: TemplateDefinition = {
+      submodel: {
+        elements: [
+          {
+            modelType: 'SubmodelElement',
+            idShort: 'GenericNode',
+          },
+        ],
+      },
+    };
+
+    const schema = buildZodSchema(definition);
+    expect(schema.safeParse({ GenericNode: { arbitrary: true } }).success).toBe(true);
+    expect(schema.safeParse({ GenericNode: 'text-value' }).success).toBe(true);
+  });
+
   describe('MultiLanguageProperty nodes', () => {
     it('validates as record of strings', () => {
       const def: TemplateDefinition = {
