@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 
@@ -31,3 +32,14 @@ def test_normalize_hostname_lowercases_and_strips_dot(service: TenantDomainServi
 def test_normalize_hostname_rejects_invalid_input(service: TenantDomainService, value: str) -> None:
     with pytest.raises(TenantDomainError):
         service.normalize_hostname(value)
+
+
+@pytest.mark.asyncio
+async def test_create_domain_rejects_primary_pending_domain(service: TenantDomainService) -> None:
+    with pytest.raises(TenantDomainError, match="pending domains cannot be marked as primary"):
+        await service.create_domain(
+            tenant_id=uuid4(),
+            created_by="subject-1",
+            hostname="acme.example.com",
+            is_primary=True,
+        )

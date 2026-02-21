@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, status
 
 from app.core.tenancy import TenantPublisher
-from app.db.models import TenantDomain
+from app.db.models import TenantDomain, TenantDomainStatus
 from app.db.session import DbSession
 from app.modules.tenant_domains.schemas import (
     TenantDomainCreateRequest,
@@ -75,6 +75,17 @@ async def update_tenant_domain(
     db: DbSession,
     tenant: TenantPublisher,
 ) -> TenantDomainResponse:
+    if body.status == TenantDomainStatus.ACTIVE and not tenant.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin role required to activate domains",
+        )
+    if body.verification_method is not None and not tenant.is_platform_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Platform admin role required to set verification method",
+        )
+
     service = TenantDomainService(db)
     try:
         row = await service.update_domain(

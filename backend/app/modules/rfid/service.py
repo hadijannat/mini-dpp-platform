@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -22,6 +23,7 @@ from app.modules.rfid.schemas import (
     RFIDEncodeResponse,
     RFIDGS1Key,
     RFIDReadIngestResult,
+    RFIDReadItem,
     RFIDReadsIngestRequest,
     RFIDReadsIngestResponse,
 )
@@ -41,6 +43,8 @@ class RFIDSidecarUnavailableError(RFIDError):
 class RfidTdsClient:
     """HTTP client for RFID TDS sidecar service."""
 
+    _shared_client: httpx.AsyncClient | None = None
+
     def __init__(self) -> None:
         self._settings = get_settings()
 
@@ -56,31 +60,46 @@ class RfidTdsClient:
     async def decode(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self._post_json("/v1/decode", payload)
 
+    @classmethod
+    def _get_client(cls, *, timeout_seconds: int) -> httpx.AsyncClient:
+        if cls._shared_client is None or cls._shared_client.is_closed:
+            cls._shared_client = httpx.AsyncClient(timeout=timeout_seconds)
+        return cls._shared_client
+
     async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         timeout = self._settings.rfid_tds_timeout_seconds
         url = f"{self._base_url()}{path}"
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                response = await client.post(url, json=payload)
-        except httpx.HTTPError as exc:
-            raise RFIDSidecarUnavailableError(f"RFID sidecar request failed: {exc}") from exc
-
-        if response.status_code >= 500:
-            raise RFIDSidecarUnavailableError("RFID sidecar returned server error")
-        if response.status_code >= 400:
+        client = self._get_client(timeout_seconds=timeout)
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
             try:
-                detail = response.json()
-            except ValueError:
-                detail = {"message": response.text}
-            raise RFIDError(f"RFID sidecar rejected payload: {detail}")
+                response = await client.post(url, json=payload)
+            except httpx.HTTPError as exc:
+                if attempt < max_attempts:
+                    await asyncio.sleep(0.1 * attempt)
+                    continue
+                raise RFIDSidecarUnavailableError(f"RFID sidecar request failed: {exc}") from exc
 
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise RFIDSidecarUnavailableError("RFID sidecar returned invalid JSON") from exc
-        if not isinstance(data, dict):
-            raise RFIDSidecarUnavailableError("RFID sidecar returned unexpected payload")
-        return data
+            if response.status_code >= 500:
+                if attempt < max_attempts:
+                    await asyncio.sleep(0.1 * attempt)
+                    continue
+                raise RFIDSidecarUnavailableError("RFID sidecar returned server error")
+            if response.status_code >= 400:
+                try:
+                    detail = response.json()
+                except ValueError:
+                    detail = {"message": response.text}
+                raise RFIDError(f"RFID sidecar rejected payload: {detail}")
+
+            try:
+                data = response.json()
+            except ValueError as exc:
+                raise RFIDSidecarUnavailableError("RFID sidecar returned invalid JSON") from exc
+            if not isinstance(data, dict):
+                raise RFIDSidecarUnavailableError("RFID sidecar returned unexpected payload")
+            return data
+        raise RFIDSidecarUnavailableError("RFID sidecar request failed")
 
 
 class RFIDService:
@@ -152,80 +171,109 @@ class RFIDService:
         results: list[RFIDReadIngestResult] = []
         created_events = 0
         matched_reads = 0
+        fallback_hostname: str | None = None
+        domain = await TenantDomainService(self._session).get_primary_active_domain(tenant_id)
+        if domain is not None:
+            fallback_hostname = domain.hostname
 
-        for read in request.reads:
-            try:
-                decoded = await self.decode(
-                    RFIDDecodeRequest(epc_hex=read.epc_hex, tag_length=read.tag_length),
-                    tenant_id=tenant_id,
-                )
-                dpp_id = await self._find_matching_dpp_id(
-                    tenant_id=tenant_id,
-                    gs1_key=decoded.gs1_key,
-                )
-                if dpp_id is None:
-                    results.append(
-                        RFIDReadIngestResult(
-                            epc_hex=read.epc_hex,
-                            matched=False,
-                            digital_link=decoded.digital_link,
-                            error="No matching DPP found",
-                        )
-                    )
-                    continue
+        semaphore = asyncio.Semaphore(min(20, len(request.reads)))
 
-                event_id = f"urn:uuid:{uuid.uuid4()}"
-                event_time = read.observed_at or datetime.now(UTC)
-                payload = {
-                    "epcList": [decoded.tag_uri or decoded.pure_identity_uri or read.epc_hex],
-                    "digitalLinkURI": decoded.digital_link,
-                    "readerId": request.reader_id,
-                    "antenna": read.antenna,
-                    "rssi": read.rssi,
-                    "epcHex": read.epc_hex,
-                }
-                row = EPCISEvent(
-                    tenant_id=tenant_id,
-                    dpp_id=dpp_id,
-                    event_id=event_id,
-                    event_type=EPCISEventType.OBJECT,
-                    event_time=event_time,
-                    event_time_zone_offset="+00:00",
-                    action="OBSERVE",
-                    biz_step="receiving",
-                    disposition=None,
-                    read_point=request.read_point,
-                    biz_location=request.biz_location,
-                    payload=payload,
-                    error_declaration=None,
-                    created_by_subject=created_by,
-                )
-                self._session.add(row)
-                created_events += 1
-                matched_reads += 1
-                results.append(
-                    RFIDReadIngestResult(
-                        epc_hex=read.epc_hex,
-                        matched=True,
-                        dpp_id=dpp_id,
-                        event_id=event_id,
-                        digital_link=decoded.digital_link,
+        async def _decode_read_with_limit(
+            read: RFIDReadItem,
+        ) -> tuple[RFIDDecodeResponse | None, str | None]:
+            async with semaphore:
+                try:
+                    decoded = await self._decode_read_for_ingest(
+                        read=read,
+                        fallback_hostname=fallback_hostname,
                     )
-                )
-            except RFIDError as exc:
+                    return decoded, None
+                except RFIDError as exc:
+                    return None, str(exc)
+
+        decoded_results = await asyncio.gather(
+            *(_decode_read_with_limit(read) for read in request.reads)
+        )
+
+        for read, (decoded, error) in zip(request.reads, decoded_results, strict=False):
+            if error is not None:
                 logger.warning(
                     "rfid_ingest_decode_failed",
                     tenant_id=str(tenant_id),
                     epc_hex=read.epc_hex,
-                    error=str(exc),
+                    error=error,
                 )
                 results.append(
                     RFIDReadIngestResult(
                         epc_hex=read.epc_hex,
                         matched=False,
-                        error=str(exc),
+                        error=error,
                     )
                 )
+                continue
+            if decoded is None:
+                results.append(
+                    RFIDReadIngestResult(
+                        epc_hex=read.epc_hex,
+                        matched=False,
+                        error="Decode failed",
+                    )
+                )
+                continue
+
+            dpp_id = await self._find_matching_dpp_id(
+                tenant_id=tenant_id,
+                gs1_key=decoded.gs1_key,
+            )
+            if dpp_id is None:
+                results.append(
+                    RFIDReadIngestResult(
+                        epc_hex=read.epc_hex,
+                        matched=False,
+                        digital_link=decoded.digital_link,
+                        error="No matching DPP found",
+                    )
+                )
+                continue
+
+            event_id = f"urn:uuid:{uuid.uuid4()}"
+            event_time = read.observed_at or datetime.now(UTC)
+            payload = {
+                "epcList": [decoded.tag_uri or decoded.pure_identity_uri or read.epc_hex],
+                "digitalLinkURI": decoded.digital_link,
+                "readerId": request.reader_id,
+                "antenna": read.antenna,
+                "rssi": read.rssi,
+                "epcHex": read.epc_hex,
+            }
+            row = EPCISEvent(
+                tenant_id=tenant_id,
+                dpp_id=dpp_id,
+                event_id=event_id,
+                event_type=EPCISEventType.OBJECT,
+                event_time=event_time,
+                event_time_zone_offset="+00:00",
+                action="OBSERVE",
+                biz_step="receiving",
+                disposition=None,
+                read_point=request.read_point,
+                biz_location=request.biz_location,
+                payload=payload,
+                error_declaration=None,
+                created_by_subject=created_by,
+            )
+            self._session.add(row)
+            created_events += 1
+            matched_reads += 1
+            results.append(
+                RFIDReadIngestResult(
+                    epc_hex=read.epc_hex,
+                    matched=True,
+                    dpp_id=dpp_id,
+                    event_id=event_id,
+                    digital_link=decoded.digital_link,
+                )
+            )
 
         await self._session.flush()
         logger.info(
@@ -261,27 +309,26 @@ class RFIDService:
                 .limit(1)
             )
             dpp_id = by_carrier.scalar_one_or_none()
-            if dpp_id is not None:
+            if isinstance(dpp_id, UUID):
                 return dpp_id
 
-        rows = await self._session.execute(
-            select(DPP.id, DPP.asset_ids).where(
-                DPP.tenant_id == tenant_id,
-                DPP.status == DPPStatus.PUBLISHED,
+        if gs1_key.gtin and gs1_key.serial:
+            by_asset_ids = await self._session.execute(
+                select(DPP.id)
+                .where(
+                    DPP.tenant_id == tenant_id,
+                    DPP.status == DPPStatus.PUBLISHED,
+                    DPP.asset_ids.contains(
+                        {
+                            "gtin": gs1_key.gtin,
+                            "serialNumber": gs1_key.serial,
+                        }
+                    ),
+                )
+                .limit(1)
             )
-        )
-        for dpp_id, asset_ids in rows.all():
-            if not isinstance(asset_ids, dict):
-                continue
-            gtin = str(asset_ids.get("gtin", "")).strip()
-            serial = str(asset_ids.get("serialNumber", "")).strip()
-            if (
-                gtin
-                and serial
-                and gtin == (gs1_key.gtin or "")
-                and serial == (gs1_key.serial or "")
-                and isinstance(dpp_id, UUID)
-            ):
+            dpp_id = by_asset_ids.scalar_one_or_none()
+            if isinstance(dpp_id, UUID):
                 return dpp_id
         return None
 
@@ -291,28 +338,47 @@ class RFIDService:
             f"https://{hostname.strip().lower().rstrip('.')}/01/{gtin.strip()}/21/{serial.strip()}"
         )
 
-    async def _ensure_digital_link(
-        self,
+    @staticmethod
+    def _hydrate_digital_link(
         response: RFIDDecodeResponse,
         *,
-        tenant_id: UUID | None,
+        fallback_hostname: str | None,
     ) -> RFIDDecodeResponse:
         if response.digital_link:
             return response
         if not response.gs1_key.gtin or not response.gs1_key.serial:
             return response
 
-        hostname = response.hostname
-        if not hostname and tenant_id is not None:
-            domain = await TenantDomainService(self._session).get_primary_active_domain(tenant_id)
-            hostname = domain.hostname if domain is not None else None
+        hostname = response.hostname or fallback_hostname
         if not hostname:
             return response
 
-        digital_link = self._build_digital_link(
+        digital_link = RFIDService._build_digital_link(
             hostname, response.gs1_key.gtin, response.gs1_key.serial
         )
         return response.model_copy(update={"hostname": hostname, "digital_link": digital_link})
+
+    async def _decode_read_for_ingest(
+        self,
+        *,
+        read: RFIDReadItem,
+        fallback_hostname: str | None,
+    ) -> RFIDDecodeResponse:
+        data = await self._client.decode({"epcHex": read.epc_hex, "tagLength": read.tag_length})
+        response = self._to_decode_response(data)
+        return self._hydrate_digital_link(response, fallback_hostname=fallback_hostname)
+
+    async def _ensure_digital_link(
+        self,
+        response: RFIDDecodeResponse,
+        *,
+        tenant_id: UUID | None,
+    ) -> RFIDDecodeResponse:
+        fallback_hostname = response.hostname
+        if not fallback_hostname and tenant_id is not None:
+            domain = await TenantDomainService(self._session).get_primary_active_domain(tenant_id)
+            fallback_hostname = domain.hostname if domain is not None else None
+        return self._hydrate_digital_link(response, fallback_hostname=fallback_hostname)
 
     @staticmethod
     def _to_encode_response(payload: dict[str, Any]) -> RFIDEncodeResponse:

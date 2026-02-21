@@ -73,6 +73,9 @@ class TenantDomainService:
         hostname: str,
         is_primary: bool,
     ) -> TenantDomain:
+        if is_primary:
+            raise TenantDomainError("pending domains cannot be marked as primary")
+
         normalized = self.normalize_hostname(hostname)
         row = TenantDomain(
             tenant_id=tenant_id,
@@ -83,9 +86,6 @@ class TenantDomainService:
         )
         self._session.add(row)
         await self._session.flush()
-
-        if is_primary:
-            await self._unset_other_primaries(tenant_id=tenant_id, keep_id=row.id)
 
         return row
 
