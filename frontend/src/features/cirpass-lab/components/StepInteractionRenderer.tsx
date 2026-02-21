@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, type FieldErrors, type UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
@@ -309,6 +309,7 @@ export default function StepInteractionRenderer({
   const [payloadCopied, setPayloadCopied] = useState(false);
   const [shouldFocusErrorSummary, setShouldFocusErrorSummary] = useState(false);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -317,13 +318,24 @@ export default function StepInteractionRenderer({
     shouldFocusError: false,
   });
 
+  const clearCopyResetTimer = useCallback(() => {
+    if (copyResetTimerRef.current === null) {
+      return;
+    }
+    window.clearTimeout(copyResetTimerRef.current);
+    copyResetTimerRef.current = null;
+  }, []);
+
   useEffect(() => {
     form.reset(defaultValues);
     setSelectedOption(interactionOptions[0]?.value ?? '');
     setScanValue('');
+    clearCopyResetTimer();
     setPayloadCopied(false);
     setShouldFocusErrorSummary(false);
-  }, [defaultValues, form, interactionOptions, step.id]);
+  }, [clearCopyResetTimer, defaultValues, form, interactionOptions, step.id]);
+
+  useEffect(() => () => clearCopyResetTimer(), [clearCopyResetTimer]);
 
   const orderedFieldErrors = useMemo(
     () =>
@@ -366,9 +378,18 @@ export default function StepInteractionRenderer({
     if (!navigator.clipboard?.writeText) {
       return;
     }
-    await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-    setPayloadCopied(true);
-    window.setTimeout(() => setPayloadCopied(false), 1200);
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setPayloadCopied(true);
+      clearCopyResetTimer();
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setPayloadCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1200);
+    } catch {
+      clearCopyResetTimer();
+      setPayloadCopied(false);
+    }
   };
 
   const handleSimpleSubmit = () => {
