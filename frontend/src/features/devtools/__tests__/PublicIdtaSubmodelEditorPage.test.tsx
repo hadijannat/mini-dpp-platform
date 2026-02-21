@@ -4,21 +4,22 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PublicIdtaSubmodelEditorPage from '../pages/PublicIdtaSubmodelEditorPage';
 import { SMT_DRAFT_STORAGE_KEY } from '../lib/smtDraftStorage';
+import { PublicSmtApiError } from '../lib/publicSmtErrors';
 
 const listPublicTemplatesMock = vi.fn();
 const getPublicTemplateMock = vi.fn();
 const listPublicTemplateVersionsMock = vi.fn();
 const getPublicTemplateContractMock = vi.fn();
-const previewPublicTemplateMock = vi.fn();
-const exportPublicTemplateMock = vi.fn();
+const previewPublicTemplateWithMetaMock = vi.fn();
+const exportPublicTemplateWithMetaMock = vi.fn();
 
 vi.mock('../lib/publicSmtApi', () => ({
   listPublicTemplates: (...args: unknown[]) => listPublicTemplatesMock(...args),
   getPublicTemplate: (...args: unknown[]) => getPublicTemplateMock(...args),
   listPublicTemplateVersions: (...args: unknown[]) => listPublicTemplateVersionsMock(...args),
   getPublicTemplateContract: (...args: unknown[]) => getPublicTemplateContractMock(...args),
-  previewPublicTemplate: (...args: unknown[]) => previewPublicTemplateMock(...args),
-  exportPublicTemplate: (...args: unknown[]) => exportPublicTemplateMock(...args),
+  previewPublicTemplateWithMeta: (...args: unknown[]) => previewPublicTemplateWithMetaMock(...args),
+  exportPublicTemplateWithMeta: (...args: unknown[]) => exportPublicTemplateWithMetaMock(...args),
 }));
 
 function renderPage() {
@@ -41,6 +42,8 @@ describe('PublicIdtaSubmodelEditorPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     window.localStorage.removeItem(SMT_DRAFT_STORAGE_KEY);
+    window.localStorage.removeItem('publicSmt.autoPreview.enabled');
+    window.localStorage.removeItem('publicSmt.autoPreview.background');
 
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -141,17 +144,29 @@ describe('PublicIdtaSubmodelEditorPage', () => {
       doc_hints: {},
     });
 
-    previewPublicTemplateMock.mockResolvedValue({
-      template_key: 'digital-nameplate',
-      version: '3.0.1',
-      warnings: [],
-      aas_environment: { submodels: [] },
+    previewPublicTemplateWithMetaMock.mockResolvedValue({
+      data: {
+        template_key: 'digital-nameplate',
+        version: '3.0.1',
+        warnings: [],
+        aas_environment: { submodels: [] },
+      },
+      meta: {
+        limit: 60,
+        remaining: 59,
+      },
     });
 
-    exportPublicTemplateMock.mockResolvedValue({
-      blob: new Blob(['{}'], { type: 'application/json' }),
-      filename: 'digital-nameplate-3.0.1.json',
-      contentType: 'application/json',
+    exportPublicTemplateWithMetaMock.mockResolvedValue({
+      result: {
+        blob: new Blob(['{}'], { type: 'application/json' }),
+        filename: 'digital-nameplate-3.0.1.json',
+        contentType: 'application/json',
+      },
+      meta: {
+        limit: 10,
+        remaining: 9,
+      },
     });
   });
 
@@ -173,35 +188,10 @@ describe('PublicIdtaSubmodelEditorPage', () => {
       expect(screen.getByRole('button', { name: /Export JSON/i })).toBeTruthy();
     });
 
-    expect(previewPublicTemplateMock).not.toHaveBeenCalled();
+    expect(previewPublicTemplateWithMetaMock).not.toHaveBeenCalled();
   });
 
-  it('starts debounced preview after first form interaction', async () => {
-    renderPage();
-
-    await waitFor(() => {
-      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
-    });
-
-    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
-      target: { value: 'ACME Corp' },
-    });
-
-    expect(previewPublicTemplateMock).not.toHaveBeenCalled();
-
-    await waitFor(
-      () => {
-        expect(previewPublicTemplateMock).toHaveBeenCalled();
-      },
-      { timeout: 4000 },
-    );
-  });
-
-  it('does not show autosync preview errors while still editing the form', async () => {
-    previewPublicTemplateMock.mockRejectedValue(
-      new Error("Template data failed validation: root: 'ProductCarbonFootprints' is a required property"),
-    );
-
+  it('does not auto-preview while editing form by default (preview-tab only)', async () => {
     renderPage();
 
     await waitFor(() => {
@@ -213,10 +203,116 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     });
 
     await waitFor(() => {
-      expect(previewPublicTemplateMock).toHaveBeenCalledTimes(1);
+      expect(previewPublicTemplateWithMetaMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('runs background preview only after enabling the background toggle', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
     });
 
-    expect(screen.queryByText(/Template data failed validation/i)).toBeNull();
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp' },
+    });
+
+    await waitFor(() => {
+      expect(previewPublicTemplateWithMetaMock).not.toHaveBeenCalled();
+    });
+
+    fireEvent.click(screen.getByLabelText(/Live preview in background/i));
+
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp Updated' },
+    });
+
+    await waitFor(() => {
+      expect(previewPublicTemplateWithMetaMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('shows structured preview issues and jumps back to form from preview tab', async () => {
+    previewPublicTemplateWithMetaMock.mockRejectedValue(
+      new PublicSmtApiError('Template data failed validation', {
+        status: 422,
+        detail: {
+          code: 'schema_validation_failed',
+          message: 'Template data failed validation',
+          errors: [{ path: 'ManufacturerName', message: 'Required', type: 'schema' }],
+        },
+      }),
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByLabelText(/Live preview in background/i));
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'ACME Corp Error' },
+    });
+
+    await waitFor(() => {
+      expect(previewPublicTemplateWithMetaMock).toHaveBeenCalled();
+      expect(screen.getByText(/ManufacturerName: Required/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByText(/ManufacturerName: Required/i));
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /Form/i }).getAttribute('data-state')).toBe('active');
+    });
+  });
+
+  it('hides validation issues panel when there are no issues', async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Export JSON/i })).toBeTruthy();
+    });
+
+    expect(screen.queryByLabelText(/Validation issues/i)).toBeNull();
+  });
+
+  it('disables auto preview and shows retry notice after 429', async () => {
+    previewPublicTemplateWithMetaMock.mockRejectedValue(
+      new PublicSmtApiError('Too many requests', {
+        status: 429,
+        rateLimit: {
+          limit: 60,
+          remaining: 0,
+          retryAfterSeconds: 60,
+        },
+      }),
+    );
+
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/ManufacturerName/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByLabelText(/Live preview in background/i));
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: '429 Trigger' },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Retry after 60s/i)).toBeTruthy();
+    });
+
+    expect(screen.getByLabelText(/Auto preview \(Preview tab\)/i).getAttribute('data-state')).toBe('unchecked');
+
+    fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
+      target: { value: 'Another Value' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(previewPublicTemplateWithMetaMock).toHaveBeenCalledTimes(1);
   });
 
   it('exports JSON via public API', async () => {
@@ -229,7 +325,7 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Export JSON/i }));
 
     await waitFor(() => {
-      expect(exportPublicTemplateMock).toHaveBeenCalledWith(
+      expect(exportPublicTemplateWithMetaMock).toHaveBeenCalledWith(
         expect.objectContaining({
           template_key: 'digital-nameplate',
           format: 'json',
@@ -239,11 +335,17 @@ describe('PublicIdtaSubmodelEditorPage', () => {
   });
 
   it('normalizes preview warnings so root placeholders are not rendered', async () => {
-    previewPublicTemplateMock.mockResolvedValue({
-      template_key: 'digital-nameplate',
-      version: '3.0.1',
-      warnings: ['root', 'root', "Submodel 'Nameplate' has no semanticId"],
-      aas_environment: { submodels: [] },
+    previewPublicTemplateWithMetaMock.mockResolvedValue({
+      data: {
+        template_key: 'digital-nameplate',
+        version: '3.0.1',
+        warnings: ['root', 'root', "Submodel 'Nameplate' has no semanticId"],
+        aas_environment: { submodels: [] },
+      },
+      meta: {
+        limit: 60,
+        remaining: 58,
+      },
     });
 
     renderPage();
@@ -252,13 +354,13 @@ describe('PublicIdtaSubmodelEditorPage', () => {
       expect(screen.getByRole('tab', { name: /AAS JSON Preview/i })).toBeTruthy();
     });
 
+    fireEvent.click(screen.getByLabelText(/Live preview in background/i));
     fireEvent.change(screen.getByLabelText(/ManufacturerName/i), {
       target: { value: 'ACME Corp' },
     });
-    fireEvent.click(screen.getByRole('tab', { name: /AAS JSON Preview/i }));
 
     await waitFor(() => {
-      expect(previewPublicTemplateMock).toHaveBeenCalled();
+      expect(previewPublicTemplateWithMetaMock).toHaveBeenCalled();
     });
 
     expect(screen.queryByText(/^root$/i)).toBeNull();
