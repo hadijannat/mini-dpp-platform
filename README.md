@@ -14,7 +14,7 @@ A multi-tenant Digital Product Passport (DPP) platform built on the Asset Admini
 
 ## What This Repository Is
 
-A full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. Features include template-driven DPP authoring, AASX/JSON-LD/Turtle export, GS1 Digital Link resolution, OPC UA industrial data ingestion, EPCIS event capture, verifiable credential issuance, and ESPR compliance checking — with a production-oriented backend, React frontend, infrastructure manifests, CI/CD pipelines, and documentation set.
+A full-stack reference implementation for creating, editing, publishing, and sharing Digital Product Passports in a multi-tenant environment. Features include template-driven DPP authoring, AASX/JSON-LD/Turtle export, GS1 Digital Link resolution, OPC UA industrial data ingestion, EPCIS event capture, verifiable credential issuance, ESPR compliance checking, and a feature-flagged CEN draft compliance layer (prEN 18219/18220/18222) — with a production-oriented backend, React frontend, infrastructure manifests, CI/CD pipelines, and documentation set.
 
 ## Quick Start (Docker Compose)
 
@@ -100,12 +100,46 @@ mini-dpp-platform/
 └── .github/workflows/              # CI, deploy, security, docs quality, pipeline workflows
 ```
 
+## CEN prEN Profile Layer (18219/18220/18222)
+
+This repository includes a versioned, feature-flagged CEN draft profile layer for:
+
+- **prEN 18219**: identifier governance for canonical product/operator/facility identifiers
+- **prEN 18220**: carrier preflight, renderer behavior (QR/DataMatrix/NFC), and QA checks
+- **prEN 18222**: tenant/public CEN API facade with stable operation IDs and cursor-first search
+
+Primary backend locations:
+
+- `backend/app/standards/cen_pren/`
+- `backend/app/modules/cen_api/`
+- `backend/app/modules/identifiers/`
+- `backend/app/modules/data_carriers/`
+
+Key settings (backend):
+
+- `CEN_DPP_ENABLED` (default off)
+- `CEN_PROFILE_18219`
+- `CEN_PROFILE_18220`
+- `CEN_PROFILE_18222`
+- `CEN_ALLOW_HTTP_IDENTIFIERS` (recommended `false` outside dev)
+
+When enabled, CEN endpoints are mounted under:
+
+- Tenant-scoped: `/api/v1/tenants/{tenant_slug}/cen`
+- Public: `/api/v1/public/{tenant_slug}/cen`
+
+Rollout/backfill guidance:
+
+- Runbook: `docs/public/operations/cen-pren-rollout.md`
+- Backfill tool: `backend/tools/backfill_cen_identifiers.py`
+
 ## Capabilities by Module
 
 | Area | Backend Modules | Frontend Features |
 |------|----------------|-------------------|
 | Tenant & Access | `tenants`, `policies`, `onboarding` | `admin`, `onboarding`, role-gated routes |
 | DPP Lifecycle | `dpps`, `templates`, `masters` | `publisher`, `editor`, `dpp-outline` |
+| CEN Facade & Governance | `cen_api`, `identifiers`, `standards/cen_pren` | `publisher`, `admin` (targeted CEN actions) |
 | Public Consumption | `dpps/public_router`, `registry/public_router`, `resolver/public_router`, `credentials/public_router` | `viewer`, `landing` |
 | Exports & Carriers | `export`, `qr`, `data_carriers` | `publisher` (multi-select export, batch) |
 | Compliance & Audit | `compliance`, `audit` | `compliance`, `audit` |
@@ -237,6 +271,9 @@ For scheduled anchoring, use `backend/tools/run_audit_anchoring.py` (or the Helm
 | W3C Verifiable Credentials 2.0 | DPP credential issuance (`did:web`, `JsonWebSignature2020`) |
 | RFC 9264 Linkset | Resolver link format for GS1 Digital Link |
 | IEC 61406 | Industrial identification for data carriers |
+| CEN prEN 18219 (draft) | Canonical unique identifier governance and supersede flows |
+| CEN prEN 18220 (draft) | Data-carrier validation/rendering/QA profile behaviors |
+| CEN prEN 18222 (draft) | Tenant/public CEN API facade and lifecycle/search contracts |
 | OPC UA | Industrial data source integration |
 | ODRL | Dataspace policy language (Eclipse Dataspace Connector) |
 | EU ESPR | Public viewer categorization and compliance checking |
@@ -247,6 +284,7 @@ For scheduled anchoring, use `backend/tools/run_audit_anchoring.py` (or the Helm
 - Getting started and walkthroughs: [`docs/public/getting-started/README.md`](docs/public/getting-started/README.md)
 - Architecture reference: [`docs/public/architecture/README.md`](docs/public/architecture/README.md)
 - Operations playbook: [`docs/public/operations/README.md`](docs/public/operations/README.md)
+- CEN rollout guide: [`docs/public/operations/cen-pren-rollout.md`](docs/public/operations/cen-pren-rollout.md)
 - Release process: [`docs/public/releases/release-guide.md`](docs/public/releases/release-guide.md)
 
 ## Contributing
