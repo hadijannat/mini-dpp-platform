@@ -44,7 +44,6 @@ from app.modules.onboarding.router import router as onboarding_router
 from app.modules.opcua.router import router as opcua_router
 from app.modules.policies.router import router as policies_router
 from app.modules.qr.router import router as qr_router
-from app.modules.rfid.router import router as rfid_router
 from app.modules.registry.public_router import router as public_registry_router
 from app.modules.registry.router import router as registry_router
 from app.modules.regulatory_timeline.public_router import (
@@ -52,6 +51,7 @@ from app.modules.regulatory_timeline.public_router import (
 )
 from app.modules.resolver.public_router import router as public_resolver_router
 from app.modules.resolver.router import router as resolver_router
+from app.modules.rfid.router import router as rfid_router
 from app.modules.settings.router import router as settings_router
 from app.modules.shares.router import router as shares_router
 from app.modules.templates.public_router import router as public_smt_router
