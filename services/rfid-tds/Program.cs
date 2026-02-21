@@ -1,12 +1,6 @@
-using System.Text.Json.Serialization;
 using TagDataTranslation;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.ConfigureHttpJsonOptions(options =>
-{
-    options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-});
-
 var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
@@ -21,6 +15,10 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     if (request.TagLength is not (96 or 198))
     {
         return Results.BadRequest(new ErrorResponse("invalid_tag_length", "tagLength must be 96 or 198"));
+    }
+    if (request.DataToggle is not (0 or 1))
+    {
+        return Results.BadRequest(new ErrorResponse("invalid_data_toggle", "dataToggle must be 0 or 1"));
     }
 
     var digitalLink = request.DigitalLink;
@@ -41,7 +39,7 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
         digitalLink = BuildDigitalLink(request.Hostname!, request.Gtin!, request.Serial!);
     }
 
-    var parameters = BuildParameters(request.Filter, request.Gs1CompanyPrefixLength, request.TagLength);
+    var parameters = BuildSgtinPlusPlusParameters(request.Filter, request.DataToggle);
     var engine = new TDTEngine();
 
     string? binary = null;
@@ -49,7 +47,7 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     if (HasText(request.Hostname) && HasText(request.Gtin) && HasText(request.Serial))
     {
         var legacyInput =
-            $"domain={request.Hostname!.Trim().ToLowerInvariant()};gtin={request.Gtin!};serial={request.Serial!}";
+            $"gtin={request.Gtin!};serial={request.Serial!};hostname={request.Hostname!.Trim().ToLowerInvariant()}";
         if (!engine.TryTranslate(
                 legacyInput,
                 parameters,
@@ -82,9 +80,12 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     var epcHex = engine.BinaryToHex(binary!);
     var binaryInput = binary!;
     var translationParameters = $"tagLength={request.TagLength}";
-    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING");
-    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY");
-    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY");
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY")
+                          ?? TryTranslateOutput(engine, binaryInput, string.Empty, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "LEGACY");
     var legacyFields = ParseLegacyKeyValues(legacy);
 
     object? details = null;
@@ -95,6 +96,17 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     catch
     {
         details = null;
+    }
+    if (details is null)
+    {
+        try
+        {
+            details = engine.TranslateDetails(epcHex, string.Empty, "HEX");
+        }
+        catch
+        {
+            details = null;
+        }
     }
     var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
     var fields = ToDictionary(detailsFieldsProperty?.GetValue(details));
@@ -171,10 +183,24 @@ app.MapPost("/v1/decode", (DecodeRequest request) =>
     {
         details = null;
     }
+    if (details is null)
+    {
+        try
+        {
+            details = engine.TranslateDetails(normalizedHex, string.Empty, "HEX");
+        }
+        catch
+        {
+            details = null;
+        }
+    }
 
-    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING");
-    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY");
-    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY");
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY")
+                          ?? TryTranslateOutput(engine, binaryInput, string.Empty, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "LEGACY");
     var legacyFields = ParseLegacyKeyValues(legacy);
 
     var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
@@ -219,17 +245,13 @@ app.MapPost("/v1/decode", (DecodeRequest request) =>
 
 app.Run();
 
-static string BuildParameters(int filter, int? gs1CompanyPrefixLength, int tagLength)
+static string BuildSgtinPlusPlusParameters(int filter, int dataToggle)
 {
     var parts = new List<string>
     {
         $"filter={filter}",
-        $"tagLength={tagLength}"
+        $"dataToggle={dataToggle}"
     };
-    if (gs1CompanyPrefixLength is not null)
-    {
-        parts.Add($"gs1companyprefixlength={gs1CompanyPrefixLength.Value}");
-    }
     return string.Join(";", parts);
 }
 
@@ -431,6 +453,7 @@ internal sealed record EncodeRequest(
     string? Serial,
     int TagLength = 96,
     int Filter = 3,
+    int DataToggle = 1,
     int? Gs1CompanyPrefixLength = null
 );
 
