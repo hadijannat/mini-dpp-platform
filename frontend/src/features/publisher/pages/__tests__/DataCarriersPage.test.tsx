@@ -6,6 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 const mockTenantApiFetch = vi.fn();
 const originalCreateObjectURL = URL.createObjectURL;
 const originalRevokeObjectURL = URL.revokeObjectURL;
+let preflightResponse: Record<string, unknown>;
+let qaResponse: Record<string, unknown>;
 
 vi.mock('react-oidc-context', () => ({
   useAuth: () => ({
@@ -30,6 +32,21 @@ function jsonResponse(data: unknown) {
 
 describe('DataCarriersPage', () => {
   beforeEach(() => {
+    preflightResponse = {
+      valid: true,
+      warnings: [],
+      details: {
+        carrierType: 'qr',
+        payloadLength: 28,
+      },
+    };
+    qaResponse = {
+      carrier_id: 'carrier-1',
+      checks: [],
+      pass: true,
+      warnings: [],
+    };
+
     Object.defineProperty(URL, 'createObjectURL', {
       writable: true,
       value: vi.fn(() => 'blob:preview'),
@@ -60,16 +77,7 @@ describe('DataCarriersPage', () => {
         return Promise.resolve(jsonResponse({ items: [], count: 0 }));
       }
       if (path === '/data-carriers/validate' && options?.method === 'POST') {
-        return Promise.resolve(
-          jsonResponse({
-            valid: true,
-            warnings: [],
-            details: {
-              carrierType: 'qr',
-              payloadLength: 28,
-            },
-          }),
-        );
+        return Promise.resolve(jsonResponse(preflightResponse));
       }
       if (path === '/data-carriers' && options?.method === 'POST') {
         return Promise.resolve(
@@ -96,14 +104,7 @@ describe('DataCarriersPage', () => {
         });
       }
       if (path === '/data-carriers/carrier-1/qa') {
-        return Promise.resolve(
-          jsonResponse({
-            carrier_id: 'carrier-1',
-            checks: [],
-            pass: true,
-            warnings: [],
-          }),
-        );
+        return Promise.resolve(jsonResponse(qaResponse));
       }
       if (path === '/qr/dpp-1/carrier' && options?.method === 'POST') {
         return Promise.resolve({
@@ -183,7 +184,46 @@ describe('DataCarriersPage', () => {
       ).toBe(true);
     });
 
+    expect(
+      mockTenantApiFetch.mock.calls.some(([path]) => path === '/data-carriers/carrier-1/qa'),
+    ).toBe(true);
     expect(await screen.findByText('Active carrier')).toBeTruthy();
+  });
+
+  it('blocks create when preflight validation fails', async () => {
+    preflightResponse = {
+      valid: false,
+      warnings: ['preflight blocked'],
+      details: {},
+    };
+    const { default: DataCarriersPage } = await import('../DataCarriersPage');
+
+    render(
+      <MemoryRouter>
+        <DataCarriersPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole('option', { name: /PART-1 - SER-1/i });
+    const select = await screen.findByLabelText('Select Published DPP');
+    fireEvent.change(select, { target: { value: 'dpp-1' } });
+
+    fireEvent.click(screen.getByText('Next'));
+    fireEvent.change(screen.getByLabelText('Identifier scheme'), { target: { value: 'direct_url' } });
+    fireEvent.click(screen.getByText('Next'));
+    fireEvent.change(screen.getByPlaceholderText('https://example.com/path'), {
+      target: { value: 'https://example.com/passport' },
+    });
+    fireEvent.click(screen.getByText('Next'));
+    fireEvent.click(screen.getByText('Create Managed Carrier'));
+
+    expect(await screen.findByText('preflight blocked')).toBeTruthy();
+    expect(
+      mockTenantApiFetch.mock.calls.some(
+        ([path, options]) =>
+          path === '/data-carriers' && (options as RequestInit | undefined)?.method === 'POST',
+      ),
+    ).toBe(false);
   });
 
   it('triggers legacy preview through compatibility endpoint', async () => {

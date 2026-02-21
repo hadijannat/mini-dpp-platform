@@ -419,20 +419,29 @@ class CENAPIService:
             base_url=base_url,
         )
 
-    async def to_cen_dpp_response(self, dpp: DPP) -> CENDPPResponse:
-        primary_identifier = await self._get_primary_product_identifier(
-            tenant_id=dpp.tenant_id,
-            dpp_id=dpp.id,
-        )
+    async def to_cen_dpp_response(
+        self,
+        dpp: DPP,
+        *,
+        primary_identifier: ExternalIdentifier | None = None,
+    ) -> CENDPPResponse:
+        resolved_identifier = primary_identifier
+        if resolved_identifier is None:
+            resolved_identifier = await self._get_primary_product_identifier(
+                tenant_id=dpp.tenant_id,
+                dpp_id=dpp.id,
+            )
         return CENDPPResponse(
             id=dpp.id,
             platform_id=dpp.id,
             status=dpp.status.value,
             asset_ids=dpp.asset_ids or {},
-            product_identifier=(primary_identifier.value_canonical if primary_identifier else None),
-            identifier_scheme=(primary_identifier.scheme_code if primary_identifier else None),
+            product_identifier=(
+                resolved_identifier.value_canonical if resolved_identifier else None
+            ),
+            identifier_scheme=(resolved_identifier.scheme_code if resolved_identifier else None),
             granularity=_to_schema_granularity(
-                primary_identifier.granularity if primary_identifier else None
+                resolved_identifier.granularity if resolved_identifier else None
             ),
             created_at=dpp.created_at,
             updated_at=dpp.updated_at,
@@ -458,6 +467,37 @@ class CENAPIService:
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def _get_primary_product_identifiers_for_dpps(
+        self,
+        *,
+        tenant_id: UUID,
+        dpp_ids: Sequence[UUID],
+    ) -> dict[UUID, ExternalIdentifier]:
+        if not dpp_ids:
+            return {}
+
+        stmt = (
+            select(DPPIdentifier.dpp_id, ExternalIdentifier)
+            .join(ExternalIdentifier, DPPIdentifier.external_identifier_id == ExternalIdentifier.id)
+            .where(
+                DPPIdentifier.tenant_id == tenant_id,
+                DPPIdentifier.dpp_id.in_(list(dpp_ids)),
+                ExternalIdentifier.entity_type == IdentifierEntityType.PRODUCT,
+                ExternalIdentifier.status == ExternalIdentifierStatus.ACTIVE,
+            )
+            .order_by(
+                DPPIdentifier.dpp_id.asc(),
+                ExternalIdentifier.issued_at.desc(),
+                ExternalIdentifier.created_at.desc(),
+            )
+        )
+        result = await self._session.execute(stmt)
+        mapping: dict[UUID, ExternalIdentifier] = {}
+        for dpp_id, external_identifier in result.all():
+            if dpp_id not in mapping:
+                mapping[dpp_id] = external_identifier
+        return mapping
 
     @staticmethod
     def _identifier_critical_fields_changed(
@@ -494,4 +534,17 @@ class CENAPIService:
         *,
         dpps: Sequence[DPP],
     ) -> list[CENDPPResponse]:
-        return [await self.to_cen_dpp_response(dpp) for dpp in dpps]
+        if not dpps:
+            return []
+
+        identifiers_by_dpp = await self._get_primary_product_identifiers_for_dpps(
+            tenant_id=dpps[0].tenant_id,
+            dpp_ids=[dpp.id for dpp in dpps],
+        )
+        return [
+            await self.to_cen_dpp_response(
+                dpp,
+                primary_identifier=identifiers_by_dpp.get(dpp.id),
+            )
+            for dpp in dpps
+        ]

@@ -16,6 +16,9 @@ cd backend
 uv run alembic upgrade head
 ```
 
+Operational note: migration `0044_cen_search_indexes` creates additional indexes.
+Run this step in a low-traffic window to minimize lock impact.
+
 ## 2. Run identifier/carrier backfill
 
 Backfill canonical identifiers for existing DPPs and link/hash carriers where possible.
@@ -74,3 +77,4 @@ Confirm:
 - Public CEN endpoints return published-only filtered payloads.
 - DataMatrix render returns deterministic `501` when dependency is unavailable.
 - Backfill summary shows no unexpected tenant errors.
+- OPA policy bundle reload completed after deployment.

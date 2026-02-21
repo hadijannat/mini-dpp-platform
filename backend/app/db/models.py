@@ -2498,6 +2498,13 @@ class ExternalIdentifier(TenantScopedMixin, Base):
         ),
         Index("ix_external_identifiers_entity_type", "entity_type"),
         Index("ix_external_identifiers_status", "status"),
+        Index(
+            "ix_external_identifiers_tenant_scheme_canonical",
+            "tenant_id",
+            "scheme_code",
+            "value_canonical",
+        ),
+        Index("ix_external_identifiers_tenant_value_raw", "tenant_id", "value_raw"),
     )
 
 

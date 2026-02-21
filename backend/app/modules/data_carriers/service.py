@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import hashlib
 import io
@@ -429,7 +430,8 @@ class DataCarrierService:
         }
 
         if carrier.carrier_type == DataCarrierTypeDB.QR:
-            payload = self._qr_renderer.render(
+            payload = await asyncio.to_thread(
+                self._qr_renderer.render,
                 payload=carrier.encoded_uri,
                 output_type=output,
                 profile=profile,
@@ -442,7 +444,8 @@ class DataCarrierService:
             extension = output
         elif carrier.carrier_type == DataCarrierTypeDB.DATAMATRIX:
             try:
-                payload = self._datamatrix_renderer.render(
+                payload = await asyncio.to_thread(
+                    self._datamatrix_renderer.render,
                     payload=carrier.encoded_uri,
                     output_type=output,
                     profile=profile,
@@ -452,7 +455,8 @@ class DataCarrierService:
             media_type = "image/png"
             extension = "png"
         elif carrier.carrier_type == DataCarrierTypeDB.NFC:
-            payload = self._nfc_renderer.render(
+            payload = await asyncio.to_thread(
+                self._nfc_renderer.render,
                 payload=carrier.encoded_uri,
                 output_type=output,
                 profile=profile,

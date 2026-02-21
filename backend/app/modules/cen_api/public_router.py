@@ -11,7 +11,12 @@ from sqlalchemy import select
 
 from app.db.models import DPP, DPPStatus, Tenant, TenantStatus
 from app.db.session import DbSession
-from app.modules.cen_api.schemas import CENDPPSearchResponse, CENPaging, CENPublicDPPResponse
+from app.modules.cen_api.schemas import (
+    CENDPPResponse,
+    CENDPPSearchResponse,
+    CENPaging,
+    CENPublicDPPResponse,
+)
 from app.modules.cen_api.service import CENAPIError, CENAPINotFoundError, CENAPIService
 from app.modules.dpps.service import DPPService
 from app.standards.cen_pren import get_cen_profiles, standards_profile_header
@@ -121,6 +126,7 @@ async def _to_public_response(
     service: CENAPIService,
     dpp_service: DPPService,
     dpp: DPP,
+    cen_payload: CENDPPResponse | None = None,
 ) -> CENPublicDPPResponse:
     revision = await dpp_service.get_published_revision(dpp_id=dpp.id, tenant_id=dpp.tenant_id)
     aas_env = None
@@ -129,7 +135,7 @@ async def _to_public_response(
         if isinstance(decrypted, dict):
             aas_env = _filter_public_aas_environment(decrypted)
 
-    cen_payload = await service.to_cen_dpp_response(dpp)
+    resolved_cen_payload = cen_payload or await service.to_cen_dpp_response(dpp)
     return CENPublicDPPResponse(
         id=dpp.id,
         status=dpp.status.value,
@@ -139,9 +145,9 @@ async def _to_public_response(
         current_revision_no=revision.revision_no if revision else None,
         aas_environment=aas_env,
         digest_sha256=revision.digest_sha256 if revision else None,
-        product_identifier=cen_payload.product_identifier,
-        identifier_scheme=cen_payload.identifier_scheme,
-        granularity=cen_payload.granularity,
+        product_identifier=resolved_cen_payload.product_identifier,
+        identifier_scheme=resolved_cen_payload.identifier_scheme,
+        granularity=resolved_cen_payload.granularity,
     )
 
 
@@ -199,7 +205,16 @@ async def public_search_dpps(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+    cen_payloads = {
+        payload.id: payload for payload in await service.get_public_dpp_responses(dpps=dpps)
+    }
     items = [
-        await _to_public_response(service=service, dpp_service=dpp_service, dpp=dpp) for dpp in dpps
+        await _to_public_response(
+            service=service,
+            dpp_service=dpp_service,
+            dpp=dpp,
+            cen_payload=cen_payloads.get(dpp.id),
+        )
+        for dpp in dpps
     ]
     return CENDPPSearchResponse(items=items, paging=CENPaging(cursor=next_cursor))

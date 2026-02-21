@@ -22,6 +22,16 @@ def upgrade() -> None:
         ["tenant_id", "entity_type", "status"],
     )
     op.create_index(
+        "ix_external_identifiers_tenant_scheme_canonical",
+        "external_identifiers",
+        ["tenant_id", "scheme_code", "value_canonical"],
+    )
+    op.create_index(
+        "ix_external_identifiers_tenant_value_raw",
+        "external_identifiers",
+        ["tenant_id", "value_raw"],
+    )
+    op.create_index(
         "ix_dpp_identifiers_tenant_external",
         "dpp_identifiers",
         ["tenant_id", "external_identifier_id"],
@@ -48,6 +58,14 @@ def downgrade() -> None:
     op.drop_index("ix_dpps_tenant_status_id", table_name="dpps")
     op.drop_index("ix_dpp_identifiers_tenant_dpp", table_name="dpp_identifiers")
     op.drop_index("ix_dpp_identifiers_tenant_external", table_name="dpp_identifiers")
+    op.drop_index(
+        "ix_external_identifiers_tenant_value_raw",
+        table_name="external_identifiers",
+    )
+    op.drop_index(
+        "ix_external_identifiers_tenant_scheme_canonical",
+        table_name="external_identifiers",
+    )
     op.drop_index(
         "ix_external_identifiers_tenant_entity_status",
         table_name="external_identifiers",

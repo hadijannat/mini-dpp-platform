@@ -153,7 +153,7 @@ async def search_dpps(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
     return CENDPPSearchResponse(
-        items=[await service.to_cen_dpp_response(dpp) for dpp in dpps],
+        items=await service.get_public_dpp_responses(dpps=dpps),
         paging=CENPaging(cursor=next_cursor),
     )
 

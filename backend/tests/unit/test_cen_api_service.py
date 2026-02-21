@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -9,6 +10,7 @@ import pytest
 
 from app.db.models import DPPStatus, IdentifierEntityType
 from app.modules.cen_api.service import CENAPIConflictError, CENAPIError, CENAPIService
+from app.standards.cen_pren.identifiers_18219 import IdentifierGovernanceError
 
 
 def _mock_dpp(*, status: DPPStatus, asset_ids: dict[str, str]) -> MagicMock:
@@ -19,6 +21,10 @@ def _mock_dpp(*, status: DPPStatus, asset_ids: dict[str, str]) -> MagicMock:
     dpp.asset_ids = dict(asset_ids)
     dpp.visibility_scope = "owner_team"
     return dpp
+
+
+def _scalar_list_result(values: list[object]) -> SimpleNamespace:
+    return SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: values))
 
 
 @pytest.mark.asyncio
@@ -75,3 +81,64 @@ async def test_validate_identifier_wraps_governance_errors() -> None:
             value_raw="http://example.com/id",
             granularity=None,
         )
+
+
+@pytest.mark.asyncio
+async def test_search_dpps_uses_identifier_canonicalization_when_scheme_provided() -> None:
+    tenant_id = uuid4()
+    first_id = uuid4()
+    second_id = uuid4()
+    first = MagicMock(id=first_id, tenant_id=tenant_id)
+
+    session = AsyncMock()
+    session.execute = AsyncMock(
+        side_effect=[
+            _scalar_list_result([first_id, second_id]),
+            _scalar_list_result([first]),
+        ]
+    )
+    service = CENAPIService(session)
+
+    with patch.object(
+        service._identifier_service,
+        "canonicalize",
+        return_value="urn:canonical:1",
+    ) as canonicalize_mock:
+        rows, next_cursor = await service.search_dpps(
+            tenant_id=tenant_id,
+            limit=1,
+            cursor=None,
+            identifier="raw-id",
+            scheme="uri",
+            status=None,
+        )
+
+    assert rows == [first]
+    assert next_cursor is not None
+    canonicalize_mock.assert_called_once_with(scheme_code="uri", value_raw="raw-id")
+
+
+@pytest.mark.asyncio
+async def test_search_dpps_raises_when_identifier_canonicalization_fails() -> None:
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    service = CENAPIService(session)
+
+    with (
+        patch.object(
+            service._identifier_service,
+            "canonicalize",
+            side_effect=IdentifierGovernanceError("invalid identifier"),
+        ),
+        pytest.raises(CENAPIError, match="invalid identifier"),
+    ):
+        await service.search_dpps(
+            tenant_id=uuid4(),
+            limit=10,
+            cursor=None,
+            identifier="::bad::",
+            scheme="uri",
+            status=None,
+        )
+
+    session.execute.assert_not_called()
