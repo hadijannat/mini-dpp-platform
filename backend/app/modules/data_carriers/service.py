@@ -21,7 +21,10 @@ from app.db.models import (
     DataCarrier,
     DataCarrierArtifact,
     DataCarrierArtifactType,
+    DataCarrierQualityCheck,
     DPPStatus,
+    ExternalIdentifierStatus,
+    IdentifierEntityType,
     ResolverLink,
 )
 from app.db.models import (
@@ -46,23 +49,40 @@ from app.modules.data_carriers.schemas import (
     DataCarrierIdentifierScheme,
     DataCarrierIdentityLevel,
     DataCarrierPreSalePackResponse,
+    DataCarrierQACheckResult,
+    DataCarrierQAResponse,
+    DataCarrierQualityCheckCreateRequest,
+    DataCarrierQualityCheckResponse,
     DataCarrierRegistryExportItem,
     DataCarrierRegistryExportResponse,
     DataCarrierReissueRequest,
     DataCarrierRenderRequest,
     DataCarrierResolverStrategy,
     DataCarrierStatus,
+    DataCarrierType,
     DataCarrierUpdateRequest,
+    DataCarrierValidationRequest,
+    DataCarrierValidationResponse,
     DataCarrierWithdrawRequest,
 )
 from app.modules.qr.service import QRCodeService
 from app.modules.resolver.schemas import LinkType
+from app.standards.cen_pren.data_carriers_18220.renderers import (
+    DataMatrixRenderer,
+    NFCRenderer,
+    QRRenderer,
+)
+from app.standards.cen_pren.identifiers_18219 import IdentifierGovernanceError, IdentifierService
 
 logger = get_logger(__name__)
 
 
 class DataCarrierError(ValueError):
     """Raised for invalid carrier operations."""
+
+
+class DataCarrierUnsupportedError(DataCarrierError):
+    """Raised when carrier rendering is unsupported in the runtime."""
 
 
 @dataclass
@@ -82,6 +102,10 @@ class DataCarrierService:
         self._session = session
         self._settings = get_settings()
         self._qr = QRCodeService()
+        self._identifier_service = IdentifierService(session)
+        self._qr_renderer = QRRenderer()
+        self._datamatrix_renderer = DataMatrixRenderer()
+        self._nfc_renderer = NFCRenderer()
 
     async def create_carrier(
         self,
@@ -103,6 +127,16 @@ class DataCarrierService:
             )
         )
 
+        external_identifier_id = await self._register_external_identifier_for_carrier(
+            tenant_id=tenant_id,
+            created_by=created_by,
+            dpp_id=dpp.id,
+            identity_level=request.identity_level,
+            identifier_scheme=request.identifier_scheme,
+            normalized_identifier_data=normalized_identifier_data,
+            encoded_uri=encoded_uri,
+        )
+
         carrier = DataCarrier(
             tenant_id=tenant_id,
             dpp_id=dpp.id,
@@ -113,7 +147,9 @@ class DataCarrierService:
             status=DataCarrierStatusDB.ACTIVE,
             identifier_key=identifier_key,
             identifier_data=normalized_identifier_data,
+            external_identifier_id=external_identifier_id,
             encoded_uri=encoded_uri,
+            payload_sha256=self._hash_payload(encoded_uri),
             layout_profile=request.layout_profile.model_dump(exclude_none=True),
             placement_metadata=request.placement_metadata.model_dump(exclude_none=True),
             pre_sale_enabled=request.pre_sale_enabled,
@@ -313,7 +349,9 @@ class DataCarrierService:
             status=DataCarrierStatusDB.ACTIVE,
             identifier_key=old.identifier_key,
             identifier_data=old.identifier_data,
+            external_identifier_id=old.external_identifier_id,
             encoded_uri=old.encoded_uri,
+            payload_sha256=old.payload_sha256,
             layout_profile=(
                 request.layout_profile.model_dump(exclude_none=True)
                 if request.layout_profile
@@ -378,35 +416,65 @@ class DataCarrierService:
         text_label = layout.get("text_label")
         if text_label is not None:
             text_label = str(text_label)
-
-        payload = self._qr.generate_qr_code(
-            dpp_url=carrier.encoded_uri,
-            format=request.output_type.value,
-            size=size,
-            foreground_color=foreground,
-            background_color=background,
-            include_text=include_text,
-            text_label=text_label,
-        )
-
-        media_types = {
-            "png": "image/png",
-            "svg": "image/svg+xml",
-            "pdf": "application/pdf",
-        }
         output = request.output_type.value
+        profile = {
+            "size": size,
+            "foreground_color": foreground,
+            "background_color": background,
+            "include_text": include_text,
+            "text_label": text_label,
+            "error_correction": str(layout.get("error_correction", "H")),
+            "quiet_zone_modules": int(layout.get("quiet_zone_modules", 4)),
+            "nfc_memory_bytes": int(layout.get("nfc_memory_bytes", 512)),
+        }
+
+        if carrier.carrier_type == DataCarrierTypeDB.QR:
+            payload = self._qr_renderer.render(
+                payload=carrier.encoded_uri,
+                output_type=output,
+                profile=profile,
+            )
+            media_type = {
+                "png": "image/png",
+                "svg": "image/svg+xml",
+                "pdf": "application/pdf",
+            }.get(output, "application/octet-stream")
+            extension = output
+        elif carrier.carrier_type == DataCarrierTypeDB.DATAMATRIX:
+            try:
+                payload = self._datamatrix_renderer.render(
+                    payload=carrier.encoded_uri,
+                    output_type=output,
+                    profile=profile,
+                )
+            except NotImplementedError as exc:
+                raise DataCarrierUnsupportedError(str(exc)) from exc
+            media_type = "image/png"
+            extension = "png"
+        elif carrier.carrier_type == DataCarrierTypeDB.NFC:
+            payload = self._nfc_renderer.render(
+                payload=carrier.encoded_uri,
+                output_type=output,
+                profile=profile,
+            )
+            media_type = "application/vnd.ndef"
+            extension = "ndef"
+        else:
+            raise DataCarrierError(f"Unsupported carrier type: {carrier.carrier_type.value}")
 
         artifact: DataCarrierArtifact | None = None
         if request.persist_artifact:
+            if extension not in {item.value for item in DataCarrierArtifactType}:
+                raise DataCarrierError("persist_artifact is not supported for this output type")
             digest = hashlib.sha256(payload).hexdigest()
-            artifact_type = DataCarrierArtifactType(output)
+            artifact_type = DataCarrierArtifactType(extension)
             artifact = DataCarrierArtifact(
                 tenant_id=tenant_id,
                 carrier_id=carrier.id,
                 artifact_type=artifact_type,
                 storage_uri=(
                     f"inline://data-carriers/{carrier.id}/{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
-                    f".{output}"
+                    f".{extension}"
                 ),
                 sha256=digest,
             )
@@ -415,8 +483,8 @@ class DataCarrierService:
 
         return RenderedCarrier(
             payload=payload,
-            media_type=media_types[output],
-            extension=output,
+            media_type=media_type,
+            extension=extension,
             artifact=artifact,
         )
 
@@ -470,6 +538,161 @@ class DataCarrierService:
         ]
         return DataCarrierRegistryExportResponse(items=items, count=len(items))
 
+    def validate_payload_preflight(
+        self,
+        *,
+        request: DataCarrierValidationRequest,
+    ) -> DataCarrierValidationResponse:
+        payload_bytes = len(request.payload.encode("utf-8"))
+        warnings: list[str] = []
+        details: dict[str, object] = {}
+        valid = True
+
+        profile = request.layout_profile.model_dump(exclude_none=True)
+
+        try:
+            if request.carrier_type == DataCarrierType.QR:
+                self._qr_renderer.validate_payload(request.payload, profile)
+                details["error_correction"] = profile.get("error_correction", "H")
+                details["quiet_zone_modules"] = profile.get("quiet_zone_modules", 4)
+            elif request.carrier_type == DataCarrierType.DATAMATRIX:
+                if not self._datamatrix_renderer.is_available():
+                    valid = False
+                    warnings.append(
+                        "DataMatrix renderer unavailable in runtime. Install pylibdmtx/libdmtx."
+                    )
+                    details["runtime_available"] = False
+                else:
+                    self._datamatrix_renderer.validate_payload(request.payload, profile)
+                    details["runtime_available"] = True
+            elif request.carrier_type == DataCarrierType.NFC:
+                self._nfc_renderer.validate_payload(request.payload, profile)
+                details["nfc_memory_bytes"] = profile.get("nfc_memory_bytes", 512)
+            else:
+                valid = False
+                warnings.append(f"Unsupported carrier type: {request.carrier_type.value}")
+        except ValueError as exc:
+            valid = False
+            warnings.append(str(exc))
+
+        return DataCarrierValidationResponse(
+            valid=valid,
+            carrier_type=request.carrier_type,
+            payload_bytes=payload_bytes,
+            warnings=warnings,
+            details=details,
+        )
+
+    async def build_qa_report(self, *, carrier_id: UUID, tenant_id: UUID) -> DataCarrierQAResponse:
+        carrier = await self.get_carrier(carrier_id, tenant_id)
+        if carrier is None:
+            raise DataCarrierError("Carrier not found")
+
+        checks: list[DataCarrierQACheckResult] = []
+        checks.append(
+            DataCarrierQACheckResult(
+                check_type="payload_roundtrip",
+                passed=bool(carrier.encoded_uri.strip()),
+                severity="error" if not carrier.encoded_uri.strip() else "info",
+                message=(
+                    "Encoded payload is non-empty"
+                    if carrier.encoded_uri.strip()
+                    else "Encoded payload is empty"
+                ),
+            )
+        )
+        checks.append(
+            DataCarrierQACheckResult(
+                check_type="status_gate",
+                passed=carrier.status != DataCarrierStatusDB.WITHDRAWN,
+                severity="warning" if carrier.status == DataCarrierStatusDB.WITHDRAWN else "info",
+                message=f"Carrier status is {carrier.status.value}",
+                details={"status": carrier.status.value},
+            )
+        )
+
+        layout = carrier.layout_profile or {}
+        if carrier.carrier_type == DataCarrierTypeDB.QR:
+            err = str(layout.get("error_correction", "H")).upper()
+            quiet = int(layout.get("quiet_zone_modules", 4))
+            checks.append(
+                DataCarrierQACheckResult(
+                    check_type="qr_error_correction",
+                    passed=err in {"L", "M", "Q", "H"},
+                    severity="error" if err not in {"L", "M", "Q", "H"} else "info",
+                    message=f"QR error correction: {err}",
+                    details={"error_correction": err},
+                )
+            )
+            checks.append(
+                DataCarrierQACheckResult(
+                    check_type="qr_quiet_zone",
+                    passed=1 <= quiet <= 16,
+                    severity="warning" if not (1 <= quiet <= 16) else "info",
+                    message=f"QR quiet zone modules: {quiet}",
+                    details={"quiet_zone_modules": quiet},
+                )
+            )
+        if carrier.carrier_type == DataCarrierTypeDB.DATAMATRIX:
+            available = self._datamatrix_renderer.is_available()
+            checks.append(
+                DataCarrierQACheckResult(
+                    check_type="datamatrix_runtime",
+                    passed=available,
+                    severity="warning" if not available else "info",
+                    message=(
+                        "DataMatrix runtime dependency available"
+                        if available
+                        else "DataMatrix runtime dependency missing"
+                    ),
+                )
+            )
+        if carrier.carrier_type == DataCarrierTypeDB.NFC:
+            memory = int(layout.get("nfc_memory_bytes", 512))
+            required = len(carrier.encoded_uri.encode("utf-8")) + 5
+            checks.append(
+                DataCarrierQACheckResult(
+                    check_type="nfc_capacity",
+                    passed=required <= memory,
+                    severity="error" if required > memory else "info",
+                    message=f"NFC capacity {required}/{memory} bytes",
+                    details={"required_bytes": required, "nfc_memory_bytes": memory},
+                )
+            )
+
+        return DataCarrierQAResponse(carrier_id=carrier.id, checks=checks)
+
+    async def add_quality_check(
+        self,
+        *,
+        carrier_id: UUID,
+        tenant_id: UUID,
+        created_by: str,
+        request: DataCarrierQualityCheckCreateRequest,
+    ) -> DataCarrierQualityCheckResponse:
+        carrier = await self.get_carrier(carrier_id, tenant_id)
+        if carrier is None:
+            raise DataCarrierError("Carrier not found")
+        row = DataCarrierQualityCheck(
+            tenant_id=tenant_id,
+            carrier_id=carrier_id,
+            check_type=request.check_type,
+            passed=request.passed,
+            results=request.results,
+            performed_by_subject=created_by,
+        )
+        self._session.add(row)
+        await self._session.flush()
+        return DataCarrierQualityCheckResponse(
+            id=row.id,
+            carrier_id=row.carrier_id,
+            check_type=row.check_type,
+            passed=row.passed,
+            results=row.results,
+            performed_by_subject=row.performed_by_subject,
+            performed_at=row.performed_at,
+        )
+
     @staticmethod
     def registry_payload_to_csv(payload: DataCarrierRegistryExportResponse) -> str:
         output = io.StringIO()
@@ -512,6 +735,54 @@ class DataCarrierService:
         if dpp.status != DPPStatus.PUBLISHED:
             raise DataCarrierError("Data carriers can only be created for published DPPs")
         return dpp
+
+    @staticmethod
+    def _hash_payload(payload: str) -> str:
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    async def _register_external_identifier_for_carrier(
+        self,
+        *,
+        tenant_id: UUID,
+        created_by: str,
+        dpp_id: UUID,
+        identity_level: DataCarrierIdentityLevel,
+        identifier_scheme: DataCarrierIdentifierScheme,
+        normalized_identifier_data: dict[str, str],
+        encoded_uri: str,
+    ) -> UUID | None:
+        if identifier_scheme == DataCarrierIdentifierScheme.GS1_GTIN:
+            value_raw = normalized_identifier_data.get("gtin", "").strip()
+            scheme_code = "gs1_gtin"
+        elif identifier_scheme == DataCarrierIdentifierScheme.IEC61406:
+            value_raw = encoded_uri
+            scheme_code = "iec61406"
+        else:
+            value_raw = normalized_identifier_data.get("direct_url", "").strip() or encoded_uri
+            scheme_code = "direct_url"
+
+        if not value_raw:
+            return None
+
+        try:
+            identifier = await self._identifier_service.reserve_or_register(
+                tenant_id=tenant_id,
+                created_by=created_by,
+                entity_type=IdentifierEntityType.PRODUCT,
+                scheme_code=scheme_code,
+                value_raw=value_raw,
+                granularity=DataCarrierIdentityLevelDB(identity_level.value),
+            )
+            if identifier.status != ExternalIdentifierStatus.ACTIVE:
+                identifier.status = ExternalIdentifierStatus.ACTIVE
+            await self._identifier_service.link_identifier_to_dpp(
+                tenant_id=tenant_id,
+                dpp_id=dpp_id,
+                external_identifier_id=identifier.id,
+            )
+            return identifier.id
+        except IdentifierGovernanceError as exc:
+            raise DataCarrierError(f"Identifier governance failed: {exc}") from exc
 
     def _build_identifier_representation(
         self,

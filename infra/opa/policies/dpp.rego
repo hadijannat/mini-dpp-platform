@@ -135,6 +135,48 @@ policy_candidate contains {
 }
 
 policy_candidate contains {
+    "priority": 97,
+    "decision": {
+        "effect": "allow",
+        "policy_id": "identifier-read-write",
+    },
+} if {
+    not input.subject.is_admin
+    input.action in ["create", "read", "update", "list"]
+    input.resource.type == "identifier"
+    input.subject.is_publisher
+    tenant_match
+}
+
+policy_candidate contains {
+    "priority": 98,
+    "decision": {
+        "effect": "allow",
+        "policy_id": "economic-operator-read-write",
+    },
+} if {
+    not input.subject.is_admin
+    input.action in ["create", "read", "update", "list"]
+    input.resource.type == "economic_operator"
+    input.subject.is_publisher
+    tenant_match
+}
+
+policy_candidate contains {
+    "priority": 99,
+    "decision": {
+        "effect": "allow",
+        "policy_id": "facility-read-write",
+    },
+} if {
+    not input.subject.is_admin
+    input.action in ["create", "read", "update", "list"]
+    input.resource.type == "facility"
+    input.subject.is_publisher
+    tenant_match
+}
+
+policy_candidate contains {
     "priority": 100,
     "decision": {
         "effect": "allow",

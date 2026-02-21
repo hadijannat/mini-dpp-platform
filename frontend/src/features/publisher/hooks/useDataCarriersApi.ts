@@ -4,11 +4,16 @@ import type {
   DataCarrierDeprecateRequest,
   DataCarrierListResponse,
   DataCarrierPreSalePackResponse,
+  DataCarrierQAResponse,
+  DataCarrierQualityCheckCreateRequest,
+  DataCarrierQualityCheckResponse,
   DataCarrierRegistryExportResponse,
   DataCarrierRenderRequest,
   DataCarrierReissueRequest,
   DataCarrierResponse,
   DataCarrierUpdateRequest,
+  DataCarrierValidationRequest,
+  DataCarrierValidationResponse,
   DataCarrierWithdrawRequest,
 } from '@/api/types';
 import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
@@ -114,6 +119,57 @@ export function useDataCarriersApi(token?: string) {
     [token]
   );
 
+  const validateCarrierPayload = useCallback(
+    async (
+      payload: DataCarrierValidationRequest
+    ): Promise<DataCarrierValidationResponse> => {
+      const response = await tenantApiFetch(
+        '/data-carriers/validate',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        token
+      );
+      return parseJsonOrThrow<DataCarrierValidationResponse>(
+        response,
+        'Failed to validate carrier payload'
+      );
+    },
+    [token]
+  );
+
+  const getCarrierQa = useCallback(
+    async (carrierId: string): Promise<DataCarrierQAResponse> => {
+      const response = await tenantApiFetch(`/data-carriers/${carrierId}/qa`, {}, token);
+      return parseJsonOrThrow<DataCarrierQAResponse>(response, 'Failed to load carrier QA');
+    },
+    [token]
+  );
+
+  const createQualityCheck = useCallback(
+    async (
+      carrierId: string,
+      payload: DataCarrierQualityCheckCreateRequest
+    ): Promise<DataCarrierQualityCheckResponse> => {
+      const response = await tenantApiFetch(
+        `/data-carriers/${carrierId}/quality-checks`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+        token
+      );
+      return parseJsonOrThrow<DataCarrierQualityCheckResponse>(
+        response,
+        'Failed to create quality check'
+      );
+    },
+    [token]
+  );
+
   const deprecateCarrier = useCallback(
     async (
       carrierId: string,
@@ -205,6 +261,9 @@ export function useDataCarriersApi(token?: string) {
     getCarrier,
     updateCarrier,
     renderCarrier,
+    validateCarrierPayload,
+    getCarrierQa,
+    createQualityCheck,
     deprecateCarrier,
     withdrawCarrier,
     reissueCarrier,
@@ -212,4 +271,3 @@ export function useDataCarriersApi(token?: string) {
     exportRegistry,
   };
 }
-

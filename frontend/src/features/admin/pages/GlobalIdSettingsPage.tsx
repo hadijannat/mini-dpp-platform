@@ -33,6 +33,14 @@ type DataCarrierComplianceSettingsResponse = {
   profile: DataCarrierComplianceProfile;
 };
 
+type CENProfileDiagnosticsResponse = {
+  enabled: boolean;
+  profile_18219: string;
+  profile_18220: string;
+  profile_18222: string;
+  standards_header: string;
+};
+
 async function fetchGlobalAssetIdBaseUri(token?: string) {
   const response = await apiFetch('/api/v1/admin/settings/global-asset-id-base-uri', {}, token);
   if (!response.ok) {
@@ -65,6 +73,14 @@ async function fetchDataCarrierComplianceSettings(token?: string) {
   return response.json();
 }
 
+async function fetchCenProfiles(token?: string) {
+  const response = await apiFetch('/api/v1/admin/settings/cen-profiles', {}, token);
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Failed to fetch CEN profile settings'));
+  }
+  return response.json();
+}
+
 async function updateDataCarrierComplianceSettings(
   payload: DataCarrierComplianceSettingsResponse,
   token?: string
@@ -87,7 +103,7 @@ async function updateDataCarrierComplianceSettings(
 function validateBaseUri(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return 'Base URI is required.';
-  if (!trimmed.startsWith('http://')) return 'Base URI must start with http://';
+  if (!/^https?:\/\//i.test(trimmed)) return 'Base URI must start with http:// or https://';
   if (!trimmed.endsWith('/')) return 'Base URI must end with /.';
   if (trimmed.includes('?') || trimmed.includes('#')) {
     return 'Base URI must not include query or fragment.';
@@ -117,6 +133,11 @@ export default function GlobalIdSettingsPage() {
   const carrierSettingsQuery = useQuery<DataCarrierComplianceSettingsResponse>({
     queryKey: ['settings', 'data-carrier-compliance'],
     queryFn: () => fetchDataCarrierComplianceSettings(token),
+    enabled: Boolean(token),
+  });
+  const cenProfilesQuery = useQuery<CENProfileDiagnosticsResponse>({
+    queryKey: ['settings', 'cen-profiles'],
+    queryFn: () => fetchCenProfiles(token),
     enabled: Boolean(token),
   });
 
@@ -220,8 +241,17 @@ export default function GlobalIdSettingsPage() {
                 )}
                 {!validationError && (
                   <p className="text-xs text-muted-foreground">
-                    Must start with http://, end with /, and contain no query or fragment.
+                    Must start with http:// or https://, end with /, and contain no query or
+                    fragment.
                   </p>
+                )}
+                {cenProfilesQuery.data?.enabled && value.trim().startsWith('http://') && (
+                  <Alert className="border-amber-300 bg-amber-50">
+                    <AlertDescription>
+                      CEN profiles default to HTTPS canonical identifiers. HTTP may be rejected
+                      unless backend `cen_allow_http_identifiers` is enabled.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
 
@@ -236,6 +266,15 @@ export default function GlobalIdSettingsPage() {
                   </div>
                 </AlertDescription>
               </Alert>
+
+              {cenProfilesQuery.data && (
+                <Alert className="border-blue-200 bg-blue-50">
+                  <AlertTitle className="text-sm">Active CEN Profile</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    {cenProfilesQuery.data.standards_header}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {mutation.isError && (
                 <ErrorBanner

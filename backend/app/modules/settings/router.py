@@ -16,8 +16,19 @@ from app.modules.data_carriers.profile import (
     DataCarrierComplianceProfile,
     parse_data_carrier_compliance_profile,
 )
+from app.standards.cen_pren import get_cen_profiles, standards_profile_header
 
 router = APIRouter()
+
+
+def _allowed_global_id_schemes() -> set[str]:
+    settings = get_settings()
+    if not settings.cen_dpp_enabled:
+        return {"http"}
+    schemes = {"https"}
+    if settings.cen_allow_http_identifiers:
+        schemes.add("http")
+    return schemes
 
 
 class GlobalAssetIdBaseUriResponse(BaseModel):
@@ -46,6 +57,16 @@ class DataCarrierComplianceSettingsUpdateRequest(BaseModel):
     profile: DataCarrierComplianceProfile = Field(default_factory=DataCarrierComplianceProfile)
 
 
+class CENProfileDiagnosticsResponse(BaseModel):
+    """Active CEN profile diagnostics (admin-only)."""
+
+    enabled: bool
+    profile_18219: str
+    profile_18220: str
+    profile_18222: str
+    standards_header: str
+
+
 @router.get("/global-asset-id-base-uri", response_model=GlobalAssetIdBaseUriResponse)
 async def get_global_asset_id_base_uri(
     db: DbSession,
@@ -65,7 +86,7 @@ async def get_global_asset_id_base_uri(
     stored = await service.get_setting("global_asset_id_base_uri")
     base_uri = stored or get_settings().global_asset_id_base_uri_default
     try:
-        normalized = normalize_base_uri(base_uri)
+        normalized = normalize_base_uri(base_uri, allowed_schemes=_allowed_global_id_schemes())
     except IdentifierValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -92,7 +113,10 @@ async def update_global_asset_id_base_uri(
         {"type": "setting", "key": "global_asset_id_base_uri"},
     )
     try:
-        normalized = normalize_base_uri(request.global_asset_id_base_uri)
+        normalized = normalize_base_uri(
+            request.global_asset_id_base_uri,
+            allowed_schemes=_allowed_global_id_schemes(),
+        )
     except IdentifierValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -159,4 +183,24 @@ async def update_data_carrier_compliance_settings(
     return DataCarrierComplianceSettingsResponse(
         publish_gate_enabled=request.publish_gate_enabled,
         profile=request.profile,
+    )
+
+
+@router.get("/cen-profiles", response_model=CENProfileDiagnosticsResponse)
+async def get_cen_profiles_diagnostics(
+    user: Admin,
+) -> CENProfileDiagnosticsResponse:
+    """Return active CEN profile versions for diagnostics and contract debugging."""
+    await require_access(
+        user,
+        "read",
+        {"type": "setting", "key": "cen_profiles"},
+    )
+    profiles = get_cen_profiles()
+    return CENProfileDiagnosticsResponse(
+        enabled=profiles.enabled,
+        profile_18219=profiles.profile_18219,
+        profile_18220=profiles.profile_18220,
+        profile_18222=profiles.profile_18222,
+        standards_header=standards_profile_header(profiles),
     )

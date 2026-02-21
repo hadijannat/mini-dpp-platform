@@ -12,12 +12,12 @@ class IdentifierValidationError(ValueError):
     """Raised when identifier inputs are invalid."""
 
 
-def normalize_base_uri(base_uri: str) -> str:
+def normalize_base_uri(base_uri: str, *, allowed_schemes: set[str] | None = None) -> str:
     """
     Normalize and validate the global asset ID base URI.
 
     Requirements:
-    - http scheme only
+    - allowed scheme only
     - host required
     - no query or fragment
     - trailing slash required
@@ -32,8 +32,10 @@ def normalize_base_uri(base_uri: str) -> str:
     parsed = urlparse(raw)
     scheme = parsed.scheme.lower()
 
-    if scheme != "http":
-        raise IdentifierValidationError("Base URI must use the http scheme.")
+    supported = {item.lower() for item in (allowed_schemes or {"http"})}
+    if scheme not in supported:
+        allowed = ", ".join(sorted(supported))
+        raise IdentifierValidationError(f"Base URI must use one of: {allowed}.")
     if not parsed.netloc:
         raise IdentifierValidationError("Base URI must include a host.")
     if parsed.query or parsed.fragment:
@@ -80,10 +82,15 @@ def build_composite_suffix(asset_ids: dict[str, Any]) -> str:
     return "--".join(encoded_parts)
 
 
-def build_global_asset_id(base_uri: str, asset_ids: dict[str, Any]) -> str:
+def build_global_asset_id(
+    base_uri: str,
+    asset_ids: dict[str, Any],
+    *,
+    allowed_schemes: set[str] | None = None,
+) -> str:
     """
     Build a global asset ID using the normalized base URI and composite suffix.
     """
-    normalized_base = normalize_base_uri(base_uri)
+    normalized_base = normalize_base_uri(base_uri, allowed_schemes=allowed_schemes)
     suffix = build_composite_suffix(asset_ids)
     return f"{normalized_base}{suffix}"

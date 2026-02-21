@@ -72,6 +72,10 @@ from app.modules.dpps.submodel_binding import (
 from app.modules.qr.service import QRCodeService
 from app.modules.templates.catalog import get_template_descriptor
 from app.modules.templates.service import TemplateRegistryService
+from app.standards.cen_pren.identifiers_18219 import (
+    IdentifierGovernanceError,
+    IdentifierService,
+)
 
 logger = get_logger(__name__)
 
@@ -114,6 +118,14 @@ class DPPService:
                 active_key_id=self._settings.encryption_active_key_id,
             )
             self._field_encryptor = DPPFieldEncryptor(key_encryptor)
+
+    def _allowed_global_asset_uri_schemes(self) -> set[str]:
+        if not self._settings.cen_dpp_enabled:
+            return {"http"}
+        schemes = {"https"}
+        if self._settings.cen_allow_http_identifiers:
+            schemes.add("http")
+        return schemes
 
     @staticmethod
     def _is_aasd120_list_idshort_error(exc: Exception) -> bool:
@@ -447,7 +459,10 @@ class DPPService:
         if not base_uri:
             base_uri = self._settings.global_asset_id_base_uri_default
         if base_uri:
-            normalized_base = normalize_base_uri(base_uri)
+            normalized_base = normalize_base_uri(
+                base_uri,
+                allowed_schemes=self._allowed_global_asset_uri_schemes(),
+            )
             provided_global_id = str(asset_ids.get("globalAssetId", "")).strip()
             if provided_global_id:
                 if not provided_global_id.startswith(normalized_base):
@@ -457,7 +472,11 @@ class DPPService:
             else:
                 manufacturer_part_id = str(asset_ids.get("manufacturerPartId", "")).strip()
                 if manufacturer_part_id:
-                    asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
+                    asset_ids["globalAssetId"] = build_global_asset_id(
+                        normalized_base,
+                        asset_ids,
+                        allowed_schemes=self._allowed_global_asset_uri_schemes(),
+                    )
 
         # Build initial AAS Environment from selected templates
         aas_env = await self._build_initial_environment(
@@ -558,7 +577,10 @@ class DPPService:
         if not base_uri:
             base_uri = self._settings.global_asset_id_base_uri_default
         if base_uri:
-            normalized_base = normalize_base_uri(base_uri)
+            normalized_base = normalize_base_uri(
+                base_uri,
+                allowed_schemes=self._allowed_global_asset_uri_schemes(),
+            )
             provided_global_id = str(asset_ids.get("globalAssetId", "")).strip()
             if provided_global_id:
                 if not provided_global_id.startswith(normalized_base):
@@ -568,7 +590,11 @@ class DPPService:
             else:
                 manufacturer_part_id = str(asset_ids.get("manufacturerPartId", "")).strip()
                 if manufacturer_part_id:
-                    asset_ids["globalAssetId"] = build_global_asset_id(normalized_base, asset_ids)
+                    asset_ids["globalAssetId"] = build_global_asset_id(
+                        normalized_base,
+                        asset_ids,
+                        allowed_schemes=self._allowed_global_asset_uri_schemes(),
+                    )
 
         stored_aas, encrypted_rows, digest_metadata = await self._prepare_revision_payload(
             tenant_id=tenant_id,
@@ -2147,6 +2173,25 @@ class DPPService:
 
         if dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot publish an archived DPP")
+
+        if self._settings.cen_dpp_enabled:
+            identifier_service = IdentifierService(self._session)
+            try:
+                await identifier_service.ensure_dpp_product_identifier_from_asset_ids(
+                    dpp=dpp,
+                    created_by=published_by_subject,
+                )
+                has_identifier = await identifier_service.has_active_product_identifier(
+                    tenant_id=tenant_id,
+                    dpp_id=dpp.id,
+                )
+            except IdentifierGovernanceError as exc:
+                raise ValueError(f"Publish blocked: {exc}") from exc
+
+            if not has_identifier:
+                raise ValueError(
+                    "Publish blocked: at least one active canonical product identifier is required"
+                )
 
         # Optional data carrier pre-publish gate (Phase 3)
         await self._assert_data_carrier_publish_gate(dpp_id=dpp_id, tenant_id=tenant_id)

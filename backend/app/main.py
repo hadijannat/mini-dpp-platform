@@ -20,6 +20,8 @@ from app.core.security.abac import close_opa_client
 from app.db.session import close_db, get_db_session, init_db
 from app.modules.activity.router import router as activity_router
 from app.modules.audit.router import router as audit_router
+from app.modules.cen_api.public_router import router as public_cen_router
+from app.modules.cen_api.router import router as cen_api_router
 from app.modules.cirpass.public_router import router as public_cirpass_router
 from app.modules.compliance.router import router as compliance_router
 from app.modules.connectors.router import router as connectors_router
@@ -33,6 +35,7 @@ from app.modules.dpps.router import router as dpps_router
 from app.modules.epcis.public_router import router as public_epcis_router
 from app.modules.epcis.router import router as epcis_router
 from app.modules.export.router import router as export_router
+from app.modules.identifiers.router import router as identifiers_router
 from app.modules.lab.router import router as lab_router
 from app.modules.lca.router import router as lca_router
 from app.modules.masters.router import router as masters_router
@@ -258,6 +261,12 @@ window.onload = function() {{
         prefix=f"{settings.api_v1_prefix}/public/smt",
         tags=["Public SMT Editor"],
     )
+    if settings.cen_dpp_enabled:
+        app.include_router(
+            public_cen_router,
+            prefix=f"{settings.api_v1_prefix}/public",
+            tags=["Public CEN API"],
+        )
     app.include_router(
         lab_router,
         prefix=f"{settings.api_v1_prefix}/lab",
@@ -333,6 +342,17 @@ window.onload = function() {{
         prefix=f"{tenant_prefix}/data-carriers",
         tags=["Data Carriers"],
     )
+    if settings.cen_dpp_enabled:
+        app.include_router(
+            identifiers_router,
+            prefix=f"{tenant_prefix}/identifiers",
+            tags=["Identifiers"],
+        )
+        app.include_router(
+            cen_api_router,
+            prefix=f"{tenant_prefix}/cen",
+            tags=["CEN prEN 18222"],
+        )
     app.include_router(
         settings_router,
         prefix=f"{settings.api_v1_prefix}/admin/settings",

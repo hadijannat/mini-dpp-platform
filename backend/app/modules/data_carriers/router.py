@@ -18,16 +18,25 @@ from app.modules.data_carriers.schemas import (
     DataCarrierIdentityLevel,
     DataCarrierListResponse,
     DataCarrierPreSalePackResponse,
+    DataCarrierQAResponse,
+    DataCarrierQualityCheckCreateRequest,
+    DataCarrierQualityCheckResponse,
     DataCarrierRegistryExportResponse,
     DataCarrierReissueRequest,
     DataCarrierRenderRequest,
     DataCarrierResponse,
     DataCarrierStatus,
     DataCarrierUpdateRequest,
+    DataCarrierValidationRequest,
+    DataCarrierValidationResponse,
     DataCarrierWithdrawRequest,
     RegistryExportFormat,
 )
-from app.modules.data_carriers.service import DataCarrierError, DataCarrierService
+from app.modules.data_carriers.service import (
+    DataCarrierError,
+    DataCarrierService,
+    DataCarrierUnsupportedError,
+)
 from app.modules.dpps.service import DPPService
 
 router = APIRouter()
@@ -45,7 +54,9 @@ def _carrier_to_response(carrier: DataCarrier) -> DataCarrierResponse:
         status=carrier.status.value,
         identifier_key=carrier.identifier_key,
         identifier_data={str(k): str(v) for k, v in (carrier.identifier_data or {}).items()},
+        external_identifier_id=carrier.external_identifier_id,
         encoded_uri=carrier.encoded_uri,
+        payload_sha256=carrier.payload_sha256,
         layout_profile=carrier.layout_profile or {},
         placement_metadata=carrier.placement_metadata or {},
         pre_sale_enabled=carrier.pre_sale_enabled,
@@ -124,6 +135,8 @@ async def create_data_carrier(
             created_by=tenant.user.sub,
             request=body,
         )
+    except DataCarrierUnsupportedError as exc:
+        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail=str(exc)) from exc
     except DataCarrierError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -236,6 +249,11 @@ async def render_data_carrier(
             tenant_id=tenant.tenant_id,
             request=body,
         )
+    except DataCarrierUnsupportedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(exc),
+        ) from exc
     except DataCarrierError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
@@ -250,6 +268,74 @@ async def render_data_carrier(
             )
         },
     )
+
+
+@router.post("/validate", response_model=DataCarrierValidationResponse)
+async def validate_data_carrier_payload(
+    body: DataCarrierValidationRequest,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> DataCarrierValidationResponse:
+    await require_access(
+        tenant.user,
+        "create",
+        {"type": "data_carrier", "owner_subject": tenant.user.sub},
+        tenant=tenant,
+    )
+    service = DataCarrierService(db)
+    return service.validate_payload_preflight(request=body)
+
+
+@router.get("/{carrier_id:uuid}/qa", response_model=DataCarrierQAResponse)
+async def get_data_carrier_qa(
+    carrier_id: UUID,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> DataCarrierQAResponse:
+    service = DataCarrierService(db)
+    carrier = await service.get_carrier(carrier_id, tenant.tenant_id)
+    if carrier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carrier not found")
+    await _require_dpp_read_access(db, tenant, carrier.dpp_id)
+    try:
+        return await service.build_qa_report(carrier_id=carrier_id, tenant_id=tenant.tenant_id)
+    except DataCarrierError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/{carrier_id:uuid}/quality-checks",
+    response_model=DataCarrierQualityCheckResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_data_carrier_quality_check(
+    carrier_id: UUID,
+    body: DataCarrierQualityCheckCreateRequest,
+    db: DbSession,
+    tenant: TenantPublisher,
+) -> DataCarrierQualityCheckResponse:
+    service = DataCarrierService(db)
+    carrier = await service.get_carrier(carrier_id, tenant.tenant_id)
+    if carrier is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Carrier not found")
+    await _require_dpp_update_access(db, tenant, carrier.dpp_id)
+    try:
+        result = await service.add_quality_check(
+            carrier_id=carrier_id,
+            tenant_id=tenant.tenant_id,
+            created_by=tenant.user.sub,
+            request=body,
+        )
+    except DataCarrierError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    await db.commit()
+    return result
 
 
 @router.post("/{carrier_id:uuid}/lifecycle/deprecate", response_model=DataCarrierResponse)

@@ -37,3 +37,19 @@ def test_build_global_asset_id_uses_normalized_base() -> None:
     asset_ids = {"manufacturerPartId": "PART-123", "serialNumber": "SN-456"}
     result = build_global_asset_id("http://example.org/asset", asset_ids)
     assert result == "http://example.org/asset/PART-123--SN-456"
+
+
+def test_build_global_asset_id_allows_https_when_configured() -> None:
+    asset_ids = {"manufacturerPartId": "PART-123", "serialNumber": "SN-456"}
+    result = build_global_asset_id(
+        "https://example.org/asset",
+        asset_ids,
+        allowed_schemes={"https"},
+    )
+    assert result == "https://example.org/asset/PART-123--SN-456"
+
+
+def test_build_global_asset_id_rejects_https_without_override() -> None:
+    asset_ids = {"manufacturerPartId": "PART-123", "serialNumber": "SN-456"}
+    with pytest.raises(IdentifierValidationError):
+        build_global_asset_id("https://example.org/asset", asset_ids)

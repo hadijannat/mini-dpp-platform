@@ -311,3 +311,22 @@ export type DataCarrierListResponse = components['schemas']['DataCarrierListResp
 export type DataCarrierPreSalePackResponse = components['schemas']['DataCarrierPreSalePackResponse'];
 export type DataCarrierRegistryExportResponse =
   components['schemas']['DataCarrierRegistryExportResponse'];
+export type DataCarrierValidationRequest =
+  components['schemas']['DataCarrierValidationRequest'];
+export type DataCarrierValidationResponse =
+  components['schemas']['DataCarrierValidationResponse'];
+export type DataCarrierQAResponse = components['schemas']['DataCarrierQAResponse'];
+export type DataCarrierQualityCheckCreateRequest =
+  components['schemas']['DataCarrierQualityCheckCreateRequest'];
+export type DataCarrierQualityCheckResponse =
+  components['schemas']['DataCarrierQualityCheckResponse'];
+
+// CEN facade types
+export type CENDPPResponse = components['schemas']['CENDPPResponse'];
+export type CENDPPSearchResponse = components['schemas']['CENDPPSearchResponse'];
+export type CENPublicDPPResponse = components['schemas']['CENPublicDPPResponse'];
+export type CENSyncResponse = components['schemas']['CENSyncResponse'];
+export type CENValidateIdentifierResponse =
+  components['schemas']['CENValidateIdentifierResponse'];
+export type CENExternalIdentifierResponse =
+  components['schemas']['CENExternalIdentifierResponse'];

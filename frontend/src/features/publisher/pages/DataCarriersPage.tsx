@@ -18,9 +18,12 @@ import { getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { validateGTIN } from '@/lib/gtin';
 import type {
   DataCarrierCreateRequest,
+  DataCarrierQAResponse,
   DataCarrierPreSalePackResponse,
   DataCarrierRenderRequest,
   DataCarrierResponse,
+  DataCarrierValidationRequest,
+  DataCarrierValidationResponse,
   DataCarrierWithdrawRequest,
 } from '@/api/types';
 import { PageHeader } from '@/components/page-header';
@@ -77,6 +80,8 @@ export default function DataCarriersPage() {
     listCarriers,
     createCarrier,
     renderCarrier,
+    validateCarrierPayload,
+    getCarrierQa,
     deprecateCarrier,
     withdrawCarrier,
     reissueCarrier,
@@ -95,6 +100,9 @@ export default function DataCarriersPage() {
   const [step, setStep] = useState(0);
   const [activeCarrier, setActiveCarrier] = useState<DataCarrierResponse | null>(null);
   const [preSalePack, setPreSalePack] = useState<DataCarrierPreSalePackResponse | null>(null);
+  const [preflightResult, setPreflightResult] = useState<DataCarrierValidationResponse | null>(null);
+  const [qaReport, setQaReport] = useState<DataCarrierQAResponse | null>(null);
+  const [qaLoading, setQaLoading] = useState(false);
 
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -231,6 +239,57 @@ export default function DataCarriersPage() {
     return null;
   })();
 
+  const buildPreflightPayload = (): DataCarrierValidationRequest => {
+    let payload = '';
+    if (identifierScheme === 'direct_url') {
+      payload = directUrl.trim();
+    } else if (identifierScheme === 'gs1_gtin') {
+      const normalizedGtin = gtin.replace(/\D/g, '');
+      payload = `https://id.gs1.org/01/${normalizedGtin}`;
+      if (identityLevel === 'batch' && batch.trim()) {
+        payload += `/10/${encodeURIComponent(batch.trim())}`;
+      } else if (identityLevel === 'item' && serial.trim()) {
+        payload += `/21/${encodeURIComponent(serial.trim())}`;
+        if (batch.trim()) {
+          payload += `/10/${encodeURIComponent(batch.trim())}`;
+        }
+      }
+    } else {
+      const params = new URLSearchParams();
+      if (manufacturerPartId.trim()) params.set('mid', manufacturerPartId.trim());
+      if (serial.trim()) params.set('sn', serial.trim());
+      if (batch.trim()) params.set('batchId', batch.trim());
+      payload = `https://example.com/dpp?${params.toString()}`;
+    }
+
+    return {
+      carrier_type: carrierType,
+      payload,
+      layout_profile: {
+        size,
+        foreground_color: foregroundColor,
+        background_color: backgroundColor,
+        include_text: includeText,
+        text_label: textLabel || undefined,
+        error_correction: 'H',
+        quiet_zone_modules: 4,
+        nfc_memory_bytes: 512,
+      },
+    };
+  };
+
+  const loadCarrierQa = async (carrierId: string) => {
+    setQaLoading(true);
+    try {
+      const report = await getCarrierQa(carrierId);
+      setQaReport(report);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load QA report');
+    } finally {
+      setQaLoading(false);
+    }
+  };
+
   const createManagedCarrier = async () => {
     if (!token || !selectedDpp) return;
     if (identifierValidationError) {
@@ -241,6 +300,15 @@ export default function DataCarriersPage() {
     setSaving(true);
     setError(null);
     try {
+      const preflight = await validateCarrierPayload(buildPreflightPayload());
+      setPreflightResult(preflight);
+      if (!preflight.valid) {
+        const message =
+          (preflight.warnings ?? []).join(' | ') || 'Carrier preflight validation failed.';
+        setError(message);
+        return;
+      }
+
       const payload: DataCarrierCreateRequest = {
         dpp_id: selectedDpp,
         identity_level: identityLevel,
@@ -277,6 +345,7 @@ export default function DataCarriersPage() {
       await loadCarriers();
       setStep(Math.max(step, 4));
       await renderManagedPreview(created.id, 'png');
+      await loadCarrierQa(created.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create data carrier');
     } finally {
@@ -353,6 +422,7 @@ export default function DataCarriersPage() {
 
       setActiveCarrier(updated);
       await loadCarriers();
+      await loadCarrierQa(updated.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : `Failed to ${action} carrier`);
     } finally {
@@ -509,6 +579,8 @@ export default function DataCarriersPage() {
                     setSelectedDpp(e.target.value);
                     setActiveCarrier(null);
                     setPreSalePack(null);
+                    setPreflightResult(null);
+                    setQaReport(null);
                     setLegacyError(null);
                     setLegacyNotice(null);
                   }}
@@ -747,7 +819,36 @@ export default function DataCarriersPage() {
                       <Download className="h-4 w-4 mr-2" />
                       Download {outputType.toUpperCase()}
                     </Button>
+                    <Button variant="outline" onClick={() => void loadCarrierQa(activeCarrier.id)} disabled={qaLoading}>
+                      {qaLoading ? 'Running QA...' : 'Refresh QA'}
+                    </Button>
                   </div>
+
+                  {preflightResult && (
+                    <Alert className={preflightResult.valid ? 'border-emerald-300 bg-emerald-50' : 'border-amber-300 bg-amber-50'}>
+                      <AlertDescription>
+                        <div className="text-sm font-medium">
+                          Preflight: {preflightResult.valid ? 'pass' : 'fail'}
+                        </div>
+                        {(preflightResult.warnings ?? []).length > 0 && (
+                          <div className="mt-1 text-xs">
+                            {(preflightResult.warnings ?? []).join(' | ')}
+                          </div>
+                        )}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {qaReport && (
+                    <div className="space-y-2 rounded-md border p-3">
+                      <div className="text-sm font-medium">QA checks</div>
+                      {qaReport.checks.map((check) => (
+                        <div key={check.check_type} className="text-xs">
+                          <strong>{check.check_type}</strong>: {check.passed ? 'pass' : 'fail'} ({check.severity}) - {check.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {previewUrl && <img src={previewUrl} alt="Managed carrier preview" className="max-h-[280px] border rounded-md p-3 bg-white" />}
                 </>
@@ -858,6 +959,7 @@ export default function DataCarriersPage() {
                   className={`w-full text-left border rounded-md p-3 ${activeCarrier?.id === carrier.id ? 'border-primary bg-primary/5' : 'border-border'}`}
                   onClick={() => {
                     setActiveCarrier(carrier);
+                    void loadCarrierQa(carrier.id);
                     setPreSalePack(null);
                   }}
                 >
