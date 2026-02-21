@@ -2,6 +2,14 @@
 # Automatically obtains and renews Let's Encrypt TLS certificates.
 
 dpp-platform.dev {
+	# GS1 resolver description and root Digital Link paths
+	handle /.well-known/gs1resolver {
+		reverse_proxy backend:8000
+	}
+	handle /01/* {
+		reverse_proxy backend:8000
+	}
+
 	# Public API (unauthenticated) — allow caching
 	handle /api/v1/public/* {
 		reverse_proxy backend:8000

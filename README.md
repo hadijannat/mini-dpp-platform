@@ -144,6 +144,7 @@ Rollout/backfill guidance:
 | Exports & Carriers | `export`, `qr`, `data_carriers` | `publisher` (multi-select export, batch) |
 | Compliance & Audit | `compliance`, `audit` | `compliance`, `audit` |
 | Supply Chain Events | `epcis`, `digital_thread`, `lca` | `epcis` |
+| RFID / TDS 2.3 | `rfid`, `tenant_domains`, `resolver`, `data_carriers` | `publisher` |
 | OPC UA Integration | `opcua` (sources, nodesets, mappings, dataspace) | `opcua` (4-tab CRUD page) |
 | Dataspace & Registry | `connectors`, `registry`, `resolver`, `credentials`, `dataspace` | `connectors`, admin pages |
 | Sharing & Activity | `shares`, `activity` | `activity` |
@@ -208,6 +209,12 @@ npm run generate-api
 - **Monitoring**: Prometheus + Grafana (4 dashboards) + Alertmanager (`infra/monitoring/`)
 - **Reverse proxy**: Caddy for production HTTPS termination and routing (`Caddyfile`)
 - **Keycloak realm**: `infra/keycloak/realm-export/dpp-platform-realm.json`
+
+## RFID TDS Sidecar and Licensing
+
+- RFID TDS 2.3 encode/decode is provided by the `services/rfid-tds` sidecar using the `TagDataTranslation` package.
+- Configure backend connectivity with `RFID_TDS_SERVICE_URL` and `RFID_TDS_TIMEOUT_SECONDS`.
+- `TagDataTranslation` is published under AGPL/commercial terms; verify your deployment/license posture before production rollout.
 
 ## Cryptographic Security
 

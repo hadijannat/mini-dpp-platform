@@ -27,6 +27,8 @@ from app.db.models import (
     ExternalIdentifierStatus,
     IdentifierEntityType,
     ResolverLink,
+    TenantDomain,
+    TenantDomainStatus,
 )
 from app.db.models import (
     DataCarrierIdentifierScheme as DataCarrierIdentifierSchemeDB,
@@ -68,6 +70,8 @@ from app.modules.data_carriers.schemas import (
 )
 from app.modules.qr.service import QRCodeService
 from app.modules.resolver.schemas import LinkType
+from app.modules.rfid.schemas import RFIDEncodeRequest
+from app.modules.rfid.service import RFIDService
 from app.standards.cen_pren.data_carriers_18220.renderers import (
     DataMatrixRenderer,
     NFCRenderer,
@@ -102,8 +106,10 @@ class DataCarrierService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._settings = get_settings()
+        self._resolver_base_url_override: str | None = None
         self._qr = QRCodeService()
         self._identifier_service = IdentifierService(session)
+        self._rfid_service = RFIDService(session)
         self._qr_renderer = QRRenderer()
         self._datamatrix_renderer = DataMatrixRenderer()
         self._nfc_renderer = NFCRenderer()
@@ -116,6 +122,12 @@ class DataCarrierService:
         created_by: str,
         request: DataCarrierCreateRequest,
     ) -> DataCarrier:
+        await self._prime_resolver_base_url(tenant_id)
+        if (
+            request.identifier_scheme == DataCarrierIdentifierScheme.GS1_EPC_TDS23
+            and request.carrier_type != DataCarrierType.RFID
+        ):
+            raise DataCarrierError("gs1_epc_tds23 carriers require carrier_type='rfid'")
         dpp = await self._get_published_dpp(request.dpp_id, tenant_id)
         identifier_key, encoded_uri, normalized_identifier_data, is_gtin_verified = (
             self._build_identifier_representation(
@@ -127,6 +139,12 @@ class DataCarrierService:
                 identifier_data=request.identifier_data,
             )
         )
+        if request.identifier_scheme == DataCarrierIdentifierScheme.GS1_EPC_TDS23:
+            normalized_identifier_data, encoded_uri = await self._encode_rfid_payload(
+                tenant_id=tenant_id,
+                identifier_data=normalized_identifier_data,
+                encoded_uri=encoded_uri,
+            )
 
         external_identifier_id = await self._register_external_identifier_for_carrier(
             tenant_id=tenant_id,
@@ -150,7 +168,11 @@ class DataCarrierService:
             identifier_data=normalized_identifier_data,
             external_identifier_id=external_identifier_id,
             encoded_uri=encoded_uri,
-            payload_sha256=self._hash_payload(encoded_uri),
+            payload_sha256=self._hash_payload(
+                normalized_identifier_data.get("epc_hex", encoded_uri)
+                if request.identifier_scheme == DataCarrierIdentifierScheme.GS1_EPC_TDS23
+                else encoded_uri
+            ),
             layout_profile=request.layout_profile.model_dump(exclude_none=True),
             placement_metadata=request.placement_metadata.model_dump(exclude_none=True),
             pre_sale_enabled=request.pre_sale_enabled,
@@ -219,15 +241,25 @@ class DataCarrierService:
         request: DataCarrierUpdateRequest,
         updated_by: str,
     ) -> DataCarrier:
+        await self._prime_resolver_base_url(tenant_id)
         carrier = await self.get_carrier(carrier_id, tenant_id)
         if carrier is None:
             raise DataCarrierError("Carrier not found")
 
         if request.carrier_type is not None:
+            if (
+                carrier.identifier_scheme == DataCarrierIdentifierSchemeDB.GS1_EPC_TDS23
+                and request.carrier_type != DataCarrierType.RFID
+            ):
+                raise DataCarrierError("gs1_epc_tds23 carriers require carrier_type='rfid'")
             carrier.carrier_type = DataCarrierTypeDB(request.carrier_type.value)
         if request.resolver_strategy is not None:
             if (
-                carrier.identifier_scheme == DataCarrierIdentifierSchemeDB.GS1_GTIN
+                carrier.identifier_scheme
+                in {
+                    DataCarrierIdentifierSchemeDB.GS1_GTIN,
+                    DataCarrierIdentifierSchemeDB.GS1_EPC_TDS23,
+                }
                 and request.resolver_strategy.value
                 != DataCarrierResolverStrategy.DYNAMIC_LINKSET.value
             ):
@@ -263,6 +295,7 @@ class DataCarrierService:
         request: DataCarrierDeprecateRequest,
         updated_by: str,
     ) -> DataCarrier:
+        await self._prime_resolver_base_url(tenant_id)
         carrier = await self.get_carrier(carrier_id, tenant_id)
         if carrier is None:
             raise DataCarrierError("Carrier not found")
@@ -296,6 +329,7 @@ class DataCarrierService:
         request: DataCarrierWithdrawRequest,
         updated_by: str,
     ) -> DataCarrier:
+        await self._prime_resolver_base_url(tenant_id)
         carrier = await self.get_carrier(carrier_id, tenant_id)
         if carrier is None:
             raise DataCarrierError("Carrier not found")
@@ -323,6 +357,7 @@ class DataCarrierService:
         request: DataCarrierReissueRequest,
         updated_by: str,
     ) -> DataCarrier:
+        await self._prime_resolver_base_url(tenant_id)
         old = await self.get_carrier(carrier_id, tenant_id)
         if old is None:
             raise DataCarrierError("Carrier not found")
@@ -331,6 +366,13 @@ class DataCarrierService:
         old.status = DataCarrierStatusDB.WITHDRAWN
         old.withdrawn_reason = "reissued"
         await self._session.flush()
+
+        if (
+            old.identifier_scheme == DataCarrierIdentifierSchemeDB.GS1_EPC_TDS23
+            and request.carrier_type is not None
+            and request.carrier_type != DataCarrierType.RFID
+        ):
+            raise DataCarrierError("gs1_epc_tds23 carriers require carrier_type='rfid'")
 
         new_carrier = DataCarrier(
             tenant_id=old.tenant_id,
@@ -463,6 +505,58 @@ class DataCarrierService:
             )
             media_type = "application/vnd.ndef"
             extension = "ndef"
+        elif carrier.carrier_type == DataCarrierTypeDB.RFID:
+            epc_hex = str((carrier.identifier_data or {}).get("epc_hex", "")).strip()
+            if output == "json":
+                payload_json = {
+                    "carrier_id": str(carrier.id),
+                    "dpp_id": str(carrier.dpp_id),
+                    "tds_scheme": (carrier.identifier_data or {}).get("tds_scheme", "sgtin++"),
+                    "epc_hex": epc_hex,
+                    "digital_link": carrier.encoded_uri,
+                    "tag_length": (carrier.identifier_data or {}).get("tag_length"),
+                    "filter": (carrier.identifier_data or {}).get("filter"),
+                    "gs1_company_prefix_length": (carrier.identifier_data or {}).get(
+                        "gs1_company_prefix_length"
+                    ),
+                }
+                import json
+
+                payload = json.dumps(payload_json, indent=2).encode("utf-8")
+                media_type = "application/json"
+                extension = "json"
+            elif output == "csv":
+                csv_io = io.StringIO()
+                writer = csv.writer(csv_io)
+                writer.writerow(
+                    [
+                        "carrier_id",
+                        "dpp_id",
+                        "tds_scheme",
+                        "epc_hex",
+                        "digital_link",
+                        "tag_length",
+                        "filter",
+                        "gs1_company_prefix_length",
+                    ]
+                )
+                writer.writerow(
+                    [
+                        str(carrier.id),
+                        str(carrier.dpp_id),
+                        (carrier.identifier_data or {}).get("tds_scheme", "sgtin++"),
+                        epc_hex,
+                        carrier.encoded_uri,
+                        (carrier.identifier_data or {}).get("tag_length", ""),
+                        (carrier.identifier_data or {}).get("filter", ""),
+                        (carrier.identifier_data or {}).get("gs1_company_prefix_length", ""),
+                    ]
+                )
+                payload = csv_io.getvalue().encode("utf-8")
+                media_type = "text/csv"
+                extension = "csv"
+            else:
+                raise DataCarrierError("RFID carriers support output types 'json' or 'csv'")
         else:
             raise DataCarrierError(f"Unsupported carrier type: {carrier.carrier_type.value}")
 
@@ -572,6 +666,10 @@ class DataCarrierService:
             elif request.carrier_type == DataCarrierType.NFC:
                 self._nfc_renderer.validate_payload(request.payload, profile)
                 details["nfc_memory_bytes"] = profile.get("nfc_memory_bytes", 512)
+            elif request.carrier_type == DataCarrierType.RFID:
+                # RFID programming payload is generated server-side from identifier metadata.
+                details["expected_payload"] = "epc_hex"
+                details["input_mode"] = "metadata_driven"
             else:
                 valid = False
                 warnings.append(f"Unsupported carrier type: {request.carrier_type.value}")
@@ -661,6 +759,18 @@ class DataCarrierService:
                     severity="error" if required > memory else "info",
                     message=f"NFC capacity {required}/{memory} bytes",
                     details={"required_bytes": required, "nfc_memory_bytes": memory},
+                )
+            )
+        if carrier.carrier_type == DataCarrierTypeDB.RFID:
+            epc_hex = str((carrier.identifier_data or {}).get("epc_hex", "")).strip()
+            checks.append(
+                DataCarrierQACheckResult(
+                    check_type="rfid_epc_hex_present",
+                    passed=bool(epc_hex),
+                    severity="error" if not epc_hex else "info",
+                    message=(
+                        "RFID EPC payload is present" if epc_hex else "RFID EPC payload is missing"
+                    ),
                 )
             )
 
@@ -758,6 +868,9 @@ class DataCarrierService:
         if identifier_scheme == DataCarrierIdentifierScheme.GS1_GTIN:
             value_raw = normalized_identifier_data.get("gtin", "").strip()
             scheme_code = "gs1_gtin"
+        elif identifier_scheme == DataCarrierIdentifierScheme.GS1_EPC_TDS23:
+            value_raw = encoded_uri
+            scheme_code = "gs1_epc_tds23"
         elif identifier_scheme == DataCarrierIdentifierScheme.IEC61406:
             value_raw = encoded_uri
             scheme_code = "iec61406"
@@ -803,6 +916,14 @@ class DataCarrierService:
                 raise DataCarrierError("GS1 carriers require resolver_strategy='dynamic_linkset'")
             return self._build_gs1_identifier(
                 identity_level=identity_level, identifier_data=identifier_data
+            )
+
+        if identifier_scheme == DataCarrierIdentifierScheme.GS1_EPC_TDS23:
+            if resolver_strategy != DataCarrierResolverStrategy.DYNAMIC_LINKSET:
+                raise DataCarrierError("GS1 carriers require resolver_strategy='dynamic_linkset'")
+            return self._build_rfid_identifier(
+                identity_level=identity_level,
+                identifier_data=identifier_data,
             )
 
         if identifier_scheme == DataCarrierIdentifierScheme.IEC61406:
@@ -908,6 +1029,47 @@ class DataCarrierService:
 
         return key, encoded_uri, data, False
 
+    def _build_rfid_identifier(
+        self,
+        *,
+        identity_level: DataCarrierIdentityLevel,
+        identifier_data: DataCarrierIdentifierData,
+    ) -> tuple[str, str, dict[str, str], bool]:
+        if identity_level != DataCarrierIdentityLevel.ITEM:
+            raise DataCarrierError("RFID SGTIN++ carriers currently support item level only")
+
+        gtin_raw = "".join(filter(str.isdigit, (identifier_data.gtin or "")))
+        if not gtin_raw:
+            raise DataCarrierError("GTIN is required for gs1_epc_tds23 carriers")
+        if not QRCodeService.validate_gtin(gtin_raw):
+            raise DataCarrierError("GTIN must include a valid GS1 check digit")
+
+        serial = (identifier_data.serial or "").strip()
+        if not serial:
+            raise DataCarrierError("Serial is required for gs1_epc_tds23 carriers")
+
+        domain = (identifier_data.domain or "").strip().lower().rstrip(".")
+        if not domain:
+            resolver_base = self._resolve_resolver_base_url()
+            parsed = urlparse(resolver_base)
+            domain = (parsed.hostname or "").strip().lower()
+        if not domain:
+            raise DataCarrierError("Domain is required for gs1_epc_tds23 carriers")
+
+        key = f"01/{quote(gtin_raw, safe='')}/21/{quote(serial, safe='')}"
+        encoded_uri = f"https://{domain}/{key}"
+        data = {
+            "gtin": gtin_raw,
+            "serial": serial,
+            "domain": domain,
+            "tds_scheme": (identifier_data.tds_scheme or "sgtin++"),
+            "tag_length": str(identifier_data.tag_length or 96),
+            "filter": str(identifier_data.filter if identifier_data.filter is not None else 3),
+        }
+        if identifier_data.gs1_company_prefix_length is not None:
+            data["gs1_company_prefix_length"] = str(identifier_data.gs1_company_prefix_length)
+        return key, encoded_uri, data, True
+
     def _build_direct_url_identifier(
         self,
         identifier_data: DataCarrierIdentifierData,
@@ -924,7 +1086,62 @@ class DataCarrierService:
         key = f"direct_url:{digest}"
         return key, url, {"direct_url": url}, False
 
+    async def _prime_resolver_base_url(self, tenant_id: UUID) -> None:
+        self._resolver_base_url_override = None
+        result = await self._session.execute(
+            select(TenantDomain.hostname).where(
+                TenantDomain.tenant_id == tenant_id,
+                TenantDomain.status == TenantDomainStatus.ACTIVE,
+                TenantDomain.is_primary.is_(True),
+            )
+        )
+        hostname = result.scalar_one_or_none()
+        if hostname:
+            self._resolver_base_url_override = f"https://{hostname.rstrip('.')}"
+
+    async def _encode_rfid_payload(
+        self,
+        *,
+        tenant_id: UUID,
+        identifier_data: dict[str, str],
+        encoded_uri: str,
+    ) -> tuple[dict[str, str], str]:
+        gtin = identifier_data.get("gtin")
+        serial = identifier_data.get("serial")
+        domain = identifier_data.get("domain")
+        if not gtin or not serial:
+            raise DataCarrierError("RFID identifier data requires gtin and serial")
+
+        response = await self._rfid_service.encode(
+            tenant_id=tenant_id,
+            request=RFIDEncodeRequest(
+                tds_scheme=identifier_data.get("tds_scheme", "sgtin++"),
+                hostname=domain,
+                digital_link=encoded_uri,
+                gtin=gtin,
+                serial=serial,
+                tag_length=int(identifier_data.get("tag_length", "96")),
+                filter=int(identifier_data.get("filter", "3")),
+                gs1_company_prefix_length=(
+                    int(identifier_data["gs1_company_prefix_length"])
+                    if identifier_data.get("gs1_company_prefix_length")
+                    else None
+                ),
+            ),
+        )
+        if not response.epc_hex:
+            raise DataCarrierError("RFID encoder did not return EPC hex")
+        updated = dict(identifier_data)
+        updated["epc_hex"] = response.epc_hex
+        if response.hostname:
+            updated["domain"] = response.hostname
+        if response.digital_link:
+            encoded_uri = response.digital_link
+        return updated, encoded_uri
+
     def _resolve_resolver_base_url(self) -> str:
+        if self._resolver_base_url_override:
+            return self._resolver_base_url_override.rstrip("/")
         if self._settings.resolver_base_url:
             return self._settings.resolver_base_url.rstrip("/")
 
@@ -946,12 +1163,25 @@ class DataCarrierService:
             f"/carriers/{carrier_id}/withdrawn"
         )
 
-    def _validate_managed_href(self, href: str) -> None:
+    async def _validate_managed_href(self, href: str) -> None:
         parsed = urlparse(href)
         if parsed.scheme not in ("http", "https"):
             raise DataCarrierError("Managed resolver href must use http/https")
+        hostname = (parsed.hostname or "").lower()
         allowlist = self._settings.carrier_resolver_allowed_hosts_all
-        if allowlist and (parsed.hostname or "") not in allowlist:
+        if allowlist and hostname in allowlist:
+            return
+        if not allowlist:
+            return
+        if not hostname:
+            raise DataCarrierError("Managed resolver href host is invalid")
+        domain_match = await self._session.execute(
+            select(TenantDomain.id).where(
+                TenantDomain.hostname == hostname,
+                TenantDomain.status == TenantDomainStatus.ACTIVE,
+            )
+        )
+        if domain_match.scalar_one_or_none() is None:
             raise DataCarrierError("Managed resolver href host is not in allowlist")
 
     async def _sync_resolver_links(
@@ -963,7 +1193,10 @@ class DataCarrierService:
         updated_by: str,
         withdrawal_url: str | None,
     ) -> None:
-        if carrier.identifier_scheme != DataCarrierIdentifierSchemeDB.GS1_GTIN:
+        if carrier.identifier_scheme not in {
+            DataCarrierIdentifierSchemeDB.GS1_GTIN,
+            DataCarrierIdentifierSchemeDB.GS1_EPC_TDS23,
+        }:
             await self._deactivate_managed_links_for_carrier(carrier.id, carrier.tenant_id)
             return
 
@@ -972,7 +1205,7 @@ class DataCarrierService:
             return
 
         dpp_href = self._resolve_public_api_url(tenant_slug=tenant_slug, dpp_id=dpp.id)
-        self._validate_managed_href(dpp_href)
+        await self._validate_managed_href(dpp_href)
 
         recall_href = (
             withdrawal_url
@@ -982,7 +1215,7 @@ class DataCarrierService:
                 carrier_id=carrier.id,
             )
         )
-        self._validate_managed_href(recall_href)
+        await self._validate_managed_href(recall_href)
 
         has_dpp = await self._get_or_create_managed_link(
             tenant_id=carrier.tenant_id,

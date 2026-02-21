@@ -22,7 +22,11 @@ class DataCarrierComplianceProfile(BaseModel):
 
     name: str = Field(default="generic_espr_v1", min_length=3, max_length=64)
     allowed_carrier_types: list[DataCarrierType] = Field(
-        default_factory=lambda: [DataCarrierType.QR, DataCarrierType.DATAMATRIX]
+        default_factory=lambda: [
+            DataCarrierType.QR,
+            DataCarrierType.DATAMATRIX,
+            DataCarrierType.RFID,
+        ]
     )
     default_identity_level: DataCarrierIdentityLevel = DataCarrierIdentityLevel.ITEM
     allowed_identity_levels: list[DataCarrierIdentityLevel] = Field(
@@ -35,6 +39,7 @@ class DataCarrierComplianceProfile(BaseModel):
     allowed_identifier_schemes: list[DataCarrierIdentifierScheme] = Field(
         default_factory=lambda: [
             DataCarrierIdentifierScheme.GS1_GTIN,
+            DataCarrierIdentifierScheme.GS1_EPC_TDS23,
             DataCarrierIdentifierScheme.IEC61406,
             DataCarrierIdentifierScheme.DIRECT_URL,
         ]

@@ -51,10 +51,12 @@ from app.modules.regulatory_timeline.public_router import (
 )
 from app.modules.resolver.public_router import router as public_resolver_router
 from app.modules.resolver.router import router as resolver_router
+from app.modules.rfid.router import router as rfid_router
 from app.modules.settings.router import router as settings_router
 from app.modules.shares.router import router as shares_router
 from app.modules.templates.public_router import router as public_smt_router
 from app.modules.templates.router import router as templates_router
+from app.modules.tenant_domains.router import router as tenant_domains_router
 from app.modules.tenants.router import router as tenants_router
 from app.modules.webhooks.router import router as webhooks_router
 
@@ -242,6 +244,12 @@ window.onload = function() {{
         tags=["GS1 Resolver"],
     )
     app.include_router(
+        public_resolver_router,
+        prefix="",
+        tags=["GS1 Resolver Root"],
+        include_in_schema=False,
+    )
+    app.include_router(
         public_credentials_router,
         prefix=f"{settings.api_v1_prefix}/public",
         tags=["Public Credentials"],
@@ -313,6 +321,11 @@ window.onload = function() {{
         tags=["Connectors"],
     )
     app.include_router(
+        tenant_domains_router,
+        prefix=f"{tenant_prefix}/domains",
+        tags=["Tenant Domains"],
+    )
+    app.include_router(
         dataspace_router,
         prefix=f"{tenant_prefix}/dataspace",
         tags=["Dataspace"],
@@ -341,6 +354,11 @@ window.onload = function() {{
         data_carriers_router,
         prefix=f"{tenant_prefix}/data-carriers",
         tags=["Data Carriers"],
+    )
+    app.include_router(
+        rfid_router,
+        prefix=f"{tenant_prefix}/rfid",
+        tags=["RFID"],
     )
     if settings.cen_dpp_enabled:
         app.include_router(

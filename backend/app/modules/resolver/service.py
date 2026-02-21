@@ -123,12 +123,15 @@ class ResolverService:
         identifier: str,
         link_type_filter: str | None = None,
         limit: int = 100,
+        tenant_id: UUID | None = None,
     ) -> list[ResolverLink]:
-        """Resolve an identifier to active links across all tenants."""
+        """Resolve an identifier to active links."""
         stmt = select(ResolverLink).where(
             ResolverLink.identifier == identifier,
             ResolverLink.active.is_(True),
         )
+        if tenant_id is not None:
+            stmt = stmt.where(ResolverLink.tenant_id == tenant_id)
         if link_type_filter:
             stmt = stmt.where(ResolverLink.link_type == link_type_filter)
         stmt = stmt.order_by(ResolverLink.priority.desc(), ResolverLink.created_at)

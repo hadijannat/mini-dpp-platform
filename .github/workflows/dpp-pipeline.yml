@@ -42,7 +42,33 @@ jobs:
           IDTA_TEMPLATES_GITHUB_TOKEN: ${{ github.token }}
           IDTA_TEMPLATES_REPO_REF: 1d4e0b45469f9260228ca6e99ff907c670476e2a
           ENCRYPTION_MASTER_KEY: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
-        run: docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build
+        run: |
+          set -euo pipefail
+          SERVICES=(
+            postgres
+            redis
+            keycloak
+            opa
+            minio
+            backend
+            frontend
+            opcua-agent
+            edc-postgres
+            vault
+            edc-controlplane
+            edc-dataplane
+          )
+          for attempt in 1 2 3; do
+            echo "Starting stack (attempt ${attempt}/3)..."
+            if docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build "${SERVICES[@]}"; then
+              exit 0
+            fi
+            echo "Compose startup failed on attempt ${attempt}; retrying after cleanup..."
+            docker compose -f docker-compose.yml -f docker-compose.edc.yml down -v || true
+            sleep $((attempt * 20))
+          done
+          echo "ERROR: failed to start stack after 3 attempts"
+          exit 1
 
       - name: Wait for backend health
         run: |

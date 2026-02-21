@@ -56,6 +56,7 @@ def app(mock_db: AsyncMock) -> FastAPI:
     """Create test FastAPI app with public resolver routes."""
     test_app = FastAPI()
     test_app.include_router(router, prefix="/resolve")
+    test_app.include_router(router, prefix="", include_in_schema=False)
 
     async def _override_db() -> Any:
         yield mock_db
@@ -82,7 +83,7 @@ class TestResolverDescription:
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Mini DPP Platform GS1 Digital Link Resolver"
-        assert data["resolverRoot"] == "https://resolver.example.com"
+        assert data["resolverRoot"] == "http://testserver"
         assert len(data["supportedLinkTypes"]) == len(LinkType)
 
 
@@ -126,7 +127,11 @@ class TestResolutionEndpoints:
         response = client.get("/resolve/01/09520123456788/21/SER001", follow_redirects=False)
         assert response.status_code == 307
         assert response.headers["location"] == link.href
-        mock_resolve.assert_called_once_with("01/09520123456788/21/SER001", link_type_filter=None)
+        mock_resolve.assert_called_once_with(
+            "01/09520123456788/21/SER001",
+            link_type_filter=None,
+            tenant_id=None,
+        )
 
     @patch("app.modules.resolver.public_router.get_settings")
     @patch("app.modules.resolver.service.ResolverService.resolve", new_callable=AsyncMock)
@@ -234,6 +239,7 @@ class TestResolutionEndpoints:
         mock_resolve.assert_called_once_with(
             "01/09520123456788/21/SER001",
             link_type_filter=LinkType.CERTIFICATION_INFO.value,
+            tenant_id=None,
         )
 
     @patch("app.modules.resolver.public_router.get_settings")
@@ -265,3 +271,63 @@ class TestResolutionEndpoints:
         response = client.get("/resolve/01/09520123456788/21/SER001", follow_redirects=False)
         assert response.status_code == 307
         assert response.headers["location"] == "https://dpp.example.com"
+
+    @patch("app.modules.resolver.public_router.get_settings")
+    @patch(
+        "app.modules.tenant_domains.service.TenantDomainService.resolve_active_tenant_by_hostname",
+        new_callable=AsyncMock,
+    )
+    @patch("app.modules.resolver.service.ResolverService.resolve", new_callable=AsyncMock)
+    def test_root_route_requires_active_domain(
+        self,
+        mock_resolve: AsyncMock,
+        mock_resolve_domain: AsyncMock,
+        mock_settings: MagicMock,
+        client: TestClient,
+    ) -> None:
+        settings = MagicMock()
+        settings.resolver_base_url = "https://resolver.example.com"
+        settings.api_v1_prefix = "/api/v1"
+        settings.trusted_proxy_cidrs = []
+        mock_settings.return_value = settings
+
+        mock_resolve_domain.return_value = None
+        response = client.get("/01/09520123456788/21/SER001", follow_redirects=False)
+        assert response.status_code == 404
+        mock_resolve.assert_not_called()
+
+    @patch("app.modules.resolver.public_router.get_settings")
+    @patch(
+        "app.modules.tenant_domains.service.TenantDomainService.resolve_active_tenant_by_hostname",
+        new_callable=AsyncMock,
+    )
+    @patch("app.modules.resolver.service.ResolverService.resolve", new_callable=AsyncMock)
+    def test_root_route_scopes_to_tenant(
+        self,
+        mock_resolve: AsyncMock,
+        mock_resolve_domain: AsyncMock,
+        mock_settings: MagicMock,
+        client: TestClient,
+    ) -> None:
+        settings = MagicMock()
+        settings.resolver_base_url = "https://resolver.example.com"
+        settings.api_v1_prefix = "/api/v1"
+        settings.trusted_proxy_cidrs = []
+        settings.db_admin_role = None
+        mock_settings.return_value = settings
+
+        tenant_id = uuid4()
+        mock_resolve_domain.return_value = tenant_id
+        mock_resolve.return_value = [_make_link()]
+
+        response = client.get(
+            "/01/09520123456788/21/SER001",
+            headers={"host": "acme.example.com"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 307
+        mock_resolve.assert_called_once_with(
+            "01/09520123456788/21/SER001",
+            link_type_filter=None,
+            tenant_id=tenant_id,
+        )

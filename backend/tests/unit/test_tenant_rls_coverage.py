@@ -95,6 +95,11 @@ _RLS_0041_0043 = {
     "data_carrier_quality_checks",
 }
 
+# Tables with RLS from migration 0045
+_RLS_0045 = {
+    "tenant_domains",
+}
+
 TABLES_WITH_RLS = (
     _RLS_0005
     | _RLS_0008_0009
@@ -107,7 +112,13 @@ TABLES_WITH_RLS = (
     | _RLS_0035
     | _RLS_0036
     | _RLS_0041_0043
+    | _RLS_0045
 )
+
+# Tenant-scoped tables that do not currently inherit TenantScopedMixin.
+EXPLICIT_TENANT_SCOPED_TABLES = {
+    "tenant_domains",
+}
 
 
 def _tenant_scoped_tables() -> set[str]:
@@ -128,7 +139,7 @@ def _tenant_scoped_tables() -> set[str]:
 class TestTenantRLSCoverage:
     def test_all_tenant_scoped_models_have_rls(self) -> None:
         """Every model with TenantScopedMixin must have a corresponding RLS policy."""
-        tenant_tables = _tenant_scoped_tables()
+        tenant_tables = _tenant_scoped_tables() | EXPLICIT_TENANT_SCOPED_TABLES
         missing = tenant_tables - TABLES_WITH_RLS
         assert not missing, (
             f"TenantScopedMixin models missing RLS policies: {sorted(missing)}. "
@@ -137,7 +148,7 @@ class TestTenantRLSCoverage:
 
     def test_no_stale_rls_entries(self) -> None:
         """TABLES_WITH_RLS should not contain tables that no longer exist."""
-        tenant_tables = _tenant_scoped_tables()
+        tenant_tables = _tenant_scoped_tables() | EXPLICIT_TENANT_SCOPED_TABLES
         stale = TABLES_WITH_RLS - tenant_tables
         assert not stale, (
             f"TABLES_WITH_RLS contains tables not in ORM: {sorted(stale)}. "

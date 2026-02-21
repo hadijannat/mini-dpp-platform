@@ -151,6 +151,14 @@ class TenantStatus(str, PyEnum):
     DISABLED = "disabled"
 
 
+class TenantDomainStatus(str, PyEnum):
+    """Lifecycle status for tenant-managed resolver domains."""
+
+    PENDING = "pending"
+    ACTIVE = "active"
+    DISABLED = "disabled"
+
+
 class TenantRole(str, PyEnum):
     """Roles scoped to a tenant."""
 
@@ -196,6 +204,7 @@ class DataCarrierIdentifierScheme(str, PyEnum):
     """Identifier scheme encoded by a data carrier."""
 
     GS1_GTIN = "gs1_gtin"
+    GS1_EPC_TDS23 = "gs1_epc_tds23"
     IEC61406 = "iec61406"
     DIRECT_URL = "direct_url"
 
@@ -206,6 +215,7 @@ class DataCarrierType(str, PyEnum):
     QR = "qr"
     DATAMATRIX = "datamatrix"
     NFC = "nfc"
+    RFID = "rfid"
 
 
 class DataCarrierResolverStrategy(str, PyEnum):
@@ -341,11 +351,81 @@ class Tenant(Base):
         back_populates="tenant",
         cascade="all, delete-orphan",
     )
+    domains: Mapped[list["TenantDomain"]] = relationship(
+        back_populates="tenant",
+        cascade="all, delete-orphan",
+        order_by="TenantDomain.created_at.desc()",
+    )
 
     __table_args__ = (
         Index("ix_tenants_slug", "slug"),
         Index("ix_tenants_status", "status"),
         UniqueConstraint("slug", name="uq_tenants_slug"),
+    )
+
+
+class TenantDomain(Base):
+    """Custom resolver domain bound to a tenant."""
+
+    __tablename__ = "tenant_domains"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    hostname: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+        comment="Normalized hostname (lowercase, no scheme/path/port)",
+    )
+    status: Mapped[TenantDomainStatus] = mapped_column(
+        Enum(TenantDomainStatus, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=TenantDomainStatus.PENDING,
+    )
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+    verification_method: Mapped[str | None] = mapped_column(
+        String(32),
+        nullable=True,
+    )
+    verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    created_by_subject: Mapped[str] = mapped_column(
+        String(255),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    tenant: Mapped["Tenant"] = relationship(back_populates="domains")
+
+    __table_args__ = (
+        UniqueConstraint("hostname", name="uq_tenant_domains_hostname"),
+        Index("ix_tenant_domains_status", "status"),
+        Index(
+            "uq_tenant_domains_one_active_primary",
+            "tenant_id",
+            unique=True,
+            postgresql_where=text("is_primary IS TRUE AND status = 'active'"),
+        ),
     )
 
 

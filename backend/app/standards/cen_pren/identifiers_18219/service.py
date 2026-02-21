@@ -49,7 +49,7 @@ class IdentifierService:
             return "".join(ch for ch in raw if ch.isdigit())
         if scheme == "eori":
             return raw.replace(" ", "").upper()
-        if scheme in {"iec61406", "direct_url", "uri"}:
+        if scheme in {"iec61406", "direct_url", "uri", "gs1_epc_tds23"}:
             parsed = urlparse(raw)
             if not parsed.scheme or not parsed.netloc:
                 raise IdentifierGovernanceError("URI-based identifier must include scheme and host")
@@ -83,6 +83,10 @@ class IdentifierService:
         scheme = scheme_code.strip().lower()
         if scheme in {"gs1_gtin"} and len(value_canonical) not in {8, 12, 13, 14}:
             raise IdentifierGovernanceError("GS1 GTIN must be 8, 12, 13, or 14 digits")
+        if scheme == "gs1_epc_tds23" and "/01/" not in value_canonical:
+            raise IdentifierGovernanceError(
+                "GS1 EPC TDS 2.3 identifiers must be GS1 Digital Link URIs"
+            )
         if scheme == "gln" and len(value_canonical) != 13:
             raise IdentifierGovernanceError("GLN must be 13 digits")
         if scheme == "eori" and len(value_canonical) < 8:

@@ -1,0 +1,491 @@
+using TagDataTranslation;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+app.MapPost("/v1/encode", (EncodeRequest request) =>
+{
+    if (!string.Equals(request.TdsScheme, "sgtin++", StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.BadRequest(new ErrorResponse("unsupported_scheme", "Only sgtin++ is supported"));
+    }
+
+    if (request.TagLength is not (96 or 198))
+    {
+        return Results.BadRequest(new ErrorResponse("invalid_tag_length", "tagLength must be 96 or 198"));
+    }
+    if (request.DataToggle is not (0 or 1))
+    {
+        return Results.BadRequest(new ErrorResponse("invalid_data_toggle", "dataToggle must be 0 or 1"));
+    }
+
+    var digitalLink = request.DigitalLink;
+    if (string.IsNullOrWhiteSpace(digitalLink))
+    {
+        if (string.IsNullOrWhiteSpace(request.Hostname) ||
+            string.IsNullOrWhiteSpace(request.Gtin) ||
+            string.IsNullOrWhiteSpace(request.Serial))
+        {
+            return Results.BadRequest(
+                new ErrorResponse(
+                    "missing_input",
+                    "Provide digitalLink or hostname+gtin+serial"
+                )
+            );
+        }
+
+        digitalLink = BuildDigitalLink(request.Hostname!, request.Gtin!, request.Serial!);
+    }
+
+    var parameters = BuildSgtinPlusPlusParameters(request.Filter, request.DataToggle);
+    var engine = new TDTEngine();
+
+    string? binary = null;
+    string? errorCode = null;
+    if (HasText(request.Hostname) && HasText(request.Gtin) && HasText(request.Serial))
+    {
+        var legacyInput =
+            $"gtin={request.Gtin!};serial={request.Serial!};hostname={request.Hostname!.Trim().ToLowerInvariant()}";
+        if (!engine.TryTranslate(
+                legacyInput,
+                parameters,
+                "BINARY",
+                out binary,
+                out errorCode
+            ) || string.IsNullOrWhiteSpace(binary))
+        {
+            binary = null;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(binary) &&
+        (!engine.TryTranslate(
+                digitalLink!,
+                parameters,
+                "BINARY",
+                out binary,
+                out errorCode
+            ) || string.IsNullOrWhiteSpace(binary)))
+    {
+        return Results.UnprocessableEntity(
+            new ErrorResponse(
+                "encode_failed",
+                $"Failed translating to binary ({errorCode ?? "unknown"})"
+            )
+        );
+    }
+
+    var epcHex = engine.BinaryToHex(binary!);
+    var binaryInput = binary!;
+    var translationParameters = $"tagLength={request.TagLength}";
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY")
+                          ?? TryTranslateOutput(engine, binaryInput, string.Empty, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "LEGACY");
+    var legacyFields = ParseLegacyKeyValues(legacy);
+
+    object? details = null;
+    try
+    {
+        details = engine.TranslateDetails(epcHex, translationParameters, "HEX");
+    }
+    catch
+    {
+        details = null;
+    }
+    if (details is null)
+    {
+        try
+        {
+            details = engine.TranslateDetails(epcHex, string.Empty, "HEX");
+        }
+        catch
+        {
+            details = null;
+        }
+    }
+    var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
+    var fields = ToDictionary(detailsFieldsProperty?.GetValue(details));
+    MergeMissingFields(fields, legacyFields);
+
+    var outputDigitalLink = GetField(fields, "digitalLinkURI")
+                            ?? digitalLink;
+    var hostname = ExtractHostname(fields, outputDigitalLink ?? digitalLink!);
+    hostname ??= GetLegacyField(legacyFields, "hostname", "domain", "host");
+    var gtin = GetField(fields, "gtin") ?? request.Gtin;
+    var serial = GetField(fields, "serial") ?? request.Serial;
+    gtin ??= GetLegacyField(legacyFields, "gtin");
+    serial ??= GetLegacyField(legacyFields, "serial");
+    if ((!HasText(gtin) || !HasText(serial)) && HasText(outputDigitalLink))
+    {
+        var (parsedGtin, parsedSerial) = ParseKeyFromDigitalLink(outputDigitalLink);
+        gtin ??= parsedGtin;
+        serial ??= parsedSerial;
+    }
+    if (string.IsNullOrWhiteSpace(outputDigitalLink) &&
+        !string.IsNullOrWhiteSpace(hostname) &&
+        !string.IsNullOrWhiteSpace(gtin) &&
+        !string.IsNullOrWhiteSpace(serial))
+    {
+        outputDigitalLink = BuildDigitalLink(hostname!, gtin!, serial!);
+    }
+
+    var response = new EncodeResponse(
+        TdsScheme: "sgtin++",
+        TagLength: request.TagLength,
+        EpcHex: epcHex,
+        TagUri: tagUri ?? GetField(fields, "tagURI"),
+        PureIdentityUri: pureIdentityUri ?? GetField(fields, "pureIdentityURI"),
+        DigitalLink: outputDigitalLink,
+        Hostname: hostname,
+        Gtin: gtin,
+        Serial: serial,
+        Fields: fields
+    );
+    return Results.Ok(response);
+});
+
+app.MapPost("/v1/decode", (DecodeRequest request) =>
+{
+    if (request.TagLength is not (96 or 198))
+    {
+        return Results.BadRequest(new ErrorResponse("invalid_tag_length", "tagLength must be 96 or 198"));
+    }
+
+    if (string.IsNullOrWhiteSpace(request.EpcHex))
+    {
+        return Results.BadRequest(new ErrorResponse("missing_epc", "epcHex is required"));
+    }
+
+    var engine = new TDTEngine();
+    var normalizedHex = request.EpcHex.Trim().ToLowerInvariant();
+    var translationParameters = $"tagLength={request.TagLength}";
+    string binaryInput;
+    try
+    {
+        binaryInput = engine.HexToBinary(normalizedHex);
+    }
+    catch (Exception ex)
+    {
+        return Results.UnprocessableEntity(new ErrorResponse("decode_failed", ex.Message));
+    }
+
+    object? details = null;
+    try
+    {
+        details = engine.TranslateDetails(normalizedHex, translationParameters, "HEX");
+    }
+    catch
+    {
+        details = null;
+    }
+    if (details is null)
+    {
+        try
+        {
+            details = engine.TranslateDetails(normalizedHex, string.Empty, "HEX");
+        }
+        catch
+        {
+            details = null;
+        }
+    }
+
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY")
+                          ?? TryTranslateOutput(engine, binaryInput, string.Empty, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY")
+                 ?? TryTranslateOutput(engine, binaryInput, string.Empty, "LEGACY");
+    var legacyFields = ParseLegacyKeyValues(legacy);
+
+    var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
+    var fields = ToDictionary(detailsFieldsProperty?.GetValue(details));
+    MergeMissingFields(fields, legacyFields);
+
+    var digitalLink = GetField(fields, "digitalLinkURI");
+    var hostname = ExtractHostname(fields, digitalLink);
+    hostname ??= GetLegacyField(legacyFields, "hostname", "domain", "host");
+    var gtin = GetField(fields, "gtin");
+    var serial = GetField(fields, "serial");
+    gtin ??= GetLegacyField(legacyFields, "gtin");
+    serial ??= GetLegacyField(legacyFields, "serial");
+    if ((!HasText(gtin) || !HasText(serial)) && HasText(digitalLink))
+    {
+        var (parsedGtin, parsedSerial) = ParseKeyFromDigitalLink(digitalLink);
+        gtin ??= parsedGtin;
+        serial ??= parsedSerial;
+    }
+    if (string.IsNullOrWhiteSpace(digitalLink) &&
+        !string.IsNullOrWhiteSpace(hostname) &&
+        !string.IsNullOrWhiteSpace(gtin) &&
+        !string.IsNullOrWhiteSpace(serial))
+    {
+        digitalLink = BuildDigitalLink(hostname!, gtin!, serial!);
+    }
+
+    var response = new DecodeResponse(
+        TdsScheme: "sgtin++",
+        TagLength: request.TagLength,
+        EpcHex: normalizedHex,
+        TagUri: tagUri ?? GetField(fields, "tagURI"),
+        PureIdentityUri: pureIdentityUri ?? GetField(fields, "pureIdentityURI"),
+        DigitalLink: digitalLink,
+        Hostname: hostname,
+        Gtin: gtin,
+        Serial: serial,
+        Fields: fields
+    );
+    return Results.Ok(response);
+});
+
+app.Run();
+
+static string BuildSgtinPlusPlusParameters(int filter, int dataToggle)
+{
+    var parts = new List<string>
+    {
+        $"filter={filter}",
+        $"dataToggle={dataToggle}"
+    };
+    return string.Join(";", parts);
+}
+
+static string BuildDigitalLink(string hostname, string gtin, string serial)
+{
+    return $"https://{hostname.Trim().ToLowerInvariant()}/01/{Uri.EscapeDataString(gtin)}/21/{Uri.EscapeDataString(serial)}";
+}
+
+static string? GetField(Dictionary<string, string> fields, string key)
+{
+    return fields.TryGetValue(key, out var value) ? value : null;
+}
+
+static Dictionary<string, string> ToDictionary(object? fieldsObj)
+{
+    var output = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (fieldsObj is null)
+    {
+        return output;
+    }
+
+    if (fieldsObj is IEnumerable<KeyValuePair<string, string>> strPairs)
+    {
+        foreach (var (key, value) in strPairs)
+        {
+            output[key] = value;
+        }
+        return output;
+    }
+
+    if (fieldsObj is IEnumerable<KeyValuePair<string, object>> objPairs)
+    {
+        foreach (var (key, value) in objPairs)
+        {
+            output[key] = value?.ToString() ?? string.Empty;
+        }
+        return output;
+    }
+
+    var enumerable = fieldsObj as System.Collections.IEnumerable;
+    if (enumerable is null)
+    {
+        return output;
+    }
+    foreach (var item in enumerable)
+    {
+        var itemType = item?.GetType();
+        if (itemType is null)
+        {
+            continue;
+        }
+        var keyProp = itemType.GetProperty("Key");
+        var valueProp = itemType.GetProperty("Value");
+        var key = keyProp?.GetValue(item)?.ToString();
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            continue;
+        }
+        var value = valueProp?.GetValue(item)?.ToString() ?? string.Empty;
+        output[key] = value;
+    }
+    return output;
+}
+
+static string? ExtractHostname(Dictionary<string, string> fields, string? digitalLink)
+{
+    var hostname = GetField(fields, "hostname")
+                   ?? GetField(fields, "domain")
+                   ?? GetField(fields, "host");
+    if (!string.IsNullOrWhiteSpace(hostname))
+    {
+        return hostname.Trim().ToLowerInvariant();
+    }
+
+    if (!string.IsNullOrWhiteSpace(digitalLink) &&
+        Uri.TryCreate(digitalLink, UriKind.Absolute, out var uri))
+    {
+        return uri.Host.ToLowerInvariant();
+    }
+
+    var fromFields = GetField(fields, "digitalLinkURI");
+    if (!string.IsNullOrWhiteSpace(fromFields) &&
+        Uri.TryCreate(fromFields, UriKind.Absolute, out var dlUri))
+    {
+        return dlUri.Host.ToLowerInvariant();
+    }
+
+    return null;
+}
+
+static bool HasText(string? value)
+{
+    return !string.IsNullOrWhiteSpace(value);
+}
+
+static (string? Gtin, string? Serial) ParseKeyFromDigitalLink(string? digitalLink)
+{
+    if (string.IsNullOrWhiteSpace(digitalLink) ||
+        !Uri.TryCreate(digitalLink, UriKind.Absolute, out var uri))
+    {
+        return (null, null);
+    }
+
+    var segments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+    for (var i = 0; i + 1 < segments.Length; i += 2)
+    {
+        if (segments[i] == "01")
+        {
+            var gtin = Uri.UnescapeDataString(segments[i + 1]);
+            string? serial = null;
+            for (var j = i + 2; j + 1 < segments.Length; j += 2)
+            {
+                if (segments[j] == "21")
+                {
+                    serial = Uri.UnescapeDataString(segments[j + 1]);
+                    break;
+                }
+            }
+            return (gtin, serial);
+        }
+    }
+    return (null, null);
+}
+
+static string? TryTranslateOutput(
+    TDTEngine engine,
+    string epcIdentifier,
+    string parameterList,
+    string outputFormat
+)
+{
+    if (!engine.TryTranslate(epcIdentifier, parameterList, outputFormat, out var result, out _))
+    {
+        return null;
+    }
+    if (string.IsNullOrWhiteSpace(result))
+    {
+        return null;
+    }
+    return result;
+}
+
+static Dictionary<string, string> ParseLegacyKeyValues(string? legacy)
+{
+    var output = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (string.IsNullOrWhiteSpace(legacy))
+    {
+        return output;
+    }
+
+    foreach (var token in legacy.Split(';', StringSplitOptions.RemoveEmptyEntries))
+    {
+        var idx = token.IndexOf('=');
+        if (idx <= 0 || idx == token.Length - 1)
+        {
+            continue;
+        }
+        var key = token[..idx].Trim();
+        var value = token[(idx + 1)..].Trim();
+        if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
+        {
+            output[key] = value;
+        }
+    }
+    return output;
+}
+
+static void MergeMissingFields(
+    Dictionary<string, string> fields,
+    Dictionary<string, string> fallbackFields
+)
+{
+    foreach (var (key, value) in fallbackFields)
+    {
+        if (!fields.ContainsKey(key))
+        {
+            fields[key] = value;
+        }
+    }
+}
+
+static string? GetLegacyField(Dictionary<string, string> fields, params string[] keys)
+{
+    foreach (var key in keys)
+    {
+        if (fields.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+    }
+    return null;
+}
+
+internal sealed record EncodeRequest(
+    string TdsScheme,
+    string? DigitalLink,
+    string? Hostname,
+    string? Gtin,
+    string? Serial,
+    int TagLength = 96,
+    int Filter = 3,
+    int DataToggle = 1,
+    int? Gs1CompanyPrefixLength = null
+);
+
+internal sealed record DecodeRequest(
+    string EpcHex,
+    int TagLength = 96
+);
+
+internal sealed record EncodeResponse(
+    string TdsScheme,
+    int TagLength,
+    string EpcHex,
+    string? TagUri,
+    string? PureIdentityUri,
+    string? DigitalLink,
+    string? Hostname,
+    string? Gtin,
+    string? Serial,
+    Dictionary<string, string> Fields
+);
+
+internal sealed record DecodeResponse(
+    string TdsScheme,
+    int TagLength,
+    string EpcHex,
+    string? TagUri,
+    string? PureIdentityUri,
+    string? DigitalLink,
+    string? Hostname,
+    string? Gtin,
+    string? Serial,
+    Dictionary<string, string> Fields
+);
+
+internal sealed record ErrorResponse(string Code, string Message);
