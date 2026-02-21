@@ -1,7 +1,7 @@
 """Add CEN data carrier binding and quality-check support.
 
 Revision ID: 0043_cen_carrier_qa_and_binding
-Revises: 0042_cen_operator_facility_entities
+Revises: 0042_cen_operator_facility
 Create Date: 2026-02-21
 """
 
@@ -11,7 +11,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = "0043_cen_carrier_qa_and_binding"
-down_revision = "0042_cen_operator_facility_entities"
+down_revision = "0042_cen_operator_facility"
 branch_labels = None
 depends_on = None
 

@@ -1,6 +1,6 @@
 """Add CEN operator/facility entities and identifier link tables.
 
-Revision ID: 0042_cen_operator_facility_entities
+Revision ID: 0042_cen_operator_facility
 Revises: 0041_cen_identifier_governance
 Create Date: 2026-02-21
 """
@@ -10,7 +10,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision = "0042_cen_operator_facility_entities"
+revision = "0042_cen_operator_facility"
 down_revision = "0041_cen_identifier_governance"
 branch_labels = None
 depends_on = None

@@ -16,12 +16,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Syft (retry)
+        run: |
+          set -euo pipefail
+          SYFT_VERSION="v1.31.0"
+          for attempt in 1 2 3; do
+            echo "Installing Syft ${SYFT_VERSION} (attempt ${attempt}/3)"
+            if curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+              | sh -s -- -b "${HOME}/.local/bin" "${SYFT_VERSION}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "Failed to install Syft after 3 attempts"
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
       - name: Generate SBOM (SPDX JSON)
-        uses: anchore/sbom-action@28d71544de8eaf1b958d335707167c5f783590ad # v0
-        with:
-          path: .
-          format: spdx-json
-          output-file: sbom.spdx.json
+        run: syft . -o spdx-json=sbom.spdx.json
       - name: Upload SBOM
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
