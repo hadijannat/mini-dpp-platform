@@ -9,6 +9,28 @@ import {
 } from '@/components/ui/tooltip';
 import type { FieldWrapperProps } from '../types/formTypes';
 
+function sanitizeFormUrl(formUrl?: string): string | null {
+  if (!formUrl) return null;
+  const normalized = formUrl.trim();
+  if (!normalized) return null;
+
+  // Allow only safe relative links (not protocol-relative).
+  if (normalized.startsWith('/') && !normalized.startsWith('//')) {
+    return normalized;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.toString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
 export function FieldWrapper({
   label,
   required,
@@ -22,6 +44,7 @@ export function FieldWrapper({
 }: FieldWrapperProps) {
   const generatedId = useId();
   const inputId = fieldId ?? generatedId;
+  const safeFormUrl = sanitizeFormUrl(formUrl);
 
   return (
     <div className="space-y-2" data-field-path={fieldPath}>
@@ -46,12 +69,12 @@ export function FieldWrapper({
           </TooltipProvider>
         )}
       </div>
-      {formUrl && (
+      {safeFormUrl && (
         <a
           className="text-xs text-primary hover:text-primary/80 inline-block"
-          href={formUrl}
+          href={safeFormUrl}
           target="_blank"
-          rel="noreferrer"
+          rel="noopener noreferrer"
         >
           Learn more
         </a>

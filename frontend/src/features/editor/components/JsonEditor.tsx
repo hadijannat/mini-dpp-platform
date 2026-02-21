@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { linter, type Diagnostic } from '@codemirror/lint';
@@ -29,22 +29,49 @@ export function JsonEditor({
   schema,
   onIssuesChange,
 }: JsonEditorProps) {
+  const issuesCacheRef = useRef<Map<string, JsonValidationIssue[]>>(new Map());
+
+  useEffect(() => {
+    issuesCacheRef.current.clear();
+  }, [schema]);
+
+  const getIssuesForText = useCallback(
+    (text: string): JsonValidationIssue[] => {
+      const cached = issuesCacheRef.current.get(text);
+      if (cached) return cached;
+
+      const { issues } = buildJsonIssues(text, schema);
+      issuesCacheRef.current.set(text, issues);
+
+      // Keep cache small and bounded for active typing sessions.
+      if (issuesCacheRef.current.size > 25) {
+        const oldestKey = issuesCacheRef.current.keys().next().value;
+        if (oldestKey !== undefined) {
+          issuesCacheRef.current.delete(oldestKey);
+        }
+      }
+
+      return issues;
+    },
+    [schema],
+  );
+
   const extensions = useMemo(
     () => [
       json(),
       linter((view) => {
-        const { issues } = buildJsonIssues(view.state.doc.toString(), schema);
-        return issuesToDiagnostics(view.state.doc.toString(), issues);
+        const text = view.state.doc.toString();
+        const issues = getIssuesForText(text);
+        return issuesToDiagnostics(text, issues);
       }),
     ],
-    [schema],
+    [getIssuesForText],
   );
 
   useEffect(() => {
     if (!onIssuesChange) return;
-    const { issues } = buildJsonIssues(value, schema);
-    onIssuesChange(issues);
-  }, [onIssuesChange, schema, value]);
+    onIssuesChange(getIssuesForText(value));
+  }, [getIssuesForText, onIssuesChange, value]);
 
   return (
     <CodeMirror

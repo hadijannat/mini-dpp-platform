@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { AASRendererProps } from '../types/formTypes';
 import type { UISchema } from '../types/uiSchema';
 import type { DefinitionNode } from '../types/definition';
@@ -43,19 +44,29 @@ export function AASRenderer({
   editorContext,
 }: AASRendererProps) {
   const docHints = useDocHints();
-  const resolvedHint = resolveDocHint({ node, fieldPath: basePath, docHints });
-  const hintDescription = resolvedHint ? buildDocHintDescription(resolvedHint) : undefined;
-  const decoratedNode: DefinitionNode = resolvedHint
-    ? {
-        ...node,
-        smt: {
-          ...(node.smt ?? {}),
-          form_title: resolvedHint.formTitle ?? node.smt?.form_title,
-          form_info: hintDescription ?? node.smt?.form_info,
-          form_url: resolvedHint.formUrl ?? node.smt?.form_url,
-        },
-      }
-    : node;
+  const resolvedHint = useMemo(
+    () => resolveDocHint({ node, fieldPath: basePath, docHints }),
+    [basePath, docHints, node],
+  );
+  const hintDescription = useMemo(
+    () => (resolvedHint ? buildDocHintDescription(resolvedHint) : undefined),
+    [resolvedHint],
+  );
+  const decoratedNode = useMemo<DefinitionNode>(
+    () =>
+      resolvedHint
+        ? {
+            ...node,
+            smt: {
+              ...(node.smt ?? {}),
+              form_title: resolvedHint.formTitle ?? node.smt?.form_title,
+              form_info: hintDescription ?? node.smt?.form_info,
+              form_url: resolvedHint.formUrl ?? node.smt?.form_url,
+            },
+          }
+        : node,
+    [hintDescription, node, resolvedHint],
+  );
 
   const accessMode = decoratedNode.smt?.access_mode?.toLowerCase();
   const readOnly = accessMode === 'readonly' || accessMode === 'read-only';

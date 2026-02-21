@@ -72,6 +72,15 @@ describe('FieldWrapper', () => {
     expect((link as HTMLAnchorElement).target).toBe('_blank');
   });
 
+  it('does not render "Learn more" link for unsafe protocol URLs', () => {
+    const { container } = render(
+      <FieldWrapper label="Field" formUrl="javascript:alert(1)">
+        <span>content</span>
+      </FieldWrapper>,
+    );
+    expect(container.querySelectorAll('a')).toHaveLength(0);
+  });
+
   it('renders error message', () => {
     render(
       <FieldWrapper label="Field" error="This field is required">
