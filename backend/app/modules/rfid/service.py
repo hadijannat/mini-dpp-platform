@@ -280,6 +280,7 @@ class RFIDService:
                 and serial
                 and gtin == (gs1_key.gtin or "")
                 and serial == (gs1_key.serial or "")
+                and isinstance(dpp_id, UUID)
             ):
                 return dpp_id
         return None
