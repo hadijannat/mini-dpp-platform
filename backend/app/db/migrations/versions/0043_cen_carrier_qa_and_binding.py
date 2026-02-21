@@ -74,7 +74,9 @@ def upgrade() -> None:
         sa.Column("passed", sa.Boolean(), nullable=False),
         sa.Column("results", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("performed_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("performed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "performed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(

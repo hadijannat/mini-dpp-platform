@@ -37,9 +37,7 @@ class QRRenderer:
             background_color=str(profile.get("background_color", "#FFFFFF")),
             include_text=bool(profile.get("include_text", True)),
             text_label=(
-                str(profile["text_label"])
-                if profile.get("text_label") is not None
-                else None
+                str(profile["text_label"]) if profile.get("text_label") is not None else None
             ),
             error_correction=str(profile.get("error_correction", "H")).upper(),
             quiet_zone_modules=self._profile_int(profile, "quiet_zone_modules", 4),

@@ -30,8 +30,4 @@ def get_cen_profiles(settings: Settings | None = None) -> CENProfiles:
 
 def standards_profile_header(profiles: CENProfiles) -> str:
     """Serialize CEN profile versions for API response headers."""
-    return (
-        f"CEN-{profiles.profile_18219};"
-        f"CEN-{profiles.profile_18220};"
-        f"CEN-{profiles.profile_18222}"
-    )
+    return f"CEN-{profiles.profile_18219};CEN-{profiles.profile_18220};CEN-{profiles.profile_18222}"

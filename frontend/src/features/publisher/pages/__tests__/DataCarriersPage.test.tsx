@@ -59,6 +59,18 @@ describe('DataCarriersPage', () => {
       if (path.startsWith('/data-carriers?')) {
         return Promise.resolve(jsonResponse({ items: [], count: 0 }));
       }
+      if (path === '/data-carriers/validate' && options?.method === 'POST') {
+        return Promise.resolve(
+          jsonResponse({
+            valid: true,
+            warnings: [],
+            details: {
+              carrierType: 'qr',
+              payloadLength: 28,
+            },
+          }),
+        );
+      }
       if (path === '/data-carriers' && options?.method === 'POST') {
         return Promise.resolve(
           jsonResponse({
@@ -82,6 +94,16 @@ describe('DataCarriersPage', () => {
           ok: true,
           blob: () => Promise.resolve(new Blob(['rendered'])),
         });
+      }
+      if (path === '/data-carriers/carrier-1/qa') {
+        return Promise.resolve(
+          jsonResponse({
+            carrier_id: 'carrier-1',
+            checks: [],
+            pass: true,
+            warnings: [],
+          }),
+        );
       }
       if (path === '/qr/dpp-1/carrier' && options?.method === 'POST') {
         return Promise.resolve({

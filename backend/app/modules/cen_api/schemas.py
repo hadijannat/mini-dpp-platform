@@ -140,4 +140,3 @@ class CENPublicDPPResponse(BaseModel):
     product_identifier: str | None = Field(default=None, alias="productIdentifier")
     identifier_scheme: str | None = Field(default=None, alias="identifierScheme")
     granularity: IdentifierGranularity | None = None
-

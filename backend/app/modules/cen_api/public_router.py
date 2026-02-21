@@ -196,6 +196,10 @@ async def public_search_dpps(
             published_only=True,
         )
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    items = [await _to_public_response(service=service, dpp_service=dpp_service, dpp=dpp) for dpp in dpps]
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+    items = [
+        await _to_public_response(service=service, dpp_service=dpp_service, dpp=dpp) for dpp in dpps
+    ]
     return CENDPPSearchResponse(items=items, paging=CENPaging(cursor=next_cursor))

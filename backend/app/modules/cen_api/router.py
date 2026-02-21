@@ -93,7 +93,9 @@ async def create_dpp(
             required_specific_asset_ids=body.required_specific_asset_ids,
         )
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(dpp)
     return await service.to_cen_dpp_response(dpp)
@@ -147,14 +149,18 @@ async def search_dpps(
             is_tenant_admin=tenant.is_tenant_admin,
         )
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     return CENDPPSearchResponse(
         items=[await service.to_cen_dpp_response(dpp) for dpp in dpps],
         paging=CENPaging(cursor=next_cursor),
     )
 
 
-@router.get("/dpps/by-identifier", response_model=CENDPPResponse, operation_id="ReadDPPByIdentifier")
+@router.get(
+    "/dpps/by-identifier", response_model=CENDPPResponse, operation_id="ReadDPPByIdentifier"
+)
 async def read_dpp_by_identifier(
     db: DbSession,
     tenant: TenantPublisher,
@@ -181,7 +187,9 @@ async def read_dpp_by_identifier(
     except CENAPINotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await _require_dpp_access(db=db, tenant=tenant, dpp_id=dpp.id, action="read")
     return await service.to_cen_dpp_response(dpp)
 
@@ -210,7 +218,9 @@ async def update_dpp(
     except CENAPIConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(dpp)
     return await service.to_cen_dpp_response(dpp)
@@ -237,7 +247,9 @@ async def archive_dpp(
     return await service.to_cen_dpp_response(dpp)
 
 
-@router.post("/dpps/{dpp_id:uuid}/publish", response_model=CENDPPResponse, operation_id="PublishDPP")
+@router.post(
+    "/dpps/{dpp_id:uuid}/publish", response_model=CENDPPResponse, operation_id="PublishDPP"
+)
 async def publish_dpp(
     dpp_id: UUID,
     db: DbSession,
@@ -340,7 +352,9 @@ async def register_identifier(
             facility_id=body.facility_id,
         )
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(identifier)
     return CENExternalIdentifierResponse(**service.identifiers_to_response(identifier))
@@ -375,7 +389,9 @@ async def supersede_identifier(
     except CENAPINotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(identifier)
     return CENExternalIdentifierResponse(**service.identifiers_to_response(identifier))
@@ -402,11 +418,15 @@ async def sync_registry_for_dpp(
             created_by=tenant.user.sub,
         )
     except CENFeatureDisabledError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
     except CENAPINotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     return CENSyncResponse(dpp_id=dpp_id, synced=True, target="registry")
 
@@ -432,11 +452,14 @@ async def sync_resolver_for_dpp(
             created_by=tenant.user.sub,
         )
     except CENFeatureDisabledError as exc:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
     except CENAPINotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except CENAPIError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     return CENSyncResponse(dpp_id=dpp_id, synced=True, target="resolver")
-

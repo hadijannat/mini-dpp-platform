@@ -53,7 +53,9 @@ class IdentifierModuleService:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_identifier(self, *, tenant_id: UUID, identifier_id: UUID) -> ExternalIdentifier | None:
+    async def get_identifier(
+        self, *, tenant_id: UUID, identifier_id: UUID
+    ) -> ExternalIdentifier | None:
         result = await self._session.execute(
             select(ExternalIdentifier).where(
                 ExternalIdentifier.id == identifier_id,
@@ -158,7 +160,9 @@ class IdentifierModuleService:
         await self._session.flush()
         return operator
 
-    async def list_operators(self, *, tenant_id: UUID, limit: int = 100, offset: int = 0) -> list[EconomicOperator]:
+    async def list_operators(
+        self, *, tenant_id: UUID, limit: int = 100, offset: int = 0
+    ) -> list[EconomicOperator]:
         result = await self._session.execute(
             select(EconomicOperator)
             .where(EconomicOperator.tenant_id == tenant_id)
@@ -191,7 +195,9 @@ class IdentifierModuleService:
         await self._session.flush()
         return facility
 
-    async def list_facilities(self, *, tenant_id: UUID, operator_id: UUID | None = None, limit: int = 100, offset: int = 0) -> list[Facility]:
+    async def list_facilities(
+        self, *, tenant_id: UUID, operator_id: UUID | None = None, limit: int = 100, offset: int = 0
+    ) -> list[Facility]:
         stmt = select(Facility).where(Facility.tenant_id == tenant_id)
         if operator_id is not None:
             stmt = stmt.where(Facility.operator_id == operator_id)
@@ -208,7 +214,9 @@ class IdentifierModuleService:
             raise IdentifierGovernanceError("DPP not found")
         return dpp
 
-    async def _assert_operator_exists(self, *, tenant_id: UUID, operator_id: UUID) -> EconomicOperator:
+    async def _assert_operator_exists(
+        self, *, tenant_id: UUID, operator_id: UUID
+    ) -> EconomicOperator:
         result = await self._session.execute(
             select(EconomicOperator).where(
                 EconomicOperator.id == operator_id,

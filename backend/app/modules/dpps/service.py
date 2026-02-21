@@ -119,11 +119,19 @@ class DPPService:
             )
             self._field_encryptor = DPPFieldEncryptor(key_encryptor)
 
+    def _is_cen_dpp_enabled(self) -> bool:
+        value = getattr(self._settings, "cen_dpp_enabled", False)
+        return value is True
+
+    def _is_cen_http_identifier_allowed(self) -> bool:
+        value = getattr(self._settings, "cen_allow_http_identifiers", False)
+        return value is True
+
     def _allowed_global_asset_uri_schemes(self) -> set[str]:
-        if not self._settings.cen_dpp_enabled:
+        if not self._is_cen_dpp_enabled():
             return {"http"}
         schemes = {"https"}
-        if self._settings.cen_allow_http_identifiers:
+        if self._is_cen_http_identifier_allowed():
             schemes.add("http")
         return schemes
 
@@ -2174,7 +2182,7 @@ class DPPService:
         if dpp.status == DPPStatus.ARCHIVED:
             raise ValueError("Cannot publish an archived DPP")
 
-        if self._settings.cen_dpp_enabled:
+        if self._is_cen_dpp_enabled():
             identifier_service = IdentifierService(self._session)
             try:
                 await identifier_service.ensure_dpp_product_identifier_from_asset_ids(

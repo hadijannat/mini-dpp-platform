@@ -49,8 +49,12 @@ def upgrade() -> None:
         sa.Column("country", sa.String(length=8), nullable=True),
         sa.Column("metadata_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("created_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
@@ -80,8 +84,12 @@ def upgrade() -> None:
         sa.Column("address", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("metadata_json", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("created_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_facilities_operator", "facilities", ["operator_id"])
@@ -109,7 +117,9 @@ def upgrade() -> None:
             sa.ForeignKey("external_identifiers.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "operator_id",
@@ -146,7 +156,9 @@ def upgrade() -> None:
             sa.ForeignKey("external_identifiers.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "facility_id",

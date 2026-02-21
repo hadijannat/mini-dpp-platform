@@ -142,13 +142,17 @@ async def _process_tenant(
             dpp_id=dpp.id,
         )
         carriers = (
-            await session.execute(
-                select(DataCarrier).where(
-                    DataCarrier.tenant_id == tenant_id,
-                    DataCarrier.dpp_id == dpp.id,
+            (
+                await session.execute(
+                    select(DataCarrier).where(
+                        DataCarrier.tenant_id == tenant_id,
+                        DataCarrier.dpp_id == dpp.id,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for carrier in carriers:
             counters["carriers_scanned"] += 1
             if active_identifier_id is not None and carrier.external_identifier_id is None:

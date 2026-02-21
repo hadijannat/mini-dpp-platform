@@ -153,7 +153,9 @@ async def register_identifier(
             facility_id=body.facility_id,
         )
     except IdentifierGovernanceError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(identifier)
     return _to_identifier_response(identifier)
@@ -200,7 +202,9 @@ async def get_identifier(
         tenant=tenant,
     )
     service = IdentifierModuleService(db)
-    identifier = await service.get_identifier(tenant_id=tenant.tenant_id, identifier_id=identifier_id)
+    identifier = await service.get_identifier(
+        tenant_id=tenant.tenant_id, identifier_id=identifier_id
+    )
     if identifier is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Identifier not found")
     return _to_identifier_response(identifier)
@@ -227,13 +231,17 @@ async def supersede_identifier(
             replacement_identifier_id=body.replacement_identifier_id,
         )
     except IdentifierGovernanceError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(identifier)
     return _to_identifier_response(identifier)
 
 
-@router.post("/operators", response_model=EconomicOperatorResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/operators", response_model=EconomicOperatorResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_operator(
     body: EconomicOperatorCreateRequest,
     db: DbSession,
@@ -325,7 +333,9 @@ async def create_facility(
                 facility_id=facility.id,
             )
     except IdentifierGovernanceError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(facility)
     return _to_facility_response(facility)

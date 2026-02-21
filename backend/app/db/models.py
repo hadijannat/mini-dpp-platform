@@ -2493,7 +2493,9 @@ class ExternalIdentifier(TenantScopedMixin, Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("scheme_code", "value_canonical", name="uq_external_identifiers_scheme_value"),
+        UniqueConstraint(
+            "scheme_code", "value_canonical", name="uq_external_identifiers_scheme_value"
+        ),
         Index("ix_external_identifiers_entity_type", "entity_type"),
         Index("ix_external_identifiers_status", "status"),
     )
@@ -2545,7 +2547,9 @@ class OperatorIdentifier(TenantScopedMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("operator_id", "external_identifier_id", name="uq_operator_identifier_link"),
+        UniqueConstraint(
+            "operator_id", "external_identifier_id", name="uq_operator_identifier_link"
+        ),
         Index("ix_operator_identifiers_operator", "operator_id"),
         Index("ix_operator_identifiers_external_identifier", "external_identifier_id"),
     )
@@ -2571,7 +2575,9 @@ class FacilityIdentifier(TenantScopedMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
-        UniqueConstraint("facility_id", "external_identifier_id", name="uq_facility_identifier_link"),
+        UniqueConstraint(
+            "facility_id", "external_identifier_id", name="uq_facility_identifier_link"
+        ),
         Index("ix_facility_identifiers_facility", "facility_id"),
         Index("ix_facility_identifiers_external_identifier", "external_identifier_id"),
     )

@@ -75,11 +75,17 @@ def upgrade() -> None:
             nullable=False,
             server_default="self_issued",
         ),
-        sa.Column("canonicalization_rules", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "canonicalization_rules", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column("validation_rules", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("openness_metadata", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("code", name="uq_identifier_schemes_code"),
     )
@@ -121,7 +127,9 @@ def upgrade() -> None:
         sa.Column("value_canonical", sa.Text(), nullable=False),
         sa.Column(
             "granularity",
-            postgresql.ENUM("model", "batch", "item", name="datacarrieridentitylevel", create_type=False),
+            postgresql.ENUM(
+                "model", "batch", "item", name="datacarrieridentitylevel", create_type=False
+            ),
             nullable=True,
         ),
         sa.Column(
@@ -145,8 +153,12 @@ def upgrade() -> None:
         sa.Column("issued_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("deprecates_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_by_subject", sa.String(length=255), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
             "scheme_code",
@@ -167,14 +179,18 @@ def upgrade() -> None:
             nullable=False,
             index=True,
         ),
-        sa.Column("dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "dpp_id", sa.UUID(), sa.ForeignKey("dpps.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column(
             "external_identifier_id",
             sa.UUID(),
             sa.ForeignKey("external_identifiers.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("dpp_id", "external_identifier_id", name="uq_dpp_identifier_link"),
     )

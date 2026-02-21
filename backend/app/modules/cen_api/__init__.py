@@ -1,2 +1,1 @@
 """CEN API facade module."""
-

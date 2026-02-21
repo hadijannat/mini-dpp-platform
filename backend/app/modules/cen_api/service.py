@@ -164,7 +164,10 @@ class CENAPIService:
         if scheme_code is not None or identifier_value is not None:
             stmt = (
                 stmt.join(DPPIdentifier, DPPIdentifier.dpp_id == DPP.id)
-                .join(ExternalIdentifier, ExternalIdentifier.id == DPPIdentifier.external_identifier_id)
+                .join(
+                    ExternalIdentifier,
+                    ExternalIdentifier.id == DPPIdentifier.external_identifier_id,
+                )
                 .where(
                     ExternalIdentifier.entity_type == IdentifierEntityType.PRODUCT,
                     ExternalIdentifier.status == ExternalIdentifierStatus.ACTIVE,
@@ -199,9 +202,7 @@ class CENAPIService:
             return [], None
 
         rows = await self._session.execute(
-            select(DPP)
-            .where(DPP.tenant_id == tenant_id, DPP.id.in_(page_ids))
-            .order_by(DPP.id)
+            select(DPP).where(DPP.tenant_id == tenant_id, DPP.id.in_(page_ids)).order_by(DPP.id)
         )
         dpps = list(rows.scalars().all())
         next_cursor = encode_cursor(page_ids[-1]) if has_more else None
@@ -247,12 +248,9 @@ class CENAPIService:
             current_asset_ids = dict(dpp.asset_ids or {})
             merged_asset_ids = {**current_asset_ids, **asset_ids_patch}
 
-            if (
-                dpp.status == DPPStatus.PUBLISHED
-                and self._identifier_critical_fields_changed(
-                    before=current_asset_ids,
-                    after=merged_asset_ids,
-                )
+            if dpp.status == DPPStatus.PUBLISHED and self._identifier_critical_fields_changed(
+                before=current_asset_ids,
+                after=merged_asset_ids,
             ):
                 raise CENAPIConflictError(
                     "Published DPP identifier fields are immutable; supersede identifiers instead."
@@ -376,13 +374,17 @@ class CENAPIService:
         if not self._settings.registry_enabled:
             raise CENFeatureDisabledError("Registry integration is disabled")
         dpp = await self.get_published_dpp(tenant_id=tenant_id, dpp_id=dpp_id)
-        revision = await self._dpp_service.get_published_revision(dpp_id=dpp.id, tenant_id=tenant_id)
+        revision = await self._dpp_service.get_published_revision(
+            dpp_id=dpp.id, tenant_id=tenant_id
+        )
         if revision is None:
             raise CENAPIConflictError("Published revision not found")
 
         service = BuiltInRegistryService(self._session)
         submodel_base_url = (
-            self._settings.cors_origins[0] if self._settings.cors_origins else "http://localhost:8000"
+            self._settings.cors_origins[0]
+            if self._settings.cors_origins
+            else "http://localhost:8000"
         )
         await service.auto_register_from_dpp(
             dpp=dpp,
@@ -405,7 +407,11 @@ class CENAPIService:
         service = ResolverService(self._session)
         base_url = self._settings.resolver_base_url
         if not base_url:
-            base_url = self._settings.cors_origins[0] if self._settings.cors_origins else "http://localhost:8000"
+            base_url = (
+                self._settings.cors_origins[0]
+                if self._settings.cors_origins
+                else "http://localhost:8000"
+            )
         await service.auto_register_for_dpp(
             dpp=dpp,
             tenant_id=tenant_id,
@@ -423,9 +429,7 @@ class CENAPIService:
             platform_id=dpp.id,
             status=dpp.status.value,
             asset_ids=dpp.asset_ids or {},
-            product_identifier=(
-                primary_identifier.value_canonical if primary_identifier else None
-            ),
+            product_identifier=(primary_identifier.value_canonical if primary_identifier else None),
             identifier_scheme=(primary_identifier.scheme_code if primary_identifier else None),
             granularity=_to_schema_granularity(
                 primary_identifier.granularity if primary_identifier else None
