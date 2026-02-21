@@ -55,7 +55,7 @@ async def decode_rfid_tag(
     )
     service = RFIDService(db)
     try:
-        return await service.decode(body)
+        return await service.decode(body, tenant_id=tenant.tenant_id)
     except RFIDSidecarUnavailableError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     except RFIDError as exc:

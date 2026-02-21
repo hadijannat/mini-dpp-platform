@@ -44,13 +44,32 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     var parameters = BuildParameters(request.Filter, request.Gs1CompanyPrefixLength, request.TagLength);
     var engine = new TDTEngine();
 
-    if (!engine.TryTranslate(
-            digitalLink!,
-            parameters,
-            "BINARY",
-            out var binary,
-            out var errorCode
-        ) || string.IsNullOrWhiteSpace(binary))
+    string? binary = null;
+    string? errorCode = null;
+    if (HasText(request.Hostname) && HasText(request.Gtin) && HasText(request.Serial))
+    {
+        var legacyInput =
+            $"domain={request.Hostname!.Trim().ToLowerInvariant()};gtin={request.Gtin!};serial={request.Serial!}";
+        if (!engine.TryTranslate(
+                legacyInput,
+                parameters,
+                "BINARY",
+                out binary,
+                out errorCode
+            ) || string.IsNullOrWhiteSpace(binary))
+        {
+            binary = null;
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(binary) &&
+        (!engine.TryTranslate(
+                digitalLink!,
+                parameters,
+                "BINARY",
+                out binary,
+                out errorCode
+            ) || string.IsNullOrWhiteSpace(binary)))
     {
         return Results.UnprocessableEntity(
             new ErrorResponse(
@@ -61,13 +80,40 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
     }
 
     var epcHex = engine.BinaryToHex(binary!);
-    var details = engine.TranslateDetails(epcHex, $"tagLength={request.TagLength}", "TAG_ENCODING");
-    var fields = ToDictionary(details.Fields);
+    var binaryInput = binary!;
+    var translationParameters = $"tagLength={request.TagLength}";
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY");
+    var legacyFields = ParseLegacyKeyValues(legacy);
 
-    var hostname = ExtractHostname(fields, digitalLink!);
+    object? details = null;
+    try
+    {
+        details = engine.TranslateDetails(epcHex, translationParameters, "HEX");
+    }
+    catch
+    {
+        details = null;
+    }
+    var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
+    var fields = ToDictionary(detailsFieldsProperty?.GetValue(details));
+    MergeMissingFields(fields, legacyFields);
+
+    var outputDigitalLink = GetField(fields, "digitalLinkURI")
+                            ?? digitalLink;
+    var hostname = ExtractHostname(fields, outputDigitalLink ?? digitalLink!);
+    hostname ??= GetLegacyField(legacyFields, "hostname", "domain", "host");
     var gtin = GetField(fields, "gtin") ?? request.Gtin;
     var serial = GetField(fields, "serial") ?? request.Serial;
-    var outputDigitalLink = GetField(fields, "digitalLinkURI");
+    gtin ??= GetLegacyField(legacyFields, "gtin");
+    serial ??= GetLegacyField(legacyFields, "serial");
+    if ((!HasText(gtin) || !HasText(serial)) && HasText(outputDigitalLink))
+    {
+        var (parsedGtin, parsedSerial) = ParseKeyFromDigitalLink(outputDigitalLink);
+        gtin ??= parsedGtin;
+        serial ??= parsedSerial;
+    }
     if (string.IsNullOrWhiteSpace(outputDigitalLink) &&
         !string.IsNullOrWhiteSpace(hostname) &&
         !string.IsNullOrWhiteSpace(gtin) &&
@@ -80,8 +126,8 @@ app.MapPost("/v1/encode", (EncodeRequest request) =>
         TdsScheme: "sgtin++",
         TagLength: request.TagLength,
         EpcHex: epcHex,
-        TagUri: GetField(fields, "tagURI"),
-        PureIdentityUri: GetField(fields, "pureIdentityURI"),
+        TagUri: tagUri ?? GetField(fields, "tagURI"),
+        PureIdentityUri: pureIdentityUri ?? GetField(fields, "pureIdentityURI"),
         DigitalLink: outputDigitalLink,
         Hostname: hostname,
         Gtin: gtin,
@@ -105,22 +151,49 @@ app.MapPost("/v1/decode", (DecodeRequest request) =>
 
     var engine = new TDTEngine();
     var normalizedHex = request.EpcHex.Trim().ToLowerInvariant();
-    object details;
+    var translationParameters = $"tagLength={request.TagLength}";
+    string binaryInput;
     try
     {
-        details = engine.TranslateDetails(normalizedHex, $"tagLength={request.TagLength}", "TAG_ENCODING");
+        binaryInput = engine.HexToBinary(normalizedHex);
     }
     catch (Exception ex)
     {
         return Results.UnprocessableEntity(new ErrorResponse("decode_failed", ex.Message));
     }
 
-    var detailsFieldsProperty = details.GetType().GetProperty("Fields");
+    object? details = null;
+    try
+    {
+        details = engine.TranslateDetails(normalizedHex, translationParameters, "HEX");
+    }
+    catch
+    {
+        details = null;
+    }
+
+    var tagUri = TryTranslateOutput(engine, binaryInput, translationParameters, "TAG_ENCODING");
+    var pureIdentityUri = TryTranslateOutput(engine, binaryInput, translationParameters, "PURE_IDENTITY");
+    var legacy = TryTranslateOutput(engine, binaryInput, translationParameters, "LEGACY");
+    var legacyFields = ParseLegacyKeyValues(legacy);
+
+    var detailsFieldsProperty = details?.GetType().GetProperty("Fields");
     var fields = ToDictionary(detailsFieldsProperty?.GetValue(details));
-    var hostname = ExtractHostname(fields, null);
+    MergeMissingFields(fields, legacyFields);
+
+    var digitalLink = GetField(fields, "digitalLinkURI");
+    var hostname = ExtractHostname(fields, digitalLink);
+    hostname ??= GetLegacyField(legacyFields, "hostname", "domain", "host");
     var gtin = GetField(fields, "gtin");
     var serial = GetField(fields, "serial");
-    var digitalLink = GetField(fields, "digitalLinkURI");
+    gtin ??= GetLegacyField(legacyFields, "gtin");
+    serial ??= GetLegacyField(legacyFields, "serial");
+    if ((!HasText(gtin) || !HasText(serial)) && HasText(digitalLink))
+    {
+        var (parsedGtin, parsedSerial) = ParseKeyFromDigitalLink(digitalLink);
+        gtin ??= parsedGtin;
+        serial ??= parsedSerial;
+    }
     if (string.IsNullOrWhiteSpace(digitalLink) &&
         !string.IsNullOrWhiteSpace(hostname) &&
         !string.IsNullOrWhiteSpace(gtin) &&
@@ -133,8 +206,8 @@ app.MapPost("/v1/decode", (DecodeRequest request) =>
         TdsScheme: "sgtin++",
         TagLength: request.TagLength,
         EpcHex: normalizedHex,
-        TagUri: GetField(fields, "tagURI"),
-        PureIdentityUri: GetField(fields, "pureIdentityURI"),
+        TagUri: tagUri ?? GetField(fields, "tagURI"),
+        PureIdentityUri: pureIdentityUri ?? GetField(fields, "pureIdentityURI"),
         DigitalLink: digitalLink,
         Hostname: hostname,
         Gtin: gtin,
@@ -244,6 +317,109 @@ static string? ExtractHostname(Dictionary<string, string> fields, string? digita
         return dlUri.Host.ToLowerInvariant();
     }
 
+    return null;
+}
+
+static bool HasText(string? value)
+{
+    return !string.IsNullOrWhiteSpace(value);
+}
+
+static (string? Gtin, string? Serial) ParseKeyFromDigitalLink(string? digitalLink)
+{
+    if (string.IsNullOrWhiteSpace(digitalLink) ||
+        !Uri.TryCreate(digitalLink, UriKind.Absolute, out var uri))
+    {
+        return (null, null);
+    }
+
+    var segments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+    for (var i = 0; i + 1 < segments.Length; i += 2)
+    {
+        if (segments[i] == "01")
+        {
+            var gtin = Uri.UnescapeDataString(segments[i + 1]);
+            string? serial = null;
+            for (var j = i + 2; j + 1 < segments.Length; j += 2)
+            {
+                if (segments[j] == "21")
+                {
+                    serial = Uri.UnescapeDataString(segments[j + 1]);
+                    break;
+                }
+            }
+            return (gtin, serial);
+        }
+    }
+    return (null, null);
+}
+
+static string? TryTranslateOutput(
+    TDTEngine engine,
+    string epcIdentifier,
+    string parameterList,
+    string outputFormat
+)
+{
+    if (!engine.TryTranslate(epcIdentifier, parameterList, outputFormat, out var result, out _))
+    {
+        return null;
+    }
+    if (string.IsNullOrWhiteSpace(result))
+    {
+        return null;
+    }
+    return result;
+}
+
+static Dictionary<string, string> ParseLegacyKeyValues(string? legacy)
+{
+    var output = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    if (string.IsNullOrWhiteSpace(legacy))
+    {
+        return output;
+    }
+
+    foreach (var token in legacy.Split(';', StringSplitOptions.RemoveEmptyEntries))
+    {
+        var idx = token.IndexOf('=');
+        if (idx <= 0 || idx == token.Length - 1)
+        {
+            continue;
+        }
+        var key = token[..idx].Trim();
+        var value = token[(idx + 1)..].Trim();
+        if (!string.IsNullOrWhiteSpace(key) && !string.IsNullOrWhiteSpace(value))
+        {
+            output[key] = value;
+        }
+    }
+    return output;
+}
+
+static void MergeMissingFields(
+    Dictionary<string, string> fields,
+    Dictionary<string, string> fallbackFields
+)
+{
+    foreach (var (key, value) in fallbackFields)
+    {
+        if (!fields.ContainsKey(key))
+        {
+            fields[key] = value;
+        }
+    }
+}
+
+static string? GetLegacyField(Dictionary<string, string> fields, params string[] keys)
+{
+    foreach (var key in keys)
+    {
+        if (fields.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+    }
     return null;
 }
 

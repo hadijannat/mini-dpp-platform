@@ -123,9 +123,15 @@ class RFIDService:
         )
         return response
 
-    async def decode(self, request: RFIDDecodeRequest) -> RFIDDecodeResponse:
+    async def decode(
+        self,
+        request: RFIDDecodeRequest,
+        *,
+        tenant_id: UUID | None = None,
+    ) -> RFIDDecodeResponse:
         data = await self._client.decode({"epcHex": request.epc_hex, "tagLength": request.tag_length})
         response = self._to_decode_response(data)
+        response = await self._ensure_digital_link(response, tenant_id=tenant_id)
         logger.info(
             "rfid_decode_success",
             tds_scheme=response.tds_scheme,
@@ -148,7 +154,8 @@ class RFIDService:
         for read in request.reads:
             try:
                 decoded = await self.decode(
-                    RFIDDecodeRequest(epc_hex=read.epc_hex, tag_length=read.tag_length)
+                    RFIDDecodeRequest(epc_hex=read.epc_hex, tag_length=read.tag_length),
+                    tenant_id=tenant_id,
                 )
                 dpp_id = await self._find_matching_dpp_id(
                     tenant_id=tenant_id,
@@ -276,6 +283,27 @@ class RFIDService:
             f"https://{hostname.strip().lower().rstrip('.')}"
             f"/01/{gtin.strip()}/21/{serial.strip()}"
         )
+
+    async def _ensure_digital_link(
+        self,
+        response: RFIDDecodeResponse,
+        *,
+        tenant_id: UUID | None,
+    ) -> RFIDDecodeResponse:
+        if response.digital_link:
+            return response
+        if not response.gs1_key.gtin or not response.gs1_key.serial:
+            return response
+
+        hostname = response.hostname
+        if not hostname and tenant_id is not None:
+            domain = await TenantDomainService(self._session).get_primary_active_domain(tenant_id)
+            hostname = domain.hostname if domain is not None else None
+        if not hostname:
+            return response
+
+        digital_link = self._build_digital_link(hostname, response.gs1_key.gtin, response.gs1_key.serial)
+        return response.model_copy(update={"hostname": hostname, "digital_link": digital_link})
 
     @staticmethod
     def _to_encode_response(payload: dict[str, Any]) -> RFIDEncodeResponse:

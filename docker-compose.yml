@@ -213,7 +213,13 @@ services:
       dockerfile: Dockerfile
     container_name: dpp-rfid-tds
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      test:
+        [
+          "CMD",
+          "bash",
+          "-lc",
+          "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && grep -q '200' <&3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
