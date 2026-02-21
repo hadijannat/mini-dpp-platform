@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { CirpassLabMode, CirpassLabVariant } from '../schema/storySchema';
 import type { CirpassLevelKey } from '../machines/cirpassMachine';
 
@@ -87,10 +87,13 @@ export function useStoryProgress(storyId: string) {
     writeStore(EMPTY_STORE);
   }, []);
 
-  return {
-    loadProgress,
-    saveProgress,
-    resetStory,
-    resetAll,
-  };
+  return useMemo(
+    () => ({
+      loadProgress,
+      saveProgress,
+      resetStory,
+      resetAll,
+    }),
+    [loadProgress, resetAll, resetStory, saveProgress],
+  );
 }

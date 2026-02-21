@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors, type UseFormRegister } from 'react-hook-form';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,44 @@ interface StepInteractionRendererProps {
   derivedHint: string;
   onSubmit: (payload: Record<string, unknown>) => void;
   onHint: () => void;
+}
+
+function getFieldInputId(stepId: string, fieldName: string): string {
+  return `${stepId}-${fieldName}`;
+}
+
+function getFieldHintId(stepId: string, fieldName: string): string {
+  return `${stepId}-${fieldName}-hint`;
+}
+
+function getFieldErrorId(stepId: string, fieldName: string): string {
+  return `${stepId}-${fieldName}-error`;
+}
+
+function getFieldErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== 'object') {
+    return null;
+  }
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && message.trim().length > 0 ? message : null;
+}
+
+function pickKnownFieldValues(
+  source: Record<string, unknown> | undefined,
+  fieldNames: string[],
+): FormValues {
+  const values: FormValues = {};
+  if (!source) {
+    return values;
+  }
+
+  for (const fieldName of fieldNames) {
+    if (Object.prototype.hasOwnProperty.call(source, fieldName)) {
+      values[fieldName] = source[fieldName];
+    }
+  }
+
+  return values;
 }
 
 function buildDefaultValues(interaction: CirpassLabStepInteraction): FormValues {
@@ -143,33 +181,53 @@ function buildInteractionSchema(interaction: CirpassLabStepInteraction): z.ZodTy
 function renderFieldInput(
   step: CirpassLabStep,
   field: CirpassLabStepInteraction['fields'][number],
-  register: ReturnType<typeof useForm<FormValues>>['register'],
-  errors: ReturnType<typeof useForm<FormValues>>['formState']['errors'],
+  register: UseFormRegister<FormValues>,
+  errors: FieldErrors<FormValues>,
 ) {
   const testId = field.test_id ?? `cirpass-${step.level}-${field.name}`;
   const error = errors[field.name];
+  const errorMessage = getFieldErrorMessage(error);
+  const inputId = getFieldInputId(step.id, field.name);
+  const hintId = getFieldHintId(step.id, field.name);
+  const errorId = getFieldErrorId(step.id, field.name);
+  const describedBy = [field.hint ? hintId : null, errorMessage ? errorId : null]
+    .filter(Boolean)
+    .join(' ') || undefined;
 
   if (field.type === 'checkbox') {
     return (
-      <label key={field.name} className="flex items-center gap-2 text-sm text-landing-ink">
-        <input type="checkbox" {...register(field.name)} data-testid={testId} />
-        <span>{field.label}</span>
-      </label>
+      <div key={field.name}>
+        <div className="flex items-center gap-2 text-sm text-landing-ink">
+          <input
+            id={inputId}
+            type="checkbox"
+            aria-describedby={describedBy}
+            aria-invalid={errorMessage ? true : undefined}
+            {...register(field.name)}
+            data-testid={testId}
+          />
+          <Label htmlFor={inputId}>{field.label}</Label>
+        </div>
+        {field.hint && <p id={hintId} className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
+        {errorMessage && <p id={errorId} className="mt-1 text-xs text-rose-600">{errorMessage}</p>}
+      </div>
     );
   }
 
   if (field.type === 'textarea') {
     return (
       <div key={field.name}>
-        <Label htmlFor={`${step.id}-${field.name}`}>{field.label}</Label>
+        <Label htmlFor={inputId}>{field.label}</Label>
         <Textarea
-          id={`${step.id}-${field.name}`}
+          id={inputId}
           placeholder={field.placeholder ?? ''}
+          aria-describedby={describedBy}
+          aria-invalid={errorMessage ? true : undefined}
           {...register(field.name)}
           data-testid={testId}
         />
-        {field.hint && <p className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
-        {error && <p className="mt-1 text-xs text-rose-600">{String(error.message)}</p>}
+        {field.hint && <p id={hintId} className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
+        {errorMessage && <p id={errorId} className="mt-1 text-xs text-rose-600">{errorMessage}</p>}
       </div>
     );
   }
@@ -177,10 +235,12 @@ function renderFieldInput(
   if (field.type === 'select') {
     return (
       <div key={field.name}>
-        <Label htmlFor={`${step.id}-${field.name}`}>{field.label}</Label>
+        <Label htmlFor={inputId}>{field.label}</Label>
         <select
-          id={`${step.id}-${field.name}`}
+          id={inputId}
           className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          aria-describedby={describedBy}
+          aria-invalid={errorMessage ? true : undefined}
           {...register(field.name)}
           data-testid={testId}
         >
@@ -190,25 +250,27 @@ function renderFieldInput(
             </option>
           ))}
         </select>
-        {field.hint && <p className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
-        {error && <p className="mt-1 text-xs text-rose-600">{String(error.message)}</p>}
+        {field.hint && <p id={hintId} className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
+        {errorMessage && <p id={errorId} className="mt-1 text-xs text-rose-600">{errorMessage}</p>}
       </div>
     );
   }
 
   return (
     <div key={field.name}>
-      <Label htmlFor={`${step.id}-${field.name}`}>{field.label}</Label>
+      <Label htmlFor={inputId}>{field.label}</Label>
       <Input
-        id={`${step.id}-${field.name}`}
+        id={inputId}
         type={field.type === 'number' ? 'number' : 'text'}
         step={field.type === 'number' ? 'any' : undefined}
         placeholder={field.placeholder ?? ''}
+        aria-describedby={describedBy}
+        aria-invalid={errorMessage ? true : undefined}
         {...register(field.name)}
         data-testid={testId}
       />
-      {field.hint && <p className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
-      {error && <p className="mt-1 text-xs text-rose-600">{String(error.message)}</p>}
+      {field.hint && <p id={hintId} className="mt-1 text-xs text-landing-muted">{field.hint}</p>}
+      {errorMessage && <p id={errorId} className="mt-1 text-xs text-rose-600">{errorMessage}</p>}
     </div>
   );
 }
@@ -233,20 +295,102 @@ export default function StepInteractionRenderer({
   const interactionOptions = useMemo(() => interaction.options ?? [], [interaction.options]);
   const schema = useMemo(() => buildInteractionSchema(interaction), [interaction]);
   const defaultValues = useMemo(() => buildDefaultValues(interaction), [interaction]);
+  const fieldNames = useMemo(
+    () => interaction.fields.map((field) => field.name),
+    [interaction.fields],
+  );
+  const requestExampleValues = useMemo(
+    () => pickKnownFieldValues(step.api?.request_example, fieldNames),
+    [fieldNames, step.api?.request_example],
+  );
+  const hasRequestExample = Object.keys(requestExampleValues).length > 0;
   const [selectedOption, setSelectedOption] = useState(interactionOptions[0]?.value ?? '');
   const [scanValue, setScanValue] = useState('');
+  const [payloadCopied, setPayloadCopied] = useState(false);
+  const [shouldFocusErrorSummary, setShouldFocusErrorSummary] = useState(false);
+  const errorSummaryRef = useRef<HTMLDivElement | null>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues,
     mode: 'onSubmit',
+    shouldFocusError: false,
   });
+
+  const clearCopyResetTimer = useCallback(() => {
+    if (copyResetTimerRef.current === null) {
+      return;
+    }
+    window.clearTimeout(copyResetTimerRef.current);
+    copyResetTimerRef.current = null;
+  }, []);
 
   useEffect(() => {
     form.reset(defaultValues);
     setSelectedOption(interactionOptions[0]?.value ?? '');
     setScanValue('');
-  }, [defaultValues, form, interactionOptions, step.id]);
+    clearCopyResetTimer();
+    setPayloadCopied(false);
+    setShouldFocusErrorSummary(false);
+  }, [clearCopyResetTimer, defaultValues, form, interactionOptions, step.id]);
+
+  useEffect(() => () => clearCopyResetTimer(), [clearCopyResetTimer]);
+
+  const orderedFieldErrors = useMemo(
+    () =>
+      interaction.fields
+        .map((field) => {
+          const message = getFieldErrorMessage(form.formState.errors[field.name]);
+          if (!message) {
+            return null;
+          }
+          return {
+            name: field.name,
+            label: field.label,
+            message,
+            inputId: getFieldInputId(step.id, field.name),
+          };
+        })
+        .filter((entry): entry is { name: string; label: string; message: string; inputId: string } => !!entry),
+    [form.formState.errors, interaction.fields, step.id],
+  );
+
+  const hasErrorSummary = form.formState.submitCount > 0 && orderedFieldErrors.length > 0;
+
+  useEffect(() => {
+    if (!shouldFocusErrorSummary || !hasErrorSummary) {
+      return;
+    }
+    errorSummaryRef.current?.focus();
+    setShouldFocusErrorSummary(false);
+  }, [hasErrorSummary, shouldFocusErrorSummary]);
+
+  const handleUseExampleData = () => {
+    form.reset({
+      ...defaultValues,
+      ...requestExampleValues,
+    });
+  };
+
+  const handleCopyPayloadJson = async () => {
+    const payload = pickKnownFieldValues(form.getValues(), fieldNames);
+    if (!navigator.clipboard?.writeText) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setPayloadCopied(true);
+      clearCopyResetTimer();
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setPayloadCopied(false);
+        copyResetTimerRef.current = null;
+      }, 1200);
+    } catch {
+      clearCopyResetTimer();
+      setPayloadCopied(false);
+    }
+  };
 
   const handleSimpleSubmit = () => {
     if (interaction.kind === 'click') {
@@ -277,7 +421,42 @@ export default function StepInteractionRenderer({
 
       <div className="mt-4 rounded-2xl border border-landing-ink/12 bg-landing-surface-0/70 p-4">
         {interaction.kind === 'form' && (
-          <form className="space-y-3" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
+          <form
+            className="space-y-3"
+            onSubmit={form.handleSubmit(
+              (values) => onSubmit(values),
+              () => setShouldFocusErrorSummary(true),
+            )}
+          >
+            {hasErrorSummary && (
+              <div
+                ref={errorSummaryRef}
+                tabIndex={-1}
+                role="alert"
+                aria-live="assertive"
+                className="rounded-xl border border-rose-300 bg-rose-50 p-3"
+                data-testid="cirpass-error-summary"
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-rose-800">
+                  Fix the following fields
+                </p>
+                <ul className="mt-2 space-y-1 text-sm text-rose-900">
+                  {orderedFieldErrors.map((entry) => (
+                    <li key={entry.name}>
+                      <button
+                        type="button"
+                        className="text-left underline hover:no-underline"
+                        onClick={() => document.getElementById(entry.inputId)?.focus()}
+                        data-testid={`cirpass-error-link-${entry.name}`}
+                      >
+                        {entry.label}: {entry.message}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {interaction.fields.length > 0 ? (
               interaction.fields.map((field) =>
                 renderFieldInput(step, field, form.register, form.formState.errors),
@@ -291,6 +470,28 @@ export default function StepInteractionRenderer({
             <div className="mt-4 flex flex-wrap gap-2">
               <Button type="submit" className="rounded-full px-5" data-testid="cirpass-level-submit">
                 {interaction.submit_label}
+              </Button>
+              {hasRequestExample && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full px-5"
+                  onClick={handleUseExampleData}
+                  data-testid="cirpass-level-use-example"
+                >
+                  Use example data
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full px-5"
+                onClick={() => {
+                  void handleCopyPayloadJson();
+                }}
+                data-testid="cirpass-level-copy-json"
+              >
+                {payloadCopied ? 'Copied' : 'Copy payload JSON'}
               </Button>
               <Button
                 type="button"
