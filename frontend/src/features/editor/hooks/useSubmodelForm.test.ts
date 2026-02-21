@@ -73,4 +73,25 @@ describe('useSubmodelForm', () => {
 
     expect(result.current.form.getValues('name')).toBe('Version 2');
   });
+
+  it('does not reset when initialData identity changes with the same semantic content', async () => {
+    const dataV1 = { name: 'Stable' };
+    const dataV1Clone = { name: 'Stable' };
+
+    const { result, rerender } = renderHook(
+      ({ data }) => useSubmodelForm(defA, undefined, data),
+      { initialProps: { data: dataV1 } },
+    );
+
+    await act(async () => {
+      result.current.form.setValue('name', 'Edited');
+    });
+    expect(result.current.form.getValues('name')).toBe('Edited');
+
+    await act(async () => {
+      rerender({ data: dataV1Clone });
+    });
+
+    expect(result.current.form.getValues('name')).toBe('Edited');
+  });
 });
