@@ -44,9 +44,23 @@ jobs:
           ENCRYPTION_MASTER_KEY: MDEyMzQ1Njc4OUFCQ0RFRjAxMjM0NTY3ODlBQkNERUY=
         run: |
           set -euo pipefail
+          SERVICES=(
+            postgres
+            redis
+            keycloak
+            opa
+            minio
+            backend
+            frontend
+            opcua-agent
+            edc-postgres
+            vault
+            edc-controlplane
+            edc-dataplane
+          )
           for attempt in 1 2 3; do
             echo "Starting stack (attempt ${attempt}/3)..."
-            if docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build; then
+            if docker compose -f docker-compose.yml -f docker-compose.edc.yml up -d --build "${SERVICES[@]}"; then
               exit 0
             fi
             echo "Compose startup failed on attempt ${attempt}; retrying after cleanup..."

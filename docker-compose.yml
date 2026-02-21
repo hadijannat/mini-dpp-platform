@@ -199,8 +199,6 @@ services:
         condition: service_healthy
       opa:
         condition: service_healthy
-      rfid-tds:
-        condition: service_healthy
     networks:
       - dpp-network
 
