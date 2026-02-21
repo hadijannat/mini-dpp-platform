@@ -65,8 +65,11 @@ export const generatedCirpassManifest: CirpassLabManifest = {
                 "label": "Identifier",
                 "type": "text",
                 "required": true,
+                "placeholder": "did:web:dpp.eu:product:demo-bike",
+                "hint": "Use a DID, URN, or URL (globally unique).",
                 "validation": {
-                  "min_length": 10
+                  "min_length": 10,
+                  "pattern": "^(did:[a-z0-9]+:.*|urn:.*|https?://.*)$"
                 },
                 "test_id": "cirpass-create-identifier"
               },
@@ -75,6 +78,8 @@ export const generatedCirpassManifest: CirpassLabManifest = {
                 "label": "Material composition",
                 "type": "textarea",
                 "required": true,
+                "placeholder": "recycled_aluminum (70%), steel (20%), plastic (10%)",
+                "hint": "List major materials; add % if known.",
                 "validation": {
                   "min_length": 3
                 },
@@ -85,6 +90,8 @@ export const generatedCirpassManifest: CirpassLabManifest = {
                 "label": "Carbon footprint (kg CO2e)",
                 "type": "number",
                 "required": true,
+                "placeholder": "14.2",
+                "hint": "Enter a positive value (kg CO2e).",
                 "validation": {
                   "gt": 0
                 },
@@ -105,7 +112,7 @@ export const generatedCirpassManifest: CirpassLabManifest = {
             },
             "response_example": {
               "id": "dpp_123",
-              "status": "draft"
+              "status": "active"
             }
           },
           "artifacts": {

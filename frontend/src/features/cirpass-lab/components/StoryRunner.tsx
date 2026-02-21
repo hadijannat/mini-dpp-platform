@@ -104,7 +104,7 @@ function buildSyntheticFallbackStory(levels: CirpassLevel[], version: string): C
           },
           response_example: {
             id: 'dpp_123',
-            status: 'draft',
+            status: 'active',
           },
         },
         artifacts: {
@@ -1060,4 +1060,3 @@ export default function StoryRunner({
     </>
   );
 }
-

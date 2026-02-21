@@ -20,6 +20,7 @@ const step: CirpassLabStep = {
         label: 'Identifier',
         type: 'text',
         required: true,
+        hint: 'Use a globally unique identifier.',
         test_id: 'cirpass-create-identifier',
       },
       {
@@ -27,19 +28,41 @@ const step: CirpassLabStep = {
         label: 'Carbon footprint',
         type: 'number',
         required: true,
+        hint: 'Use a positive value in kg CO2e.',
         validation: { gt: 0 },
         test_id: 'cirpass-create-carbon',
       },
     ],
     options: [],
   },
+  api: {
+    method: 'POST',
+    path: '/api/v1/tenants/{tenant}/dpps',
+    auth: 'user',
+    expected_status: 201,
+    request_example: {
+      identifier: 'did:web:dpp.eu:product:demo-bike',
+      carbonFootprint: 14.2,
+      ignoredField: 'not-used',
+    },
+  },
   checks: [],
   variants: ['happy'],
 };
 
+function mockClipboard() {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText },
+  });
+  return writeText;
+}
+
 describe('StepInteractionRenderer', () => {
   afterEach(() => {
     cleanup();
+    vi.restoreAllMocks();
   });
 
   it('renders manifest fields and submits normalized payload', async () => {
@@ -138,5 +161,124 @@ describe('StepInteractionRenderer', () => {
       route: 'consumer',
     });
     expect(onHint).not.toHaveBeenCalled();
+  });
+
+  it('uses request example values and copies current payload JSON', async () => {
+    const writeText = mockClipboard();
+
+    render(
+      <StepInteractionRenderer
+        step={step}
+        objective="Create objective"
+        derivedHint="hint"
+        onSubmit={vi.fn()}
+        onHint={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('cirpass-level-use-example'));
+
+    expect((screen.getByTestId('cirpass-create-identifier') as HTMLInputElement).value).toBe(
+      'did:web:dpp.eu:product:demo-bike',
+    );
+    expect((screen.getByTestId('cirpass-create-carbon') as HTMLInputElement).value).toBe('14.2');
+
+    fireEvent.click(screen.getByTestId('cirpass-level-copy-json'));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledTimes(1);
+    });
+    const copiedJson = writeText.mock.calls[0][0] as string;
+    const copiedPayload = JSON.parse(copiedJson) as Record<string, unknown>;
+    expect(copiedPayload).toEqual({
+      identifier: 'did:web:dpp.eu:product:demo-bike',
+      carbonFootprint: 14.2,
+    });
+    expect(screen.getByTestId('cirpass-level-copy-json').textContent).toContain('Copied');
+  });
+
+  it('shows an error summary, focuses it on invalid submit, and links to invalid fields', async () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <StepInteractionRenderer
+        step={step}
+        objective="Create objective"
+        derivedHint="hint"
+        onSubmit={onSubmit}
+        onHint={vi.fn()}
+      />,
+    );
+
+    fireEvent.submit(screen.getByTestId('cirpass-level-submit').closest('form')!);
+
+    const summary = await screen.findByTestId('cirpass-error-summary');
+    expect(summary.getAttribute('role')).toBe('alert');
+    expect(summary.getAttribute('aria-live')).toBe('assertive');
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(summary);
+    });
+
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const identifierInput = screen.getByTestId('cirpass-create-identifier');
+    expect(identifierInput.getAttribute('aria-invalid')).toBe('true');
+    const describedBy = identifierInput.getAttribute('aria-describedby') ?? '';
+    expect(describedBy).toContain('create-passport-identifier-hint');
+    expect(describedBy).toContain('create-passport-identifier-error');
+
+    fireEvent.click(screen.getByTestId('cirpass-error-link-identifier'));
+    expect(document.activeElement).toBe(identifierInput);
+  });
+
+  it('renders inline checkbox errors with aria linkage', async () => {
+    const checkboxStep: CirpassLabStep = {
+      ...step,
+      id: 'access-passport',
+      level: 'access',
+      interaction: {
+        kind: 'form',
+        submit_label: 'Validate access',
+        fields: [
+          {
+            name: 'policyAccepted',
+            label: 'Policy approved',
+            type: 'checkbox',
+            required: true,
+            hint: 'Check this box to proceed.',
+            validation: {
+              equals: true,
+            },
+            test_id: 'cirpass-access-policy',
+          },
+        ],
+        options: [],
+      },
+      api: undefined,
+    };
+
+    render(
+      <StepInteractionRenderer
+        step={checkboxStep}
+        objective="Access objective"
+        derivedHint="hint"
+        onSubmit={vi.fn()}
+        onHint={vi.fn()}
+      />,
+    );
+
+    fireEvent.submit(screen.getByTestId('cirpass-level-submit').closest('form')!);
+
+    await screen.findByTestId('cirpass-error-summary');
+
+    const checkbox = screen.getByTestId('cirpass-access-policy');
+    expect(checkbox.getAttribute('aria-invalid')).toBe('true');
+    const describedBy = checkbox.getAttribute('aria-describedby') ?? '';
+    expect(describedBy).toContain('access-passport-policyAccepted-hint');
+    expect(describedBy).toContain('access-passport-policyAccepted-error');
+
+    const errorNode = document.getElementById('access-passport-policyAccepted-error');
+    expect(errorNode?.textContent ?? '').toContain('Policy approved');
   });
 });
