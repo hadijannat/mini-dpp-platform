@@ -247,6 +247,27 @@ services:
   # =============================================================================
   # Backend API - FastAPI Application (Production)
   # =============================================================================
+  rfid-tds:
+    build:
+      context: ./services/rfid-tds
+      dockerfile: Dockerfile
+    image: dpp-rfid-tds:prod
+    container_name: dpp-rfid-tds
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - dpp-network
+
   # One-off migration runner (use: docker compose run --rm migrate)
   migrate:
     build:
@@ -313,6 +334,8 @@ services:
       - NOTIFICATIONS_FROM_EMAIL=${NOTIFICATIONS_FROM_EMAIL:-}
       - NOTIFICATIONS_FROM_NAME=${NOTIFICATIONS_FROM_NAME:-DPP Platform}
       - NOTIFICATIONS_ADMIN_FALLBACK_EMAILS=${NOTIFICATIONS_ADMIN_FALLBACK_EMAILS:-}
+      - RFID_TDS_SERVICE_URL=${RFID_TDS_SERVICE_URL:-http://rfid-tds:8080}
+      - RFID_TDS_TIMEOUT_SECONDS=${RFID_TDS_TIMEOUT_SECONDS:-5}
     depends_on:
       postgres:
         condition: service_healthy
@@ -350,6 +373,8 @@ services:
       keycloak:
         condition: service_healthy
       opa:
+        condition: service_healthy
+      rfid-tds:
         condition: service_healthy
     networks:
       - dpp-network

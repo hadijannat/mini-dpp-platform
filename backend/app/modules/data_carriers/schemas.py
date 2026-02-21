@@ -21,6 +21,7 @@ class DataCarrierIdentifierScheme(str, Enum):
     """Identifier scheme encoded in the carrier."""
 
     GS1_GTIN = "gs1_gtin"
+    GS1_EPC_TDS23 = "gs1_epc_tds23"
     IEC61406 = "iec61406"
     DIRECT_URL = "direct_url"
 
@@ -31,6 +32,7 @@ class DataCarrierType(str, Enum):
     QR = "qr"
     DATAMATRIX = "datamatrix"
     NFC = "nfc"
+    RFID = "rfid"
 
 
 class DataCarrierResolverStrategy(str, Enum):
@@ -55,6 +57,8 @@ class RenderOutputType(str, Enum):
     SVG = "svg"
     PDF = "pdf"
     NDEF = "ndef"
+    JSON = "json"
+    CSV = "csv"
 
 
 class RegistryExportFormat(str, Enum):
@@ -72,6 +76,12 @@ class DataCarrierIdentifierData(BaseModel):
     batch: str | None = None
     manufacturer_part_id: str | None = None
     direct_url: HttpUrl | None = None
+    tds_scheme: str | None = None
+    epc_hex: str | None = None
+    domain: str | None = None
+    tag_length: int | None = None
+    filter: int | None = None
+    gs1_company_prefix_length: int | None = None
 
 
 class DataCarrierLayoutProfile(BaseModel):

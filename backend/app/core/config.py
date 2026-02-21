@@ -791,6 +791,16 @@ class Settings(BaseSettings):
             "Can be overridden via admin settings."
         ),
     )
+    rfid_tds_service_url: str = Field(
+        default="",
+        description="Base URL for RFID TDS translation sidecar (e.g., http://rfid-tds:8080)",
+    )
+    rfid_tds_timeout_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=60,
+        description="Timeout in seconds for RFID TDS sidecar requests",
+    )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

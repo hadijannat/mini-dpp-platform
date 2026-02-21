@@ -10,7 +10,13 @@ from app.modules.data_carriers.profile import (
 def test_default_profile_matches_expected_baseline() -> None:
     profile = default_data_carrier_compliance_profile()
     assert profile.name == "generic_espr_v1"
-    assert [item.value for item in profile.allowed_carrier_types] == ["qr", "datamatrix"]
+    assert [item.value for item in profile.allowed_carrier_types] == ["qr", "datamatrix", "rfid"]
+    assert [item.value for item in profile.allowed_identifier_schemes] == [
+        "gs1_gtin",
+        "gs1_epc_tds23",
+        "iec61406",
+        "direct_url",
+    ]
     assert [item.value for item in profile.publish_allowed_statuses] == ["active"]
     assert profile.publish_require_active_carrier is True
     assert profile.enforce_gtin_verified is True
