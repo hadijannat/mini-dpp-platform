@@ -1,5 +1,10 @@
 import { apiFetch, getApiErrorMessage } from '@/lib/api';
 import type { TemplateContractResponse } from '@/features/editor/types/definition';
+import {
+  extractPublicSmtRateLimit,
+  parsePublicSmtApiError,
+  type PublicSmtRateLimitMeta,
+} from './publicSmtErrors';
 
 export type PublicTemplateStatus = 'published' | 'deprecated' | 'all';
 
@@ -85,6 +90,16 @@ export type PublicExportResult = {
   filename: string;
 };
 
+export type PublicPreviewWithMetaResponse = {
+  data: PublicPreviewResponse;
+  meta: PublicSmtRateLimitMeta;
+};
+
+export type PublicExportWithMetaResult = {
+  result: PublicExportResult;
+  meta: PublicSmtRateLimitMeta;
+};
+
 function resolveFilenameFromDisposition(
   contentDisposition: string | null,
   fallback: string,
@@ -148,27 +163,47 @@ export async function getPublicTemplateContract(
 export async function previewPublicTemplate(
   payload: PublicPreviewRequest,
 ): Promise<PublicPreviewResponse> {
+  const responseWithMeta = await previewPublicTemplateWithMeta(payload);
+  return responseWithMeta.data;
+}
+
+export async function previewPublicTemplateWithMeta(
+  payload: PublicPreviewRequest,
+): Promise<PublicPreviewWithMetaResponse> {
   const response = await apiFetch('/api/v1/public/smt/preview', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, 'Failed to generate AAS preview'));
+    throw await parsePublicSmtApiError(response, 'Failed to generate AAS preview');
   }
-  return response.json() as Promise<PublicPreviewResponse>;
+  return {
+    data: (await response.json()) as PublicPreviewResponse,
+    meta: extractPublicSmtRateLimit(response.headers),
+  };
 }
 
 export async function exportPublicTemplate(
   payload: PublicExportRequest,
 ): Promise<PublicExportResult> {
+  const responseWithMeta = await exportPublicTemplateWithMeta(payload);
+  return responseWithMeta.result;
+}
+
+export async function exportPublicTemplateWithMeta(
+  payload: PublicExportRequest,
+): Promise<PublicExportWithMetaResult> {
   const response = await apiFetch('/api/v1/public/smt/export', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    throw new Error(await getApiErrorMessage(response, `Failed to export ${payload.format.toUpperCase()}`));
+    throw await parsePublicSmtApiError(
+      response,
+      `Failed to export ${payload.format.toUpperCase()}`,
+    );
   }
   const blob = await response.blob();
   const filename = resolveFilenameFromDisposition(
@@ -176,8 +211,11 @@ export async function exportPublicTemplate(
     `${payload.template_key}.${payload.format}`,
   );
   return {
-    blob,
-    filename,
-    contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+    result: {
+      blob,
+      filename,
+      contentType: response.headers.get('content-type') ?? 'application/octet-stream',
+    },
+    meta: extractPublicSmtRateLimit(response.headers),
   };
 }

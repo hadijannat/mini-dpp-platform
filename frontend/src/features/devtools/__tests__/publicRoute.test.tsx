@@ -23,8 +23,8 @@ vi.mock('@/features/devtools/lib/publicSmtApi', () => ({
   getPublicTemplate: vi.fn().mockResolvedValue(null),
   listPublicTemplateVersions: vi.fn().mockResolvedValue({ template_key: '', versions: [], count: 0 }),
   getPublicTemplateContract: vi.fn(),
-  previewPublicTemplate: vi.fn(),
-  exportPublicTemplate: vi.fn(),
+  previewPublicTemplateWithMeta: vi.fn(),
+  exportPublicTemplateWithMeta: vi.fn(),
 }));
 
 it('renders /tools/idta-submodel-editor without auth redirect', async () => {

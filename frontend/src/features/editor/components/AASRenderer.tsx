@@ -1,8 +1,11 @@
+import { useMemo } from 'react';
 import type { AASRendererProps } from '../types/formTypes';
 import type { UISchema } from '../types/uiSchema';
 import type { DefinitionNode } from '../types/definition';
 import type { Control } from 'react-hook-form';
 import { getSchemaAtPath } from '../utils/pathUtils';
+import { useDocHints } from '../contexts/DocHintsContext';
+import { buildDocHintDescription, resolveDocHint } from '../utils/docHints';
 import { PropertyField } from './fields/PropertyField';
 import { MultiLangField } from './fields/MultiLangField';
 import { RangeField } from './fields/RangeField';
@@ -40,13 +43,38 @@ export function AASRenderer({
   control,
   editorContext,
 }: AASRendererProps) {
-  const accessMode = node.smt?.access_mode?.toLowerCase();
+  const docHints = useDocHints();
+  const resolvedHint = useMemo(
+    () => resolveDocHint({ node, fieldPath: basePath, docHints }),
+    [basePath, docHints, node],
+  );
+  const hintDescription = useMemo(
+    () => (resolvedHint ? buildDocHintDescription(resolvedHint) : undefined),
+    [resolvedHint],
+  );
+  const decoratedNode = useMemo<DefinitionNode>(
+    () =>
+      resolvedHint
+        ? {
+            ...node,
+            smt: {
+              ...(node.smt ?? {}),
+              form_title: resolvedHint.formTitle ?? node.smt?.form_title,
+              form_info: hintDescription ?? node.smt?.form_info,
+              form_url: resolvedHint.formUrl ?? node.smt?.form_url,
+            },
+          }
+        : node,
+    [hintDescription, node, resolvedHint],
+  );
+
+  const accessMode = decoratedNode.smt?.access_mode?.toLowerCase();
   const readOnly = accessMode === 'readonly' || accessMode === 'read-only';
 
   const fieldProps = {
     name: basePath,
     control,
-    node,
+    node: decoratedNode,
     schema,
     depth,
     readOnly,
@@ -68,13 +96,13 @@ export function AASRenderer({
     );
   }
 
-  switch (node.modelType) {
+  switch (decoratedNode.modelType) {
     case 'SubmodelElementCollection':
       return (
         <CollectionField
           name={basePath}
           control={control}
-          node={node}
+          node={decoratedNode}
           schema={schema}
           depth={depth}
           renderNode={renderNode}
@@ -87,7 +115,7 @@ export function AASRenderer({
         <ListField
           name={basePath}
           control={control}
-          node={node}
+          node={decoratedNode}
           schema={schema}
           depth={depth}
           renderNode={renderNode}
@@ -123,7 +151,7 @@ export function AASRenderer({
       return (
         <UnsupportedField
           name={basePath}
-          node={node}
+          node={decoratedNode}
           reason="This IDTA model type is not editable in the current contract-driven renderer."
         />
       );
@@ -135,8 +163,8 @@ export function AASRenderer({
       return (
         <UnsupportedField
           name={basePath}
-          node={node}
-          reason={`Unsupported model type: ${node.modelType}`}
+          node={decoratedNode}
+          reason={`Unsupported model type: ${decoratedNode.modelType}`}
         />
       );
   }

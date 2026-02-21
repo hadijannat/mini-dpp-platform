@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DocHintsProvider } from '@/features/editor/contexts/DocHintsContext';
 import { useSubmodelForm } from '@/features/editor/hooks/useSubmodelForm';
 import { AASRendererList } from '@/features/editor/components/AASRenderer';
 import { JsonEditor } from '@/features/editor/components/JsonEditor';
@@ -16,6 +18,8 @@ import { SubmodelEditorShell } from '@/features/editor/components/SubmodelEditor
 import type { TemplateContractResponse, TemplateDefinition } from '@/features/editor/types/definition';
 import type { UISchema } from '@/features/editor/types/uiSchema';
 import { defaultValueForSchema } from '@/features/editor/utils/formDefaults';
+import { buildJsonIssues } from '@/features/editor/utils/jsonIssues';
+import { ValidationIssuesPanel } from '../components/ValidationIssuesPanel';
 import {
   createSmtDraftId,
   deleteSmtDraft,
@@ -27,15 +31,21 @@ import {
   type SmtDraftRecord,
 } from '../lib/smtDraftStorage';
 import {
-  exportPublicTemplate,
+  exportPublicTemplateWithMeta,
   getPublicTemplate,
   getPublicTemplateContract,
   listPublicTemplateVersions,
   listPublicTemplates,
-  previewPublicTemplate,
+  previewPublicTemplateWithMeta,
   type PublicExportFormat,
   type PublicTemplateStatus,
 } from '../lib/publicSmtApi';
+import {
+  collectIssues,
+  PublicSmtApiError,
+  type PublicSmtIssue,
+  type PublicSmtRateLimitMeta,
+} from '../lib/publicSmtErrors';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = window.URL.createObjectURL(blob);
@@ -90,6 +100,36 @@ function buildWarningNotice(warnings: string[]): string | null {
   if (messages.length === 0) return null;
   if (messages.length === 1) return messages[0];
   return `${messages.length} notices: ${messages.join(' • ')}`;
+}
+
+const AUTO_PREVIEW_ENABLED_STORAGE_KEY = 'publicSmt.autoPreview.enabled';
+const AUTO_PREVIEW_BACKGROUND_STORAGE_KEY = 'publicSmt.autoPreview.background';
+
+function readBooleanSetting(key: string, fallback: boolean): boolean {
+  if (typeof window === 'undefined') return fallback;
+  const rawValue = window.localStorage.getItem(key);
+  if (rawValue === null) return fallback;
+  if (rawValue === 'true') return true;
+  if (rawValue === 'false') return false;
+  return fallback;
+}
+
+function writeBooleanSetting(key: string, value: boolean): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, String(value));
+}
+
+function escapeSelectorValue(value: string): string {
+  if (typeof window !== 'undefined' && window.CSS && typeof window.CSS.escape === 'function') {
+    return window.CSS.escape(value);
+  }
+  return value.replace(/[\\"]/g, '\\$&');
+}
+
+function formatRateLimit(meta: PublicSmtRateLimitMeta | null): string | null {
+  if (!meta) return null;
+  if (meta.remaining === undefined || meta.limit === undefined) return null;
+  return `${meta.remaining}/${meta.limit}`;
 }
 
 function buildSeedFromSchema(schema?: UISchema, required = false): unknown {
@@ -148,7 +188,17 @@ export default function PublicIdtaSubmodelEditorPage() {
   const [previewText, setPreviewText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<PublicSmtIssue[]>([]);
+  const [jsonValidationIssues, setJsonValidationIssues] = useState<PublicSmtIssue[]>([]);
+  const [previewRateLimit, setPreviewRateLimit] = useState<PublicSmtRateLimitMeta | null>(null);
+  const [exportRateLimit, setExportRateLimit] = useState<PublicSmtRateLimitMeta | null>(null);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [autoPreviewEnabled, setAutoPreviewEnabled] = useState<boolean>(() =>
+    readBooleanSetting(AUTO_PREVIEW_ENABLED_STORAGE_KEY, true),
+  );
+  const [backgroundPreviewEnabled, setBackgroundPreviewEnabled] = useState<boolean>(() =>
+    readBooleanSetting(AUTO_PREVIEW_BACKGROUND_STORAGE_KEY, false),
+  );
   const [drafts, setDrafts] = useState<SmtDraftRecord[]>(() => listSmtDrafts());
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
   const pendingDraftRef = useRef<SmtDraftRecord | null>(null);
@@ -181,6 +231,20 @@ export default function PublicIdtaSubmodelEditorPage() {
     queryFn: () => getPublicTemplateContract(selectedTemplateKey, selectedVersion || undefined),
     enabled: Boolean(selectedTemplateKey),
   });
+
+  useEffect(() => {
+    writeBooleanSetting(AUTO_PREVIEW_ENABLED_STORAGE_KEY, autoPreviewEnabled);
+  }, [autoPreviewEnabled]);
+
+  useEffect(() => {
+    writeBooleanSetting(AUTO_PREVIEW_BACKGROUND_STORAGE_KEY, backgroundPreviewEnabled);
+  }, [backgroundPreviewEnabled]);
+
+  useEffect(() => {
+    if (autoPreviewEnabled) return;
+    if (!backgroundPreviewEnabled) return;
+    setBackgroundPreviewEnabled(false);
+  }, [autoPreviewEnabled, backgroundPreviewEnabled]);
 
   useEffect(() => {
     if (selectedTemplateKey) return;
@@ -270,6 +334,10 @@ export default function PublicIdtaSubmodelEditorPage() {
     setPreviewText('');
     setError(null);
     setNotice(null);
+    setValidationIssues([]);
+    setJsonValidationIssues([]);
+    setPreviewRateLimit(null);
+    setExportRateLimit(null);
   }, [selectedTemplateKey, selectedVersion]);
 
   const [debouncedFormValues, setDebouncedFormValues] = useState(() => form.getValues());
@@ -328,29 +396,48 @@ export default function PublicIdtaSubmodelEditorPage() {
 
   const previewMutation = useMutation({
     mutationFn: (payload: Record<string, unknown>) =>
-      previewPublicTemplate({
+      previewPublicTemplateWithMeta({
         template_key: selectedTemplateKey,
         version: selectedVersion || undefined,
         data: payload,
       }),
-    onSuccess: (result) => {
-      if (!result || typeof result !== 'object') return;
-      setPreviewText(JSON.stringify(result.aas_environment, null, 2));
+    onSuccess: ({ data, meta }) => {
+      setPreviewText(JSON.stringify(data.aas_environment, null, 2));
       setError(null);
-      setNotice(buildWarningNotice(result.warnings));
+      setNotice(buildWarningNotice(data.warnings));
+      setValidationIssues([]);
+      setPreviewRateLimit(meta);
     },
     onError: (previewError) => {
-      const rawMessage = previewError instanceof Error ? previewError.message : 'Failed to generate preview';
-      if (activeView === 'preview') {
-        setError(normalizeErrorMessage(rawMessage));
-        setNotice(null);
+      if (previewError instanceof PublicSmtApiError) {
+        const detail = typeof previewError.detail === 'object' ? previewError.detail : undefined;
+        const detailIssues = collectIssues(detail);
+        setValidationIssues(detailIssues);
+        setError(normalizeErrorMessage(previewError.message));
+        setNotice(
+          previewError.status === 429 && previewError.rateLimit?.retryAfterSeconds
+            ? `Rate limit reached. Retry after ${previewError.rateLimit.retryAfterSeconds}s. Auto preview disabled.`
+            : null,
+        );
+        setPreviewRateLimit(previewError.rateLimit ?? null);
+        if (previewError.status === 429) {
+          setAutoPreviewEnabled(false);
+          setBackgroundPreviewEnabled(false);
+        }
+        return;
       }
+      const rawMessage = previewError instanceof Error ? previewError.message : 'Failed to generate preview';
+      setError(normalizeErrorMessage(rawMessage));
+      setValidationIssues([]);
+      setNotice(null);
     },
   });
 
   useEffect(() => {
     if (!hasUserInteracted) return;
-    if (!selectedTemplateKey || !contractQuery.data || activeView === 'json') return;
+    if (!selectedTemplateKey || !contractQuery.data) return;
+    if (!autoPreviewEnabled) return;
+    if (activeView !== 'preview' && !backgroundPreviewEnabled) return;
     if (previewMutation.isPending) return;
     previewMutation.mutate(debouncedFormValues);
     // previewMutation object identity may change between renders; triggering on
@@ -360,7 +447,9 @@ export default function PublicIdtaSubmodelEditorPage() {
     activeView,
     contractQuery.data,
     debouncedFormValues,
+    backgroundPreviewEnabled,
     hasUserInteracted,
+    autoPreviewEnabled,
     selectedTemplateKey,
     selectedVersion,
   ]);
@@ -368,36 +457,100 @@ export default function PublicIdtaSubmodelEditorPage() {
   const handleRawJsonChange = (value: string) => {
     setRawJson(value);
     setHasUserInteracted(true);
+    setError(null);
+    setValidationIssues([]);
   };
+
+  const expandCollapsiblePath = useCallback((path: string) => {
+    const segments = path.split('.').filter(Boolean);
+    for (let index = 1; index <= segments.length; index += 1) {
+      const currentPath = segments.slice(0, index).join('.');
+      const selector = `[data-collapsible-trigger-path="${escapeSelectorValue(currentPath)}"]`;
+      const trigger = document.querySelector<HTMLElement>(selector);
+      if (trigger?.getAttribute('data-state') === 'closed') {
+        trigger.click();
+      }
+    }
+  }, []);
+
+  const scrollToField = useCallback(
+    (path: string): boolean => {
+      const selector = `[data-field-path="${escapeSelectorValue(path)}"]`;
+      const target = document.querySelector<HTMLElement>(selector);
+      if (!target) return false;
+      if (typeof target.scrollIntoView === 'function') {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const input = target.querySelector<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])',
+      );
+      input?.focus();
+      return true;
+    },
+    [],
+  );
+
+  const jumpToField = useCallback(
+    (path: string) => {
+      if (!path || path === 'root') return;
+      const runJump = () => {
+        expandCollapsiblePath(path);
+        void scrollToField(path);
+      };
+      if (activeView !== 'form') {
+        setActiveView('form');
+        window.setTimeout(runJump, 40);
+        return;
+      }
+      runJump();
+    },
+    [activeView, expandCollapsiblePath, scrollToField],
+  );
 
   const resolveCurrentData = (): Record<string, unknown> | null => {
     if (activeView === 'json') {
-      try {
-        return JSON.parse(rawJson) as Record<string, unknown>;
-      } catch {
+      const { parsed, issues } = buildJsonIssues(rawJson);
+      setJsonValidationIssues(
+        issues.map((issue) => ({
+          ...issue,
+          type: 'schema',
+        })),
+      );
+      if (!parsed) {
         setError('Raw JSON is invalid. Fix formatting before exporting.');
         return null;
       }
+      return parsed;
     }
     return form.getValues();
   };
 
   const exportMutation = useMutation({
     mutationFn: async ({ format, payload }: { format: PublicExportFormat; payload: Record<string, unknown> }) =>
-      exportPublicTemplate({
+      exportPublicTemplateWithMeta({
         template_key: selectedTemplateKey,
         version: selectedVersion || undefined,
         data: payload,
         format,
       }),
-    onSuccess: (result) => {
+    onSuccess: ({ result, meta }) => {
       downloadBlob(result.blob, result.filename);
       setError(null);
       setNotice(`Exported ${result.filename}`);
+      setValidationIssues([]);
+      setExportRateLimit(meta);
     },
     onError: (exportError) => {
+      if (exportError instanceof PublicSmtApiError) {
+        const detail = typeof exportError.detail === 'object' ? exportError.detail : undefined;
+        setValidationIssues(collectIssues(detail));
+        setError(normalizeErrorMessage(exportError.message));
+        setExportRateLimit(exportError.rateLimit ?? null);
+        return;
+      }
       const rawMessage = exportError instanceof Error ? exportError.message : 'Failed to export';
       setError(normalizeErrorMessage(rawMessage));
+      setValidationIssues([]);
     },
   });
 
@@ -414,6 +567,7 @@ export default function PublicIdtaSubmodelEditorPage() {
         const parsed = JSON.parse(rawJson) as Record<string, unknown>;
         form.reset(parsed);
         setError(null);
+        setJsonValidationIssues([]);
       } catch {
         setError('Invalid JSON. Fix it before switching to form view.');
         return;
@@ -421,6 +575,7 @@ export default function PublicIdtaSubmodelEditorPage() {
     }
     if (view === 'json') {
       setRawJson(JSON.stringify(form.getValues(), null, 2));
+      setValidationIssues([]);
     }
     if (view === 'preview') {
       setHasUserInteracted(true);
@@ -482,6 +637,13 @@ export default function PublicIdtaSubmodelEditorPage() {
       event.target.value = '';
     }
   };
+
+  const visibleIssues = useMemo(() => {
+    if (activeView === 'json') {
+      return [...validationIssues, ...jsonValidationIssues];
+    }
+    return validationIssues;
+  }, [activeView, jsonValidationIssues, validationIssues]);
 
   const loading = templatesQuery.isLoading || (Boolean(selectedTemplateKey) && contractQuery.isLoading);
 
@@ -681,6 +843,34 @@ export default function PublicIdtaSubmodelEditorPage() {
                   <AlertDescription className="text-xs">{notice}</AlertDescription>
                 </Alert>
               )}
+              <ValidationIssuesPanel
+                title="Validation issues"
+                issues={visibleIssues}
+                onIssueClick={(issue) => jumpToField(issue.path)}
+              />
+
+              <div className="rounded-md border bg-muted/20 p-3">
+                <p className="text-xs font-medium">Preview behavior</p>
+                <div className="mt-2 flex flex-wrap gap-4">
+                  <label htmlFor="public-auto-preview" className="flex items-center gap-2 text-xs">
+                    <Switch
+                      id="public-auto-preview"
+                      checked={autoPreviewEnabled}
+                      onCheckedChange={setAutoPreviewEnabled}
+                    />
+                    Auto preview (Preview tab)
+                  </label>
+                  <label htmlFor="public-background-preview" className="flex items-center gap-2 text-xs">
+                    <Switch
+                      id="public-background-preview"
+                      checked={backgroundPreviewEnabled}
+                      disabled={!autoPreviewEnabled}
+                      onCheckedChange={setBackgroundPreviewEnabled}
+                    />
+                    Live preview in background
+                  </label>
+                </div>
+              </div>
 
               <Tabs value={activeView} onValueChange={(value) => handleViewChange(value as 'form' | 'json' | 'preview')}>
                 <TabsList>
@@ -690,14 +880,16 @@ export default function PublicIdtaSubmodelEditorPage() {
                 </TabsList>
                 <TabsContent value="form">
                   {hasDefinitionElements ? (
-                    <AASRendererList
-                      nodes={templateDefinition!.submodel!.elements!}
-                      basePath=""
-                      depth={0}
-                      rootSchema={uiSchema}
-                      control={form.control}
-                      editorContext={undefined}
-                    />
+                    <DocHintsProvider docHints={contractQuery.data.doc_hints}>
+                      <AASRendererList
+                        nodes={templateDefinition!.submodel!.elements!}
+                        basePath=""
+                        depth={0}
+                        rootSchema={uiSchema}
+                        control={form.control}
+                        editorContext={undefined}
+                      />
+                    </DocHintsProvider>
                   ) : (
                     <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
                       Form view is unavailable for this template. Use raw JSON mode.
@@ -705,7 +897,19 @@ export default function PublicIdtaSubmodelEditorPage() {
                   )}
                 </TabsContent>
                 <TabsContent value="json">
-                  <JsonEditor value={rawJson} onChange={handleRawJsonChange} />
+                  <JsonEditor
+                    value={rawJson}
+                    schema={uiSchema}
+                    onChange={handleRawJsonChange}
+                    onIssuesChange={(issues) => {
+                      setJsonValidationIssues(
+                        issues.map((issue) => ({
+                          ...issue,
+                          type: 'schema',
+                        })),
+                      );
+                    }}
+                  />
                 </TabsContent>
                 <TabsContent value="preview">
                   <div className="mb-3 flex items-center gap-2">
@@ -724,6 +928,11 @@ export default function PublicIdtaSubmodelEditorPage() {
                       <RefreshCw className="mr-1 h-4 w-4" />
                       Refresh Preview
                     </Button>
+                    {formatRateLimit(previewRateLimit) && (
+                      <span className="text-xs text-muted-foreground">
+                        Preview quota: {formatRateLimit(previewRateLimit)}
+                      </span>
+                    )}
                   </div>
                   <pre className="max-h-[520px] overflow-auto rounded-md border bg-muted/20 p-3 text-xs">
                     {previewText || '{}'}
@@ -741,6 +950,8 @@ export default function PublicIdtaSubmodelEditorPage() {
                     setPreviewText('');
                     setError(null);
                     setNotice(null);
+                    setValidationIssues([]);
+                    setJsonValidationIssues([]);
                     setRawJson(JSON.stringify(initialTemplateData, null, 2));
                   }}
                 >
@@ -748,6 +959,11 @@ export default function PublicIdtaSubmodelEditorPage() {
                 </Button>
                 <Button size="sm" variant="outline" onClick={handleSaveDraft}>Save Draft</Button>
                 <Button size="sm" variant="outline" onClick={handleSaveAs}>Save As</Button>
+                {formatRateLimit(exportRateLimit) && (
+                  <span className="text-xs text-muted-foreground">
+                    Export quota: {formatRateLimit(exportRateLimit)}
+                  </span>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

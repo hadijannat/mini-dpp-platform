@@ -47,8 +47,12 @@ export function CollapsibleSection({
       onOpenChange={setOpen}
       className={cn(getDepthClass(depth))}
       data-field-path={fieldPath}
+      data-collapsible-path={fieldPath}
     >
-      <CollapsibleTrigger className="flex w-full items-center gap-2 p-4 text-left hover:bg-accent/50 rounded-t-md">
+      <CollapsibleTrigger
+        className="flex w-full items-center gap-2 p-4 text-left hover:bg-accent/50 rounded-t-md"
+        data-collapsible-trigger-path={fieldPath}
+      >
         <ChevronRight
           className={cn(
             'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
