@@ -33,7 +33,6 @@ def upgrade() -> None:
             sa.UUID(),
             sa.ForeignKey("tenants.id", ondelete="CASCADE"),
             nullable=False,
-            index=True,
         ),
         sa.Column("hostname", sa.String(length=255), nullable=False),
         sa.Column(
