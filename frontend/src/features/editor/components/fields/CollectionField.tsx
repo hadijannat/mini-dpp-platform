@@ -50,7 +50,14 @@ export function CollectionField({
           Definition unresolved: {schema['x-unresolved-reason'] ?? 'missing structural definition'}.
         </p>
       )}
-      {children.map((child, index) => {
+      {[...children]
+        .sort((left, right) => {
+          const leftOrder = typeof left.order === 'number' ? left.order : Number.MAX_SAFE_INTEGER;
+          const rightOrder = typeof right.order === 'number' ? right.order : Number.MAX_SAFE_INTEGER;
+          if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+          return String(left.idShort ?? '').localeCompare(String(right.idShort ?? ''));
+        })
+        .map((child, index) => {
         const childId = child.idShort ?? `Item${index + 1}`;
         const childPath = name ? `${name}.${childId}` : childId;
         const childSchema = schema?.properties?.[childId] ?? schema?.items;

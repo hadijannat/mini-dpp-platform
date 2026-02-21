@@ -202,7 +202,8 @@ export default function PublicIdtaSubmodelEditorPage() {
 
   const templateDefinition = contractQuery.data?.definition as TemplateDefinition | undefined;
   const uiSchema = contractQuery.data?.schema as UISchema | undefined;
-  const { form } = useSubmodelForm(templateDefinition, uiSchema, {});
+  const emptyInitialData = useMemo<Record<string, unknown>>(() => ({}), []);
+  const { form } = useSubmodelForm(templateDefinition, uiSchema, emptyInitialData);
   const initialTemplateData = useMemo(() => buildInitialTemplateData(uiSchema), [uiSchema]);
   const hasDefinitionElements = Boolean(templateDefinition?.submodel?.elements?.length);
   const diagnostics = useMemo(() => {
