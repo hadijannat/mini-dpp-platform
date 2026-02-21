@@ -39,6 +39,13 @@ export interface paths {
      */
     get: operations["get_published_dpp_api_v1_public__tenant_slug__dpps__dpp_id__get"];
   };
+  "/api/v1/public/{tenant_slug}/dpps/{dpp_id}/integrity": {
+    /**
+     * Get Public Dpp Integrity Bundle
+     * @description Return integrity metadata for external digest/signature verification.
+     */
+    get: operations["get_public_dpp_integrity_bundle_api_v1_public__tenant_slug__dpps__dpp_id__integrity_get"];
+  };
   "/api/v1/public/{tenant_slug}/dpps/slug/{slug}": {
     /**
      * Get Published Dpp By Slug
@@ -160,6 +167,13 @@ export interface paths {
      */
     get: operations["resolver_description_api_v1_resolve__well_known_gs1resolver_get"];
   };
+  "/api/v1/public/.well-known/jwks.json": {
+    /**
+     * Get Public Jwks
+     * @description Return JWKS for public signature verification.
+     */
+    get: operations["get_public_jwks_api_v1_public__well_known_jwks_json_get"];
+  };
   "/api/v1/public/{tenant_slug}/.well-known/did.json": {
     /**
      * Get Did Document
@@ -175,6 +189,115 @@ export interface paths {
      * @description Publicly verify a Verifiable Credential (no auth required).
      */
     post: operations["public_verify_credential_api_v1_public_credentials_verify_post"];
+  };
+  "/api/v1/public/cirpass/stories/latest": {
+    /**
+     * Get Latest Cirpass Stories
+     * @description Get latest CIRPASS user-story feed with stale-while-refresh behavior.
+     */
+    get: operations["get_latest_cirpass_stories_api_v1_public_cirpass_stories_latest_get"];
+  };
+  "/api/v1/public/cirpass/lab/manifest/latest": {
+    /**
+     * Get Latest Cirpass Lab Manifest
+     * @description Get latest validated CIRPASS lab scenario manifest.
+     */
+    get: operations["get_latest_cirpass_lab_manifest_api_v1_public_cirpass_lab_manifest_latest_get"];
+  };
+  "/api/v1/public/cirpass/lab/manifest/{manifest_version}": {
+    /**
+     * Get Cirpass Lab Manifest Version
+     * @description Get specific CIRPASS lab manifest version.
+     */
+    get: operations["get_cirpass_lab_manifest_version_api_v1_public_cirpass_lab_manifest__manifest_version__get"];
+  };
+  "/api/v1/public/cirpass/session": {
+    /**
+     * Create Cirpass Session
+     * @description Create anonymous signed browser session for public leaderboard submissions.
+     */
+    post: operations["create_cirpass_session_api_v1_public_cirpass_session_post"];
+  };
+  "/api/v1/public/cirpass/leaderboard": {
+    /**
+     * Get Cirpass Leaderboard
+     * @description Read public leaderboard rows for a CIRPASS story version.
+     */
+    get: operations["get_cirpass_leaderboard_api_v1_public_cirpass_leaderboard_get"];
+  };
+  "/api/v1/public/cirpass/leaderboard/submit": {
+    /**
+     * Submit Cirpass Leaderboard Score
+     * @description Submit a pseudonymous public score for the CIRPASS simulator.
+     */
+    post: operations["submit_cirpass_leaderboard_score_api_v1_public_cirpass_leaderboard_submit_post"];
+  };
+  "/api/v1/public/cirpass/lab/events": {
+    /**
+     * Ingest Cirpass Lab Event
+     * @description Ingest anonymized CIRPASS lab telemetry events.
+     */
+    post: operations["ingest_cirpass_lab_event_api_v1_public_cirpass_lab_events_post"];
+  };
+  "/api/v1/public/landing/regulatory-timeline": {
+    /**
+     * Get Public Regulatory Timeline
+     * @description Get latest verified public timeline with stale-while-refresh behavior.
+     */
+    get: operations["get_public_regulatory_timeline_api_v1_public_landing_regulatory_timeline_get"];
+  };
+  "/api/v1/public/smt/templates": {
+    /** List Public Templates */
+    get: operations["list_public_templates_api_v1_public_smt_templates_get"];
+  };
+  "/api/v1/public/smt/templates/{template_key}": {
+    /** Get Public Template */
+    get: operations["get_public_template_api_v1_public_smt_templates__template_key__get"];
+  };
+  "/api/v1/public/smt/templates/{template_key}/versions": {
+    /** List Public Template Versions */
+    get: operations["list_public_template_versions_api_v1_public_smt_templates__template_key__versions_get"];
+  };
+  "/api/v1/public/smt/templates/{template_key}/contract": {
+    /** Get Public Template Contract */
+    get: operations["get_public_template_contract_api_v1_public_smt_templates__template_key__contract_get"];
+  };
+  "/api/v1/public/smt/preview": {
+    /** Preview Public Template Instance */
+    post: operations["preview_public_template_instance_api_v1_public_smt_preview_post"];
+  };
+  "/api/v1/public/smt/export": {
+    /** Export Public Template Instance */
+    post: operations["export_public_template_instance_api_v1_public_smt_export_post"];
+  };
+  "/api/v1/public/{tenant_slug}/cen/dpps/{dpp_id}": {
+    /** Public Read Dpp By Id */
+    get: operations["PublicReadDPPById"];
+  };
+  "/api/v1/public/{tenant_slug}/cen/dpps": {
+    /** Public Search Dpps */
+    get: operations["PublicSearchDPPs"];
+  };
+  "/api/v1/lab/reset": {
+    /**
+     * Reset Lab State
+     * @description Reset lab tenant fixtures to deterministic baseline (admin only).
+     */
+    post: operations["reset_lab_state_api_v1_lab_reset_post"];
+  };
+  "/api/v1/lab/seed": {
+    /**
+     * Seed Lab State
+     * @description Seed deterministic fixtures required by a specific scenario (admin only).
+     */
+    post: operations["seed_lab_state_api_v1_lab_seed_post"];
+  };
+  "/api/v1/lab/status": {
+    /**
+     * Get Lab Status
+     * @description Inspect current deterministic sandbox state for live-mode readiness.
+     */
+    get: operations["get_lab_status_api_v1_lab_status_get"];
   };
   "/api/v1/onboarding/status": {
     /**
@@ -322,6 +445,13 @@ export interface paths {
      * Requires publisher role.
      */
     post: operations["refresh_template_api_v1_templates_refresh__template_key__post"];
+  };
+  "/api/v1/templates/catalog/sync": {
+    /**
+     * Sync Template Catalog
+     * @description Sync published/deprecated IDTA templates into DB cache (authenticated).
+     */
+    post: operations["sync_template_catalog_api_v1_templates_catalog_sync_post"];
   };
   "/api/v1/tenants/{tenant_slug}/dpps": {
     /**
@@ -486,6 +616,13 @@ export interface paths {
      * @description Compare two revisions of a DPP.
      */
     get: operations["diff_revisions_api_v1_tenants__tenant_slug__dpps__dpp_id__diff_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/dpps/{dpp_id}/digital-link": {
+    /**
+     * Get GS1 Digital Link URI for a DPP
+     * @description Return the canonical GS1 Digital Link URI for a DPP with GTIN.
+     */
+    get: operations["get_dpp_digital_link_api_v1_tenants__tenant_slug__dpps__dpp_id__digital_link_get"];
   };
   "/api/v1/tenants/{tenant_slug}/masters": {
     /** List Masters */
@@ -911,6 +1048,18 @@ export interface paths {
     /** Render Data Carrier */
     post: operations["render_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__render_post"];
   };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/validate": {
+    /** Validate Data Carrier Payload */
+    post: operations["validate_data_carrier_payload_api_v1_tenants__tenant_slug__data_carriers_validate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/qa": {
+    /** Get Data Carrier Qa */
+    get: operations["get_data_carrier_qa_api_v1_tenants__tenant_slug__data_carriers__carrier_id__qa_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/quality-checks": {
+    /** Create Data Carrier Quality Check */
+    post: operations["create_data_carrier_quality_check_api_v1_tenants__tenant_slug__data_carriers__carrier_id__quality_checks_post"];
+  };
   "/api/v1/tenants/{tenant_slug}/data-carriers/{carrier_id}/lifecycle/deprecate": {
     /** Deprecate Data Carrier */
     post: operations["deprecate_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_deprecate_post"];
@@ -930,6 +1079,78 @@ export interface paths {
   "/api/v1/tenants/{tenant_slug}/data-carriers/registry-export": {
     /** Export Registry */
     get: operations["export_registry_api_v1_tenants__tenant_slug__data_carriers_registry_export_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers/validate": {
+    /** Validate Identifier */
+    post: operations["validate_identifier_api_v1_tenants__tenant_slug__identifiers_validate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers": {
+    /** List Identifiers */
+    get: operations["list_identifiers_api_v1_tenants__tenant_slug__identifiers_get"];
+    /** Register Identifier */
+    post: operations["register_identifier_api_v1_tenants__tenant_slug__identifiers_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers/{identifier_id}": {
+    /** Get Identifier */
+    get: operations["get_identifier_api_v1_tenants__tenant_slug__identifiers__identifier_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers/{identifier_id}/supersede": {
+    /** Supersede Identifier */
+    post: operations["supersede_identifier_api_v1_tenants__tenant_slug__identifiers__identifier_id__supersede_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers/operators": {
+    /** List Operators */
+    get: operations["list_operators_api_v1_tenants__tenant_slug__identifiers_operators_get"];
+    /** Create Operator */
+    post: operations["create_operator_api_v1_tenants__tenant_slug__identifiers_operators_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/identifiers/facilities": {
+    /** List Facilities */
+    get: operations["list_facilities_api_v1_tenants__tenant_slug__identifiers_facilities_get"];
+    /** Create Facility */
+    post: operations["create_facility_api_v1_tenants__tenant_slug__identifiers_facilities_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/dpps": {
+    /** Search Dpps */
+    get: operations["SearchDPPs"];
+    /** Create Dpp */
+    post: operations["CreateDPP"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/dpps/{dpp_id}": {
+    /** Read Dpp By Id */
+    get: operations["ReadDPPById"];
+    /** Archive Dpp */
+    delete: operations["ArchiveDPP"];
+    /** Update Dpp */
+    patch: operations["UpdateDPP"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/dpps/by-identifier": {
+    /** Read Dpp By Identifier */
+    get: operations["ReadDPPByIdentifier"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/dpps/{dpp_id}/publish": {
+    /** Publish Dpp */
+    post: operations["PublishDPP"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/identifiers/validate": {
+    /** Validate Identifier */
+    post: operations["ValidateIdentifier"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/identifiers": {
+    /** Register Identifier */
+    post: operations["RegisterIdentifier"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/identifiers/{identifier_id}/supersede": {
+    /** Supersede Identifier */
+    post: operations["SupersedeIdentifier"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/registrations/dpps/{dpp_id}": {
+    /** Sync Registry For Dpp */
+    post: operations["SyncRegistryForDPP"];
+  };
+  "/api/v1/tenants/{tenant_slug}/cen/resolutions/dpps/{dpp_id}": {
+    /** Sync Resolver For Dpp */
+    post: operations["SyncResolverForDPP"];
   };
   "/api/v1/admin/settings/global-asset-id-base-uri": {
     /**
@@ -958,6 +1179,13 @@ export interface paths {
      * @description Update data carrier compliance profile and publish gate setting.
      */
     put: operations["update_data_carrier_compliance_settings_api_v1_admin_settings_data_carrier_compliance_put"];
+  };
+  "/api/v1/admin/settings/cen-profiles": {
+    /**
+     * Get Cen Profiles Diagnostics
+     * @description Return active CEN profile versions for diagnostics and contract debugging.
+     */
+    get: operations["get_cen_profiles_diagnostics_api_v1_admin_settings_cen_profiles_get"];
   };
   "/api/v1/tenants/{tenant_slug}/compliance/check/{dpp_id}": {
     /**
@@ -1018,7 +1246,7 @@ export interface paths {
   "/api/v1/admin/audit/anchor": {
     /**
      * Anchor Merkle Root
-     * @description Compute Merkle root and optionally sign it (admin only).
+     * @description Anchor the next unanchored audit batch (admin only).
      */
     post: operations["anchor_merkle_root_api_v1_admin_audit_anchor_post"];
   };
@@ -1310,6 +1538,148 @@ export interface paths {
      */
     patch: operations["review_role_request_api_v1_tenants__tenant_slug__role_requests__request_id__patch"];
   };
+  "/api/v1/tenants/{tenant_slug}/opcua/status": {
+    /**
+     * Get Opcua Feature Status
+     * @description Return whether OPC UA endpoints are enabled in this environment.
+     */
+    get: operations["get_opcua_feature_status_api_v1_tenants__tenant_slug__opcua_status_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/sources": {
+    /**
+     * List Sources
+     * @description List OPC UA sources for the current tenant.
+     */
+    get: operations["list_sources_api_v1_tenants__tenant_slug__opcua_sources_get"];
+    /**
+     * Create Source
+     * @description Register a new OPC UA source.
+     */
+    post: operations["create_source_api_v1_tenants__tenant_slug__opcua_sources_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/sources/{source_id}": {
+    /**
+     * Get Source
+     * @description Get details of a single OPC UA source (password never exposed).
+     */
+    get: operations["get_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__get"];
+    /**
+     * Delete Source
+     * @description Delete an OPC UA source and all related nodesets/mappings.
+     */
+    delete: operations["delete_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__delete"];
+    /**
+     * Update Source
+     * @description Update an existing OPC UA source.
+     */
+    patch: operations["update_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/sources/{source_id}/test-connection": {
+    /**
+     * Test Connection
+     * @description Test connectivity to an OPC UA endpoint (3s timeout).
+     */
+    post: operations["test_connection_api_v1_tenants__tenant_slug__opcua_sources__source_id__test_connection_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/nodesets": {
+    /**
+     * List Nodesets
+     * @description List uploaded NodeSets, optionally filtered by source.
+     */
+    get: operations["list_nodesets_api_v1_tenants__tenant_slug__opcua_nodesets_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/nodesets/upload": {
+    /**
+     * Upload Nodeset
+     * @description Upload a NodeSet2.xml, parse it, and store metadata + file.
+     */
+    post: operations["upload_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets_upload_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/nodesets/{nodeset_id}": {
+    /**
+     * Get Nodeset
+     * @description Get full detail of a NodeSet including parsed node graph.
+     */
+    get: operations["get_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__get"];
+    /**
+     * Delete Nodeset
+     * @description Delete a NodeSet from DB and object storage.
+     */
+    delete: operations["delete_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__delete"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/nodesets/{nodeset_id}/download": {
+    /**
+     * Download Nodeset
+     * @description Generate a presigned download URL for the NodeSet XML.
+     */
+    get: operations["download_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__download_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/nodesets/{nodeset_id}/nodes": {
+    /**
+     * Search Nodeset Nodes
+     * @description Search the parsed node graph of a NodeSet.
+     */
+    get: operations["search_nodeset_nodes_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__nodes_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/mappings": {
+    /**
+     * List Mappings
+     * @description List OPC UA mappings with optional filters.
+     */
+    get: operations["list_mappings_api_v1_tenants__tenant_slug__opcua_mappings_get"];
+    /**
+     * Create Mapping
+     * @description Create a new OPC UA → AAS/EPCIS mapping.
+     */
+    post: operations["create_mapping_api_v1_tenants__tenant_slug__opcua_mappings_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/mappings/{mapping_id}": {
+    /**
+     * Get Mapping
+     * @description Get details of a single mapping.
+     */
+    get: operations["get_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__get"];
+    /**
+     * Delete Mapping
+     * @description Delete a mapping.
+     */
+    delete: operations["delete_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__delete"];
+    /**
+     * Update Mapping
+     * @description Update an existing mapping.
+     */
+    patch: operations["update_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__patch"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/mappings/{mapping_id}/validate": {
+    /**
+     * Validate Mapping
+     * @description Validate a mapping's NodeId, AAS path, SAMM URN, and transform expression.
+     */
+    post: operations["validate_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__validate_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/mappings/{mapping_id}/dry-run": {
+    /**
+     * Dry Run Mapping
+     * @description Preview the effect of a mapping against a DPP revision (no DB writes).
+     */
+    post: operations["dry_run_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__dry_run_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/dataspace/publish": {
+    /** Queue a DPP for dataspace publication */
+    post: operations["publish_to_dataspace_api_v1_tenants__tenant_slug__opcua_dataspace_publish_post"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/dataspace/jobs": {
+    /** List dataspace publication jobs */
+    get: operations["list_publication_jobs_api_v1_tenants__tenant_slug__opcua_dataspace_jobs_get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/dataspace/jobs/{job_id}": {
+    /** Get a publication job */
+    get: operations["get_publication_job_api_v1_tenants__tenant_slug__opcua_dataspace_jobs__job_id__get"];
+  };
+  "/api/v1/tenants/{tenant_slug}/opcua/dataspace/jobs/{job_id}/retry": {
+    /** Retry a failed publication job */
+    post: operations["retry_publication_job_api_v1_tenants__tenant_slug__opcua_dataspace_jobs__job_id__retry_post"];
+  };
   "/metrics": {
     /**
      * Metrics
@@ -1367,7 +1737,7 @@ export interface components {
       id: string;
       /** Subject */
       subject?: string | null;
-      actor?: components["schemas"]["ActorSummary"] | null;
+      actor?: components["schemas"]["app__modules__activity__router__ActorSummary"] | null;
       /** Action */
       action: string;
       /** Resource Type */
@@ -1385,7 +1755,7 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor metadata for activity responses.
+     * @description Actor identity summary for ownership metadata.
      */
     ActorSummary: {
       /** Subject */
@@ -1456,6 +1826,8 @@ export interface components {
      * @description Result of a Merkle anchor operation.
      */
     AnchorResponse: {
+      /** Anchor Id */
+      anchor_id?: string | null;
       /** Merkle Root */
       merkle_root: string;
       /** Event Count */
@@ -1466,6 +1838,8 @@ export interface components {
       last_sequence: number;
       /** Signature */
       signature?: string | null;
+      /** Signature Kid */
+      signature_kid?: string | null;
       /**
        * Tsa Token Present
        * @default false
@@ -1514,6 +1888,11 @@ export interface components {
       batchId?: string | null;
       /** Globalassetid */
       globalAssetId?: string | null;
+      /**
+       * Gtin
+       * @description GS1 GTIN (8/12/13/14 digits). Validated via check digit.
+       */
+      gtin?: string | null;
     };
     /**
      * AssetPublicationListResponse
@@ -1704,6 +2083,10 @@ export interface components {
       prev_event_hash?: string | null;
       /** Chain Sequence */
       chain_sequence?: number | null;
+      /** Hash Algorithm */
+      hash_algorithm?: string | null;
+      /** Hash Canonicalization */
+      hash_canonicalization?: string | null;
     };
     /** BatchExportRequest */
     BatchExportRequest: {
@@ -1883,6 +2266,15 @@ export interface components {
       /** Content Type */
       content_type?: string | null;
     };
+    /** Body_upload_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets_upload_post */
+    Body_upload_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets_upload_post: {
+      /**
+       * Xml File
+       * Format: binary
+       * @description NodeSet2.xml file
+       */
+      xml_file: string;
+    };
     /**
      * BulkRebuildError
      * @description Response model for rebuild errors.
@@ -1909,6 +2301,271 @@ export interface components {
       skipped: number;
       /** Errors */
       errors: components["schemas"]["BulkRebuildError"][];
+    };
+    /**
+     * CENCreateDPPRequest
+     * @description Create request for CEN facade DPP creation.
+     */
+    CENCreateDPPRequest: {
+      /** Asset Ids */
+      asset_ids?: {
+        [key: string]: unknown;
+      };
+      /** Selected Templates */
+      selected_templates?: string[];
+      /** Initial Data */
+      initial_data?: {
+        [key: string]: unknown;
+      } | null;
+      /** Required Specific Asset Ids */
+      required_specific_asset_ids?: string[] | null;
+    };
+    /**
+     * CENDPPResponse
+     * @description Canonical CEN facade DPP payload.
+     */
+    CENDPPResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Platformid
+       * Format: uuid
+       */
+      platformId: string;
+      /** Status */
+      status: string;
+      /** Asset Ids */
+      asset_ids: {
+        [key: string]: unknown;
+      };
+      /** Productidentifier */
+      productIdentifier?: string | null;
+      /** Identifierscheme */
+      identifierScheme?: string | null;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * CENDPPSearchResponse
+     * @description CEN DPP search response contract.
+     */
+    CENDPPSearchResponse: {
+      /** Items */
+      items: components["schemas"]["CENDPPResponse"][];
+      paging: components["schemas"]["CENPaging"];
+    };
+    /**
+     * CENExternalIdentifierResponse
+     * @description Canonical identifier representation for CEN facade.
+     */
+    CENExternalIdentifierResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      /** Value Canonical */
+      value_canonical: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Status */
+      status: string;
+      /** Replaced By Identifier Id */
+      replaced_by_identifier_id?: string | null;
+      /** Issued At */
+      issued_at?: string | null;
+      /** Deprecates At */
+      deprecates_at?: string | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * CENPaging
+     * @description Cursor-based paging metadata.
+     */
+    CENPaging: {
+      /** Cursor */
+      cursor?: string | null;
+    };
+    /**
+     * CENProfileDiagnosticsResponse
+     * @description Active CEN profile diagnostics (admin-only).
+     */
+    CENProfileDiagnosticsResponse: {
+      /** Enabled */
+      enabled: boolean;
+      /** Profile 18219 */
+      profile_18219: string;
+      /** Profile 18220 */
+      profile_18220: string;
+      /** Profile 18222 */
+      profile_18222: string;
+      /** Standards Header */
+      standards_header: string;
+    };
+    /**
+     * CENPublicDPPResponse
+     * @description Public CEN DPP payload (published-only, filtered).
+     */
+    CENPublicDPPResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Status */
+      status: string;
+      /** Asset Ids */
+      asset_ids: {
+        [key: string]: unknown;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Current Revision No */
+      current_revision_no?: number | null;
+      /** Aas Environment */
+      aas_environment?: {
+        [key: string]: unknown;
+      } | null;
+      /** Digest Sha256 */
+      digest_sha256?: string | null;
+      /** Productidentifier */
+      productIdentifier?: string | null;
+      /** Identifierscheme */
+      identifierScheme?: string | null;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+    };
+    /**
+     * CENRegisterIdentifierRequest
+     * @description Identifier register request.
+     */
+    CENRegisterIdentifierRequest: {
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /** Operator Id */
+      operator_id?: string | null;
+      /** Facility Id */
+      facility_id?: string | null;
+    };
+    /**
+     * CENSupersedeIdentifierRequest
+     * @description Supersede request payload.
+     */
+    CENSupersedeIdentifierRequest: {
+      /**
+       * Replacement Identifier Id
+       * Format: uuid
+       */
+      replacement_identifier_id: string;
+    };
+    /**
+     * CENSyncResponse
+     * @description Deterministic sync operation result payload.
+     */
+    CENSyncResponse: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Synced */
+      synced: boolean;
+      /**
+       * Target
+       * @enum {string}
+       */
+      target: "registry" | "resolver";
+      /** Detail */
+      detail?: string | null;
+    };
+    /**
+     * CENUpdateDPPRequest
+     * @description Partial update payload for CEN facade DPP updates.
+     */
+    CENUpdateDPPRequest: {
+      /** Asset Ids */
+      asset_ids?: {
+        [key: string]: unknown;
+      } | null;
+      /** Visibility Scope */
+      visibility_scope?: ("owner_team" | "tenant") | null;
+    };
+    /**
+     * CENValidateIdentifierRequest
+     * @description Identifier validation request.
+     */
+    CENValidateIdentifierRequest: {
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+    };
+    /**
+     * CENValidateIdentifierResponse
+     * @description Identifier validation output with canonicalization.
+     */
+    CENValidateIdentifierResponse: {
+      /** Valid */
+      valid: boolean;
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      /** Value Canonical */
+      value_canonical?: string | null;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Errors */
+      errors?: string[];
+      /** Warnings */
+      warnings?: string[];
     };
     /**
      * CaptureResponse
@@ -2035,6 +2692,31 @@ export interface components {
       /** Error Message */
       error_message?: string | null;
     };
+    /** CatalogSyncRequest */
+    CatalogSyncRequest: {
+      /**
+       * Include Deprecated
+       * @default true
+       */
+      include_deprecated?: boolean;
+    };
+    /** CatalogSyncResponse */
+    CatalogSyncResponse: {
+      /** Discovered */
+      discovered: number;
+      /** Ingested */
+      ingested: number;
+      /** Updated */
+      updated: number;
+      /** Skipped */
+      skipped: number;
+      /** Failed */
+      failed: number;
+      /** Source Repo Ref */
+      source_repo_ref: string;
+      /** Include Deprecated */
+      include_deprecated: boolean;
+    };
     /**
      * CategoryRuleset
      * @description All rules for a product category.
@@ -2093,6 +2775,464 @@ export interface components {
        * Format: uuid
        */
       tenant_id: string;
+    };
+    /**
+     * CirpassLabApiCallResponse
+     * @description API interaction metadata for under-the-hood inspector.
+     */
+    CirpassLabApiCallResponse: {
+      /**
+       * Method
+       * @enum {string}
+       */
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      /** Path */
+      path: string;
+      /**
+       * Auth
+       * @default none
+       * @enum {string}
+       */
+      auth?: "none" | "user" | "service";
+      /** Request Example */
+      request_example?: {
+        [key: string]: unknown;
+      } | null;
+      /** Expected Status */
+      expected_status?: number | null;
+      /** Response Example */
+      response_example?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    /**
+     * CirpassLabArtifactsResponse
+     * @description Optional artifact snapshots displayed in diff inspector.
+     */
+    CirpassLabArtifactsResponse: {
+      /** Before */
+      before?: {
+        [key: string]: unknown;
+      } | null;
+      /** After */
+      after?: {
+        [key: string]: unknown;
+      } | null;
+      /** Diff Hint */
+      diff_hint?: string | null;
+    };
+    /**
+     * CirpassLabEventRequest
+     * @description Anonymized telemetry payload sent from the public lab client.
+     */
+    CirpassLabEventRequest: {
+      /** Session Token */
+      session_token: string;
+      /** Story Id */
+      story_id: string;
+      /** Step Id */
+      step_id: string;
+      /**
+       * Event Type
+       * @enum {string}
+       */
+      event_type: "step_view" | "step_submit" | "hint" | "mode_switch" | "reset_story" | "reset_all";
+      /**
+       * Mode
+       * @default mock
+       * @enum {string}
+       */
+      mode?: "mock" | "live";
+      /**
+       * Variant
+       * @default happy
+       * @enum {string}
+       */
+      variant?: "happy" | "unauthorized" | "not_found";
+      /**
+       * Result
+       * @default info
+       * @enum {string}
+       */
+      result?: "success" | "error" | "info";
+      /** Latency Ms */
+      latency_ms?: number | null;
+      /** Metadata */
+      metadata?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * CirpassLabEventResponse
+     * @description Telemetry ingestion acknowledgement.
+     */
+    CirpassLabEventResponse: {
+      /** Accepted */
+      accepted: boolean;
+      /** Event Id */
+      event_id: string;
+      /** Stored At */
+      stored_at: string;
+    };
+    /**
+     * CirpassLabFeatureFlagsResponse
+     * @description Feature-flag projection used by lab clients.
+     */
+    CirpassLabFeatureFlagsResponse: {
+      /** Scenario Engine Enabled */
+      scenario_engine_enabled: boolean;
+      /** Live Mode Enabled */
+      live_mode_enabled: boolean;
+      /** Inspector Enabled */
+      inspector_enabled: boolean;
+    };
+    /**
+     * CirpassLabInteractionFieldResponse
+     * @description Manifest-defined learner input field.
+     */
+    CirpassLabInteractionFieldResponse: {
+      /** Name */
+      name: string;
+      /** Label */
+      label: string;
+      /**
+       * Type
+       * @enum {string}
+       */
+      type: "text" | "textarea" | "number" | "checkbox" | "select";
+      /** Placeholder */
+      placeholder?: string | null;
+      /**
+       * Required
+       * @default false
+       */
+      required?: boolean;
+      /** Hint */
+      hint?: string | null;
+      validation?: components["schemas"]["CirpassLabInteractionValidationResponse"] | null;
+      /** Options */
+      options?: components["schemas"]["CirpassLabInteractionOptionResponse"][];
+      /** Test Id */
+      test_id?: string | null;
+    };
+    /**
+     * CirpassLabInteractionOptionResponse
+     * @description Choice entry used by select/scan interactions.
+     */
+    CirpassLabInteractionOptionResponse: {
+      /** Label */
+      label: string;
+      /** Value */
+      value: string;
+    };
+    /**
+     * CirpassLabInteractionValidationResponse
+     * @description Optional field-level validation hints for interaction rendering.
+     */
+    CirpassLabInteractionValidationResponse: {
+      /** Min Length */
+      min_length?: number | null;
+      /** Max Length */
+      max_length?: number | null;
+      /** Gt */
+      gt?: number | null;
+      /** Gte */
+      gte?: number | null;
+      /** Lt */
+      lt?: number | null;
+      /** Lte */
+      lte?: number | null;
+      /** Pattern */
+      pattern?: string | null;
+      /** Equals */
+      equals?: string | number | boolean | null;
+    };
+    /**
+     * CirpassLabManifestResponse
+     * @description Resolved CIRPASS lab manifest served by public API.
+     */
+    CirpassLabManifestResponse: {
+      /** Manifest Version */
+      manifest_version: string;
+      /** Story Version */
+      story_version: string;
+      /** Generated At */
+      generated_at: string;
+      /**
+       * Source Status
+       * @enum {string}
+       */
+      source_status: "fresh" | "fallback";
+      /** Stories */
+      stories: components["schemas"]["CirpassLabStoryResponse"][];
+      feature_flags: components["schemas"]["CirpassLabFeatureFlagsResponse"];
+    };
+    /**
+     * CirpassLabPolicyInspectorResponse
+     * @description Optional policy/authorization hints for a step.
+     */
+    CirpassLabPolicyInspectorResponse: {
+      /** Required Role */
+      required_role?: string | null;
+      /** Opa Policy */
+      opa_policy?: string | null;
+      /** Expected Decision */
+      expected_decision?: ("allow" | "deny" | "mask") | null;
+      /** Note */
+      note?: string | null;
+    };
+    /**
+     * CirpassLabReferenceResponse
+     * @description Citation metadata for scenario narratives.
+     */
+    CirpassLabReferenceResponse: {
+      /** Label */
+      label: string;
+      /** Ref */
+      ref: string;
+    };
+    /**
+     * CirpassLabStepCheckResponse
+     * @description Validation check metadata attached to a step.
+     */
+    CirpassLabStepCheckResponse: {
+      /**
+       * Type
+       * @enum {string}
+       */
+      type: "jsonpath" | "jmespath" | "status" | "schema";
+      /** Expression */
+      expression?: string | null;
+      /** Expected */
+      expected?: string | number | boolean | {
+        [key: string]: unknown;
+      } | unknown[] | null;
+    };
+    /**
+     * CirpassLabStepInteractionResponse
+     * @description Manifest-defined interaction descriptor consumed by the runner.
+     */
+    CirpassLabStepInteractionResponse: {
+      /**
+       * Kind
+       * @default form
+       * @enum {string}
+       */
+      kind?: "click" | "form" | "scan" | "select";
+      /**
+       * Submit Label
+       * @default Validate & Continue
+       */
+      submit_label?: string;
+      /** Hint Text */
+      hint_text?: string | null;
+      /** Success Message */
+      success_message?: string | null;
+      /** Failure Message */
+      failure_message?: string | null;
+      /** Fields */
+      fields?: components["schemas"]["CirpassLabInteractionFieldResponse"][];
+      /** Options */
+      options?: components["schemas"]["CirpassLabInteractionOptionResponse"][];
+    };
+    /**
+     * CirpassLabStepResponse
+     * @description Data-driven CIRPASS story step consumed by the scenario runner.
+     */
+    CirpassLabStepResponse: {
+      /** Id */
+      id: string;
+      /**
+       * Level
+       * @enum {string}
+       */
+      level: "create" | "access" | "update" | "transfer" | "deactivate";
+      /** Title */
+      title: string;
+      /** Actor */
+      actor: string;
+      /** Intent */
+      intent: string;
+      /** Explanation Md */
+      explanation_md: string;
+      ui_action?: components["schemas"]["CirpassLabUiActionResponse"] | null;
+      interaction?: components["schemas"]["CirpassLabStepInteractionResponse"] | null;
+      /** Actor Goal */
+      actor_goal?: string | null;
+      /** Physical Story Md */
+      physical_story_md?: string | null;
+      /** Why It Matters Md */
+      why_it_matters_md?: string | null;
+      api?: components["schemas"]["CirpassLabApiCallResponse"] | null;
+      artifacts?: components["schemas"]["CirpassLabArtifactsResponse"] | null;
+      /** Checks */
+      checks?: components["schemas"]["CirpassLabStepCheckResponse"][];
+      policy?: components["schemas"]["CirpassLabPolicyInspectorResponse"] | null;
+      /** Variants */
+      variants?: ("happy" | "unauthorized" | "not_found")[];
+    };
+    /**
+     * CirpassLabStoryResponse
+     * @description Scenario story bundle containing ordered executable steps.
+     */
+    CirpassLabStoryResponse: {
+      /** Id */
+      id: string;
+      /** Title */
+      title: string;
+      /** Summary */
+      summary: string;
+      /** Personas */
+      personas: string[];
+      /** Learning Goals */
+      learning_goals?: string[];
+      /** Preconditions Md */
+      preconditions_md?: string | null;
+      /** References */
+      references?: components["schemas"]["CirpassLabReferenceResponse"][];
+      /** Version */
+      version?: string | null;
+      /** Last Reviewed */
+      last_reviewed?: string | null;
+      /** Steps */
+      steps: components["schemas"]["CirpassLabStepResponse"][];
+    };
+    /**
+     * CirpassLabUiActionResponse
+     * @description Learner-facing UI action descriptor.
+     */
+    CirpassLabUiActionResponse: {
+      /** Label */
+      label: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "click" | "form" | "scan" | "select";
+    };
+    /**
+     * CirpassLeaderboardEntryResponse
+     * @description Public leaderboard row.
+     */
+    CirpassLeaderboardEntryResponse: {
+      /** Rank */
+      rank: number;
+      /** Nickname */
+      nickname: string;
+      /** Score */
+      score: number;
+      /** Completion Seconds */
+      completion_seconds: number;
+      /** Version */
+      version: string;
+      /** Created At */
+      created_at: string;
+    };
+    /**
+     * CirpassLeaderboardResponse
+     * @description Leaderboard listing for a specific or latest version.
+     */
+    CirpassLeaderboardResponse: {
+      /** Version */
+      version: string;
+      /** Entries */
+      entries: components["schemas"]["CirpassLeaderboardEntryResponse"][];
+    };
+    /**
+     * CirpassLeaderboardSubmitRequest
+     * @description Payload for public score submissions.
+     */
+    CirpassLeaderboardSubmitRequest: {
+      /** Session Token */
+      session_token: string;
+      /** Nickname */
+      nickname: string;
+      /** Score */
+      score: number;
+      /** Completion Seconds */
+      completion_seconds: number;
+      /** Version */
+      version: string;
+    };
+    /**
+     * CirpassLeaderboardSubmitResponse
+     * @description Submission result and current leaderboard rank snapshot.
+     */
+    CirpassLeaderboardSubmitResponse: {
+      /** Accepted */
+      accepted: boolean;
+      /** Rank */
+      rank?: number | null;
+      /** Best Score */
+      best_score?: number | null;
+      /** Version */
+      version: string;
+    };
+    /**
+     * CirpassLevelResponse
+     * @description Stories mapped to one simulator lifecycle level.
+     */
+    CirpassLevelResponse: {
+      /**
+       * Level
+       * @enum {string}
+       */
+      level: "create" | "access" | "update" | "transfer" | "deactivate";
+      /** Label */
+      label: string;
+      /** Objective */
+      objective: string;
+      /** Stories */
+      stories: components["schemas"]["CirpassStoryResponse"][];
+    };
+    /**
+     * CirpassSessionResponse
+     * @description Public anonymous session token used for leaderboard submissions.
+     */
+    CirpassSessionResponse: {
+      /** Session Token */
+      session_token: string;
+      /** Expires At */
+      expires_at: string;
+    };
+    /**
+     * CirpassStoryFeedResponse
+     * @description Latest normalized CIRPASS story feed for simulator consumption.
+     */
+    CirpassStoryFeedResponse: {
+      /** Version */
+      version: string;
+      /** Release Date */
+      release_date?: string | null;
+      /** Source Url */
+      source_url: string;
+      /** Zenodo Record Url */
+      zenodo_record_url: string;
+      /**
+       * Source Status
+       * @enum {string}
+       */
+      source_status: "fresh" | "stale";
+      /** Generated At */
+      generated_at: string;
+      /** Fetched At */
+      fetched_at: string;
+      /** Levels */
+      levels: components["schemas"]["CirpassLevelResponse"][];
+    };
+    /**
+     * CirpassStoryResponse
+     * @description Single user story summary extracted from source documents.
+     */
+    CirpassStoryResponse: {
+      /** Id */
+      id: string;
+      /** Title */
+      title: string;
+      /** Summary */
+      summary: string;
+      /** Technical Note */
+      technical_note?: string | null;
     };
     /**
      * ComparisonReport
@@ -2305,7 +3445,7 @@ export interface components {
       status: string;
       /** Created By Subject */
       created_by_subject: string;
-      created_by: components["schemas"]["app__modules__connectors__router__ActorSummary"];
+      created_by: components["schemas"]["ActorSummary"];
       /** Visibility Scope */
       visibility_scope: string;
       access: components["schemas"]["AccessSummary"];
@@ -2396,6 +3536,12 @@ export interface components {
       /** Expiration Date */
       expiration_date?: string | null;
     };
+    /**
+     * DPPBindingMode
+     * @description How an OPC UA mapping resolves to a target DPP.
+     * @enum {string}
+     */
+    DPPBindingMode: "by_dpp_id" | "by_asset_ids" | "by_serial_scan";
     /**
      * DPPDetailResponse
      * @description Detailed response model including revision data.
@@ -2671,6 +3817,11 @@ export interface components {
        * @default 4
        */
       quiet_zone_modules?: number;
+      /**
+       * Nfc Memory Bytes
+       * @default 512
+       */
+      nfc_memory_bytes?: number;
     };
     /**
      * DataCarrierListResponse
@@ -2698,6 +3849,16 @@ export interface components {
       instructions?: string | null;
       /** Human Readable Fallback */
       human_readable_fallback?: string | null;
+      /** Print Method */
+      print_method?: string | null;
+      /** Substrate */
+      substrate?: string | null;
+      /** Expected Lifetime Months */
+      expected_lifetime_months?: number | null;
+      /** Environment */
+      environment?: string | null;
+      /** Qa Grade */
+      qa_grade?: string | null;
     };
     /**
      * DataCarrierPreSalePackResponse
@@ -2720,6 +3881,85 @@ export interface components {
       encoded_uri: string;
       /** Widget Html */
       widget_html: string;
+    };
+    /**
+     * DataCarrierQACheckResult
+     * @description Single QA check result.
+     */
+    DataCarrierQACheckResult: {
+      /** Check Type */
+      check_type: string;
+      /** Passed */
+      passed: boolean;
+      /**
+       * Severity
+       * @default info
+       */
+      severity?: string;
+      /** Message */
+      message: string;
+      /** Details */
+      details?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * DataCarrierQAResponse
+     * @description Computed QA report for a carrier.
+     */
+    DataCarrierQAResponse: {
+      /**
+       * Carrier Id
+       * Format: uuid
+       */
+      carrier_id: string;
+      /** Checks */
+      checks: components["schemas"]["DataCarrierQACheckResult"][];
+    };
+    /**
+     * DataCarrierQualityCheckCreateRequest
+     * @description Persisted quality-check input.
+     */
+    DataCarrierQualityCheckCreateRequest: {
+      /** Check Type */
+      check_type: string;
+      /** Passed */
+      passed: boolean;
+      /** Results */
+      results?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * DataCarrierQualityCheckResponse
+     * @description Persisted quality-check response.
+     */
+    DataCarrierQualityCheckResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Carrier Id
+       * Format: uuid
+       */
+      carrier_id: string;
+      /** Check Type */
+      check_type: string;
+      /** Passed */
+      passed: boolean;
+      /** Results */
+      results: {
+        [key: string]: unknown;
+      };
+      /** Performed By Subject */
+      performed_by_subject: string;
+      /**
+       * Performed At
+       * Format: date-time
+       */
+      performed_at: string;
     };
     /**
      * DataCarrierRegistryExportItem
@@ -2820,8 +4060,12 @@ export interface components {
       identifier_data: {
         [key: string]: string;
       };
+      /** External Identifier Id */
+      external_identifier_id: string | null;
       /** Encoded Uri */
       encoded_uri: string;
+      /** Payload Sha256 */
+      payload_sha256: string | null;
       /** Layout Profile */
       layout_profile: {
         [key: string]: unknown;
@@ -2874,6 +4118,33 @@ export interface components {
       placement_metadata?: components["schemas"]["DataCarrierPlacementMetadata"] | null;
       /** Pre Sale Enabled */
       pre_sale_enabled?: boolean | null;
+    };
+    /**
+     * DataCarrierValidationRequest
+     * @description Pre-flight payload validation request.
+     */
+    DataCarrierValidationRequest: {
+      carrier_type: components["schemas"]["DataCarrierType"];
+      /** Payload */
+      payload: string;
+      layout_profile?: components["schemas"]["DataCarrierLayoutProfile"];
+    };
+    /**
+     * DataCarrierValidationResponse
+     * @description Pre-flight payload validation response.
+     */
+    DataCarrierValidationResponse: {
+      /** Valid */
+      valid: boolean;
+      carrier_type: components["schemas"]["DataCarrierType"];
+      /** Payload Bytes */
+      payload_bytes: number;
+      /** Warnings */
+      warnings?: string[];
+      /** Details */
+      details?: {
+        [key: string]: unknown;
+      };
     };
     /**
      * DataCarrierWithdrawRequest
@@ -2978,6 +4249,74 @@ export interface components {
       /** Secrets */
       secrets?: components["schemas"]["SecretValueWrite"][] | null;
     };
+    /**
+     * DataspacePublicationJobListResponse
+     * @description Paginated list of publication jobs.
+     */
+    DataspacePublicationJobListResponse: {
+      /** Items */
+      items: components["schemas"]["DataspacePublicationJobResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * DataspacePublicationJobResponse
+     * @description Dataspace publication job summary.
+     */
+    DataspacePublicationJobResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /** Status */
+      status: string;
+      /** Target */
+      target: string;
+      /** Artifact Refs */
+      artifact_refs?: {
+        [key: string]: unknown;
+      };
+      /** Error */
+      error?: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * DataspacePublishRequest
+     * @description Request to publish a DPP to a dataspace (DTR + EDC).
+     */
+    DataspacePublishRequest: {
+      /**
+       * Dppid
+       * Format: uuid
+       */
+      dppId: string;
+      /**
+       * Target
+       * @description Target ecosystem
+       * @default catena-x
+       */
+      target?: string;
+    };
     /** DeliveryLogResponse */
     DeliveryLogResponse: {
       /**
@@ -3028,6 +4367,30 @@ export interface components {
       old_value?: unknown;
       /** New Value */
       new_value?: unknown;
+    };
+    /**
+     * DryRunDiffEntry
+     * @description Single diff entry from a dry-run patch preview.
+     */
+    DryRunDiffEntry: {
+      /** Op */
+      op: string;
+      /** Path */
+      path: string;
+      /** Oldvalue */
+      oldValue?: unknown;
+      /** Newvalue */
+      newValue?: unknown;
+    };
+    /**
+     * DryRunRequest
+     * @description Optional input for dry-run: override the DPP revision JSON.
+     */
+    DryRunRequest: {
+      /** Revisionjson */
+      revisionJson?: {
+        [key: string]: unknown;
+      } | null;
     };
     /**
      * EDCHealthResponse
@@ -3261,6 +4624,51 @@ export interface components {
       /** Eventlist */
       eventList: components["schemas"]["EPCISEventResponse"][];
     };
+    /** EconomicOperatorCreateRequest */
+    EconomicOperatorCreateRequest: {
+      /** Legal Name */
+      legal_name: string;
+      /** Country */
+      country?: string | null;
+      /** Metadata Json */
+      metadata_json?: {
+        [key: string]: unknown;
+      };
+      identifier?: components["schemas"]["IdentifierRegisterRequest"] | null;
+    };
+    /** EconomicOperatorResponse */
+    EconomicOperatorResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Legal Name */
+      legal_name: string;
+      /** Country */
+      country?: string | null;
+      /** Metadata Json */
+      metadata_json: {
+        [key: string]: unknown;
+      };
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
     /**
      * ErrorDeclaration
      * @description EPCIS error declaration for correcting a previous event.
@@ -3291,6 +4699,47 @@ export interface components {
       /** Event Hash */
       event_hash?: string | null;
     };
+    /** ExternalIdentifierResponse */
+    ExternalIdentifierResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      /** Value Canonical */
+      value_canonical: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Status */
+      status: string;
+      /** Replaced By Identifier Id */
+      replaced_by_identifier_id?: string | null;
+      /** Issued At */
+      issued_at?: string | null;
+      /** Deprecates At */
+      deprecates_at?: string | null;
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
     /**
      * ExternalPCFApiRef
      * @description External PCF API reference discovered in Carbon Footprint submodels.
@@ -3304,6 +4753,65 @@ export interface components {
       source_submodel?: string | null;
       /** Source Path */
       source_path?: string | null;
+    };
+    /** FacilityCreateRequest */
+    FacilityCreateRequest: {
+      /**
+       * Operator Id
+       * Format: uuid
+       */
+      operator_id: string;
+      /** Facility Name */
+      facility_name: string;
+      /** Address */
+      address?: {
+        [key: string]: unknown;
+      };
+      /** Metadata Json */
+      metadata_json?: {
+        [key: string]: unknown;
+      };
+      identifier?: components["schemas"]["IdentifierRegisterRequest"] | null;
+    };
+    /** FacilityResponse */
+    FacilityResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /**
+       * Operator Id
+       * Format: uuid
+       */
+      operator_id: string;
+      /** Facility Name */
+      facility_name: string;
+      /** Address */
+      address: {
+        [key: string]: unknown;
+      };
+      /** Metadata Json */
+      metadata_json: {
+        [key: string]: unknown;
+      };
+      /** Created By Subject */
+      created_by_subject: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
     };
     /**
      * GS1DigitalLinkResponse
@@ -3390,6 +4898,65 @@ export interface components {
        * @default
        */
       serial_number?: string;
+    };
+    /**
+     * IdentifierEntityType
+     * @enum {string}
+     */
+    IdentifierEntityType: "product" | "operator" | "facility";
+    /**
+     * IdentifierGranularity
+     * @enum {string}
+     */
+    IdentifierGranularity: "model" | "batch" | "item";
+    /** IdentifierRegisterRequest */
+    IdentifierRegisterRequest: {
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /** Operator Id */
+      operator_id?: string | null;
+      /** Facility Id */
+      facility_id?: string | null;
+    };
+    /** IdentifierSupersedeRequest */
+    IdentifierSupersedeRequest: {
+      /**
+       * Replacement Identifier Id
+       * Format: uuid
+       */
+      replacement_identifier_id: string;
+    };
+    /** IdentifierValidateRequest */
+    IdentifierValidateRequest: {
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+    };
+    /** IdentifierValidateResponse */
+    IdentifierValidateResponse: {
+      /** Valid */
+      valid: boolean;
+      entity_type: components["schemas"]["IdentifierEntityType"];
+      /** Scheme Code */
+      scheme_code: string;
+      /** Value Raw */
+      value_raw: string;
+      /** Value Canonical */
+      value_canonical?: string | null;
+      granularity?: components["schemas"]["IdentifierGranularity"] | null;
+      /** Errors */
+      errors?: string[];
+      /** Warnings */
+      warnings?: string[];
     };
     /**
      * ImportDPPRequest
@@ -3479,6 +5046,47 @@ export interface components {
       /** Methodology Disclosure */
       methodology_disclosure?: string | null;
     };
+    /** LabResetResponse */
+    LabResetResponse: {
+      /** Tenant */
+      tenant: string;
+      /** Scenario */
+      scenario: string;
+      /** Dataset Hash */
+      dataset_hash: string;
+      /** Reset Count */
+      reset_count: number;
+      /** Status */
+      status: string;
+    };
+    /** LabSeedResponse */
+    LabSeedResponse: {
+      /** Tenant */
+      tenant: string;
+      /** Scenario */
+      scenario: string;
+      /** Dataset Hash */
+      dataset_hash: string;
+      /** Seeded At */
+      seeded_at: string;
+      /** Status */
+      status: string;
+    };
+    /** LabStatusResponse */
+    LabStatusResponse: {
+      /** Tenant */
+      tenant: string;
+      /** Scenario */
+      scenario: string;
+      /** Dataset Hash */
+      dataset_hash: string;
+      /** Reset Count */
+      reset_count: number;
+      /** Status */
+      status: string;
+      /** Live Mode Enabled */
+      live_mode_enabled: boolean;
+    };
     /**
      * LifecyclePhase
      * @description Product lifecycle phase for digital thread events.
@@ -3554,6 +5162,37 @@ export interface components {
       has_changes: boolean;
       /** Changes */
       changes: components["schemas"]["ManifestChange"][];
+    };
+    /**
+     * MappingDryRunResult
+     * @description Result of a mapping dry-run against a DPP revision.
+     */
+    MappingDryRunResult: {
+      /**
+       * Mappingid
+       * Format: uuid
+       */
+      mappingId: string;
+      /** Dppid */
+      dppId?: string | null;
+      /** Diff */
+      diff?: components["schemas"]["DryRunDiffEntry"][];
+      /** Appliedvalue */
+      appliedValue?: unknown;
+      /** Transformoutput */
+      transformOutput?: unknown;
+    };
+    /**
+     * MappingValidationResult
+     * @description Result of validating a mapping's configuration.
+     */
+    MappingValidationResult: {
+      /** Isvalid */
+      isValid: boolean;
+      /** Errors */
+      errors?: string[];
+      /** Warnings */
+      warnings?: string[];
     };
     /**
      * MasterAliasesUpdateRequest
@@ -3965,6 +5604,516 @@ export interface components {
       updated_at: string;
     };
     /**
+     * NodeSearchResult
+     * @description Single node from a parsed node graph search.
+     */
+    NodeSearchResult: {
+      /** Nodeid */
+      nodeId: string;
+      /** Browsename */
+      browseName: string;
+      /** Nodeclass */
+      nodeClass: string;
+      /** Datatype */
+      dataType?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Engineeringunit */
+      engineeringUnit?: string | null;
+      /** Parentnodeid */
+      parentNodeId?: string | null;
+    };
+    /**
+     * OPCUAAuthType
+     * @description Authentication method for OPC UA source connections.
+     * @enum {string}
+     */
+    OPCUAAuthType: "anonymous" | "username_password" | "certificate";
+    /**
+     * OPCUAConnectionStatus
+     * @description Health status of an OPC UA source connection.
+     * @enum {string}
+     */
+    OPCUAConnectionStatus: "disabled" | "healthy" | "degraded" | "error";
+    /**
+     * OPCUAFeatureStatusResponse
+     * @description Runtime feature status for OPC UA integration.
+     */
+    OPCUAFeatureStatusResponse: {
+      /** Enabled */
+      enabled: boolean;
+    };
+    /**
+     * OPCUAMappingCreate
+     * @description Create a new OPC UA → AAS/EPCIS mapping.
+     */
+    OPCUAMappingCreate: {
+      /**
+       * Sourceid
+       * Format: uuid
+       */
+      sourceId: string;
+      /** Nodesetid */
+      nodesetId?: string | null;
+      mappingType: components["schemas"]["OPCUAMappingType"];
+      /** Opcuanodeid */
+      opcuaNodeId: string;
+      /** Opcuabrowsepath */
+      opcuaBrowsePath?: string | null;
+      /** Opcuadatatype */
+      opcuaDatatype?: string | null;
+      /** Samplingintervalms */
+      samplingIntervalMs?: number | null;
+      /** @default by_dpp_id */
+      dppBindingMode?: components["schemas"]["DPPBindingMode"];
+      /** Dppid */
+      dppId?: string | null;
+      /** Assetidquery */
+      assetIdQuery?: {
+        [key: string]: unknown;
+      } | null;
+      /** Targettemplatekey */
+      targetTemplateKey?: string | null;
+      /** Targetsubmodelid */
+      targetSubmodelId?: string | null;
+      /** Targetaaspath */
+      targetAasPath?: string | null;
+      /** Patchop */
+      patchOp?: string | null;
+      /** Valuetransformexpr */
+      valueTransformExpr?: string | null;
+      /** Unithint */
+      unitHint?: string | null;
+      /** Sammaspecturn */
+      sammAspectUrn?: string | null;
+      /** Sammproperty */
+      sammProperty?: string | null;
+      /** Sammversion */
+      sammVersion?: string | null;
+      /** Epciseventtype */
+      epcisEventType?: string | null;
+      /** Epcisbizstep */
+      epcisBizStep?: string | null;
+      /** Epcisdisposition */
+      epcisDisposition?: string | null;
+      /** Epcisaction */
+      epcisAction?: string | null;
+      /** Epcisreadpoint */
+      epcisReadPoint?: string | null;
+      /** Epcisbizlocation */
+      epcisBizLocation?: string | null;
+      /** Epcissourceeventidtemplate */
+      epcisSourceEventIdTemplate?: string | null;
+      /**
+       * Isenabled
+       * @default true
+       */
+      isEnabled?: boolean;
+    };
+    /**
+     * OPCUAMappingListResponse
+     * @description Paginated list of OPC UA mappings.
+     */
+    OPCUAMappingListResponse: {
+      /** Items */
+      items: components["schemas"]["OPCUAMappingResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * OPCUAMappingResponse
+     * @description OPC UA mapping detail.
+     */
+    OPCUAMappingResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /** Nodeset Id */
+      nodeset_id?: string | null;
+      mapping_type: components["schemas"]["OPCUAMappingType"];
+      /** Opcua Node Id */
+      opcua_node_id: string;
+      /** Opcua Browse Path */
+      opcua_browse_path?: string | null;
+      /** Opcua Datatype */
+      opcua_datatype?: string | null;
+      /** Sampling Interval Ms */
+      sampling_interval_ms?: number | null;
+      dpp_binding_mode: components["schemas"]["DPPBindingMode"];
+      /** Dpp Id */
+      dpp_id?: string | null;
+      /** Asset Id Query */
+      asset_id_query?: {
+        [key: string]: unknown;
+      } | null;
+      /** Target Template Key */
+      target_template_key?: string | null;
+      /** Target Submodel Id */
+      target_submodel_id?: string | null;
+      /** Target Aas Path */
+      target_aas_path?: string | null;
+      /** Patch Op */
+      patch_op?: string | null;
+      /** Value Transform Expr */
+      value_transform_expr?: string | null;
+      /** Unit Hint */
+      unit_hint?: string | null;
+      /** Samm Aspect Urn */
+      samm_aspect_urn?: string | null;
+      /** Samm Property */
+      samm_property?: string | null;
+      /** Samm Version */
+      samm_version?: string | null;
+      /** Epcis Event Type */
+      epcis_event_type?: string | null;
+      /** Epcis Biz Step */
+      epcis_biz_step?: string | null;
+      /** Epcis Disposition */
+      epcis_disposition?: string | null;
+      /** Epcis Action */
+      epcis_action?: string | null;
+      /** Epcis Read Point */
+      epcis_read_point?: string | null;
+      /** Epcis Biz Location */
+      epcis_biz_location?: string | null;
+      /** Epcis Source Event Id Template */
+      epcis_source_event_id_template?: string | null;
+      /** Is Enabled */
+      is_enabled: boolean;
+      /** Created By */
+      created_by: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * OPCUAMappingType
+     * @description Discriminator for how an OPC UA mapping is applied.
+     * @enum {string}
+     */
+    OPCUAMappingType: "aas_patch" | "epcis_event";
+    /**
+     * OPCUAMappingUpdate
+     * @description Partial update for an OPC UA mapping.
+     */
+    OPCUAMappingUpdate: {
+      /** Nodesetid */
+      nodesetId?: string | null;
+      mappingType?: components["schemas"]["OPCUAMappingType"] | null;
+      /** Opcuanodeid */
+      opcuaNodeId?: string | null;
+      /** Opcuabrowsepath */
+      opcuaBrowsePath?: string | null;
+      /** Opcuadatatype */
+      opcuaDatatype?: string | null;
+      /** Samplingintervalms */
+      samplingIntervalMs?: number | null;
+      dppBindingMode?: components["schemas"]["DPPBindingMode"] | null;
+      /** Dppid */
+      dppId?: string | null;
+      /** Assetidquery */
+      assetIdQuery?: {
+        [key: string]: unknown;
+      } | null;
+      /** Targettemplatekey */
+      targetTemplateKey?: string | null;
+      /** Targetsubmodelid */
+      targetSubmodelId?: string | null;
+      /** Targetaaspath */
+      targetAasPath?: string | null;
+      /** Patchop */
+      patchOp?: string | null;
+      /** Valuetransformexpr */
+      valueTransformExpr?: string | null;
+      /** Unithint */
+      unitHint?: string | null;
+      /** Sammaspecturn */
+      sammAspectUrn?: string | null;
+      /** Sammproperty */
+      sammProperty?: string | null;
+      /** Sammversion */
+      sammVersion?: string | null;
+      /** Epciseventtype */
+      epcisEventType?: string | null;
+      /** Epcisbizstep */
+      epcisBizStep?: string | null;
+      /** Epcisdisposition */
+      epcisDisposition?: string | null;
+      /** Epcisaction */
+      epcisAction?: string | null;
+      /** Epcisreadpoint */
+      epcisReadPoint?: string | null;
+      /** Epcisbizlocation */
+      epcisBizLocation?: string | null;
+      /** Epcissourceeventidtemplate */
+      epcisSourceEventIdTemplate?: string | null;
+      /** Isenabled */
+      isEnabled?: boolean | null;
+    };
+    /**
+     * OPCUANodeSetDetailResponse
+     * @description NodeSet with full parsed node graph (for detail endpoint).
+     */
+    OPCUANodeSetDetailResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Source Id */
+      source_id?: string | null;
+      /** Namespace Uri */
+      namespace_uri: string;
+      /** Nodeset Version */
+      nodeset_version?: string | null;
+      /** Publication Date */
+      publication_date?: string | null;
+      /** Companion Spec Name */
+      companion_spec_name?: string | null;
+      /** Companion Spec Version */
+      companion_spec_version?: string | null;
+      /** Nodeset File Ref */
+      nodeset_file_ref: string;
+      /** Companion Spec File Ref */
+      companion_spec_file_ref?: string | null;
+      /** Hash Sha256 */
+      hash_sha256: string;
+      /** Parsed Summary Json */
+      parsed_summary_json: {
+        [key: string]: unknown;
+      };
+      /**
+       * Node Count
+       * @default 0
+       */
+      node_count?: number;
+      /** Created By */
+      created_by: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+      /** Parsed Node Graph */
+      parsed_node_graph?: {
+        [key: string]: unknown;
+      };
+    };
+    /**
+     * OPCUANodeSetListResponse
+     * @description Paginated list of OPC UA nodesets.
+     */
+    OPCUANodeSetListResponse: {
+      /** Items */
+      items: components["schemas"]["OPCUANodeSetResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * OPCUANodeSetResponse
+     * @description OPC UA NodeSet summary.
+     */
+    OPCUANodeSetResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Source Id */
+      source_id?: string | null;
+      /** Namespace Uri */
+      namespace_uri: string;
+      /** Nodeset Version */
+      nodeset_version?: string | null;
+      /** Publication Date */
+      publication_date?: string | null;
+      /** Companion Spec Name */
+      companion_spec_name?: string | null;
+      /** Companion Spec Version */
+      companion_spec_version?: string | null;
+      /** Nodeset File Ref */
+      nodeset_file_ref: string;
+      /** Companion Spec File Ref */
+      companion_spec_file_ref?: string | null;
+      /** Hash Sha256 */
+      hash_sha256: string;
+      /** Parsed Summary Json */
+      parsed_summary_json: {
+        [key: string]: unknown;
+      };
+      /**
+       * Node Count
+       * @default 0
+       */
+      node_count?: number;
+      /** Created By */
+      created_by: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * OPCUASourceCreate
+     * @description Create a new OPC UA source.
+     */
+    OPCUASourceCreate: {
+      /** Name */
+      name: string;
+      /**
+       * Endpointurl
+       * @description OPC UA endpoint URL, e.g. opc.tcp://host:4840
+       */
+      endpointUrl: string;
+      /** Securitypolicy */
+      securityPolicy?: string | null;
+      /** Securitymode */
+      securityMode?: string | null;
+      /** @default anonymous */
+      authType?: components["schemas"]["OPCUAAuthType"];
+      /** Username */
+      username?: string | null;
+      /**
+       * Password
+       * @description Plaintext password — encrypted before storage
+       */
+      password?: string | null;
+      /** Clientcertref */
+      clientCertRef?: string | null;
+      /** Clientkeyref */
+      clientKeyRef?: string | null;
+      /** Servercertpinnedsha256 */
+      serverCertPinnedSha256?: string | null;
+    };
+    /**
+     * OPCUASourceListResponse
+     * @description Paginated list of OPC UA sources.
+     */
+    OPCUASourceListResponse: {
+      /** Items */
+      items: components["schemas"]["OPCUASourceResponse"][];
+      /** Total */
+      total: number;
+    };
+    /**
+     * OPCUASourceResponse
+     * @description OPC UA source detail — password is NEVER exposed.
+     */
+    OPCUASourceResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Tenant Id
+       * Format: uuid
+       */
+      tenant_id: string;
+      /** Name */
+      name: string;
+      /** Endpoint Url */
+      endpoint_url: string;
+      /** Security Policy */
+      security_policy?: string | null;
+      /** Security Mode */
+      security_mode?: string | null;
+      auth_type: components["schemas"]["OPCUAAuthType"];
+      /** Username */
+      username?: string | null;
+      /**
+       * Has Password
+       * @default false
+       */
+      has_password?: boolean;
+      /** Client Cert Ref */
+      client_cert_ref?: string | null;
+      /** Client Key Ref */
+      client_key_ref?: string | null;
+      /** Server Cert Pinned Sha256 */
+      server_cert_pinned_sha256?: string | null;
+      connection_status: components["schemas"]["OPCUAConnectionStatus"];
+      /** Last Seen At */
+      last_seen_at?: string | null;
+      /** Created By */
+      created_by: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Updated At
+       * Format: date-time
+       */
+      updated_at: string;
+    };
+    /**
+     * OPCUASourceUpdate
+     * @description Partial update for an OPC UA source.
+     */
+    OPCUASourceUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Endpointurl */
+      endpointUrl?: string | null;
+      /** Securitypolicy */
+      securityPolicy?: string | null;
+      /** Securitymode */
+      securityMode?: string | null;
+      authType?: components["schemas"]["OPCUAAuthType"] | null;
+      /** Username */
+      username?: string | null;
+      /** Password */
+      password?: string | null;
+      /** Clientcertref */
+      clientCertRef?: string | null;
+      /** Clientkeyref */
+      clientKeyRef?: string | null;
+      /** Servercertpinnedsha256 */
+      serverCertPinnedSha256?: string | null;
+    };
+    /**
      * ObjectEventCreate
      * @description EPCIS ObjectEvent — most common type, tracks observations of objects.
      */
@@ -4258,6 +6407,37 @@ export interface components {
      */
     PolicyType: "route" | "submodel" | "element";
     /**
+     * PublicDPPIntegrityResponse
+     * @description Integrity bundle for public verification clients.
+     */
+    PublicDPPIntegrityResponse: {
+      /**
+       * Dpp Id
+       * Format: uuid
+       */
+      dpp_id: string;
+      /**
+       * Revision Id
+       * Format: uuid
+       */
+      revision_id: string;
+      /** Revision No */
+      revision_no: number;
+      /** Digest Sha256 */
+      digest_sha256: string;
+      /** Signed Jws */
+      signed_jws?: string | null;
+      /** Digestalgorithm */
+      digestAlgorithm: string;
+      /** Digestcanonicalization */
+      digestCanonicalization: string;
+      /** Signaturekid */
+      signatureKid?: string | null;
+      /** Verificationmethodurls */
+      verificationMethodUrls: string[];
+      anchor?: components["schemas"]["PublicIntegrityAnchorRef"] | null;
+    };
+    /**
      * PublicDPPResponse
      * @description Public response for a published DPP — no sensitive fields.
      */
@@ -4354,6 +6534,48 @@ export interface components {
       /** Eventlist */
       eventList: components["schemas"]["PublicEPCISEventResponse"][];
     };
+    /** PublicExportRequest */
+    PublicExportRequest: {
+      /** Template Key */
+      template_key: string;
+      /** Version */
+      version?: string | null;
+      /** Data */
+      data: {
+        [key: string]: unknown;
+      };
+      /**
+       * Format
+       * @enum {string}
+       */
+      format: "json" | "aasx" | "pdf";
+    };
+    /**
+     * PublicIntegrityAnchorRef
+     * @description Latest tenant audit anchor metadata exposed for external verification context.
+     */
+    PublicIntegrityAnchorRef: {
+      /**
+       * Anchor Id
+       * Format: uuid
+       */
+      anchor_id: string;
+      /** Merkle Root */
+      merkle_root: string;
+      /** First Sequence */
+      first_sequence: number;
+      /** Last Sequence */
+      last_sequence: number;
+      /** Created At */
+      created_at: string;
+      /** Signaturekid */
+      signatureKid?: string | null;
+      /**
+       * Tsatokenpresent
+       * @default false
+       */
+      tsaTokenPresent?: boolean;
+    };
     /**
      * PublicLandingSummaryResponse
      * @description Public aggregate metrics for the landing page.
@@ -4378,6 +6600,30 @@ export interface components {
       /** Refresh Sla Seconds */
       refresh_sla_seconds?: number | null;
     };
+    /** PublicPreviewRequest */
+    PublicPreviewRequest: {
+      /** Template Key */
+      template_key: string;
+      /** Version */
+      version?: string | null;
+      /** Data */
+      data: {
+        [key: string]: unknown;
+      };
+    };
+    /** PublicPreviewResponse */
+    PublicPreviewResponse: {
+      /** Template Key */
+      template_key: string;
+      /** Version */
+      version: string;
+      /** Aas Environment */
+      aas_environment: {
+        [key: string]: unknown;
+      };
+      /** Warnings */
+      warnings?: string[];
+    };
     /**
      * PublicShellDescriptorResponse
      * @description Public shell descriptor — excludes internal fields.
@@ -4397,6 +6643,71 @@ export interface components {
       submodel_descriptors: {
           [key: string]: unknown;
         }[];
+    };
+    /** PublicTemplateDetailResponse */
+    PublicTemplateDetailResponse: {
+      /** Template Key */
+      template_key: string;
+      /** Display Name */
+      display_name: string;
+      /** Catalog Status */
+      catalog_status: string;
+      /** Catalog Folder */
+      catalog_folder?: string | null;
+      /** Semantic Id */
+      semantic_id: string;
+      /** Latest Version */
+      latest_version: string;
+      /** Fetched At */
+      fetched_at: string;
+      source_metadata: components["schemas"]["TemplateSourceMetadataResponse"];
+      /** Versions */
+      versions?: {
+          [key: string]: unknown;
+        }[];
+    };
+    /** PublicTemplateListResponse */
+    PublicTemplateListResponse: {
+      /** Templates */
+      templates: components["schemas"]["PublicTemplateSummary"][];
+      /** Count */
+      count: number;
+      /**
+       * Status Filter
+       * @enum {string}
+       */
+      status_filter: "published" | "deprecated" | "all";
+      /** Search */
+      search?: string | null;
+    };
+    /** PublicTemplateSummary */
+    PublicTemplateSummary: {
+      /** Template Key */
+      template_key: string;
+      /** Display Name */
+      display_name: string;
+      /** Catalog Status */
+      catalog_status: string;
+      /** Catalog Folder */
+      catalog_folder?: string | null;
+      /** Semantic Id */
+      semantic_id: string;
+      /** Latest Version */
+      latest_version: string;
+      /** Fetched At */
+      fetched_at: string;
+      source_metadata: components["schemas"]["TemplateSourceMetadataResponse"];
+    };
+    /** PublicTemplateVersionsResponse */
+    PublicTemplateVersionsResponse: {
+      /** Template Key */
+      template_key: string;
+      /** Versions */
+      versions: {
+          [key: string]: unknown;
+        }[];
+      /** Count */
+      count: number;
     };
     /**
      * PublishResultResponse
@@ -4538,11 +6849,102 @@ export interface components {
         }[];
     };
     /**
+     * RegulatoryTimelineEvent
+     * @description Single verified timeline milestone.
+     */
+    RegulatoryTimelineEvent: {
+      /** Id */
+      id: string;
+      /** Date */
+      date: string;
+      /**
+       * Date Precision
+       * @enum {string}
+       */
+      date_precision: "day" | "month";
+      /**
+       * Track
+       * @enum {string}
+       */
+      track: "regulation" | "standards";
+      /** Title */
+      title: string;
+      /** Plain Summary */
+      plain_summary: string;
+      /** Audience Tags */
+      audience_tags?: string[];
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: "past" | "today" | "upcoming";
+      /** Verified */
+      verified: boolean;
+      verification: components["schemas"]["RegulatoryTimelineVerification"];
+      /** Sources */
+      sources?: components["schemas"]["RegulatoryTimelineSource"][];
+    };
+    /**
+     * RegulatoryTimelineResponse
+     * @description Public response contract for landing timeline.
+     */
+    RegulatoryTimelineResponse: {
+      /** Generated At */
+      generated_at: string;
+      /** Fetched At */
+      fetched_at: string;
+      /**
+       * Source Status
+       * @enum {string}
+       */
+      source_status: "fresh" | "stale";
+      /** Refresh Sla Seconds */
+      refresh_sla_seconds: number;
+      /** Digest Sha256 */
+      digest_sha256: string;
+      /** Events */
+      events: components["schemas"]["RegulatoryTimelineEvent"][];
+    };
+    /**
+     * RegulatoryTimelineSource
+     * @description Official citation used to verify a timeline event.
+     */
+    RegulatoryTimelineSource: {
+      /** Label */
+      label: string;
+      /** Url */
+      url: string;
+      /** Publisher */
+      publisher: string;
+      /** Retrieved At */
+      retrieved_at: string;
+      /** Sha256 */
+      sha256?: string | null;
+    };
+    /**
+     * RegulatoryTimelineVerification
+     * @description Verification metadata for a timeline event.
+     */
+    RegulatoryTimelineVerification: {
+      /** Checked At */
+      checked_at: string;
+      /**
+       * Method
+       * @enum {string}
+       */
+      method: "source-hash" | "content-match" | "manual";
+      /**
+       * Confidence
+       * @enum {string}
+       */
+      confidence: "high" | "medium" | "low";
+    };
+    /**
      * RenderOutputType
      * @description Renderable file types for carrier artifacts.
      * @enum {string}
      */
-    RenderOutputType: "png" | "svg" | "pdf";
+    RenderOutputType: "png" | "svg" | "pdf" | "ndef";
     /**
      * RepairInvalidListsError
      * @description Per-DPP repair failure details.
@@ -4609,6 +7011,10 @@ export interface components {
     ResendVerificationResponse: {
       /** Queued */
       queued: boolean;
+      /** Cooldown Seconds */
+      cooldown_seconds: number;
+      /** Next Allowed At */
+      next_allowed_at?: string | null;
     };
     /**
      * ResolverDescriptionResponse
@@ -4869,6 +7275,10 @@ export interface components {
       reviewed_at?: string | null;
       /** Created At */
       created_at: string;
+      /** Requester Email */
+      requester_email?: string | null;
+      /** Requester Display Name */
+      requester_display_name?: string | null;
     };
     /**
      * RoleRequestReview
@@ -5280,6 +7690,15 @@ export interface components {
       id: string;
       /** Template Key */
       template_key: string;
+      /** Display Name */
+      display_name: string;
+      /**
+       * Catalog Status
+       * @default published
+       */
+      catalog_status?: string;
+      /** Catalog Folder */
+      catalog_folder?: string | null;
       /** Idta Version */
       idta_version: string;
       /** Resolved Version */
@@ -5334,6 +7753,12 @@ export interface components {
       selection_strategy?: string | null;
       /** Source Url */
       source_url: string;
+      /** Catalog Status */
+      catalog_status?: string | null;
+      /** Catalog Folder */
+      catalog_folder?: string | null;
+      /** Display Name */
+      display_name?: string | null;
     };
     /** TenantCreateRequest */
     TenantCreateRequest: {
@@ -5464,6 +7889,22 @@ export interface components {
       /** Name */
       name?: string | null;
       status?: components["schemas"]["TenantStatus"] | null;
+    };
+    /**
+     * TestConnectionResult
+     * @description Result of an OPC UA test-connection probe.
+     */
+    TestConnectionResult: {
+      /** Success */
+      success: boolean;
+      /** Serverinfo */
+      serverInfo?: {
+        [key: string]: unknown;
+      } | null;
+      /** Error */
+      error?: string | null;
+      /** Latencyms */
+      latencyMs?: number | null;
     };
     /**
      * TestResultResponse
@@ -5834,9 +8275,9 @@ export interface components {
     };
     /**
      * ActorSummary
-     * @description Actor identity summary for ownership metadata.
+     * @description Actor metadata for activity responses.
      */
-    app__modules__connectors__router__ActorSummary: {
+    app__modules__activity__router__ActorSummary: {
       /** Subject */
       subject: string;
       /** Display Name */
@@ -6008,6 +8449,32 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["PublicDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Public Dpp Integrity Bundle
+   * @description Return integrity metadata for external digest/signature verification.
+   */
+  get_public_dpp_integrity_bundle_api_v1_public__tenant_slug__dpps__dpp_id__integrity_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        dpp_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicDPPIntegrityResponse"];
         };
       };
       /** @description Validation Error */
@@ -6479,6 +8946,22 @@ export interface operations {
     };
   };
   /**
+   * Get Public Jwks
+   * @description Return JWKS for public signature verification.
+   */
+  get_public_jwks_api_v1_public__well_known_jwks_json_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: unknown;
+          };
+        };
+      };
+    };
+  };
+  /**
    * Get Did Document
    * @description Return the DID Document for a tenant (public, no auth).
    *
@@ -6528,6 +9011,417 @@ export interface operations {
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Latest Cirpass Stories
+   * @description Get latest CIRPASS user-story feed with stale-while-refresh behavior.
+   */
+  get_latest_cirpass_stories_api_v1_public_cirpass_stories_latest_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassStoryFeedResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Latest Cirpass Lab Manifest
+   * @description Get latest validated CIRPASS lab scenario manifest.
+   */
+  get_latest_cirpass_lab_manifest_api_v1_public_cirpass_lab_manifest_latest_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassLabManifestResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Cirpass Lab Manifest Version
+   * @description Get specific CIRPASS lab manifest version.
+   */
+  get_cirpass_lab_manifest_version_api_v1_public_cirpass_lab_manifest__manifest_version__get: {
+    parameters: {
+      path: {
+        manifest_version: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassLabManifestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Cirpass Session
+   * @description Create anonymous signed browser session for public leaderboard submissions.
+   */
+  create_cirpass_session_api_v1_public_cirpass_session_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassSessionResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Cirpass Leaderboard
+   * @description Read public leaderboard rows for a CIRPASS story version.
+   */
+  get_cirpass_leaderboard_api_v1_public_cirpass_leaderboard_get: {
+    parameters: {
+      query?: {
+        version?: string | null;
+        limit?: number | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassLeaderboardResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Submit Cirpass Leaderboard Score
+   * @description Submit a pseudonymous public score for the CIRPASS simulator.
+   */
+  submit_cirpass_leaderboard_score_api_v1_public_cirpass_leaderboard_submit_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CirpassLeaderboardSubmitRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassLeaderboardSubmitResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Ingest Cirpass Lab Event
+   * @description Ingest anonymized CIRPASS lab telemetry events.
+   */
+  ingest_cirpass_lab_event_api_v1_public_cirpass_lab_events_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CirpassLabEventRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CirpassLabEventResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Public Regulatory Timeline
+   * @description Get latest verified public timeline with stale-while-refresh behavior.
+   */
+  get_public_regulatory_timeline_api_v1_public_landing_regulatory_timeline_get: {
+    parameters: {
+      query?: {
+        track?: "all" | "regulation" | "standards";
+      };
+      header?: {
+        "If-None-Match"?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["RegulatoryTimelineResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Public Templates */
+  list_public_templates_api_v1_public_smt_templates_get: {
+    parameters: {
+      query?: {
+        status?: "published" | "deprecated" | "all";
+        search?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicTemplateListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Public Template */
+  get_public_template_api_v1_public_smt_templates__template_key__get: {
+    parameters: {
+      path: {
+        template_key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicTemplateDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Public Template Versions */
+  list_public_template_versions_api_v1_public_smt_templates__template_key__versions_get: {
+    parameters: {
+      path: {
+        template_key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicTemplateVersionsResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Public Template Contract */
+  get_public_template_contract_api_v1_public_smt_templates__template_key__contract_get: {
+    parameters: {
+      query?: {
+        version?: string | null;
+      };
+      path: {
+        template_key: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TemplateContractResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Preview Public Template Instance */
+  preview_public_template_instance_api_v1_public_smt_preview_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PublicPreviewRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PublicPreviewResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Public Template Instance */
+  export_public_template_instance_api_v1_public_smt_export_post: {
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PublicExportRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Public Read Dpp By Id */
+  PublicReadDPPById: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+        dpp_id: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENPublicDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Public Search Dpps */
+  PublicSearchDPPs: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string | null;
+        identifier?: string | null;
+        scheme?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPSearchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reset Lab State
+   * @description Reset lab tenant fixtures to deterministic baseline (admin only).
+   */
+  reset_lab_state_api_v1_lab_reset_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LabResetResponse"];
+        };
+      };
+    };
+  };
+  /**
+   * Seed Lab State
+   * @description Seed deterministic fixtures required by a specific scenario (admin only).
+   */
+  seed_lab_state_api_v1_lab_seed_post: {
+    parameters: {
+      query?: {
+        scenario?: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LabSeedResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Lab Status
+   * @description Inspect current deterministic sandbox state for live-mode readiness.
+   */
+  get_lab_status_api_v1_lab_status_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["LabStatusResponse"];
         };
       };
     };
@@ -6967,6 +9861,31 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TemplateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Sync Template Catalog
+   * @description Sync published/deprecated IDTA templates into DB cache (authenticated).
+   */
+  sync_template_catalog_api_v1_templates_catalog_sync_post: {
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["CatalogSyncRequest"] | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CatalogSyncResponse"];
         };
       };
       /** @description Validation Error */
@@ -7600,6 +10519,34 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["DPPDiffResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get GS1 Digital Link URI for a DPP
+   * @description Return the canonical GS1 Digital Link URI for a DPP with GTIN.
+   */
+  get_dpp_digital_link_api_v1_tenants__tenant_slug__dpps__dpp_id__digital_link_get: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string | boolean | null;
+          };
         };
       };
       /** @description Validation Error */
@@ -9434,6 +12381,84 @@ export interface operations {
       };
     };
   };
+  /** Validate Data Carrier Payload */
+  validate_data_carrier_payload_api_v1_tenants__tenant_slug__data_carriers_validate_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierValidationRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierValidationResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Data Carrier Qa */
+  get_data_carrier_qa_api_v1_tenants__tenant_slug__data_carriers__carrier_id__qa_get: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierQAResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Data Carrier Quality Check */
+  create_data_carrier_quality_check_api_v1_tenants__tenant_slug__data_carriers__carrier_id__quality_checks_post: {
+    parameters: {
+      path: {
+        carrier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataCarrierQualityCheckCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["DataCarrierQualityCheckResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Deprecate Data Carrier */
   deprecate_data_carrier_api_v1_tenants__tenant_slug__data_carriers__carrier_id__lifecycle_deprecate_post: {
     parameters: {
@@ -9566,6 +12591,554 @@ export interface operations {
       };
     };
   };
+  /** Validate Identifier */
+  validate_identifier_api_v1_tenants__tenant_slug__identifiers_validate_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IdentifierValidateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IdentifierValidateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Identifiers */
+  list_identifiers_api_v1_tenants__tenant_slug__identifiers_get: {
+    parameters: {
+      query?: {
+        entity_type?: components["schemas"]["IdentifierEntityType"] | null;
+        scheme_code?: string | null;
+        status?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ExternalIdentifierResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Register Identifier */
+  register_identifier_api_v1_tenants__tenant_slug__identifiers_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IdentifierRegisterRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ExternalIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Identifier */
+  get_identifier_api_v1_tenants__tenant_slug__identifiers__identifier_id__get: {
+    parameters: {
+      path: {
+        identifier_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ExternalIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Supersede Identifier */
+  supersede_identifier_api_v1_tenants__tenant_slug__identifiers__identifier_id__supersede_post: {
+    parameters: {
+      path: {
+        identifier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["IdentifierSupersedeRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ExternalIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Operators */
+  list_operators_api_v1_tenants__tenant_slug__identifiers_operators_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EconomicOperatorResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Operator */
+  create_operator_api_v1_tenants__tenant_slug__identifiers_operators_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["EconomicOperatorCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["EconomicOperatorResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Facilities */
+  list_facilities_api_v1_tenants__tenant_slug__identifiers_facilities_get: {
+    parameters: {
+      query?: {
+        operator_id?: string | null;
+        limit?: number;
+        offset?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FacilityResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Facility */
+  create_facility_api_v1_tenants__tenant_slug__identifiers_facilities_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FacilityCreateRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["FacilityResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Search Dpps */
+  SearchDPPs: {
+    parameters: {
+      query?: {
+        limit?: number;
+        cursor?: string | null;
+        identifier?: string | null;
+        scheme?: string | null;
+        status?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPSearchResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Dpp */
+  CreateDPP: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CENCreateDPPRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Read Dpp By Id */
+  ReadDPPById: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Archive Dpp */
+  ArchiveDPP: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Dpp */
+  UpdateDPP: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CENUpdateDPPRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Read Dpp By Identifier */
+  ReadDPPByIdentifier: {
+    parameters: {
+      query: {
+        identifier: string;
+        scheme: string;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Publish Dpp */
+  PublishDPP: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENDPPResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Validate Identifier */
+  ValidateIdentifier: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CENValidateIdentifierRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENValidateIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Register Identifier */
+  RegisterIdentifier: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CENRegisterIdentifierRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["CENExternalIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Supersede Identifier */
+  SupersedeIdentifier: {
+    parameters: {
+      path: {
+        identifier_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CENSupersedeIdentifierRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENExternalIdentifierResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Sync Registry For Dpp */
+  SyncRegistryForDPP: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENSyncResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Sync Resolver For Dpp */
+  SyncResolverForDPP: {
+    parameters: {
+      path: {
+        dpp_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENSyncResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /**
    * Get Global Asset Id Base Uri
    * @description Get the current global asset ID base URI.
@@ -9644,6 +13217,20 @@ export interface operations {
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Cen Profiles Diagnostics
+   * @description Return active CEN profile versions for diagnostics and contract debugging.
+   */
+  get_cen_profiles_diagnostics_api_v1_admin_settings_cen_profiles_get: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CENProfileDiagnosticsResponse"];
         };
       };
     };
@@ -9853,15 +13440,13 @@ export interface operations {
   };
   /**
    * Anchor Merkle Root
-   * @description Compute Merkle root and optionally sign it (admin only).
+   * @description Anchor the next unanchored audit batch (admin only).
    */
   anchor_merkle_root_api_v1_admin_audit_anchor_post: {
     parameters: {
       query: {
         /** @description Tenant ID to anchor */
         tenant_id: string;
-        /** @description Ed25519 private key PEM for signing (optional) */
-        signing_key_pem?: string | null;
       };
     };
     responses: {
@@ -11108,6 +14693,672 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["RoleRequestResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Opcua Feature Status
+   * @description Return whether OPC UA endpoints are enabled in this environment.
+   */
+  get_opcua_feature_status_api_v1_tenants__tenant_slug__opcua_status_get: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUAFeatureStatusResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Sources
+   * @description List OPC UA sources for the current tenant.
+   */
+  list_sources_api_v1_tenants__tenant_slug__opcua_sources_get: {
+    parameters: {
+      query?: {
+        offset?: number;
+        limit?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUASourceListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Source
+   * @description Register a new OPC UA source.
+   */
+  create_source_api_v1_tenants__tenant_slug__opcua_sources_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OPCUASourceCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["OPCUASourceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Source
+   * @description Get details of a single OPC UA source (password never exposed).
+   */
+  get_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__get: {
+    parameters: {
+      path: {
+        source_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUASourceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Source
+   * @description Delete an OPC UA source and all related nodesets/mappings.
+   */
+  delete_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__delete: {
+    parameters: {
+      path: {
+        source_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Source
+   * @description Update an existing OPC UA source.
+   */
+  update_source_api_v1_tenants__tenant_slug__opcua_sources__source_id__patch: {
+    parameters: {
+      path: {
+        source_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OPCUASourceUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUASourceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Test Connection
+   * @description Test connectivity to an OPC UA endpoint (3s timeout).
+   */
+  test_connection_api_v1_tenants__tenant_slug__opcua_sources__source_id__test_connection_post: {
+    parameters: {
+      path: {
+        source_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TestConnectionResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Nodesets
+   * @description List uploaded NodeSets, optionally filtered by source.
+   */
+  list_nodesets_api_v1_tenants__tenant_slug__opcua_nodesets_get: {
+    parameters: {
+      query?: {
+        sourceId?: string | null;
+        offset?: number;
+        limit?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUANodeSetListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Upload Nodeset
+   * @description Upload a NodeSet2.xml, parse it, and store metadata + file.
+   */
+  upload_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets_upload_post: {
+    parameters: {
+      query?: {
+        sourceId?: string | null;
+        companionSpecName?: string | null;
+        companionSpecVersion?: string | null;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_upload_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets_upload_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["OPCUANodeSetResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Nodeset
+   * @description Get full detail of a NodeSet including parsed node graph.
+   */
+  get_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__get: {
+    parameters: {
+      path: {
+        nodeset_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUANodeSetDetailResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Nodeset
+   * @description Delete a NodeSet from DB and object storage.
+   */
+  delete_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__delete: {
+    parameters: {
+      path: {
+        nodeset_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Download Nodeset
+   * @description Generate a presigned download URL for the NodeSet XML.
+   */
+  download_nodeset_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__download_get: {
+    parameters: {
+      path: {
+        nodeset_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Search Nodeset Nodes
+   * @description Search the parsed node graph of a NodeSet.
+   */
+  search_nodeset_nodes_api_v1_tenants__tenant_slug__opcua_nodesets__nodeset_id__nodes_get: {
+    parameters: {
+      query: {
+        /** @description Search query */
+        q: string;
+        nodeClass?: string | null;
+        limit?: number;
+      };
+      path: {
+        nodeset_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["NodeSearchResult"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Mappings
+   * @description List OPC UA mappings with optional filters.
+   */
+  list_mappings_api_v1_tenants__tenant_slug__opcua_mappings_get: {
+    parameters: {
+      query?: {
+        sourceId?: string | null;
+        mappingType?: components["schemas"]["OPCUAMappingType"] | null;
+        isEnabled?: boolean | null;
+        offset?: number;
+        limit?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUAMappingListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Mapping
+   * @description Create a new OPC UA → AAS/EPCIS mapping.
+   */
+  create_mapping_api_v1_tenants__tenant_slug__opcua_mappings_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OPCUAMappingCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["OPCUAMappingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Mapping
+   * @description Get details of a single mapping.
+   */
+  get_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__get: {
+    parameters: {
+      path: {
+        mapping_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUAMappingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Mapping
+   * @description Delete a mapping.
+   */
+  delete_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__delete: {
+    parameters: {
+      path: {
+        mapping_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Mapping
+   * @description Update an existing mapping.
+   */
+  update_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__patch: {
+    parameters: {
+      path: {
+        mapping_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OPCUAMappingUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["OPCUAMappingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Validate Mapping
+   * @description Validate a mapping's NodeId, AAS path, SAMM URN, and transform expression.
+   */
+  validate_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__validate_post: {
+    parameters: {
+      path: {
+        mapping_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MappingValidationResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Dry Run Mapping
+   * @description Preview the effect of a mapping against a DPP revision (no DB writes).
+   */
+  dry_run_mapping_api_v1_tenants__tenant_slug__opcua_mappings__mapping_id__dry_run_post: {
+    parameters: {
+      path: {
+        mapping_id: string;
+        tenant_slug: string;
+      };
+    };
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["DryRunRequest"] | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MappingDryRunResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Queue a DPP for dataspace publication */
+  publish_to_dataspace_api_v1_tenants__tenant_slug__opcua_dataspace_publish_post: {
+    parameters: {
+      path: {
+        tenant_slug: string;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DataspacePublishRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["DataspacePublicationJobResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List dataspace publication jobs */
+  list_publication_jobs_api_v1_tenants__tenant_slug__opcua_dataspace_jobs_get: {
+    parameters: {
+      query?: {
+        dppId?: string | null;
+        offset?: number;
+        limit?: number;
+      };
+      path: {
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataspacePublicationJobListResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get a publication job */
+  get_publication_job_api_v1_tenants__tenant_slug__opcua_dataspace_jobs__job_id__get: {
+    parameters: {
+      path: {
+        job_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataspacePublicationJobResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Retry a failed publication job */
+  retry_publication_job_api_v1_tenants__tenant_slug__opcua_dataspace_jobs__job_id__retry_post: {
+    parameters: {
+      path: {
+        job_id: string;
+        tenant_slug: string;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["DataspacePublicationJobResponse"];
         };
       };
       /** @description Validation Error */

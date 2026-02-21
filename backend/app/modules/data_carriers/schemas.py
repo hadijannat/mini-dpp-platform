@@ -54,6 +54,7 @@ class RenderOutputType(str, Enum):
     PNG = "png"
     SVG = "svg"
     PDF = "pdf"
+    NDEF = "ndef"
 
 
 class RegistryExportFormat(str, Enum):
@@ -83,6 +84,7 @@ class DataCarrierLayoutProfile(BaseModel):
     text_label: str | None = Field(default=None, max_length=120)
     error_correction: str = Field(default="H", pattern=r"^[LMQH]$")
     quiet_zone_modules: int = Field(default=4, ge=1, le=16)
+    nfc_memory_bytes: int = Field(default=512, ge=16, le=8192)
 
 
 class DataCarrierPlacementMetadata(BaseModel):
@@ -92,6 +94,11 @@ class DataCarrierPlacementMetadata(BaseModel):
     zone: str | None = Field(default=None, max_length=255)
     instructions: str | None = Field(default=None, max_length=1000)
     human_readable_fallback: str | None = Field(default=None, max_length=255)
+    print_method: str | None = Field(default=None, max_length=64)
+    substrate: str | None = Field(default=None, max_length=64)
+    expected_lifetime_months: int | None = Field(default=None, ge=1, le=600)
+    environment: str | None = Field(default=None, max_length=128)
+    qa_grade: str | None = Field(default=None, max_length=32)
 
 
 class DataCarrierCreateRequest(BaseModel):
@@ -163,7 +170,9 @@ class DataCarrierResponse(BaseModel):
     status: DataCarrierStatus
     identifier_key: str
     identifier_data: dict[str, str]
+    external_identifier_id: UUID | None
     encoded_uri: str
+    payload_sha256: str | None
     layout_profile: dict[str, object]
     placement_metadata: dict[str, object]
     pre_sale_enabled: bool
@@ -220,3 +229,58 @@ class DataCarrierListResponse(BaseModel):
 
     items: list[DataCarrierResponse]
     count: int
+
+
+class DataCarrierValidationRequest(BaseModel):
+    """Pre-flight payload validation request."""
+
+    carrier_type: DataCarrierType
+    payload: str
+    layout_profile: DataCarrierLayoutProfile = Field(default_factory=DataCarrierLayoutProfile)
+
+
+class DataCarrierValidationResponse(BaseModel):
+    """Pre-flight payload validation response."""
+
+    valid: bool
+    carrier_type: DataCarrierType
+    payload_bytes: int
+    warnings: list[str] = Field(default_factory=list)
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class DataCarrierQACheckResult(BaseModel):
+    """Single QA check result."""
+
+    check_type: str
+    passed: bool
+    severity: str = "info"
+    message: str
+    details: dict[str, object] = Field(default_factory=dict)
+
+
+class DataCarrierQAResponse(BaseModel):
+    """Computed QA report for a carrier."""
+
+    carrier_id: UUID
+    checks: list[DataCarrierQACheckResult]
+
+
+class DataCarrierQualityCheckCreateRequest(BaseModel):
+    """Persisted quality-check input."""
+
+    check_type: str = Field(min_length=3, max_length=64)
+    passed: bool
+    results: dict[str, object] = Field(default_factory=dict)
+
+
+class DataCarrierQualityCheckResponse(BaseModel):
+    """Persisted quality-check response."""
+
+    id: UUID
+    carrier_id: UUID
+    check_type: str
+    passed: bool
+    results: dict[str, object]
+    performed_by_subject: str
+    performed_at: datetime

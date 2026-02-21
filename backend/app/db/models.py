@@ -233,6 +233,30 @@ class DataCarrierArtifactType(str, PyEnum):
     CSV = "csv"
 
 
+class IdentifierEntityType(str, PyEnum):
+    """Entity type covered by CEN identifier governance."""
+
+    PRODUCT = "product"
+    OPERATOR = "operator"
+    FACILITY = "facility"
+
+
+class IdentifierIssuanceModel(str, PyEnum):
+    """Issuance model for identifier schemes."""
+
+    ISSUING_AGENCY = "issuing_agency"
+    SELF_ISSUED = "self_issued"
+    HYBRID = "hybrid"
+
+
+class ExternalIdentifierStatus(str, PyEnum):
+    """Lifecycle status for canonicalized external identifiers."""
+
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+    WITHDRAWN = "withdrawn"
+
+
 class OPCUAAuthType(str, PyEnum):
     """Authentication method for OPC UA source connections."""
 
@@ -2298,6 +2322,275 @@ class ResolverLink(TenantScopedMixin, Base):
 
 
 # =============================================================================
+# Identifier Governance Models (CEN prEN 18219)
+# =============================================================================
+
+
+class EconomicOperator(TenantScopedMixin, Base):
+    """Lean tenant-scoped economic operator entity."""
+
+    __tablename__ = "economic_operators"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    country: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_economic_operators_tenant_name", "tenant_id", "legal_name"),
+        Index("ix_economic_operators_country", "country"),
+    )
+
+
+class Facility(TenantScopedMixin, Base):
+    """Lean tenant-scoped facility entity linked to an operator."""
+
+    __tablename__ = "facilities"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    operator_id: Mapped[UUID] = mapped_column(
+        ForeignKey("economic_operators.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    facility_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    address: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_facilities_operator", "operator_id"),
+        Index("ix_facilities_tenant_name", "tenant_id", "facility_name"),
+    )
+
+
+class IdentifierScheme(Base):
+    """Catalog of supported identifier schemes and canonicalization rules."""
+
+    __tablename__ = "identifier_schemes"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    code: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    entity_type: Mapped[IdentifierEntityType] = mapped_column(
+        Enum(IdentifierEntityType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    issuance_model: Mapped[IdentifierIssuanceModel] = mapped_column(
+        Enum(IdentifierIssuanceModel, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=IdentifierIssuanceModel.SELF_ISSUED,
+    )
+    canonicalization_rules: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    validation_rules: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    openness_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        Index("ix_identifier_schemes_entity_type", "entity_type"),
+        Index("ix_identifier_schemes_issuance_model", "issuance_model"),
+    )
+
+
+class ExternalIdentifier(TenantScopedMixin, Base):
+    """Canonicalized identifier registry used across DPP, operators, and facilities."""
+
+    __tablename__ = "external_identifiers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    entity_type: Mapped[IdentifierEntityType] = mapped_column(
+        Enum(IdentifierEntityType, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+    )
+    scheme_code: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("identifier_schemes.code", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    value_raw: Mapped[str] = mapped_column(Text, nullable=False)
+    value_canonical: Mapped[str] = mapped_column(Text, nullable=False)
+    granularity: Mapped[DataCarrierIdentityLevel | None] = mapped_column(
+        Enum(DataCarrierIdentityLevel, values_callable=lambda e: [m.value for m in e]),
+        nullable=True,
+    )
+    status: Mapped[ExternalIdentifierStatus] = mapped_column(
+        Enum(ExternalIdentifierStatus, values_callable=lambda e: [m.value for m in e]),
+        nullable=False,
+        default=ExternalIdentifierStatus.ACTIVE,
+    )
+    replaced_by_identifier_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("external_identifiers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deprecates_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "scheme_code", "value_canonical", name="uq_external_identifiers_scheme_value"
+        ),
+        Index("ix_external_identifiers_entity_type", "entity_type"),
+        Index("ix_external_identifiers_status", "status"),
+        Index(
+            "ix_external_identifiers_tenant_scheme_canonical",
+            "tenant_id",
+            "scheme_code",
+            "value_canonical",
+        ),
+        Index("ix_external_identifiers_tenant_value_raw", "tenant_id", "value_raw"),
+    )
+
+
+class DPPIdentifier(TenantScopedMixin, Base):
+    """Link table between DPPs and canonical identifiers."""
+
+    __tablename__ = "dpp_identifiers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    dpp_id: Mapped[UUID] = mapped_column(
+        ForeignKey("dpps.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    external_identifier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("external_identifiers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("dpp_id", "external_identifier_id", name="uq_dpp_identifier_link"),
+        Index("ix_dpp_identifiers_dpp", "dpp_id"),
+        Index("ix_dpp_identifiers_external_identifier", "external_identifier_id"),
+    )
+
+
+class OperatorIdentifier(TenantScopedMixin, Base):
+    """Link table between operators and canonical identifiers."""
+
+    __tablename__ = "operator_identifiers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    operator_id: Mapped[UUID] = mapped_column(
+        ForeignKey("economic_operators.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    external_identifier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("external_identifiers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "operator_id", "external_identifier_id", name="uq_operator_identifier_link"
+        ),
+        Index("ix_operator_identifiers_operator", "operator_id"),
+        Index("ix_operator_identifiers_external_identifier", "external_identifier_id"),
+    )
+
+
+class FacilityIdentifier(TenantScopedMixin, Base):
+    """Link table between facilities and canonical identifiers."""
+
+    __tablename__ = "facility_identifiers"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    facility_id: Mapped[UUID] = mapped_column(
+        ForeignKey("facilities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    external_identifier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("external_identifiers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "facility_id", "external_identifier_id", name="uq_facility_identifier_link"
+        ),
+        Index("ix_facility_identifiers_facility", "facility_id"),
+        Index("ix_facility_identifiers_external_identifier", "external_identifier_id"),
+    )
+
+
+# =============================================================================
 # Data Carrier Models
 # =============================================================================
 
@@ -2351,10 +2644,19 @@ class DataCarrier(TenantScopedMixin, Base):
         nullable=False,
         comment="Identifier components such as gtin, serial, batch, manufacturer part id",
     )
+    external_identifier_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("external_identifiers.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     encoded_uri: Mapped[str] = mapped_column(
         Text,
         nullable=False,
         comment="URI encoded in the carrier",
+    )
+    payload_sha256: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment="SHA-256 hash of encoded payload for physical/digital binding evidence",
     )
     layout_profile: Mapped[dict[str, Any]] = mapped_column(
         JSONB,
@@ -2401,6 +2703,7 @@ class DataCarrier(TenantScopedMixin, Base):
         Index("ix_data_carriers_status", "status"),
         Index("ix_data_carriers_identifier_scheme", "identifier_scheme"),
         Index("ix_data_carriers_identifier_key", "identifier_key"),
+        Index("ix_data_carriers_external_identifier_id", "external_identifier_id"),
         Index(
             "uq_data_carriers_tenant_identifier_active_like",
             "tenant_id",
@@ -2408,6 +2711,36 @@ class DataCarrier(TenantScopedMixin, Base):
             unique=True,
             postgresql_where=text("status IN ('active','deprecated')"),
         ),
+    )
+
+
+class DataCarrierQualityCheck(TenantScopedMixin, Base):
+    """Recorded quality verification results for data carriers."""
+
+    __tablename__ = "data_carrier_quality_checks"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    carrier_id: Mapped[UUID] = mapped_column(
+        ForeignKey("data_carriers.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    check_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    results: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    performed_by_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    performed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_data_carrier_quality_checks_carrier_id", "carrier_id"),
+        Index("ix_data_carrier_quality_checks_check_type", "check_type"),
+        Index("ix_data_carrier_quality_checks_performed_at", "performed_at"),
     )
 
 

@@ -84,6 +84,17 @@ _RLS_0036 = {
     "dataspace_publication_jobs",
 }
 
+# Tables with RLS from migrations 0041-0043
+_RLS_0041_0043 = {
+    "external_identifiers",
+    "dpp_identifiers",
+    "economic_operators",
+    "facilities",
+    "operator_identifiers",
+    "facility_identifiers",
+    "data_carrier_quality_checks",
+}
+
 TABLES_WITH_RLS = (
     _RLS_0005
     | _RLS_0008_0009
@@ -95,6 +106,7 @@ TABLES_WITH_RLS = (
     | _RLS_0029
     | _RLS_0035
     | _RLS_0036
+    | _RLS_0041_0043
 )
 
 

@@ -840,6 +840,26 @@ class Settings(BaseSettings):
     # ==========================================================================
     # Identifier Configuration
     # ==========================================================================
+    cen_dpp_enabled: bool = Field(
+        default=False,
+        description="Enable CEN prEN profile routes and validations",
+    )
+    cen_profile_18219: str = Field(
+        default="prEN18219:2025-07",
+        description="Active CEN profile version for unique identifiers",
+    )
+    cen_profile_18220: str = Field(
+        default="prEN18220:2025-07",
+        description="Active CEN profile version for data carriers",
+    )
+    cen_profile_18222: str = Field(
+        default="prEN18222:2025-07",
+        description="Active CEN profile version for API facade behavior",
+    )
+    cen_allow_http_identifiers: bool = Field(
+        default=False,
+        description="Allow http scheme for CEN identifier canonicalization (default: https-only)",
+    )
     global_asset_id_base_uri_default: str = Field(
         default="http://localhost:8000/asset/",
         description="Default base URI for globalAssetId generation",

@@ -50,6 +50,8 @@ class QRCodeService:
         background_color: str = "#FFFFFF",
         include_text: bool = False,
         text_label: str | None = None,
+        error_correction: str = "H",
+        quiet_zone_modules: int = 4,
     ) -> bytes:
         """
         Generate a QR code for a DPP URL.
@@ -71,11 +73,18 @@ class QRCodeService:
         bg_color = self._hex_to_rgb(background_color)
 
         # Create QR code instance
+        correction_level = {
+            "L": qrcode.constants.ERROR_CORRECT_L,
+            "M": qrcode.constants.ERROR_CORRECT_M,
+            "Q": qrcode.constants.ERROR_CORRECT_Q,
+            "H": qrcode.constants.ERROR_CORRECT_H,
+        }.get(str(error_correction).upper(), qrcode.constants.ERROR_CORRECT_H)
+
         qr = qrcode.QRCode(
             version=None,  # Auto-determine version
-            error_correction=qrcode.constants.ERROR_CORRECT_H,  # High error correction for logo
+            error_correction=correction_level,
             box_size=10,
-            border=4,
+            border=max(1, int(quiet_zone_modules)),
         )
 
         qr.add_data(dpp_url)
