@@ -210,11 +210,84 @@ npm run generate-api
 - **Reverse proxy**: Caddy for production HTTPS termination and routing (`Caddyfile`)
 - **Keycloak realm**: `infra/keycloak/realm-export/dpp-platform-realm.json`
 
-## RFID TDS Sidecar and Licensing
+## Web-Resolvable RFID (TDS 2.3 SGTIN++)
 
-- RFID TDS 2.3 encode/decode is provided by the `services/rfid-tds` sidecar using the `TagDataTranslation` package.
-- Configure backend connectivity with `RFID_TDS_SERVICE_URL` and `RFID_TDS_TIMEOUT_SECONDS`.
-- `TagDataTranslation` is published under AGPL/commercial terms; verify your deployment/license posture before production rollout.
+### Scope and architecture (current)
+
+- v1 scope is **SGTIN++ only** (`tds_scheme=sgtin++`), with a staged translator design.
+- Backend API contracts are stable and decoupled from translator implementation (`backend/app/modules/rfid`).
+- Translation engine runs in a sidecar at `services/rfid-tds` (`TagDataTranslation` + minimal .NET API).
+- Configure sidecar connectivity with:
+  - `RFID_TDS_SERVICE_URL` (default compose wiring: `http://rfid-tds:8080`)
+  - `RFID_TDS_TIMEOUT_SECONDS` (default `5`)
+
+### Tenant domains and authority model
+
+- Tenant domain records are managed under:
+  - `GET|POST /api/v1/tenants/{tenant_slug}/domains`
+  - `PATCH|DELETE /api/v1/tenants/{tenant_slug}/domains/{domain_id}`
+- Lifecycle (manual verification v1):
+  - New domains are created as `pending`.
+  - `pending` domains cannot be primary.
+  - Only `active` domains can be marked `is_primary=true`.
+  - Active domains must be disabled before deletion.
+  - **Platform admin role is required** to activate a domain (`status=active`) or set `verification_method`.
+- Hostnames are normalized/validated (lowercase DNS hostname, no scheme/path/port).
+
+### Resolver behavior for branded Digital Link paths
+
+- Public resolver is mounted both at:
+  - Legacy path: `/api/v1/resolve/...` (backward compatible)
+  - Root path: `/.well-known/gs1resolver`, `/01/...` (web-native Digital Link)
+- Root-path resolution is **strictly host-authoritative**:
+  - Request host must map to an `active` tenant domain.
+  - Unmapped/disabled hosts return `404`.
+- Content negotiation:
+  - `Accept: application/linkset+json` -> RFC 9264 linkset response.
+  - Other accepts (for example browsers) -> `307` redirect to prioritized resolver target.
+- Resolver anchors and `resolverRoot` are built from external host/proto, with forwarded headers trusted only from configured `TRUSTED_PROXY_CIDRS`.
+- Managed redirects preserve SSRF/open-redirect protections, while allowing same-host redirects.
+
+### RFID APIs and EPCIS ingestion
+
+- Tenant-scoped endpoints:
+  - `POST /api/v1/tenants/{tenant_slug}/rfid/encode`
+  - `POST /api/v1/tenants/{tenant_slug}/rfid/decode`
+  - `POST /api/v1/tenants/{tenant_slug}/rfid/reads`
+- `encode` behavior:
+  - If hostname is omitted, backend uses tenant primary active domain.
+  - Returns EPC payload (`epc_hex`), EPC URIs, and branded Digital Link URL.
+- `reads` ingestion behavior:
+  - Decodes each EPC read and attempts DPP match in this order:
+    - `data_carriers.identifier_key` (`01/{gtin}/21/{serial}`)
+    - fallback to DPP `asset_ids` (`gtin` + `serialNumber`) lookup
+  - Creates EPCIS `ObjectEvent` with `action=OBSERVE` for matched reads.
+
+### Data carrier support for RFID
+
+- `data_carriers` now supports:
+  - `carrier_type=rfid`
+  - `identifier_scheme=gs1_epc_tds23`
+- RFID key format is GS1 Digital Link-compatible: `01/{gtin}/21/{serial}`.
+- RFID render outputs are programming-oriented:
+  - `json` programming pack
+  - `csv` one-row export for encoder pipelines
+
+### Reliability and performance notes
+
+- Sidecar client uses:
+  - shared async HTTP client
+  - bounded retries with short backoff for transient sidecar failures
+- Read ingestion decodes in parallel with bounded concurrency to improve throughput on larger batches.
+
+### Routing and operations notes
+
+- Production Caddy routes `/.well-known/gs1resolver` and `/01/*` to backend for root-path resolution.
+- If additional root AI paths are required (for example `/00/*`), add explicit Caddy `handle` rules.
+
+### Licensing note
+
+- `TagDataTranslation` is dual-licensed (AGPL/commercial). Confirm deployment license posture before production rollout.
 
 ## Cryptographic Security
 
