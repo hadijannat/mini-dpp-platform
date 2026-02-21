@@ -60,7 +60,9 @@ async def create_tenant_domain(
             is_primary=body.is_primary,
         )
     except TenantDomainError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     await db.commit()
     await db.refresh(row)
     return _to_response(row)
@@ -84,7 +86,9 @@ async def update_tenant_domain(
             verification_method=body.verification_method,
         )
     except TenantDomainError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
     await db.commit()
@@ -102,7 +106,9 @@ async def delete_tenant_domain(
     try:
         deleted = await service.delete_domain(domain_id=domain_id, tenant_id=tenant.tenant_id)
     except TenantDomainError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Domain not found")
     await db.commit()

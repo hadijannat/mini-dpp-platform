@@ -28,8 +28,6 @@ def test_normalize_hostname_lowercases_and_strips_dot(service: TenantDomainServi
         "-bad.example.com",
     ],
 )
-def test_normalize_hostname_rejects_invalid_input(
-    service: TenantDomainService, value: str
-) -> None:
+def test_normalize_hostname_rejects_invalid_input(service: TenantDomainService, value: str) -> None:
     with pytest.raises(TenantDomainError):
         service.normalize_hostname(value)

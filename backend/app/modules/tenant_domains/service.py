@@ -110,7 +110,7 @@ class TenantDomainService:
             row.status = status
             if status == TenantDomainStatus.ACTIVE:
                 row.verified_at = datetime.now(UTC)
-                row.verification_method = (verification_method or row.verification_method or "manual")
+                row.verification_method = verification_method or row.verification_method or "manual"
             elif status == TenantDomainStatus.DISABLED:
                 row.is_primary = False
 

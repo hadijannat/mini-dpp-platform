@@ -1,2 +1,1 @@
 """Tenant domain management module."""
-

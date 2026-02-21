@@ -516,9 +516,9 @@ class DataCarrierService:
                     "digital_link": carrier.encoded_uri,
                     "tag_length": (carrier.identifier_data or {}).get("tag_length"),
                     "filter": (carrier.identifier_data or {}).get("filter"),
-                    "gs1_company_prefix_length": (
-                        carrier.identifier_data or {}
-                    ).get("gs1_company_prefix_length"),
+                    "gs1_company_prefix_length": (carrier.identifier_data or {}).get(
+                        "gs1_company_prefix_length"
+                    ),
                 }
                 import json
 
@@ -769,9 +769,7 @@ class DataCarrierService:
                     passed=bool(epc_hex),
                     severity="error" if not epc_hex else "info",
                     message=(
-                        "RFID EPC payload is present"
-                        if epc_hex
-                        else "RFID EPC payload is missing"
+                        "RFID EPC payload is present" if epc_hex else "RFID EPC payload is missing"
                     ),
                 )
             )

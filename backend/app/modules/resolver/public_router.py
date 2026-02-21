@@ -45,9 +45,7 @@ def _request_from_trusted_proxy(request: Request) -> bool:
         addr = ipaddress.ip_address(connection_ip)
     except ValueError:
         return False
-    return any(
-        addr in ipaddress.ip_network(cidr, strict=False) for cidr in trusted_proxy_cidrs
-    )
+    return any(addr in ipaddress.ip_network(cidr, strict=False) for cidr in trusted_proxy_cidrs)
 
 
 def _split_header_first(value: str | None) -> str:

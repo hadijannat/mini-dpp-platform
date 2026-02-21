@@ -129,7 +129,9 @@ class RFIDService:
         *,
         tenant_id: UUID | None = None,
     ) -> RFIDDecodeResponse:
-        data = await self._client.decode({"epcHex": request.epc_hex, "tagLength": request.tag_length})
+        data = await self._client.decode(
+            {"epcHex": request.epc_hex, "tagLength": request.tag_length}
+        )
         response = self._to_decode_response(data)
         response = await self._ensure_digital_link(response, tenant_id=tenant_id)
         logger.info(
@@ -273,15 +275,19 @@ class RFIDService:
                 continue
             gtin = str(asset_ids.get("gtin", "")).strip()
             serial = str(asset_ids.get("serialNumber", "")).strip()
-            if gtin and serial and gtin == (gs1_key.gtin or "") and serial == (gs1_key.serial or ""):
+            if (
+                gtin
+                and serial
+                and gtin == (gs1_key.gtin or "")
+                and serial == (gs1_key.serial or "")
+            ):
                 return dpp_id
         return None
 
     @staticmethod
     def _build_digital_link(hostname: str, gtin: str, serial: str) -> str:
         return (
-            f"https://{hostname.strip().lower().rstrip('.')}"
-            f"/01/{gtin.strip()}/21/{serial.strip()}"
+            f"https://{hostname.strip().lower().rstrip('.')}/01/{gtin.strip()}/21/{serial.strip()}"
         )
 
     async def _ensure_digital_link(
@@ -302,7 +308,9 @@ class RFIDService:
         if not hostname:
             return response
 
-        digital_link = self._build_digital_link(hostname, response.gs1_key.gtin, response.gs1_key.serial)
+        digital_link = self._build_digital_link(
+            hostname, response.gs1_key.gtin, response.gs1_key.serial
+        )
         return response.model_copy(update={"hostname": hostname, "digital_link": digital_link})
 
     @staticmethod

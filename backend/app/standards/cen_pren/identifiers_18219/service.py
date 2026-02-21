@@ -84,7 +84,9 @@ class IdentifierService:
         if scheme in {"gs1_gtin"} and len(value_canonical) not in {8, 12, 13, 14}:
             raise IdentifierGovernanceError("GS1 GTIN must be 8, 12, 13, or 14 digits")
         if scheme == "gs1_epc_tds23" and "/01/" not in value_canonical:
-            raise IdentifierGovernanceError("GS1 EPC TDS 2.3 identifiers must be GS1 Digital Link URIs")
+            raise IdentifierGovernanceError(
+                "GS1 EPC TDS 2.3 identifiers must be GS1 Digital Link URIs"
+            )
         if scheme == "gln" and len(value_canonical) != 13:
             raise IdentifierGovernanceError("GLN must be 13 digits")
         if scheme == "eori" and len(value_canonical) < 8:
