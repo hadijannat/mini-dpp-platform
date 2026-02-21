@@ -111,6 +111,20 @@ function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAn
     return z.enum(choices as [string, ...string[]]);
   }
 
+  // Date / dateTime types — validate ISO format
+  if (valueType === 'xs:date') {
+    return z.string().refine(
+      (v) => v === '' || /^\d{4}-\d{2}-\d{2}$/.test(v),
+      { message: 'Expected date format YYYY-MM-DD' },
+    ).nullable();
+  }
+  if (valueType === 'xs:dateTime') {
+    return z.string().refine(
+      (v) => v === '' || /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v),
+      { message: 'Expected dateTime format YYYY-MM-DDThh:mm' },
+    ).nullable();
+  }
+
   // String with optional pattern
   let strSchema = z.string();
   const regex = node.smt?.allowed_value_regex;
@@ -129,7 +143,7 @@ function buildPropertySchema(node: DefinitionNode, schema?: UISchema): ZodTypeAn
     }
   }
 
-  return strSchema;
+  return strSchema.nullable();
 }
 
 function normalizeRange(

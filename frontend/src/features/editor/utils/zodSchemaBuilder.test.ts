@@ -74,6 +74,31 @@ describe('buildZodSchema', () => {
       expect(schema.safeParse({ field: 'abc' }).success).toBe(false);
       expect(schema.safeParse({ field: 'ABCD' }).success).toBe(false);
     });
+
+    it('validates xs:date as YYYY-MM-DD', () => {
+      const schema = buildZodSchema(defWithProperty('xs:date'));
+      expect(schema.safeParse({ field: '2025-01-15' }).success).toBe(true);
+      expect(schema.safeParse({ field: '' }).success).toBe(true); // empty allowed
+      expect(schema.safeParse({ field: null }).success).toBe(true); // nullable
+      expect(schema.safeParse({ field: '15-01-2025' }).success).toBe(false);
+      expect(schema.safeParse({ field: '2025/01/15' }).success).toBe(false);
+    });
+
+    it('validates xs:dateTime as YYYY-MM-DDThh:mm', () => {
+      const schema = buildZodSchema(defWithProperty('xs:dateTime'));
+      expect(schema.safeParse({ field: '2025-01-15T09:30' }).success).toBe(true);
+      expect(schema.safeParse({ field: '2025-01-15T09:30:00Z' }).success).toBe(true);
+      expect(schema.safeParse({ field: '' }).success).toBe(true); // empty allowed
+      expect(schema.safeParse({ field: null }).success).toBe(true); // nullable
+      expect(schema.safeParse({ field: '2025-01-15 09:30' }).success).toBe(false);
+      expect(schema.safeParse({ field: 'not-a-date' }).success).toBe(false);
+    });
+
+    it('allows null for plain string properties', () => {
+      const schema = buildZodSchema(defWithProperty('xs:string'));
+      expect(schema.safeParse({ field: 'hello' }).success).toBe(true);
+      expect(schema.safeParse({ field: null }).success).toBe(true);
+    });
   });
 
   it('treats unknown model types as unknown schema instead of property-like validation', () => {
