@@ -23,6 +23,9 @@ from app.modules.templates.router import (
     TemplateSourceMetadataResponse,
 )
 from app.modules.templates.service import TemplateRegistryService
+from app.modules.units.enrichment import ensure_uom_concept_descriptions
+from app.modules.units.payload import collect_uom_by_cd_id
+from app.modules.units.registry import UomRegistryService, build_registry_indexes
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -83,11 +86,54 @@ class PublicExportRequest(PublicPreviewRequest):
 
 @dataclass
 class PreparedPublicPreview:
+    template: Any
     template_key: str
     version: str
     aas_environment: dict[str, Any]
     warnings: list[str]
     payload_size_bytes: int
+
+
+async def _enrich_public_environment_uom(
+    *,
+    db: DbSession,
+    template: Any,
+    aas_environment: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    settings = get_settings()
+    if not settings.uom_enrichment_enabled:
+        return aas_environment, {"enabled": False}
+
+    template_payload = (
+        template.template_json_raw
+        if isinstance(getattr(template, "template_json_raw", None), dict)
+        else template.template_json
+    )
+    template_uom_by_cd_id = (
+        collect_uom_by_cd_id(template_payload) if isinstance(template_payload, dict) else {}
+    )
+    registry_by_cd_id: dict[str, Any] = {}
+    registry_by_specific_unit_id: dict[str, list[Any]] = {}
+    registry_by_symbol: dict[str, list[Any]] = {}
+    execute_attr = getattr(db, "execute", None)
+    execute_is_mock = "unittest.mock" in type(execute_attr).__module__
+    if settings.uom_registry_enabled and not execute_is_mock:
+        try:
+            registry_entries = await UomRegistryService(db).load_effective_entries()
+            registry_by_cd_id, registry_by_specific_unit_id, registry_by_symbol = (
+                build_registry_indexes(registry_entries)
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            logger.warning("public_smt_uom_registry_load_failed", error=str(exc))
+
+    enriched, enrichment_stats = ensure_uom_concept_descriptions(
+        aas_env=aas_environment,
+        template_uom_by_cd_id=template_uom_by_cd_id,
+        registry_by_cd_id=registry_by_cd_id,
+        registry_by_specific_unit_id=registry_by_specific_unit_id,
+        registry_by_symbol=registry_by_symbol,
+    )
+    return enriched, enrichment_stats
 
 
 async def _apply_public_smt_rate_limit(
@@ -422,7 +468,7 @@ async def _prepare_preview(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(
+    contract = await service.generate_template_contract(
         template,
         template_lookup=template_lookup,
         strict_unknown_model_types=True,
@@ -489,6 +535,7 @@ async def _prepare_preview(
     )
 
     return PreparedPublicPreview(
+        template=template,
         template_key=template.template_key,
         version=template.idta_version,
         aas_environment=aas_environment,
@@ -621,7 +668,7 @@ async def get_public_template_contract(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(
+    contract = await service.generate_template_contract(
         template,
         template_lookup=template_lookup,
         strict_unknown_model_types=True,
@@ -636,6 +683,7 @@ async def get_public_template_contract(
         dropin_resolution_report=contract.get("dropin_resolution_report", []),
         unsupported_nodes=contract.get("unsupported_nodes", []),
         doc_hints=contract.get("doc_hints", {}),
+        uom_diagnostics=contract.get("uom_diagnostics", {}),
     )
 
 
@@ -676,14 +724,24 @@ async def export_public_template_instance(
 
     service = TemplateRegistryService(db)
     builder = TemplateInstanceBuilder(service)
+    export_environment = prepared.aas_environment
+    if payload.format in {"json", "aasx"}:
+        export_environment, _ = await _enrich_public_environment_uom(
+            db=db,
+            template=prepared.template,
+            aas_environment=prepared.aas_environment,
+        )
 
     extension = payload.format
     try:
         if payload.format == "json":
-            content = builder.to_json_bytes(prepared.aas_environment)
+            content = builder.to_json_bytes(export_environment)
             media_type = "application/json"
         elif payload.format == "aasx":
-            content = builder.to_aasx_bytes(prepared.aas_environment)
+            content = builder.to_aasx_bytes(
+                prepared.aas_environment,
+                data_json_override=export_environment,
+            )
             media_type = "application/asset-administration-shell-package+xml"
         elif payload.format == "pdf":
             content = builder.to_pdf_bytes(

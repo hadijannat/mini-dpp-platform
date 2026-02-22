@@ -350,6 +350,25 @@ class Settings(BaseSettings):
         default=None,
         description="Optional GitHub token to avoid API rate limits when resolving templates",
     )
+    uom_registry_enabled: bool = Field(
+        default=True,
+        description="Enable IDTA-01003-b unit registry resolution and diagnostics",
+    )
+    uom_registry_seed_path: str | None = Field(
+        default=None,
+        description=(
+            "Optional absolute/relative path override for UoM seed file. "
+            "When unset, packaged module seed is used."
+        ),
+    )
+    uom_enrichment_enabled: bool = Field(
+        default=True,
+        description="Enable export-time UoM ConceptDescription enrichment",
+    )
+    uom_validation_mode: Literal["warn"] = Field(
+        default="warn",
+        description="UoM validation mode (warn-only in current rollout)",
+    )
     template_cache_ttl: int = Field(
         default=86400, description="Template cache TTL in seconds (default: 24 hours)"
     )

@@ -15,6 +15,11 @@ from basyx.aas import model
 from basyx.aas.adapter import aasx
 from basyx.aas.adapter import json as basyx_json
 
+from app.core.logging import get_logger
+from app.modules.units.payload import strip_uom_data_specifications
+
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class SupplementaryFile:
@@ -47,21 +52,52 @@ class AasxIngestService:
     def parse(self, aasx_bytes: bytes) -> AasxIngestResult:
         store: model.DictObjectStore[model.Identifiable] = model.DictObjectStore()
         files = aasx.DictSupplementaryFileContainer()  # type: ignore[no-untyped-call]
-        with aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
-            reader.read_into(store, files)
-
-        env_json_raw = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
-        if isinstance(env_json_raw, str):
-            aas_env_json = json.loads(env_json_raw)
-        elif isinstance(env_json_raw, dict):
-            aas_env_json = env_json_raw
-        else:
-            raise ValueError("Unexpected AAS environment payload type while parsing AASX")
+        try:
+            with aasx.AASXReader(io.BytesIO(aasx_bytes)) as reader:
+                reader.read_into(store, files)
+            env_json_raw = basyx_json.object_store_to_json(store)  # type: ignore[attr-defined]
+            if isinstance(env_json_raw, str):
+                aas_env_json = json.loads(env_json_raw)
+            elif isinstance(env_json_raw, dict):
+                aas_env_json = env_json_raw
+            else:
+                raise ValueError("Unexpected AAS environment payload type while parsing AASX")
+        except Exception as exc:
+            logger.warning(
+                "aasx_ingest_strict_parse_failed_using_zip_fallback",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return self._parse_via_zip_fallback(aasx_bytes)
 
         extracted_files = self._extract_supplementary_files(files, aasx_bytes)
         doc_hints_manifest = self._extract_doc_hints_manifest(extracted_files)
         return AasxIngestResult(
             aas_env_json=aas_env_json,
+            supplementary_files=extracted_files,
+            doc_hints_manifest=doc_hints_manifest,
+        )
+
+    def _parse_via_zip_fallback(
+        self,
+        aasx_bytes: bytes,
+    ) -> AasxIngestResult:
+        try:
+            aas_env_json = self._extract_aas_environment_from_zip(aasx_bytes)
+            sanitized_env, _ = strip_uom_data_specifications(aas_env_json)
+            payload = json.dumps(sanitized_env, sort_keys=True, ensure_ascii=False)
+            string_io = io.StringIO(payload)
+            try:
+                basyx_json.read_aas_json_file(string_io, failsafe=True)  # type: ignore[attr-defined]
+            finally:
+                string_io.close()
+        except Exception as exc:
+            raise ValueError("Failed to parse AASX package via strict and fallback paths") from exc
+
+        extracted_files = self._extract_supplementary_files_from_zip(aasx_bytes)
+        doc_hints_manifest = self._extract_doc_hints_manifest(extracted_files)
+        return AasxIngestResult(
+            aas_env_json=sanitized_env,
             supplementary_files=extracted_files,
             doc_hints_manifest=doc_hints_manifest,
         )
@@ -179,6 +215,64 @@ class AasxIngestService:
             "by_semantic_id": dict(sorted(by_semantic_id.items())),
             "by_id_short_path": dict(sorted(by_id_short_path.items())),
         }
+
+    def _extract_aas_environment_from_zip(self, aasx_bytes: bytes) -> dict[str, Any]:
+        environment: dict[str, Any] = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [],
+        }
+        with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as archive:
+            for name in sorted(archive.namelist()):
+                normalized_name = name.replace("\\", "/")
+                lowered = normalized_name.lower()
+                if not lowered.endswith(".json"):
+                    continue
+                if "/aasx/data.json" not in f"/{lowered}" and "aas" not in lowered:
+                    continue
+                try:
+                    content = json.loads(archive.read(name).decode("utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(content, dict):
+                    continue
+                if isinstance(content.get("aasEnvironment"), dict):
+                    content = content["aasEnvironment"]
+
+                shells = content.get("assetAdministrationShells")
+                if isinstance(shells, list):
+                    environment["assetAdministrationShells"].extend(shells)
+
+                submodels = content.get("submodels")
+                if isinstance(submodels, list):
+                    environment["submodels"].extend(submodels)
+                elif isinstance(content.get("submodel"), dict):
+                    environment["submodels"].append(content["submodel"])
+
+                concept_descriptions = content.get("conceptDescriptions")
+                if isinstance(concept_descriptions, list):
+                    environment["conceptDescriptions"].extend(concept_descriptions)
+
+        if not environment["submodels"]:
+            raise ValueError("AASX fallback parser found no submodels")
+        return environment
+
+    def _extract_supplementary_files_from_zip(self, aasx_bytes: bytes) -> list[SupplementaryFile]:
+        entries: dict[str, SupplementaryFile] = {}
+        with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as archive:
+            for name in sorted(archive.namelist()):
+                package_path = self._normalize_package_path(name)
+                if package_path is None:
+                    continue
+                payload = archive.read(name)
+                guessed_type = mimetypes.guess_type(package_path, strict=False)[0]
+                entries[package_path] = SupplementaryFile(
+                    package_path=package_path,
+                    content_type=guessed_type or "application/octet-stream",
+                    payload=payload,
+                    sha256=hashlib.sha256(payload).hexdigest(),
+                )
+        return [entries[key] for key in sorted(entries.keys())]
 
     def _normalize_package_path(self, raw_path: Any) -> str | None:
         if not isinstance(raw_path, str):

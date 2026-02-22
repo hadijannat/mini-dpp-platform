@@ -60,6 +60,41 @@ Critical categories:
 - `ENCRYPTION_MASTER_KEY` and signing keys
 - Optional template pin/ref settings
 
+## IDTA-01003-b Unit Operations
+
+### Runtime model
+
+- Template refresh stores:
+  - sanitized template payload (`templates.template_json`) for strict BaSyx parsing
+  - raw template payload (`templates.template_json_raw`) for DataSpecificationUoM extraction
+- Unit registry is stored in `uom_units` and seeded from `backend/app/modules/units/data/uom.seed.json`.
+- Contract validation is warn-only for this rollout (`UOM_VALIDATION_MODE=warn`).
+
+### Environment controls
+
+- `UOM_REGISTRY_ENABLED` (default `true`)
+- `UOM_REGISTRY_SEED_PATH` (optional file override)
+- `UOM_ENRICHMENT_ENABLED` (default `true`)
+- `UOM_VALIDATION_MODE` (fixed to `warn` in current rollout)
+
+### Export behavior by format
+
+- Guaranteed UoM embedding:
+  - `format=json`
+  - `format=jsonld`
+  - `format=turtle`
+  - `format=aasx` with `aasx_serialization=json`
+- Best effort only:
+  - `format=xml`
+  - `format=aasx` with `aasx_serialization=xml`
+  - responses include `X-UOM-Warning: uom_xml_not_guaranteed_due_basyx_limitation`
+
+### Import/re-import behavior
+
+- `/api/v1/dpps/import` strips DataSpecificationUoM blocks before strict metamodel validation.
+- `/api/v1/dpps/import-aasx` supports fallback ZIP extraction + UoM stripping when strict BaSyx parsing fails.
+- Export-time enrichment is in-memory only and is not persisted back into revision JSON.
+
 ## Keycloak Realm Reconciliation (Production)
 
 `--import-realm` does not overwrite an existing realm. Use an explicit post-deploy reconciliation step.

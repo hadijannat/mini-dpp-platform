@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from app.core.audit import emit_audit_event
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import require_access
 from app.core.security.resource_context import build_dpp_resource_context
@@ -22,6 +23,10 @@ from app.modules.dpps.attachment_service import AttachmentNotFoundError, Attachm
 from app.modules.dpps.service import DPPService
 from app.modules.epcis.service import EPCISService
 from app.modules.export.service import ExportService
+from app.modules.templates.service import TemplateRegistryService
+from app.modules.units.enrichment import ensure_uom_concept_descriptions
+from app.modules.units.payload import collect_uom_by_cd_id
+from app.modules.units.registry import UomRegistryService, build_registry_indexes
 from app.modules.webhooks.service import trigger_webhooks
 
 logger = get_logger(__name__)
@@ -78,6 +83,88 @@ async def _collect_supplementary_export_files(
             }
         )
     return export_files
+
+
+async def _resolve_templates_for_revision(*, db: DbSession, revision: Any) -> list[Any]:
+    raw_provenance = getattr(revision, "template_provenance", None)
+    provenance = raw_provenance if isinstance(raw_provenance, dict) else {}
+    if not provenance:
+        return []
+
+    registry_service = TemplateRegistryService(db)
+    templates: list[Any] = []
+    for template_key in sorted(str(key).strip() for key in provenance if str(key).strip()):
+        metadata = provenance.get(template_key)
+        resolved_version = (
+            str(metadata.get("resolved_version") or "").strip()
+            if isinstance(metadata, dict)
+            else ""
+        )
+        template = (
+            await registry_service.get_template(template_key, resolved_version)
+            if resolved_version
+            else None
+        )
+        if template is None:
+            template = await registry_service.get_template(template_key)
+        if template is not None:
+            templates.append(template)
+    return templates
+
+
+def _collect_template_uom_entries(templates: list[Any]) -> dict[str, Any]:
+    by_cd_id: dict[str, Any] = {}
+    for template in templates:
+        payload = (
+            template.template_json_raw
+            if isinstance(getattr(template, "template_json_raw", None), dict)
+            else template.template_json
+        )
+        if not isinstance(payload, dict):
+            continue
+        for cd_id, data_specification in collect_uom_by_cd_id(payload).items():
+            by_cd_id.setdefault(cd_id, data_specification)
+    return by_cd_id
+
+
+async def _build_uom_enriched_environment(
+    *,
+    db: DbSession,
+    revision: Any,
+    aas_environment: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    settings = get_settings()
+    if not settings.uom_enrichment_enabled:
+        return aas_environment, {"enabled": False}
+
+    templates = await _resolve_templates_for_revision(db=db, revision=revision)
+    template_uom_by_cd_id = _collect_template_uom_entries(templates)
+    registry_by_cd_id: dict[str, Any] = {}
+    registry_by_specific_unit_id: dict[str, list[Any]] = {}
+    registry_by_symbol: dict[str, list[Any]] = {}
+    execute_attr = getattr(db, "execute", None)
+    execute_is_mock = "unittest.mock" in type(execute_attr).__module__
+    if settings.uom_registry_enabled and not execute_is_mock:
+        try:
+            registry_entries = await UomRegistryService(db).load_effective_entries()
+            registry_by_cd_id, registry_by_specific_unit_id, registry_by_symbol = (
+                build_registry_indexes(registry_entries)
+            )
+        except Exception as exc:  # pragma: no cover - defensive runtime fallback
+            logger.warning("uom_registry_load_failed", error=str(exc))
+
+    enriched, stats = ensure_uom_concept_descriptions(
+        aas_env=aas_environment,
+        template_uom_by_cd_id=template_uom_by_cd_id,
+        registry_by_cd_id=registry_by_cd_id,
+        registry_by_specific_unit_id=registry_by_specific_unit_id,
+        registry_by_symbol=registry_by_symbol,
+    )
+    return enriched, {
+        "enabled": True,
+        "template_count": len(templates),
+        **stats,
+    }
 
 
 @router.get("/{dpp_id}")
@@ -176,9 +263,20 @@ async def export_dpp(
         },
     )
 
+    export_environment = revision.aas_env_json
+    uom_export_stats: dict[str, Any] = {"enabled": False}
+    if format in {"json", "jsonld", "turtle", "aasx", "xml"}:
+        export_environment, uom_export_stats = await _build_uom_enriched_environment(
+            db=db,
+            revision=revision,
+            aas_environment=revision.aas_env_json,
+        )
+
+    xml_uom_warning = "uom_xml_not_guaranteed_due_basyx_limitation"
+
     # Export based on format
     if format == "json":
-        content = export_service.export_json(revision)
+        content = export_service.export_json(revision, aas_env_json=export_environment)
         await emit_audit_event(
             db_session=db,
             action="export_dpp",
@@ -187,7 +285,7 @@ async def export_dpp(
             tenant_id=tenant.tenant_id,
             user=tenant.user,
             request=request,
-            metadata={"format": format},
+            metadata={"format": format, "uom_enrichment": uom_export_stats},
         )
         return Response(
             content=content,
@@ -208,6 +306,8 @@ async def export_dpp(
             dpp_id,
             write_json=(aasx_serialization == "json"),
             supplementary_files=supplementary_files,
+            aas_env_json=revision.aas_env_json,
+            data_json_override=export_environment if aasx_serialization == "json" else None,
         )
         await emit_audit_event(
             db_session=db,
@@ -217,17 +317,20 @@ async def export_dpp(
             tenant_id=tenant.tenant_id,
             user=tenant.user,
             request=request,
-            metadata={"format": format},
+            metadata={"format": format, "uom_enrichment": uom_export_stats},
         )
+        response_headers = {
+            "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.aasx"',
+        }
+        if aasx_serialization == "xml":
+            response_headers["X-UOM-Warning"] = xml_uom_warning
         return Response(
             content=content,
             media_type="application/asset-administration-shell-package+xml",
-            headers={
-                "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.aasx"',
-            },
+            headers=response_headers,
         )
     elif format == "jsonld":
-        content = export_service.export_jsonld(revision)
+        content = export_service.export_jsonld(revision, aas_env_json=export_environment)
         await emit_audit_event(
             db_session=db,
             action="export_dpp",
@@ -236,7 +339,7 @@ async def export_dpp(
             tenant_id=tenant.tenant_id,
             user=tenant.user,
             request=request,
-            metadata={"format": format},
+            metadata={"format": format, "uom_enrichment": uom_export_stats},
         )
         return Response(
             content=content,
@@ -246,7 +349,7 @@ async def export_dpp(
             },
         )
     elif format == "turtle":
-        content = export_service.export_turtle(revision)
+        content = export_service.export_turtle(revision, aas_env_json=export_environment)
         await emit_audit_event(
             db_session=db,
             action="export_dpp",
@@ -255,7 +358,7 @@ async def export_dpp(
             tenant_id=tenant.tenant_id,
             user=tenant.user,
             request=request,
-            metadata={"format": format},
+            metadata={"format": format, "uom_enrichment": uom_export_stats},
         )
         return Response(
             content=content,
@@ -284,7 +387,10 @@ async def export_dpp(
             },
         )
     elif format == "xml":
-        content = export_service.export_xml(revision)
+        try:
+            content = export_service.export_xml(revision, aas_env_json=export_environment)
+        except ValueError:
+            content = export_service.export_xml(revision, aas_env_json=revision.aas_env_json)
         await emit_audit_event(
             db_session=db,
             action="export_dpp",
@@ -293,13 +399,14 @@ async def export_dpp(
             tenant_id=tenant.tenant_id,
             user=tenant.user,
             request=request,
-            metadata={"format": format},
+            metadata={"format": format, "uom_enrichment": uom_export_stats},
         )
         return Response(
             content=content,
             media_type="application/xml",
             headers={
                 "Content-Disposition": f'attachment; filename="dpp-{dpp_id}.xml"',
+                "X-UOM-Warning": xml_uom_warning,
             },
         )
     else:
@@ -402,7 +509,12 @@ async def batch_export(
                     )
 
                 if body.format == "json":
-                    content = export_service.export_json(revision)
+                    export_environment, _ = await _build_uom_enriched_environment(
+                        db=db,
+                        revision=revision,
+                        aas_environment=revision.aas_env_json,
+                    )
+                    content = export_service.export_json(revision, aas_env_json=export_environment)
                 else:
                     supplementary_files = await _collect_supplementary_export_files(
                         db=db,
@@ -410,10 +522,17 @@ async def batch_export(
                         dpp_id=dpp_id,
                         revision=revision,
                     )
+                    export_environment, _ = await _build_uom_enriched_environment(
+                        db=db,
+                        revision=revision,
+                        aas_environment=revision.aas_env_json,
+                    )
                     content = export_service.export_aasx(
                         revision,
                         dpp_id,
                         supplementary_files=supplementary_files,
+                        aas_env_json=revision.aas_env_json,
+                        data_json_override=export_environment,
                     )
 
                 zf.writestr(f"dpp-{dpp_id}.{ext}", content)

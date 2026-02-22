@@ -36,6 +36,7 @@ from app.modules.masters.service import DPPMasterService
 from app.modules.registry.handlers import auto_register_shell_descriptor
 from app.modules.resolver.handlers import auto_register_resolver_links
 from app.modules.templates.service import TemplateRegistryService
+from app.modules.units.payload import strip_uom_data_specifications
 from app.modules.webhooks.service import trigger_webhooks
 
 logger = get_logger(__name__)
@@ -864,6 +865,14 @@ async def import_dpp(
             detail="AAS environment payload must be a JSON object",
         )
 
+    aas_env, uom_strip_stats = strip_uom_data_specifications(aas_env)
+    if uom_strip_stats.get("uom_specs_removed", 0) > 0:
+        logger.info(
+            "import_dpp_uom_stripped",
+            removed=uom_strip_stats.get("uom_specs_removed", 0),
+            scanned=uom_strip_stats.get("concept_descriptions_scanned", 0),
+        )
+
     validation = validate_aas_environment(aas_env)
     if validation.warnings:
         logger.warning(
@@ -988,7 +997,13 @@ async def import_dpp_aasx(
             detail="Failed to parse AASX package",
         ) from exc
 
-    aas_env = ingest.aas_env_json
+    aas_env, uom_strip_stats = strip_uom_data_specifications(ingest.aas_env_json)
+    if uom_strip_stats.get("uom_specs_removed", 0) > 0:
+        logger.info(
+            "import_dpp_aasx_uom_stripped",
+            removed=uom_strip_stats.get("uom_specs_removed", 0),
+            scanned=uom_strip_stats.get("concept_descriptions_scanned", 0),
+        )
     validation = validate_aas_environment(aas_env)
     if validation.warnings:
         logger.warning(

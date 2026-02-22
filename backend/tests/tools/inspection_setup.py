@@ -75,7 +75,7 @@ async def ingest_template(
         template = await service.refresh_template(template_key)
         await commit()
 
-        contract = service.generate_template_contract(template)
+        contract = await service.generate_template_contract(template)
 
         template_dir = evidence_dir / "templates" / template_key
         _write_json(template_dir / "definition.json", contract["definition"])

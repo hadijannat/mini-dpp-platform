@@ -116,6 +116,7 @@ class TemplateContractResponse(BaseModel):
     dropin_resolution_report: list[dict[str, Any]] = Field(default_factory=list)
     unsupported_nodes: list[dict[str, Any]] = Field(default_factory=list)
     doc_hints: dict[str, Any] = Field(default_factory=dict)
+    uom_diagnostics: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -222,7 +223,7 @@ async def get_template_contract(
 
     template_lookup = {row.template_key: row for row in await service.get_all_templates()}
     template_lookup.setdefault(template.template_key, template)
-    contract = service.generate_template_contract(template, template_lookup=template_lookup)
+    contract = await service.generate_template_contract(template, template_lookup=template_lookup)
     return TemplateContractResponse(
         template_key=template_key,
         idta_version=contract["idta_version"],
@@ -233,6 +234,7 @@ async def get_template_contract(
         dropin_resolution_report=contract.get("dropin_resolution_report", []),
         unsupported_nodes=contract.get("unsupported_nodes", []),
         doc_hints=contract.get("doc_hints", {}),
+        uom_diagnostics=contract.get("uom_diagnostics", {}),
     )
 
 

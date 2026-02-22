@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import json
+import zipfile
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, cast
@@ -82,7 +83,12 @@ class TemplateInstanceBuilder:
             ensure_ascii=False,
         ).encode("utf-8")
 
-    def to_aasx_bytes(self, aas_environment: dict[str, Any]) -> bytes:
+    def to_aasx_bytes(
+        self,
+        aas_environment: dict[str, Any],
+        *,
+        data_json_override: dict[str, Any] | None = None,
+    ) -> bytes:
         buffer = io.BytesIO()
         payload = json.dumps(aas_environment, sort_keys=True, indent=2, ensure_ascii=False)
         string_io = io.StringIO(payload)
@@ -102,7 +108,10 @@ class TemplateInstanceBuilder:
             writer.write_core_properties(core_props)
             writer.write_all_aas_objects("/aasx/data.json", store, files, write_json=True)
         buffer.seek(0)
-        return buffer.read()
+        result = buffer.read()
+        if data_json_override is None:
+            return result
+        return self._replace_aasx_data_json(result, data_json_override)
 
     def to_pdf_bytes(
         self,
@@ -141,3 +150,28 @@ class TemplateInstanceBuilder:
         if isinstance(output, (bytes, bytearray)):
             return bytes(output)
         return output.encode("latin-1")
+
+    def _replace_aasx_data_json(self, aasx_bytes: bytes, data_json: dict[str, Any]) -> bytes:
+        replacement = json.dumps(
+            data_json,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        ).encode("utf-8")
+        source = io.BytesIO(aasx_bytes)
+        target = io.BytesIO()
+        replaced = False
+        with zipfile.ZipFile(source, "r") as archive, zipfile.ZipFile(
+            target, "w", compression=zipfile.ZIP_DEFLATED
+        ) as output:
+            for entry in archive.infolist():
+                normalized = entry.filename.replace("\\", "/").lstrip("/")
+                if normalized.lower() == "aasx/data.json":
+                    output.writestr("aasx/data.json", replacement)
+                    replaced = True
+                    continue
+                output.writestr(entry.filename, archive.read(entry.filename))
+            if not replaced:
+                output.writestr("aasx/data.json", replacement)
+        target.seek(0)
+        return target.read()

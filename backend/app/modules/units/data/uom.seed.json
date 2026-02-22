@@ -1,0 +1,72 @@
+{
+  "version": "1",
+  "classificationSystem": "UNECE Rec 20",
+  "units": [
+    {
+      "cdId": "urn:unece:rec20:MTR",
+      "preferredName": {"en": "metre"},
+      "symbol": "m",
+      "specificUnitID": "MTR",
+      "definition": {"en": "SI base unit of length."},
+      "preferredNameQuantity": {"en": "length"},
+      "quantityID": "LEN",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    },
+    {
+      "cdId": "urn:unece:rec20:KGM",
+      "preferredName": {"en": "kilogram"},
+      "symbol": "kg",
+      "specificUnitID": "KGM",
+      "definition": {"en": "SI base unit of mass."},
+      "preferredNameQuantity": {"en": "mass"},
+      "quantityID": "MAS",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    },
+    {
+      "cdId": "urn:unece:rec20:SEC",
+      "preferredName": {"en": "second"},
+      "symbol": "s",
+      "specificUnitID": "SEC",
+      "definition": {"en": "SI base unit of time."},
+      "preferredNameQuantity": {"en": "time"},
+      "quantityID": "TIM",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    },
+    {
+      "cdId": "urn:unece:rec20:KWH",
+      "preferredName": {"en": "kilowatt hour"},
+      "symbol": "kWh",
+      "specificUnitID": "KWH",
+      "definition": {"en": "Unit of energy."},
+      "preferredNameQuantity": {"en": "energy"},
+      "quantityID": "ENG",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    },
+    {
+      "cdId": "urn:unece:rec20:CEL",
+      "preferredName": {"en": "degree Celsius"},
+      "symbol": "°C",
+      "specificUnitID": "CEL",
+      "definition": {"en": "Unit for thermodynamic temperature."},
+      "preferredNameQuantity": {"en": "temperature"},
+      "quantityID": "TMP",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    },
+    {
+      "cdId": "urn:unece:rec20:VLT",
+      "preferredName": {"en": "volt"},
+      "symbol": "V",
+      "specificUnitID": "VLT",
+      "definition": {"en": "Unit of electric potential difference."},
+      "preferredNameQuantity": {"en": "electric potential"},
+      "quantityID": "ELP",
+      "classificationSystem": "UNECE Rec 20",
+      "classificationSystemVersion": "2024"
+    }
+  ]
+}

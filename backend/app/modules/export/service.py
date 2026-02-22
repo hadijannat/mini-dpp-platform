@@ -41,6 +41,15 @@ class ExportService:
         self._settings = get_settings()
 
     @staticmethod
+    def _resolve_export_environment(
+        revision: DPPRevision,
+        aas_env_json: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if isinstance(aas_env_json, dict):
+            return aas_env_json
+        return revision.aas_env_json
+
+    @staticmethod
     def inject_traceability_submodel(
         revision: DPPRevision,
         epcis_events: list[EPCISEventResponse],
@@ -70,7 +79,11 @@ class ExportService:
         submodels = aas_env.setdefault("submodels", [])
         submodels.append(submodel)
 
-    def export_json(self, revision: DPPRevision) -> bytes:
+    def export_json(
+        self,
+        revision: DPPRevision,
+        aas_env_json: dict[str, Any] | None = None,
+    ) -> bytes:
         """
         Export DPP as canonical JSON.
 
@@ -78,7 +91,7 @@ class ExportService:
         including digest and timestamp.
         """
         export_data = {
-            "aasEnvironment": revision.aas_env_json,
+            "aasEnvironment": self._resolve_export_environment(revision, aas_env_json),
             "metadata": {
                 "exportedAt": datetime.now(UTC).isoformat(),
                 "revisionNo": revision.revision_no,
@@ -99,7 +112,11 @@ class ExportService:
             ensure_ascii=False,
         ).encode("utf-8")
 
-    def export_jsonld(self, revision: DPPRevision) -> bytes:
+    def export_jsonld(
+        self,
+        revision: DPPRevision,
+        aas_env_json: dict[str, Any] | None = None,
+    ) -> bytes:
         """Export DPP as JSON-LD (Linked Data).
 
         Returns the AAS environment converted to JSON-LD with proper
@@ -107,27 +124,36 @@ class ExportService:
         """
         from app.modules.aas import aas_to_jsonld
 
-        jsonld = aas_to_jsonld(revision.aas_env_json)
+        jsonld = aas_to_jsonld(self._resolve_export_environment(revision, aas_env_json))
         return json.dumps(jsonld, indent=2, ensure_ascii=False).encode("utf-8")
 
-    def export_turtle(self, revision: DPPRevision) -> bytes:
+    def export_turtle(
+        self,
+        revision: DPPRevision,
+        aas_env_json: dict[str, Any] | None = None,
+    ) -> bytes:
         """Export DPP as Turtle (RDF).
 
         Returns the AAS environment serialized as Turtle via rdflib.
         """
         from app.modules.aas import aas_to_turtle
 
-        turtle_str = aas_to_turtle(revision.aas_env_json)
+        turtle_str = aas_to_turtle(self._resolve_export_environment(revision, aas_env_json))
         return turtle_str.encode("utf-8")
 
-    def export_xml(self, revision: DPPRevision) -> bytes:
+    def export_xml(
+        self,
+        revision: DPPRevision,
+        aas_env_json: dict[str, Any] | None = None,
+    ) -> bytes:
         """Export DPP as AAS XML.
 
         Serializes the AAS environment to XML format using BaSyx's
         built-in XML serializer with proper AAS Part 1 namespaces.
         """
+        export_env = self._resolve_export_environment(revision, aas_env_json)
         payload = json.dumps(
-            revision.aas_env_json,
+            export_env,
             sort_keys=True,
             indent=2,
             ensure_ascii=False,
@@ -158,6 +184,8 @@ class ExportService:
         dpp_id: UUID,
         write_json: bool = True,
         supplementary_files: list[dict[str, Any]] | None = None,
+        aas_env_json: dict[str, Any] | None = None,
+        data_json_override: dict[str, Any] | None = None,
     ) -> bytes:
         """
         Export DPP as AASX package.
@@ -172,8 +200,9 @@ class ExportService:
         """
         buffer = io.BytesIO()
         try:
+            export_env = self._resolve_export_environment(revision, aas_env_json)
             payload = json.dumps(
-                revision.aas_env_json,
+                export_env,
                 sort_keys=True,
                 indent=2,
                 ensure_ascii=False,
@@ -186,10 +215,29 @@ class ExportService:
                     string_io, failsafe=True
                 )
             except Exception as exc:
-                logger.error("export_aasx_deserialization_failed", exc_info=True)
-                raise ValueError(
-                    "Failed to export AASX: AAS environment contains malformed elements"
-                ) from exc
+                if not write_json or data_json_override is None:
+                    logger.error("export_aasx_deserialization_failed", exc_info=True)
+                    raise ValueError(
+                        "Failed to export AASX: AAS environment contains malformed elements"
+                    ) from exc
+                fallback_payload = json.dumps(
+                    revision.aas_env_json,
+                    sort_keys=True,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+                fallback_io = io.StringIO(fallback_payload)
+                try:
+                    store = basyx_json.read_aas_json_file(  # type: ignore[attr-defined]
+                        fallback_io, failsafe=True
+                    )
+                except Exception as fallback_exc:
+                    logger.error("export_aasx_deserialization_failed", exc_info=True)
+                    raise ValueError(
+                        "Failed to export AASX: AAS environment contains malformed elements"
+                    ) from fallback_exc
+                finally:
+                    fallback_io.close()
             finally:
                 string_io.close()
 
@@ -221,7 +269,10 @@ class ExportService:
                 writer.write_all_aas_objects(data_path, store, files, write_json=write_json)
 
             buffer.seek(0)
-            return buffer.read()
+            result = buffer.read()
+            if write_json and isinstance(data_json_override, dict):
+                result = self._replace_aasx_data_json(result, data_json_override)
+            return result
         except ValueError:
             raise  # Already sanitized by inner handler
         except Exception as exc:
@@ -229,6 +280,32 @@ class ExportService:
             raise ValueError("Failed to export AASX: package creation failed") from exc
         finally:
             buffer.close()
+
+    def _replace_aasx_data_json(self, aasx_bytes: bytes, data_json: dict[str, Any]) -> bytes:
+        replacement = json.dumps(
+            data_json,
+            sort_keys=True,
+            indent=2,
+            ensure_ascii=False,
+        ).encode("utf-8")
+
+        source = io.BytesIO(aasx_bytes)
+        target = io.BytesIO()
+        replaced = False
+        with zipfile.ZipFile(source, "r") as archive, zipfile.ZipFile(
+            target, "w", compression=zipfile.ZIP_DEFLATED
+        ) as output:
+            for entry in archive.infolist():
+                normalized = entry.filename.replace("\\", "/").lstrip("/")
+                if normalized.lower() == "aasx/data.json":
+                    output.writestr("aasx/data.json", replacement)
+                    replaced = True
+                    continue
+                output.writestr(entry.filename, archive.read(entry.filename))
+            if not replaced:
+                output.writestr("aasx/data.json", replacement)
+        target.seek(0)
+        return target.read()
 
     def _normalize_package_path(self, raw_path: Any) -> str | None:
         if not isinstance(raw_path, str):
