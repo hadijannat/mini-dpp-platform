@@ -284,6 +284,56 @@ def test_export_aasx_includes_supplementary_files_when_provided() -> None:
     assert "aasx/files/manual.pdf" in names
 
 
+def test_export_aasx_data_json_override_replaces_payload() -> None:
+    export_service = ExportService()
+    dpp_id = uuid4()
+    revision = _make_basyx_revision(dpp_id)
+    enriched_env = json.loads(json.dumps(revision.aas_env_json))
+    enriched_env["conceptDescriptions"] = [
+        {
+            "id": "urn:unece:rec20:MTR",
+            "embeddedDataSpecifications": [
+                {
+                    "dataSpecification": {
+                        "type": "ExternalReference",
+                        "keys": [
+                            {
+                                "type": "GlobalReference",
+                                "value": (
+                                    "https://admin-shell.io/DataSpecificationTemplates/"
+                                    "DataSpecificationUoM/3"
+                                ),
+                            }
+                        ],
+                    },
+                    "dataSpecificationContent": {
+                        "modelType": "DataSpecificationUoM",
+                        "preferredName": [{"language": "en", "text": "metre"}],
+                        "symbol": "m",
+                        "specificUnitID": "MTR",
+                        "classificationSystem": "UNECE Rec 20",
+                    },
+                }
+            ],
+        }
+    ]
+
+    aasx_bytes = export_service.export_aasx(
+        revision,
+        dpp_id,
+        write_json=True,
+        aas_env_json=revision.aas_env_json,
+        data_json_override=enriched_env,
+    )
+
+    with zipfile.ZipFile(io.BytesIO(aasx_bytes), "r") as archive:
+        data_json = json.loads(archive.read("aasx/data.json").decode("utf-8"))
+
+    concept_descriptions = data_json.get("conceptDescriptions", [])
+    assert isinstance(concept_descriptions, list)
+    assert any(item.get("id") == "urn:unece:rec20:MTR" for item in concept_descriptions)
+
+
 def test_normalize_package_path_rejects_traversal_and_reserved_paths() -> None:
     export_service = ExportService()
 

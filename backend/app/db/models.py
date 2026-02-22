@@ -1016,6 +1016,10 @@ class Template(Base):
         nullable=False,
         comment="Normalized AAS Environment JSON",
     )
+    template_json_raw: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        comment="Raw upstream AAS environment JSON before BaSyx compatibility sanitization",
+    )
     fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -1025,6 +1029,90 @@ class Template(Base):
         UniqueConstraint("template_key", "idta_version", name="uq_template_key_version"),
         Index("ix_templates_template_key", "template_key"),
         Index("ix_templates_catalog_status", "catalog_status"),
+    )
+
+
+# =============================================================================
+# UoM Registry Model
+# =============================================================================
+
+
+class UomUnit(Base):
+    """Canonical UoM registry entries used for IDTA-01003-b enrichment."""
+
+    __tablename__ = "uom_units"
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True,
+        server_default=func.uuid_generate_v7(),
+    )
+    cd_id: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        unique=True,
+        comment="Canonical ConceptDescription identifier for the unit",
+    )
+    symbol: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Unit symbol (e.g., kg, m, kWh)",
+    )
+    preferred_name: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        comment="Localized preferred names",
+    )
+    definition: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        comment="Localized unit definitions",
+    )
+    specific_unit_id: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        comment="Classification-specific unit identifier (e.g., UNECE Rec 20 code)",
+    )
+    classification_system: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="UNECE Rec 20",
+    )
+    classification_system_version: Mapped[str | None] = mapped_column(Text)
+    preferred_name_quantity: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=dict,
+        comment="Localized quantity names for the unit context",
+    )
+    quantity_id: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        default="seed",
+    )
+    active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    __table_args__ = (
+        Index("ix_uom_units_cd_id", "cd_id"),
+        Index("ix_uom_units_specific_unit_id", "specific_unit_id"),
+        Index("ix_uom_units_symbol", "symbol"),
     )
 
 

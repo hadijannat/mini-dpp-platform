@@ -3,6 +3,7 @@ DPP (Digital Product Passport) Core Service.
 Handles DPP lifecycle, revision management, and data hydration.
 """
 
+import inspect
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -1367,10 +1368,12 @@ class DPPService:
             template = template_lookup.get(template_key)
             if template is None:
                 continue
-            contract = self._template_service.generate_template_contract(
+            contract = await self._generate_template_contract_safe(
                 template,
                 template_lookup=template_lookup,
             )
+            if contract is None:
+                continue
             unsupported_nodes = contract.get("unsupported_nodes", [])
             if isinstance(unsupported_nodes, list) and unsupported_nodes:
                 blocked.append(
@@ -1440,10 +1443,11 @@ class DPPService:
                 asset_ids=(dpp.asset_ids if dpp else {}),
             )
 
-        generate_template_contract = getattr(
-            self._template_service, "generate_template_contract", None
+        contract = await self._generate_template_contract_safe(
+            template,
+            template_lookup=template_lookup,
         )
-        if not callable(generate_template_contract):
+        if contract is None:
             logger.warning(
                 "template_contract_generator_unavailable_fallback",
                 template_key=template_key,
@@ -1461,11 +1465,6 @@ class DPPService:
                 updated_by_subject=updated_by_subject,
                 asset_ids=(dpp.asset_ids if dpp else {}),
             )
-
-        contract = generate_template_contract(
-            template,
-            template_lookup=template_lookup,
-        )
         target_submodel = self._find_submodel_json_by_id(base_env, target_submodel_id)
         if target_submodel is None:
             raise ValueError(
@@ -1541,10 +1540,14 @@ class DPPService:
             preloaded_template_lookup=preloaded_template_lookup,
         )
 
-        contract = preloaded_contract or self._template_service.generate_template_contract(
-            template,
-            template_lookup=template_lookup,
-        )
+        contract = preloaded_contract
+        if contract is None:
+            contract = await self._generate_template_contract_safe(
+                template,
+                template_lookup=template_lookup,
+            )
+        if contract is None:
+            raise ValueError("Template contract generation is unavailable")
         patch_result = apply_canonical_patch(
             aas_env_json=base_env,
             submodel_id=target_submodel_id,
@@ -1575,6 +1578,25 @@ class DPPService:
 
         await self._cleanup_old_draft_revisions(dpp_id, tenant_id)
         return revision
+
+    async def _generate_template_contract_safe(
+        self,
+        template: Template,
+        *,
+        template_lookup: dict[str, Template],
+    ) -> dict[str, Any] | None:
+        generator = getattr(self._template_service, "generate_template_contract", None)
+        if not callable(generator):
+            return None
+        contract = generator(template, template_lookup=template_lookup)
+        if inspect.isawaitable(contract):
+            awaited_contract = await contract
+            if isinstance(awaited_contract, dict):
+                return awaited_contract
+            return None
+        if isinstance(contract, dict):
+            return contract
+        return None
 
     async def _resolve_update_target(
         self,

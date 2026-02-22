@@ -22,9 +22,16 @@ class TemplateDefinitionBuilder:
     """Build a stable, UI-friendly definition AST from a parsed template."""
 
     def __init__(
-        self, resolution_by_element_id: Mapping[int, dict[str, Any]] | None = None
+        self,
+        resolution_by_element_id: Mapping[int, dict[str, Any]] | None = None,
+        uom_by_cd_id: Mapping[str, dict[str, Any]] | None = None,
+        validation_by_cd_id: Mapping[str, list[dict[str, Any]]] | None = None,
     ) -> None:
         self._resolution_by_element_id = dict(resolution_by_element_id or {})
+        self._uom_by_cd_id = dict(uom_by_cd_id or {})
+        self._validation_by_cd_id = {
+            key: list(value) for key, value in (validation_by_cd_id or {}).items()
+        }
 
     def build_definition(
         self,
@@ -209,7 +216,7 @@ class TemplateDefinitionBuilder:
         # Try structured IEC 61360 data specification first
         iec61360 = self._extract_iec61360(cd)
         if iec61360 is not None:
-            return {
+            payload = {
                 "id": cd.id,
                 "idShort": cd.id_short,
                 "definition": lang_string_set_to_dict(iec61360.definition),
@@ -220,6 +227,7 @@ class TemplateDefinitionBuilder:
                 "dataType": enum_to_str(getattr(iec61360, "data_type", None)),
                 "valueFormat": getattr(iec61360, "value_format", None),
             }
+            return self._decorate_concept_description(payload)
 
         # Fallback: extract from top-level attributes (pre-IEC 61360 or custom CDs)
         definition_value = getattr(cd, "definition", None)
@@ -231,7 +239,7 @@ class TemplateDefinitionBuilder:
         short_name_value = getattr(cd, "short_name", None)
         if short_name_value is None:
             short_name_value = getattr(cd, "id_short", None)
-        return {
+        payload = {
             "id": cd.id,
             "idShort": cd.id_short,
             "definition": lang_string_set_to_dict(definition_value),
@@ -240,6 +248,7 @@ class TemplateDefinitionBuilder:
             "unit": getattr(cd, "unit", None),
             "unitId": reference_to_str(getattr(cd, "unit_id", None)),
         }
+        return self._decorate_concept_description(payload)
 
     @staticmethod
     def _extract_iec61360(cd: Any) -> Any | None:
@@ -252,6 +261,28 @@ class TemplateDefinitionBuilder:
             if content is not None and type(content).__name__ == "DataSpecificationIEC61360":
                 return content
         return None
+
+    def _decorate_concept_description(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload.setdefault("kind", "concept")
+        cd_id = str(payload.get("id") or "").strip()
+        if not cd_id:
+            return payload
+
+        uom = self._uom_by_cd_id.get(cd_id)
+        if isinstance(uom, dict):
+            payload["kind"] = "unit"
+            payload["uom"] = self._sorted_dict(uom)
+            payload["unitResolutionStatus"] = "resolved"
+        elif payload.get("unitId"):
+            payload["unitResolutionStatus"] = "unresolved"
+
+        validations = self._validation_by_cd_id.get(cd_id)
+        if validations:
+            payload["x_validation"] = [
+                self._sorted_dict(item) if isinstance(item, dict) else item for item in validations
+            ]
+
+        return payload
 
     def _normalize_id_short(self, value: str | None) -> str | None:
         if not value:

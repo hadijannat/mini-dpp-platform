@@ -152,6 +152,40 @@ Rollout/backfill guidance:
 | Submodel Browsing | `aas`, `templates` | `submodels` |
 | Platform Settings | `settings`, `webhooks` | admin settings + webhooks pages |
 
+## Measurement Units (IDTA-01003-b)
+
+The backend implements IDTA-01003-b-compatible measurement unit handling with a BaSyx-safe runtime model:
+
+- Template ingest stores two payloads:
+  - `template_json`: sanitized payload used for strict BaSyx parsing.
+  - `template_json_raw`: raw upstream payload retained for DataSpecificationUoM extraction.
+- Template contract responses include additive UoM diagnostics (`uom_diagnostics`) and unit-resolution metadata.
+- Validation is warn-only in this rollout (`UOM_VALIDATION_MODE=warn`); template refresh/export/import are not hard-blocked.
+- Export paths enrich unit ConceptDescriptions in-memory (no revision mutation at write-time).
+- Import paths strip DataSpecificationUoM for strict parser compatibility.
+
+### Export guarantees
+
+- Guaranteed UoM enrichment:
+  - `json`
+  - `jsonld`
+  - `turtle`
+  - `aasx` when `aasx_serialization=json`
+- Best effort only:
+  - `xml`
+  - `aasx` when `aasx_serialization=xml`
+  - these paths include warning header `X-UOM-Warning: uom_xml_not_guaranteed_due_basyx_limitation`
+
+### Unit registry
+
+- Initial canonical registry is UNECE Rec 20-backed.
+- Registry data is persisted in `uom_units` and seeded from `backend/app/modules/units/data/uom.seed.json`.
+- Runtime controls:
+  - `UOM_REGISTRY_ENABLED`
+  - `UOM_REGISTRY_SEED_PATH`
+  - `UOM_ENRICHMENT_ENABLED`
+  - `UOM_VALIDATION_MODE`
+
 ## Developer Workflows
 
 ### Backend (`backend/`)

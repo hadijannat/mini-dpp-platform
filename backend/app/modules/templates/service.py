@@ -36,6 +36,13 @@ from app.modules.templates.catalog import (
 from app.modules.templates.definition import TemplateDefinitionBuilder
 from app.modules.templates.dropin_resolver import TemplateDropInResolver
 from app.modules.templates.schema_from_definition import DefinitionToSchemaConverter
+from app.modules.units.models import UomDataSpecification, UomRegistryEntry
+from app.modules.units.payload import (
+    collect_uom_by_cd_id,
+    strip_uom_data_specifications,
+)
+from app.modules.units.registry import UomRegistryService, build_registry_indexes
+from app.modules.units.validation import build_uom_diagnostics, resolve_uom_for_unit_reference
 
 logger = get_logger(__name__)
 
@@ -85,10 +92,12 @@ class TemplateCandidateResolution:
     asset: dict[str, Any] | None
     kind: Literal["json", "aasx"]
     aas_env_json: dict[str, Any]
+    aas_env_json_raw: dict[str, Any]
     aasx_bytes: bytes | None
     source_url: str
     selected_submodel_semantic_id: str | None
     selection_strategy: str
+    uom_strip_stats: dict[str, int] | None = None
     display_name: str | None = None
 
 
@@ -347,6 +356,7 @@ class TemplateRegistryService:
             )
 
         aas_env_json = candidate_resolution.aas_env_json
+        aas_env_json_raw = candidate_resolution.aas_env_json_raw
         template_aasx = candidate_resolution.aasx_bytes
         source_url = candidate_resolution.source_url
         source_kind = candidate_resolution.kind
@@ -365,6 +375,10 @@ class TemplateRegistryService:
         selection_diagnostics["selected_submodel_semantic_id"] = (
             candidate_resolution.selected_submodel_semantic_id
         )
+        selection_diagnostics["uom_ingest"] = candidate_resolution.uom_strip_stats or {
+            "concept_descriptions_scanned": 0,
+            "uom_specs_removed": 0,
+        }
         selection_diagnostics["selected_file"] = {
             "kind": source_kind,
             "url": source_url,
@@ -384,6 +398,7 @@ class TemplateRegistryService:
 
         if existing:
             existing.template_json = aas_env_json
+            existing.template_json_raw = aas_env_json_raw
             if template_aasx is not None:
                 existing.template_aasx = template_aasx
             if source_url is not None:
@@ -413,6 +428,7 @@ class TemplateRegistryService:
                 selection_strategy=selection_strategy,
                 template_aasx=template_aasx,
                 template_json=aas_env_json,
+                template_json_raw=aas_env_json_raw,
                 fetched_at=datetime.now(UTC),
                 catalog_status="published",
                 display_name=descriptor.title,
@@ -439,15 +455,21 @@ class TemplateRegistryService:
         self,
         template: Template,
         template_lookup: Mapping[str, Template] | None = None,
+        validation_by_cd_id: Mapping[str, list[dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
-        return self._generate_template_definition(template, template_lookup=template_lookup)
+        return self._generate_template_definition(
+            template,
+            template_lookup=template_lookup,
+            validation_by_cd_id=validation_by_cd_id,
+        )
 
     def _generate_template_definition(
         self,
         template: Template,
         template_lookup: Mapping[str, Template] | None,
+        validation_by_cd_id: Mapping[str, list[dict[str, Any]]] | None = None,
     ) -> dict[str, Any]:
-        use_cache = not template_lookup
+        use_cache = not template_lookup and not validation_by_cd_id
         cache_key = (template.template_key, template.idta_version, template.source_file_sha)
         if use_cache:
             cached = _definition_cache.get(cache_key)
@@ -486,7 +508,11 @@ class TemplateRegistryService:
                 source_provider=source_provider,
             )
 
-        builder = TemplateDefinitionBuilder(resolution_by_element_id=resolution_by_element_id)
+        builder = TemplateDefinitionBuilder(
+            resolution_by_element_id=resolution_by_element_id,
+            uom_by_cd_id=self._template_raw_uom_payload_map(template),
+            validation_by_cd_id=validation_by_cd_id,
+        )
         definition = builder.build_definition(
             template_key=template.template_key,
             parsed=parsed,
@@ -875,7 +901,8 @@ class TemplateRegistryService:
         if file_kind == "json":
             try:
                 payload = response.json()
-                aas_env_json = self._normalize_template_json(payload, "catalog-template")
+                aas_env_json_raw = self._normalize_template_json(payload, "catalog-template")
+                aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
                 parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
             except Exception as exc:
                 logger.warning(
@@ -890,10 +917,12 @@ class TemplateRegistryService:
                 asset=candidate,
                 kind="json",
                 aas_env_json=aas_env_json,
+                aas_env_json_raw=aas_env_json_raw,
                 aasx_bytes=None,
                 source_url=source_url,
                 selected_submodel_semantic_id=semantic_id,
                 selection_strategy=SELECTION_STRATEGY,
+                uom_strip_stats=uom_strip_stats,
                 display_name=self._submodel_display_name(
                     parsed.submodel, fallback=candidate["folder"]
                 ),
@@ -903,8 +932,9 @@ class TemplateRegistryService:
         if not self._is_valid_aasx(candidate_aasx):
             return None
         try:
-            aas_env_json = self._extract_aas_environment(candidate_aasx)
-            parsed = parser.parse_aasx(candidate_aasx)
+            aas_env_json_raw = self._extract_aas_environment(candidate_aasx)
+            aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
+            parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
         except Exception as exc:
             logger.warning(
                 "template_catalog_candidate_parse_failed",
@@ -918,10 +948,12 @@ class TemplateRegistryService:
             asset=candidate,
             kind="aasx",
             aas_env_json=aas_env_json,
+            aas_env_json_raw=aas_env_json_raw,
             aasx_bytes=candidate_aasx,
             source_url=source_url,
             selected_submodel_semantic_id=semantic_id,
             selection_strategy=SELECTION_STRATEGY,
+            uom_strip_stats=uom_strip_stats,
             display_name=self._submodel_display_name(parsed.submodel, fallback=candidate["folder"]),
         )
 
@@ -979,6 +1011,7 @@ class TemplateRegistryService:
             if unchanged:
                 return "skipped"
             existing.template_json = selected.aas_env_json
+            existing.template_json_raw = selected.aas_env_json_raw
             existing.template_aasx = selected.aasx_bytes
             existing.semantic_id = semantic_id
             existing.source_url = selected.source_url
@@ -1009,6 +1042,7 @@ class TemplateRegistryService:
             selection_strategy=selected.selection_strategy,
             template_aasx=selected.aasx_bytes,
             template_json=selected.aas_env_json,
+            template_json_raw=selected.aas_env_json_raw,
             fetched_at=datetime.now(UTC),
             catalog_status=status,
             display_name=display_name,
@@ -1323,8 +1357,9 @@ class TemplateRegistryService:
             if file_kind == "json":
                 try:
                     payload = response.json()
-                    aas_env_json = self._normalize_template_json(payload, template_key)
-                    if not aas_env_json.get("submodels"):
+                    aas_env_json_raw = self._normalize_template_json(payload, template_key)
+                    aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
+                    if not aas_env_json_raw.get("submodels"):
                         continue
                     parsed = parser.parse_json(
                         json.dumps(aas_env_json).encode("utf-8"),
@@ -1335,12 +1370,14 @@ class TemplateRegistryService:
                             asset=asset,
                             kind="json",
                             aas_env_json=aas_env_json,
+                            aas_env_json_raw=aas_env_json_raw,
                             aasx_bytes=None,
                             source_url=url,
                             selected_submodel_semantic_id=reference_to_str(
                                 parsed.submodel.semantic_id
                             ),
                             selection_strategy=SELECTION_STRATEGY,
+                            uom_strip_stats=uom_strip_stats,
                         )
                     )
                     continue
@@ -1350,19 +1387,22 @@ class TemplateRegistryService:
                 try:
                     # Fallback path for unique-candidate selection when semantic matching fails.
                     payload = response.json()
-                    aas_env_json = self._normalize_template_json(payload, template_key)
+                    aas_env_json_raw = self._normalize_template_json(payload, template_key)
+                    aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
                     parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
                     parseable_fallbacks.append(
                         TemplateCandidateResolution(
                             asset=asset,
                             kind="json",
                             aas_env_json=aas_env_json,
+                            aas_env_json_raw=aas_env_json_raw,
                             aasx_bytes=None,
                             source_url=url,
                             selected_submodel_semantic_id=reference_to_str(
                                 parsed.submodel.semantic_id
                             ),
                             selection_strategy="fallback_filename_unique",
+                            uom_strip_stats=uom_strip_stats,
                         )
                     )
                 except Exception as exc:
@@ -1381,11 +1421,12 @@ class TemplateRegistryService:
                 continue
 
             try:
-                aas_env_json = self._extract_aas_environment(candidate_aasx)
-                if not aas_env_json.get("submodels"):
+                aas_env_json_raw = self._extract_aas_environment(candidate_aasx)
+                aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
+                if not aas_env_json_raw.get("submodels"):
                     continue
-                parsed = parser.parse_aasx(
-                    candidate_aasx,
+                parsed = parser.parse_json(
+                    json.dumps(aas_env_json).encode("utf-8"),
                     expected_semantic_id=descriptor.semantic_id,
                 )
                 matches.append(
@@ -1393,10 +1434,12 @@ class TemplateRegistryService:
                         asset=asset,
                         kind="aasx",
                         aas_env_json=aas_env_json,
+                        aas_env_json_raw=aas_env_json_raw,
                         aasx_bytes=candidate_aasx,
                         source_url=url,
                         selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
                         selection_strategy=SELECTION_STRATEGY,
+                        uom_strip_stats=uom_strip_stats,
                     )
                 )
                 continue
@@ -1404,16 +1447,20 @@ class TemplateRegistryService:
                 pass
 
             try:
-                parsed = parser.parse_aasx(candidate_aasx)
+                aas_env_json_raw = self._extract_aas_environment(candidate_aasx)
+                aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
+                parsed = parser.parse_json(json.dumps(aas_env_json).encode("utf-8"))
                 parseable_fallbacks.append(
                     TemplateCandidateResolution(
                         asset=asset,
                         kind="aasx",
-                        aas_env_json=self._extract_aas_environment(candidate_aasx),
+                        aas_env_json=aas_env_json,
+                        aas_env_json_raw=aas_env_json_raw,
                         aasx_bytes=candidate_aasx,
                         source_url=url,
                         selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
                         selection_strategy="fallback_filename_unique",
+                        uom_strip_stats=uom_strip_stats,
                     )
                 )
             except Exception as exc:
@@ -1512,7 +1559,8 @@ class TemplateRegistryService:
         if file_kind == "json":
             try:
                 payload = response.json()
-                aas_env_json = self._normalize_template_json(payload, template_key)
+                aas_env_json_raw = self._normalize_template_json(payload, template_key)
+                aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
                 parsed = parser.parse_json(
                     json.dumps(aas_env_json).encode("utf-8"),
                     expected_semantic_id=descriptor.semantic_id,
@@ -1523,27 +1571,36 @@ class TemplateRegistryService:
                 asset=None,
                 kind="json",
                 aas_env_json=aas_env_json,
+                aas_env_json_raw=aas_env_json_raw,
                 aasx_bytes=None,
                 source_url=url,
                 selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
                 selection_strategy="fallback_url",
+                uom_strip_stats=uom_strip_stats,
             )
 
         candidate_aasx = response.content
         if not self._is_valid_aasx(candidate_aasx):
             return None
         try:
-            parsed = parser.parse_aasx(candidate_aasx, expected_semantic_id=descriptor.semantic_id)
+            aas_env_json_raw = self._extract_aas_environment(candidate_aasx)
+            aas_env_json, uom_strip_stats = self._sanitize_uom_for_basyx(aas_env_json_raw)
+            parsed = parser.parse_json(
+                json.dumps(aas_env_json).encode("utf-8"),
+                expected_semantic_id=descriptor.semantic_id,
+            )
         except Exception:
             return None
         return TemplateCandidateResolution(
             asset=None,
             kind="aasx",
-            aas_env_json=self._extract_aas_environment(candidate_aasx),
+            aas_env_json=aas_env_json,
+            aas_env_json_raw=aas_env_json_raw,
             aasx_bytes=candidate_aasx,
             source_url=url,
             selected_submodel_semantic_id=reference_to_str(parsed.submodel.semantic_id),
             selection_strategy="fallback_url",
+            uom_strip_stats=uom_strip_stats,
         )
 
     def _expected_template_filename(
@@ -1585,6 +1642,91 @@ class TemplateRegistryService:
         }
 
         return self._normalize_aas_environment(environment)
+
+    def _sanitize_uom_for_basyx(
+        self, aas_env_json_raw: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, int]]:
+        sanitized, stats = strip_uom_data_specifications(aas_env_json_raw)
+        return sanitized, stats
+
+    @staticmethod
+    def _template_raw_payload(template: Template) -> dict[str, Any]:
+        payload = (
+            template.template_json_raw if isinstance(template.template_json_raw, dict) else None
+        )
+        if payload is None and isinstance(template.template_json, dict):
+            payload = template.template_json
+        return payload or {}
+
+    def _template_raw_uom_entries(self, template: Template) -> dict[str, UomDataSpecification]:
+        payload = self._template_raw_payload(template)
+        return collect_uom_by_cd_id(payload)
+
+    def _template_raw_uom_payload_map(self, template: Template) -> dict[str, dict[str, Any]]:
+        entries = self._template_raw_uom_entries(template)
+        return {
+            cd_id: data_specification.to_payload()
+            for cd_id, data_specification in sorted(entries.items(), key=lambda item: item[0])
+        }
+
+    async def _load_uom_registry_indexes(
+        self,
+    ) -> tuple[
+        dict[str, UomRegistryEntry],
+        dict[str, list[UomRegistryEntry]],
+        dict[str, list[UomRegistryEntry]],
+    ]:
+        if not self._settings.uom_registry_enabled:
+            return {}, {}, {}
+        registry_entries = await UomRegistryService(self._session).load_effective_entries()
+        return build_registry_indexes(registry_entries)
+
+    def _apply_uom_resolution_to_definition(
+        self,
+        *,
+        concept_descriptions: list[dict[str, Any]],
+        template_uom_by_cd_id: dict[str, UomDataSpecification],
+        registry_by_cd_id: dict[str, UomRegistryEntry],
+        registry_by_specific_unit_id: dict[str, list[UomRegistryEntry]],
+        registry_by_symbol: dict[str, list[UomRegistryEntry]],
+    ) -> None:
+        for concept_description in concept_descriptions:
+            data_type = str(concept_description.get("dataType") or "").strip().upper()
+            unit_id = str(concept_description.get("unitId") or "").strip()
+            if not unit_id:
+                if data_type.endswith("_MEASURE") or data_type.endswith("_CURRENCY"):
+                    concept_description.setdefault("unitResolutionStatus", "missing_unitId")
+                continue
+
+            resolved = resolve_uom_for_unit_reference(
+                unit_reference=unit_id,
+                template_uom_by_cd_id=template_uom_by_cd_id,
+                registry_by_cd_id=registry_by_cd_id,
+                registry_by_specific_unit_id=registry_by_specific_unit_id,
+                registry_by_symbol=registry_by_symbol,
+            )
+            if resolved.data_specification is not None:
+                concept_description["unitResolved"] = resolved.data_specification.to_payload()
+                concept_description["unitResolutionStatus"] = "resolved"
+                if resolved.source:
+                    concept_description["unitResolutionSource"] = resolved.source
+                continue
+
+            concept_description["unitResolutionStatus"] = "unknown_unitId"
+
+    def _attach_uom_validation_to_definition(
+        self,
+        *,
+        concept_descriptions: list[dict[str, Any]],
+        validation_by_cd_id: Mapping[str, list[dict[str, Any]]],
+    ) -> None:
+        for concept_description in concept_descriptions:
+            cd_id = str(concept_description.get("id") or "").strip()
+            if not cd_id:
+                continue
+            issues = validation_by_cd_id.get(cd_id, [])
+            if issues:
+                concept_description["x_validation"] = list(issues)
 
     def _is_valid_aasx(self, data: bytes) -> bool:
         """Check if data is a valid AASX (ZIP) file by verifying magic bytes."""
@@ -1734,7 +1876,7 @@ class TemplateRegistryService:
         definition = self._generate_template_definition(template, template_lookup=template_lookup)
         return DefinitionToSchemaConverter().convert(definition)
 
-    def generate_template_contract(
+    async def generate_template_contract(
         self,
         template: Template,
         template_lookup: Mapping[str, Template] | None = None,
@@ -1742,6 +1884,39 @@ class TemplateRegistryService:
         strict_unknown_model_types: bool = False,
     ) -> dict[str, Any]:
         definition = self._generate_template_definition(template, template_lookup=template_lookup)
+        concept_descriptions = [
+            concept_description
+            for concept_description in definition.get("concept_descriptions", [])
+            if isinstance(concept_description, dict)
+        ]
+        template_uom_by_cd_id = self._template_raw_uom_entries(template)
+        (
+            registry_by_cd_id,
+            registry_by_specific_unit_id,
+            registry_by_symbol,
+        ) = await self._load_uom_registry_indexes()
+        self._apply_uom_resolution_to_definition(
+            concept_descriptions=concept_descriptions,
+            template_uom_by_cd_id=template_uom_by_cd_id,
+            registry_by_cd_id=registry_by_cd_id,
+            registry_by_specific_unit_id=registry_by_specific_unit_id,
+            registry_by_symbol=registry_by_symbol,
+        )
+        uom_diagnostics = build_uom_diagnostics(
+            concept_descriptions=concept_descriptions,
+            template_uom_by_cd_id=template_uom_by_cd_id,
+            registry_by_cd_id=registry_by_cd_id,
+            registry_by_specific_unit_id=registry_by_specific_unit_id,
+            registry_by_symbol=registry_by_symbol,
+        )
+        validation_by_cd_id = cast(
+            dict[str, list[dict[str, Any]]],
+            uom_diagnostics.get("by_concept_description_id") or {},
+        )
+        self._attach_uom_validation_to_definition(
+            concept_descriptions=concept_descriptions,
+            validation_by_cd_id=validation_by_cd_id,
+        )
         schema = DefinitionToSchemaConverter().convert(definition)
         dropin_resolution_report = self._collect_dropin_resolution_report(definition)
         unsupported_nodes = self._collect_unsupported_nodes(
@@ -1760,6 +1935,10 @@ class TemplateRegistryService:
             "dropin_resolution_report": dropin_resolution_report,
             "unsupported_nodes": unsupported_nodes,
             "doc_hints": doc_hints,
+            "uom_diagnostics": {
+                "summary": cast(dict[str, Any], uom_diagnostics.get("summary") or {}),
+                "issues": cast(list[dict[str, Any]], uom_diagnostics.get("issues") or []),
+            },
         }
 
     def _source_metadata(self, template: Template) -> dict[str, Any]:

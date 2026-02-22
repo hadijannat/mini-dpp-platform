@@ -55,6 +55,48 @@ def _build_test_aasx(
     return output.getvalue()
 
 
+def _inject_uom_into_data_json(aasx_bytes: bytes) -> bytes:
+    source = io.BytesIO(aasx_bytes)
+    target = io.BytesIO()
+    with (
+        zipfile.ZipFile(source, "r") as archive,
+        zipfile.ZipFile(target, mode="w", compression=zipfile.ZIP_DEFLATED) as output,
+    ):
+        for entry in archive.infolist():
+            payload = archive.read(entry.filename)
+            if entry.filename.replace("\\", "/").lstrip("/").lower() == "aasx/data.json":
+                document = json.loads(payload.decode("utf-8"))
+                document["conceptDescriptions"] = [
+                    {
+                        "id": "urn:unit:m",
+                        "embeddedDataSpecifications": [
+                            {
+                                "dataSpecification": {
+                                    "keys": [
+                                        {
+                                            "value": (
+                                                "https://admin-shell.io/DataSpecificationTemplates/"
+                                                "DataSpecificationUoM/3"
+                                            )
+                                        }
+                                    ]
+                                },
+                                "dataSpecificationContent": {
+                                    "modelType": "DataSpecificationUoM",
+                                    "symbol": "m",
+                                    "specificUnitID": "MTR",
+                                    "classificationSystem": "UNECE Rec 20",
+                                },
+                            }
+                        ],
+                    }
+                ]
+                payload = json.dumps(document).encode("utf-8")
+            output.writestr(entry.filename, payload)
+    target.seek(0)
+    return target.read()
+
+
 def test_parse_aasx_extracts_supplementary_and_doc_hints() -> None:
     service = AasxIngestService()
     aasx_bytes = _build_test_aasx(
@@ -106,3 +148,38 @@ def test_parse_aasx_ignores_unsafe_supplementary_paths() -> None:
     assert "/aasx/files/manual.pdf" in paths
     assert all(path.startswith("/aasx/files/") for path in paths)
     assert "/evil.txt" not in paths
+
+
+def test_parse_aasx_falls_back_to_zip_when_strict_parse_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = AasxIngestService()
+    aasx_bytes = _inject_uom_into_data_json(_build_test_aasx())
+
+    class _FailingReader:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> _FailingReader:
+            return self
+
+        def __exit__(
+            self,
+            _exc_type: object,
+            _exc: object,
+            _tb: object,
+        ) -> None:
+            return None
+
+        def read_into(self, *_args: object, **_kwargs: object) -> None:
+            raise ValueError("simulated strict parser failure")
+
+    monkeypatch.setattr("app.modules.dpps.aasx_ingest.aasx.AASXReader", _FailingReader)
+
+    result = service.parse(aasx_bytes)
+
+    assert result.aas_env_json.get("submodels")
+    concept_descriptions = result.aas_env_json.get("conceptDescriptions", [])
+    assert isinstance(concept_descriptions, list)
+    unit_cd = next(cd for cd in concept_descriptions if cd.get("id") == "urn:unit:m")
+    assert unit_cd.get("embeddedDataSpecifications") == []
