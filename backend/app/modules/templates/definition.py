@@ -30,8 +30,7 @@ class TemplateDefinitionBuilder:
         self._resolution_by_element_id = dict(resolution_by_element_id or {})
         self._uom_by_cd_id = dict(uom_by_cd_id or {})
         self._validation_by_cd_id = {
-            key: list(value)
-            for key, value in (validation_by_cd_id or {}).items()
+            key: list(value) for key, value in (validation_by_cd_id or {}).items()
         }
 
     def build_definition(
@@ -280,8 +279,7 @@ class TemplateDefinitionBuilder:
         validations = self._validation_by_cd_id.get(cd_id)
         if validations:
             payload["x_validation"] = [
-                self._sorted_dict(item) if isinstance(item, dict) else item
-                for item in validations
+                self._sorted_dict(item) if isinstance(item, dict) else item for item in validations
             ]
 
         return payload

@@ -80,7 +80,9 @@ def resolve_uom_for_unit_reference(
             warnings=["ambiguous_symbol_match"],
         )
 
-    return ResolvedUnit(data_specification=None, source=None, warnings=["unresolved_unit_reference"])
+    return ResolvedUnit(
+        data_specification=None, source=None, warnings=["unresolved_unit_reference"]
+    )
 
 
 def build_uom_diagnostics(
@@ -173,7 +175,9 @@ def build_uom_diagnostics(
 
         resolved_unit_links += 1
 
-        resolved_symbol = resolved.data_specification.symbol if resolved.data_specification else None
+        resolved_symbol = (
+            resolved.data_specification.symbol if resolved.data_specification else None
+        )
         if not resolved_symbol and isinstance(target_cd, dict):
             target_uom = target_cd.get("uom")
             if isinstance(target_uom, dict):

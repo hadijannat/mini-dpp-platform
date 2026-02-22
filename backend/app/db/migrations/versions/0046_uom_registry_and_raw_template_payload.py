@@ -1,6 +1,6 @@
 """Add UoM registry table and raw template payload storage.
 
-Revision ID: 0046_uom_registry_and_raw_template_payload
+Revision ID: 0046_uom_registry_raw_template
 Revises: 0045_rfid_tenant_domains
 Create Date: 2026-02-22
 """
@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import insert
 
 # revision identifiers, used by Alembic.
-revision = "0046_uom_registry_and_raw_template_payload"
+revision = "0046_uom_registry_raw_template"
 down_revision = "0045_rfid_tenant_domains"
 branch_labels = None
 depends_on = None
@@ -157,11 +157,7 @@ def _seed_registry_rows() -> None:
 def _load_seed_rows() -> list[dict[str, Any]]:
     try:
         seed_path = (
-            Path(__file__).resolve().parents[4]
-            / "modules"
-            / "units"
-            / "data"
-            / "uom.seed.json"
+            Path(__file__).resolve().parents[4] / "modules" / "units" / "data" / "uom.seed.json"
         )
         if not seed_path.exists():
             warnings.warn(

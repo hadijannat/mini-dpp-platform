@@ -47,7 +47,10 @@ def ensure_uom_concept_descriptions(
 
     for unit_id in referenced_unit_ids:
         existing = by_cd_id.get(unit_id)
-        if existing is not None and extract_uom_content_from_concept_description(existing) is not None:
+        if (
+            existing is not None
+            and extract_uom_content_from_concept_description(existing) is not None
+        ):
             continue
 
         resolved = resolve_uom_for_unit_reference(
@@ -97,7 +100,10 @@ def attach_uom_to_concept_description(
         if not isinstance(entry, dict):
             continue
         content = entry.get("dataSpecificationContent")
-        if isinstance(content, dict) and str(content.get("modelType")) == DATA_SPECIFICATION_UOM_MODEL_TYPE:
+        if (
+            isinstance(content, dict)
+            and str(content.get("modelType")) == DATA_SPECIFICATION_UOM_MODEL_TYPE
+        ):
             return
 
     embedded.append(build_uom_embedded_data_specification(data_specification))

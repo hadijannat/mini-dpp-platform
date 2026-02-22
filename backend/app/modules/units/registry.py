@@ -118,7 +118,11 @@ class UomRegistryService:
 
 def build_registry_indexes(
     entries: list[UomRegistryEntry],
-) -> tuple[dict[str, UomRegistryEntry], dict[str, list[UomRegistryEntry]], dict[str, list[UomRegistryEntry]]]:
+) -> tuple[
+    dict[str, UomRegistryEntry],
+    dict[str, list[UomRegistryEntry]],
+    dict[str, list[UomRegistryEntry]],
+]:
     by_cd_id: dict[str, UomRegistryEntry] = {}
     by_specific_unit_id: dict[str, list[UomRegistryEntry]] = {}
     by_symbol: dict[str, list[UomRegistryEntry]] = {}

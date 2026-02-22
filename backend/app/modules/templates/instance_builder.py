@@ -161,9 +161,10 @@ class TemplateInstanceBuilder:
         source = io.BytesIO(aasx_bytes)
         target = io.BytesIO()
         replaced = False
-        with zipfile.ZipFile(source, "r") as archive, zipfile.ZipFile(
-            target, "w", compression=zipfile.ZIP_DEFLATED
-        ) as output:
+        with (
+            zipfile.ZipFile(source, "r") as archive,
+            zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as output,
+        ):
             for entry in archive.infolist():
                 normalized = entry.filename.replace("\\", "/").lstrip("/")
                 if normalized.lower() == "aasx/data.json":

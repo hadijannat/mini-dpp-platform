@@ -58,9 +58,10 @@ def _build_test_aasx(
 def _inject_uom_into_data_json(aasx_bytes: bytes) -> bytes:
     source = io.BytesIO(aasx_bytes)
     target = io.BytesIO()
-    with zipfile.ZipFile(source, "r") as archive, zipfile.ZipFile(
-        target, mode="w", compression=zipfile.ZIP_DEFLATED
-    ) as output:
+    with (
+        zipfile.ZipFile(source, "r") as archive,
+        zipfile.ZipFile(target, mode="w", compression=zipfile.ZIP_DEFLATED) as output,
+    ):
         for entry in archive.infolist():
             payload = archive.read(entry.filename)
             if entry.filename.replace("\\", "/").lstrip("/").lower() == "aasx/data.json":
@@ -149,7 +150,9 @@ def test_parse_aasx_ignores_unsafe_supplementary_paths() -> None:
     assert "/evil.txt" not in paths
 
 
-def test_parse_aasx_falls_back_to_zip_when_strict_parse_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_aasx_falls_back_to_zip_when_strict_parse_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     service = AasxIngestService()
     aasx_bytes = _inject_uom_into_data_json(_build_test_aasx())
 

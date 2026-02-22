@@ -1651,7 +1651,9 @@ class TemplateRegistryService:
 
     @staticmethod
     def _template_raw_payload(template: Template) -> dict[str, Any]:
-        payload = template.template_json_raw if isinstance(template.template_json_raw, dict) else None
+        payload = (
+            template.template_json_raw if isinstance(template.template_json_raw, dict) else None
+        )
         if payload is None and isinstance(template.template_json, dict):
             payload = template.template_json
         return payload or {}

@@ -59,9 +59,7 @@ def test_uom_enrichment_injects_missing_unit_concept_descriptions() -> None:
     assert isinstance(concept_descriptions, list)
     unit_cd = next(cd for cd in concept_descriptions if cd.get("id") == "urn:unit:m")
     embedded = unit_cd["embeddedDataSpecifications"][0]
-    assert (
-        embedded["dataSpecification"]["keys"][0]["value"] == DATA_SPECIFICATION_UOM_TEMPLATE_ID
-    )
+    assert embedded["dataSpecification"]["keys"][0]["value"] == DATA_SPECIFICATION_UOM_TEMPLATE_ID
 
 
 def test_uom_enrichment_is_idempotent() -> None:

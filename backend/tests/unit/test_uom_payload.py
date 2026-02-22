@@ -51,7 +51,9 @@ def _sample_environment() -> dict[str, object]:
                             "unit": "m",
                             "unitId": {
                                 "type": "ExternalReference",
-                                "keys": [{"type": "ConceptDescription", "value": "urn:unece:rec20:MTR"}],
+                                "keys": [
+                                    {"type": "ConceptDescription", "value": "urn:unece:rec20:MTR"}
+                                ],
                             },
                         }
                     }

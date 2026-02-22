@@ -30,7 +30,9 @@ class UomDataSpecification:
 
         quantity_id_raw = str(payload.get("quantityID") or "").strip()
         classification_system = str(payload.get("classificationSystem") or "").strip()
-        classification_system_version_raw = str(payload.get("classificationSystemVersion") or "").strip()
+        classification_system_version_raw = str(
+            payload.get("classificationSystemVersion") or ""
+        ).strip()
 
         return cls(
             preferred_name=preferred_name,
