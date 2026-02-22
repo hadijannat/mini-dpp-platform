@@ -4,6 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.12%2B-blue)](backend/pyproject.toml)
 [![Node](https://img.shields.io/badge/node-20%2B-brightgreen)](frontend/package.json)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18732355.svg)](https://doi.org/10.5281/zenodo.18732355)
 
 A multi-tenant Digital Product Passport (DPP) platform built on the Asset Administration Shell (AAS) and IDTA DPP4.0 standards. Integrates OPC UA industrial data, GS1 EPCIS 2.0 supply chain events, Catena-X dataspace connectivity, W3C Verifiable Credentials, and EU ESPR compliance — backed by FastAPI, React, Keycloak, OPA, PostgreSQL, Redis, and MinIO.
 
@@ -11,6 +12,16 @@ A multi-tenant Digital Product Passport (DPP) platform built on the Asset Admini
 
 - Main application: [https://dpp-platform.dev/](https://dpp-platform.dev/)
 - Additional production URLs (API, docs, health, auth) are listed in [Service Endpoints](#service-endpoints).
+
+## Citation & Archive (Zenodo)
+
+This repository is archived on Zenodo for release `v0.1.0`.
+
+- DOI: [10.5281/zenodo.18732355](https://doi.org/10.5281/zenodo.18732355)
+- Zenodo record: [https://zenodo.org/records/18732355](https://zenodo.org/records/18732355)
+- GitHub release: [v0.1.0](https://github.com/hadijannat/mini-dpp-platform/releases/tag/v0.1.0)
+
+If you use this software in research or reports, cite the Zenodo DOI above.
 
 ## What This Repository Is
 
