@@ -349,6 +349,81 @@ class TestTemplateRegistryService:
         assert concept_description["unitResolved"]["symbol"] == "m"
         assert contract["uom_diagnostics"]["summary"]["unit_links_resolved"] == 1
 
+    @pytest.mark.asyncio
+    async def test_generate_template_contract_marks_unknown_unit_and_validation(self):
+        service = TemplateRegistryService(MagicMock())
+        definition = {
+            "submodel": {"idShort": "TechnicalData", "elements": []},
+            "concept_descriptions": [
+                {
+                    "id": "urn:cd:length",
+                    "kind": "concept",
+                    "dataType": "REAL_MEASURE",
+                    "unit": "m",
+                    "unitId": "urn:unit:missing",
+                }
+            ],
+        }
+
+        mock_template = MagicMock()
+        mock_template.template_key = "technical-data"
+        mock_template.idta_version = "2.0.1"
+        mock_template.semantic_id = "https://example.org/technical-data"
+        mock_template.resolved_version = "2.0.1"
+        mock_template.source_repo_ref = "main"
+        mock_template.source_file_path = None
+        mock_template.source_file_sha = None
+        mock_template.source_kind = "json"
+        mock_template.selection_strategy = "deterministic_v2"
+        mock_template.source_url = "https://example.org/template.json"
+        mock_template.template_json = {"conceptDescriptions": []}
+        mock_template.template_json_raw = {"conceptDescriptions": []}
+
+        service._generate_template_definition = MagicMock(return_value=definition)
+        service._load_uom_registry_indexes = AsyncMock(return_value=({}, {}, {}))
+
+        contract = await service.generate_template_contract(mock_template)
+
+        concept_description = contract["definition"]["concept_descriptions"][0]
+        assert concept_description["kind"] == "concept"
+        assert concept_description["unitResolutionStatus"] == "unknown_unitId"
+        validation_codes = {
+            str(issue.get("code") or "")
+            for issue in concept_description.get("x_validation", [])
+            if isinstance(issue, dict)
+        }
+        assert "unresolved_unit_reference" in validation_codes
+        assert "unit_id_target_missing_uom" in validation_codes
+
+    def test_sanitize_uom_for_basyx_removes_uom_specs_and_reports_stats(self):
+        service = TemplateRegistryService(MagicMock())
+        raw = {
+            "assetAdministrationShells": [],
+            "submodels": [],
+            "conceptDescriptions": [
+                {
+                    "id": "urn:unit:m",
+                    "embeddedDataSpecifications": [
+                        {
+                            "dataSpecificationContent": {
+                                "modelType": "DataSpecificationUoM",
+                                "symbol": "m",
+                                "specificUnitID": "MTR",
+                            }
+                        }
+                    ],
+                }
+            ],
+        }
+
+        sanitized, stats = service._sanitize_uom_for_basyx(raw)
+
+        assert stats["concept_descriptions_scanned"] == 1
+        assert stats["uom_specs_removed"] == 1
+        concept_descriptions = sanitized.get("conceptDescriptions")
+        assert isinstance(concept_descriptions, list)
+        assert concept_descriptions[0].get("embeddedDataSpecifications") == []
+
     def test_unknown_model_types_are_opt_in_for_unsupported_nodes(self):
         service = TemplateRegistryService(MagicMock())
         definition = {

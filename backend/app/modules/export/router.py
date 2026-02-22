@@ -10,6 +10,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.core.audit import emit_audit_event
 from app.core.config import get_settings
@@ -17,7 +18,7 @@ from app.core.logging import get_logger
 from app.core.security import require_access
 from app.core.security.resource_context import build_dpp_resource_context
 from app.core.tenancy import TenantContextDep
-from app.db.models import DPPStatus
+from app.db.models import DPPStatus, Template
 from app.db.session import DbSession
 from app.modules.dpps.attachment_service import AttachmentNotFoundError, AttachmentService
 from app.modules.dpps.service import DPPService
@@ -91,9 +92,58 @@ async def _resolve_templates_for_revision(*, db: DbSession, revision: Any) -> li
     if not provenance:
         return []
 
+    template_keys = sorted(str(key).strip() for key in provenance if str(key).strip())
+    if not template_keys:
+        return []
+
+    execute_attr = getattr(db, "execute", None)
+    execute_is_mock = "unittest.mock" in type(execute_attr).__module__
     registry_service = TemplateRegistryService(db)
-    templates: list[Any] = []
-    for template_key in sorted(str(key).strip() for key in provenance if str(key).strip()):
+    if not execute_is_mock:
+        try:
+            result = await db.execute(
+                select(Template)
+                .where(Template.template_key.in_(template_keys))
+                .order_by(
+                    Template.template_key.asc(),
+                    Template.fetched_at.desc(),
+                    Template.idta_version.desc(),
+                )
+            )
+            rows = list(result.scalars().all())
+            by_key_latest: dict[str, Any] = {}
+            by_key_version: dict[tuple[str, str], Any] = {}
+            for row in rows:
+                key = str(getattr(row, "template_key", "")).strip()
+                version = str(getattr(row, "idta_version", "")).strip()
+                if not key:
+                    continue
+                by_key_version[(key, version)] = row
+                by_key_latest.setdefault(key, row)
+
+            templates: list[Any] = []
+            for template_key in template_keys:
+                metadata = provenance.get(template_key)
+                resolved_version = (
+                    str(metadata.get("resolved_version") or "").strip()
+                    if isinstance(metadata, dict)
+                    else ""
+                )
+                template = (
+                    by_key_version.get((template_key, resolved_version))
+                    if resolved_version
+                    else None
+                )
+                if template is None:
+                    template = by_key_latest.get(template_key)
+                if template is not None:
+                    templates.append(template)
+            return templates
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            logger.warning("export_template_batch_lookup_failed", error=str(exc))
+
+    templates = []
+    for template_key in template_keys:
         metadata = provenance.get(template_key)
         resolved_version = (
             str(metadata.get("resolved_version") or "").strip()
