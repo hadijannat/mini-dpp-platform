@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   PYTHON_VERSION: "3.12"
@@ -151,6 +152,63 @@ jobs:
         working-directory: frontend
         run: npm test -- --run
 
+  ui-screenshot-proof:
+    name: UI Screenshot Proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip gate for push events
+        if: github.event_name != 'pull_request'
+        run: echo "UI screenshot proof gate is only enforced for pull_request events."
+
+      - name: Validate screenshot proof for UI changes
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info("No pull request payload; skipping.");
+              return;
+            }
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const uiPrefixes = ["frontend/src/", "frontend/public/"];
+            const uiSuffixes = [".tsx", ".jsx", ".css", ".scss", ".sass", ".less", ".html", ".svg"];
+            const uiChanged = files.some((file) => {
+              const name = file.filename || "";
+              return uiPrefixes.some((prefix) => name.startsWith(prefix))
+                || (name.startsWith("frontend/") && uiSuffixes.some((suffix) => name.endsWith(suffix)));
+            });
+
+            if (!uiChanged) {
+              core.info("No UI changes detected.");
+              return;
+            }
+
+            const body = pr.body || "";
+            const hasMarkdownImage = /!\[[^\]]*]\([^)]+\)/m.test(body);
+            const screenshotLine = body.match(/^- Screenshots \(if UI changes\):\s*(.+)$/im);
+            const hasScreenshotLine = Boolean(screenshotLine)
+              && !["", "-", "none", "n/a", "na", "not applicable"].includes(
+                screenshotLine[1].trim().toLowerCase(),
+              );
+
+            if (!hasMarkdownImage && !hasScreenshotLine) {
+              core.setFailed(
+                "UI changes detected but PR body does not include screenshot evidence. " +
+                "Add a markdown image or fill the 'Screenshots (if UI changes)' field."
+              );
+              return;
+            }
+
+            core.info("Screenshot proof found for UI changes.");
+
   backend-security:
     name: Backend Security (SAST)
     runs-on: ubuntu-latest
@@ -290,7 +348,7 @@ jobs:
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation, helm-lint]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, ui-screenshot-proof, frontend-security, aas-validation, helm-lint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

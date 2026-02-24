@@ -2,6 +2,12 @@
 
 - 
 
+## Swarm Gates (Codex + Claude)
+
+- [ ] Codex review passed
+- [ ] Claude review passed
+- [ ] Branch synced with base branch (no merge conflicts)
+
 ## Testing
 
 - [ ] Tests executed and results included
@@ -11,4 +17,4 @@
 ## Notes
 
 - Migrations/infra changes (if any):
-- Screenshots (if UI changes):
+- Screenshots (if UI changes): include at least one image URL or markdown image.

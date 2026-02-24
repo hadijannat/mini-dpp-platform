@@ -6,6 +6,7 @@ This directory contains the repository's canonical guidance for running multi-ag
 
 - [Claude Code Agent Teams Technical Reference](./claude-code-agent-teams-reference.md)
 - [AAS/DPP Inspection Squad Playbook](./aas-dpp-inspection-squad-playbook.md)
+- [OpenClaw-Style Swarm Playbook (Codex + Claude)](./openclaw-codex-claude-swarm-playbook.md)
 
 ## Recommended Use
 
