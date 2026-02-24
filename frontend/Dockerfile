@@ -73,6 +73,9 @@ RUN npm run build
 # =============================================================================
 FROM nginx:alpine AS production
 
+# Pull latest patched Alpine packages to avoid known CVEs in the base image.
+RUN apk upgrade --no-cache
+
 # Copy built files
 COPY --from=build /repo/frontend/dist /usr/share/nginx/html
 
