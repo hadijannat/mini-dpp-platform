@@ -69,11 +69,14 @@ mkdir -p "$LOG_DIR"
 TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
 LOG_FILE="$LOG_DIR/${TASK_ID}-${AGENT}-attempt${ATTEMPT}-${TIMESTAMP}.log"
 
-exec > >(tee -a "$LOG_FILE") 2>&1
+log_line() {
+  local line="$1"
+  echo "$line" | tee -a "$LOG_FILE"
+}
 
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting task=$TASK_ID agent=$AGENT model=$MODEL reasoning=$REASONING attempt=$ATTEMPT"
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Prompt file: $PROMPT_FILE"
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Working dir: $(pwd)"
+log_line "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Starting task=$TASK_ID agent=$AGENT model=$MODEL reasoning=$REASONING attempt=$ATTEMPT"
+log_line "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Prompt file: $PROMPT_FILE"
+log_line "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Working dir: $(pwd)"
 
 PROMPT_CONTENT="$(cat "$PROMPT_FILE")"
 
@@ -81,27 +84,41 @@ set +e
 case "$AGENT" in
   codex)
     CODEX_BIN="${SWARM_CODEX_BINARY:-codex}"
-    "$CODEX_BIN" \
-      --model "$MODEL" \
-      -c "model_reasoning_effort=$REASONING" \
-      --dangerously-bypass-approvals-and-sandbox \
+    CODEX_CMD=(
+      "$CODEX_BIN"
+      --model "$MODEL"
+      -c "model_reasoning_effort=$REASONING"
+      --dangerously-bypass-approvals-and-sandbox
       "$PROMPT_CONTENT"
-    STATUS=$?
+    )
+    if command -v script >/dev/null 2>&1; then
+      if [[ "$(uname -s)" == "Darwin" ]]; then
+        script -aq "$LOG_FILE" "${CODEX_CMD[@]}"
+        STATUS=$?
+      else
+        COMMAND_STR="$(printf '%q ' "${CODEX_CMD[@]}")"
+        script -aq "$LOG_FILE" -c "$COMMAND_STR"
+        STATUS=$?
+      fi
+    else
+      "${CODEX_CMD[@]}" 2>&1 | tee -a "$LOG_FILE"
+      STATUS=${PIPESTATUS[0]}
+    fi
     ;;
   claude)
     CLAUDE_BIN="${SWARM_CLAUDE_BINARY:-claude}"
     "$CLAUDE_BIN" \
       --model "$MODEL" \
       --dangerously-skip-permissions \
-      -p "$PROMPT_CONTENT"
-    STATUS=$?
+      -p "$PROMPT_CONTENT" 2>&1 | tee -a "$LOG_FILE"
+    STATUS=${PIPESTATUS[0]}
     ;;
   *)
-    echo "Unsupported agent: $AGENT" >&2
+    log_line "Unsupported agent: $AGENT"
     STATUS=2
     ;;
 esac
 set -e
 
-echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Agent exit status: $STATUS"
+log_line "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Agent exit status: $STATUS"
 exit "$STATUS"
