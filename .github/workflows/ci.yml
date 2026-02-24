@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 env:
   PYTHON_VERSION: "3.12"
@@ -151,6 +152,93 @@ jobs:
         working-directory: frontend
         run: npm test -- --run
 
+  ui-screenshot-proof:
+    name: UI Screenshot Proof
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip gate for push events
+        if: github.event_name != 'pull_request'
+        run: echo "UI screenshot proof gate is only enforced for pull_request events."
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        if: github.event_name == 'pull_request'
+
+      - name: Set up Node.js
+        if: github.event_name == 'pull_request'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Test screenshot proof logic
+        if: github.event_name == 'pull_request'
+        run: node --test .github/scripts/ui-screenshot-proof.test.cjs
+
+      - name: Validate screenshot proof for UI changes
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { evaluateScreenshotProof } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ui-screenshot-proof.cjs`);
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info("No pull request payload; skipping.");
+              return;
+            }
+
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            async function listFilesWithRetry(attempts = 3) {
+              let lastError;
+              for (let attempt = 1; attempt <= attempts; attempt += 1) {
+                try {
+                  return await github.paginate(github.rest.pulls.listFiles, {
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    pull_number: pr.number,
+                    per_page: 100,
+                  });
+                } catch (error) {
+                  lastError = error;
+                  core.warning(`Attempt ${attempt}/${attempts} failed to list PR files: ${error.message}`);
+                  if (attempt < attempts) {
+                    await sleep(2000 * attempt);
+                  }
+                }
+              }
+              throw lastError;
+            }
+
+            let files = [];
+            try {
+              files = await listFilesWithRetry(3);
+            } catch (error) {
+              core.warning(
+                "Unable to verify UI screenshot proof because PR files could not be fetched after retries. " +
+                "Skipping this gate to avoid transient API outages blocking CI."
+              );
+              core.warning(`Underlying error: ${error.message}`);
+              return;
+            }
+
+            const result = evaluateScreenshotProof({
+              files,
+              body: pr.body || "",
+            });
+
+            if (!result.uiChanged) {
+              core.info(result.reason);
+              return;
+            }
+
+            if (!result.pass) {
+              core.setFailed(
+                `${result.reason} Add a markdown image or fill the 'Screenshots (if UI changes)' field.`
+              );
+              return;
+            }
+
+            core.info(result.reason);
+
   backend-security:
     name: Backend Security (SAST)
     runs-on: ubuntu-latest
@@ -290,7 +378,7 @@ jobs:
   build:
     name: Build Docker Images
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-security, aas-validation, helm-lint]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, ui-screenshot-proof, frontend-security, aas-validation, helm-lint]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 

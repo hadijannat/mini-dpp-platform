@@ -33,6 +33,17 @@ skills/code-nerd/
 # Codex
 .codex/
 
+# Local orchestration/worktree artifacts
+.claude/
+.clawbot/
+.clawdbot/
+docs/internal/agent-teams/
+
+# Local swarm runtime state
+.clawdbot/active-tasks.json
+.clawdbot/logs/
+.clawdbot/runtime-prompts/
+
 # Testing
 .coverage
 htmlcov/
