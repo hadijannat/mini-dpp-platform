@@ -404,3 +404,13 @@ jobs:
           tags: dpp-platform-frontend:${{ github.sha }}
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend,ignore-error=true
+
+      - name: Build RFID TDS sidecar image
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
+        with:
+          context: infra/rfid-tds
+          file: infra/rfid-tds/Dockerfile
+          push: false
+          tags: dpp-platform-rfid-tds:${{ github.sha }}
+          cache-from: type=gha,scope=rfid-tds
+          cache-to: type=gha,mode=max,scope=rfid-tds,ignore-error=true

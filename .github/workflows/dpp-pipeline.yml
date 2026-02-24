@@ -50,6 +50,7 @@ jobs:
             keycloak
             opa
             minio
+            rfid-tds
             backend
             frontend
             opcua-agent
