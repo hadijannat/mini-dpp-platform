@@ -207,7 +207,7 @@ services:
   # =============================================================================
   rfid-tds:
     build:
-      context: ./services/rfid-tds
+      context: ./infra/rfid-tds
       dockerfile: Dockerfile
     container_name: dpp-rfid-tds
     healthcheck:

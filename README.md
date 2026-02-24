@@ -98,7 +98,7 @@ docker compose -f docker-compose.prod.yml exec -T backend \
 mini-dpp-platform/
 ├── backend/                        # FastAPI app, modules, DB models/migrations, tests
 ├── frontend/                       # React + Vite app, feature modules, Playwright/Vitest tests
-├── infra/                          # Keycloak, OPA, Helm, monitoring, ArgoCD, postgres init
+├── infra/                          # Keycloak, OPA, Helm, monitoring, ArgoCD, postgres init, sidecars
 ├── docs/
 │   ├── public/                     # Public contributor/operator docs
 │   └── internal/                   # Audits, evidence, planning, internal reviews
@@ -261,7 +261,7 @@ npm run generate-api
 
 - v1 scope is **SGTIN++ only** (`tds_scheme=sgtin++`), with a staged translator design.
 - Backend API contracts are stable and decoupled from translator implementation (`backend/app/modules/rfid`).
-- Translation engine runs in a sidecar at `services/rfid-tds` (`TagDataTranslation` + minimal .NET API).
+- Translation engine runs in a sidecar at `infra/rfid-tds` (`TagDataTranslation` + minimal .NET API).
 - Configure sidecar connectivity with:
   - `RFID_TDS_SERVICE_URL` (default compose wiring: `http://rfid-tds:8080`)
   - `RFID_TDS_TIMEOUT_SECONDS` (default `5`)

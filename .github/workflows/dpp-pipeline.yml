@@ -50,6 +50,7 @@ jobs:
             keycloak
             opa
             minio
+            rfid-tds
             backend
             frontend
             opcua-agent
@@ -102,6 +103,22 @@ jobs:
           docker compose logs keycloak | tail -50
           exit 1
 
+      - name: Wait for RFID TDS sidecar health
+        run: |
+          echo "Waiting for RFID TDS sidecar health..."
+          for i in $(seq 1 60); do
+            HEALTH_STATUS=$(docker inspect -f '{{.State.Health.Status}}' dpp-rfid-tds 2>/dev/null || echo "missing")
+            if [ "$HEALTH_STATUS" = "healthy" ]; then
+              echo "RFID TDS sidecar is healthy"
+              exit 0
+            fi
+            echo "  Attempt $i/60: health=$HEALTH_STATUS (waiting 3s...)"
+            sleep 3
+          done
+          echo "ERROR: RFID TDS sidecar not healthy after 180s"
+          docker compose -f docker-compose.yml -f docker-compose.edc.yml logs rfid-tds | tail -100
+          exit 1
+
       - name: Guardrail check for plaintext connector secrets
         working-directory: backend
         env:
@@ -138,6 +155,9 @@ jobs:
           echo ""
           echo "=== EDC dataplane logs ==="
           docker compose -f docker-compose.yml -f docker-compose.edc.yml logs edc-dataplane | tail -100
+          echo ""
+          echo "=== RFID TDS logs ==="
+          docker compose -f docker-compose.yml -f docker-compose.edc.yml logs rfid-tds | tail -100
 
       - name: Upload pipeline artifacts
         if: always()
