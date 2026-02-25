@@ -80,7 +80,7 @@ describe('SubmodelEditorPage regression', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={['/console/dpps/dpp-1/edit/digital-nameplate']}>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/console/dpps/dpp-1/edit/digital-nameplate']}>
           <Routes>
             <Route path="/console/dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
           </Routes>

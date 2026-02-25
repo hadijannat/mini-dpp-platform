@@ -18,6 +18,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -266,6 +267,9 @@ export default function WebhooksPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Webhook</DialogTitle>
+            <DialogDescription>
+              Register a webhook endpoint and choose which events should trigger deliveries.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

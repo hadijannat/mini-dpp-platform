@@ -51,6 +51,7 @@ export default defineConfig({
       ['src/features/submodels/__tests__/accessibility.audit.test.tsx', 'jsdom'],
       ['src/features/editor/pages/__tests__/SubmodelEditorPage.progress.test.tsx', 'jsdom'],
     ],
+    setupFiles: ['./src/test/setup-jsdom-canvas.ts'],
     passWithNoTests: true,
     exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
   },

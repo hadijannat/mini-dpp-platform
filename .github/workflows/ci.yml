@@ -289,7 +289,26 @@ jobs:
 
       - name: Run npm audit (production dependencies)
         working-directory: frontend
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high > /tmp/npm-audit.log 2>&1
+          audit_status=$?
+          set -e
+
+          cat /tmp/npm-audit.log
+
+          if [ "$audit_status" -eq 0 ]; then
+            exit 0
+          fi
+
+          # npm audit occasionally fails on CI due transient upstream challenge pages.
+          # Fail only on real audit findings, not endpoint availability issues.
+          if grep -Eq "audit endpoint returned an error|403 Forbidden|security/audits/quick|Just a moment" /tmp/npm-audit.log; then
+            echo "::warning::npm audit endpoint temporarily unavailable; skipping hard failure for this run."
+            exit 0
+          fi
+
+          exit "$audit_status"
 
   aas-validation:
     name: AAS Schema Validation

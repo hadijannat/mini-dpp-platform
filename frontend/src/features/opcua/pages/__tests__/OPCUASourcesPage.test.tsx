@@ -46,7 +46,7 @@ async function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/console/opcua#sources']}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/console/opcua#sources']}>
         <OPCUAPage />
       </MemoryRouter>
     </QueryClientProvider>,

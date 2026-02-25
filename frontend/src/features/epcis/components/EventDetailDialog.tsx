@@ -1,6 +1,7 @@
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -40,6 +41,9 @@ export function EventDetailDialog({ event, open, onOpenChange }: EventDetailDial
                 : event.event_id}
             </span>
           </DialogTitle>
+          <DialogDescription>
+            Review event metadata, payload details, and optional sensor or error declarations.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

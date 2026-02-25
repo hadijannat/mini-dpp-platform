@@ -20,7 +20,7 @@ import LoginPage from '../LoginPage';
 
 function renderLogin(pathname: string) {
   return render(
-    <MemoryRouter initialEntries={[pathname]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[pathname]}>
       <LoginPage />
     </MemoryRouter>,
   );

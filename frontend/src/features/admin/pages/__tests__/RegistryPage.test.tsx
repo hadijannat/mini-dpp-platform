@@ -44,7 +44,7 @@ async function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <RegistryPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -130,7 +130,7 @@ describe('RegistryPage', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <RegistryPage />
         </MemoryRouter>
       </QueryClientProvider>,

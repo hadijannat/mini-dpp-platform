@@ -1,0 +1,112 @@
+{
+  "date": "2026-02-25",
+  "repo": "hadijannat/mini-dpp-platform",
+  "branch": "codex/frontend-review-hardening",
+  "scope": "frontend hardening pass for warning cleanup and accessibility metadata",
+  "backendApiContractChanges": false,
+  "frontendModulesPagesTouched": [
+    "frontend/src/components/ui/badge.tsx",
+    "frontend/src/components/ui/button.tsx",
+    "frontend/src/features/opcua/pages/OPCUASourcesPage.tsx",
+    "frontend/src/features/admin/pages/ResolverPage.tsx",
+    "frontend/src/features/admin/pages/WebhooksPage.tsx",
+    "frontend/src/features/epcis/components/CaptureDialog.tsx",
+    "frontend/src/features/epcis/components/EventDetailDialog.tsx",
+    "frontend/src/test/setup-jsdom-canvas.ts",
+    "frontend/vite.config.ts"
+  ],
+  "testSuitesTouched": [
+    "frontend/src/App.roleRequestsRoute.test.tsx",
+    "frontend/src/app/layouts/PublisherLayout.test.tsx",
+    "frontend/src/auth/__tests__/LoginPage.test.tsx",
+    "frontend/src/auth/__tests__/ProtectedRoute.test.tsx",
+    "frontend/src/features/admin/__tests__/AdminDashboardPage.test.tsx",
+    "frontend/src/features/admin/__tests__/WebhooksPage.test.tsx",
+    "frontend/src/features/admin/pages/__tests__/RegistryPage.test.tsx",
+    "frontend/src/features/admin/pages/__tests__/ResolverPage.test.tsx",
+    "frontend/src/features/devtools/__tests__/publicRoute.test.tsx",
+    "frontend/src/features/devtools/__tests__/submodelEditorRegression.test.tsx",
+    "frontend/src/features/editor/pages/__tests__/SubmodelEditorPage.progress.test.tsx",
+    "frontend/src/features/onboarding/pages/__tests__/WelcomePage.test.tsx",
+    "frontend/src/features/opcua/components/__tests__/DataspaceTab.test.tsx",
+    "frontend/src/features/opcua/components/__tests__/MappingsTab.test.tsx",
+    "frontend/src/features/opcua/components/__tests__/NodeSetsTab.test.tsx",
+    "frontend/src/features/opcua/pages/__tests__/OPCUASourcesPage.test.tsx",
+    "frontend/src/features/publisher/__tests__/BatchImportPage.test.tsx",
+    "frontend/src/features/publisher/__tests__/DPPEditorPage.actionGating.test.tsx",
+    "frontend/src/features/publisher/__tests__/DPPEditorPage.outline.test.tsx",
+    "frontend/src/features/publisher/__tests__/DPPEditorPage.refreshRebuild.test.tsx",
+    "frontend/src/features/publisher/__tests__/DashboardEPCIS.test.tsx",
+    "frontend/src/features/publisher/pages/__tests__/DataCarriersPage.test.tsx",
+    "frontend/src/features/submodels/__tests__/accessibility.audit.test.tsx",
+    "frontend/src/features/viewer/pages/__tests__/DPPViewerPage.test.tsx"
+  ],
+  "warningClassesAddressed": [
+    {
+      "id": "react-refresh-only-export-components",
+      "status": "addressed",
+      "locations": [
+        "frontend/src/components/ui/badge.tsx",
+        "frontend/src/components/ui/button.tsx",
+        "frontend/src/features/opcua/pages/OPCUASourcesPage.tsx"
+      ]
+    },
+    {
+      "id": "react-router-future-flag-warning",
+      "status": "addressed",
+      "locations": [
+        "frontend/src/**/*.test.tsx MemoryRouter usages"
+      ]
+    },
+    {
+      "id": "radix-dialog-missing-description-warning",
+      "status": "addressed",
+      "locations": [
+        "frontend/src/features/admin/pages/ResolverPage.tsx",
+        "frontend/src/features/admin/pages/WebhooksPage.tsx",
+        "frontend/src/features/epcis/components/CaptureDialog.tsx",
+        "frontend/src/features/epcis/components/EventDetailDialog.tsx"
+      ]
+    },
+    {
+      "id": "jsdom-htmlcanvaselement-getcontext-warning",
+      "status": "addressed",
+      "locations": [
+        "frontend/src/test/setup-jsdom-canvas.ts",
+        "frontend/vite.config.ts"
+      ]
+    }
+  ],
+  "validation": {
+    "lint": "pass",
+    "typecheck": "pass",
+    "test": {
+      "status": "pass",
+      "files": 84,
+      "tests": 451
+    },
+    "build": "pass",
+    "warningGate": "pass"
+  },
+  "riskGapList": [
+    {
+      "id": "FRONTEND-HARDENING-001",
+      "type": "environment-noise",
+      "summary": "Local prerender logs non-fatal backend DNS proxy resolution error during build",
+      "status": "known",
+      "owner": "follow-up"
+    },
+    {
+      "id": "FRONTEND-HARDENING-002",
+      "type": "test-noise",
+      "summary": "Some non-targeted test stderr output remains (route mismatch/editor measurement traces)",
+      "status": "known",
+      "owner": "follow-up"
+    }
+  ],
+  "residualRisks": [
+    "Future React Router warnings are suppressed only where MemoryRouter is used in current test files; new tests must keep the same future flags.",
+    "jsdom canvas stub intentionally returns null to preserve behavior and suppress noise; tests requiring real canvas APIs still need dedicated mocks if introduced.",
+    "Dialog accessibility improvements cover warning-emitting dialogs under current test coverage; untested dialogs may still need future audit."
+  ]
+}

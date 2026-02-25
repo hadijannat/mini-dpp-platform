@@ -44,7 +44,7 @@ async function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ResolverPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -129,7 +129,7 @@ describe('ResolverPage', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter>
+        <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <ResolverPage />
         </MemoryRouter>
       </QueryClientProvider>,

@@ -133,7 +133,7 @@ describe('DataCarriersPage', () => {
     const { default: DataCarriersPage } = await import('../DataCarriersPage');
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <DataCarriersPage />
       </MemoryRouter>,
     );
@@ -146,7 +146,7 @@ describe('DataCarriersPage', () => {
     const { default: DataCarriersPage } = await import('../DataCarriersPage');
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <DataCarriersPage />
       </MemoryRouter>,
     );
@@ -199,7 +199,7 @@ describe('DataCarriersPage', () => {
     const { default: DataCarriersPage } = await import('../DataCarriersPage');
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <DataCarriersPage />
       </MemoryRouter>,
     );
@@ -230,7 +230,7 @@ describe('DataCarriersPage', () => {
     const { default: DataCarriersPage } = await import('../DataCarriersPage');
 
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <DataCarriersPage />
       </MemoryRouter>,
     );
