@@ -82,14 +82,29 @@ class EPCISService:
         # Optional GS1 structural validation
         settings = get_settings()
         if settings.epcis_validate_gs1_schema:
-            all_errors: list[str] = []
+            structural_errors: list[str] = []
+            warning_messages: list[str] = []
             for idx, event in enumerate(document.epcis_body.event_list):
                 event_dict = event.model_dump(mode="json", by_alias=True)
                 errors = validate_against_gs1_schema(event_dict)
                 for err in errors:
-                    all_errors.append(f"Event[{idx}]: {err}")
-            if all_errors:
-                raise ValueError(f"GS1 schema validation failed: {'; '.join(all_errors)}")
+                    entry = f"Event[{idx}]: {err}"
+                    if "(warning)" in err.lower():
+                        warning_messages.append(entry)
+                    else:
+                        structural_errors.append(entry)
+            if warning_messages:
+                logger.warning(
+                    "epcis_gs1_validation_warnings",
+                    tenant_id=str(tenant_id),
+                    dpp_id=str(dpp_id),
+                    warning_count=len(warning_messages),
+                    warnings=warning_messages,
+                )
+            if structural_errors:
+                raise ValueError(
+                    f"GS1 schema validation failed: {'; '.join(structural_errors)}"
+                )
 
         capture_id = str(uuid.uuid4())
         count = 0

@@ -116,7 +116,8 @@ Retention:
 | Anonymized telemetry hashes + step metadata | Yes | No reversible identifiers or secrets |
 | Product-level identifiers (`serialNumber`, `batchId`, `globalAssetId`, `dpp_id`) | No | Explicitly prohibited |
 | Raw AAS submodel content from private tenants | No | Restricted to protected routes |
-| Raw EPCIS payloads or location fields (`payload`, `read_point`, `biz_location`) | No | Explicitly prohibited |
+| Published-DPP EPCIS events (`GET /api/v1/public/{tenant_slug}/epcis/events/{dpp_id}`), including `payload`, `read_point`, and `biz_location` | Yes (endpoint-specific) | Allowed only for this traceability contract on published DPPs; response excludes actor/internal metadata |
+| Raw EPCIS payloads outside the dedicated published-DPP EPCIS endpoint | No | Explicitly prohibited |
 | Actor/user metadata and auth claims | No | Explicitly prohibited |
 | CIRPASS session token internals (`sid`, `ua_hash`, signature) | No | Never exposed in responses |
 

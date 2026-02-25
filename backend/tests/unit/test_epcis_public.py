@@ -54,8 +54,10 @@ class _FakeSession:
     def __init__(self, results: list[object]) -> None:
         self._results = list(results)
         self._call_idx = 0
+        self.statements: list[object] = []
 
     async def execute(self, _stmt: object) -> object:
+        self.statements.append(_stmt)
         idx = self._call_idx
         self._call_idx += 1
         if idx < len(self._results):
@@ -87,14 +89,15 @@ def _make_dpp(*, published: bool = True) -> SimpleNamespace:
     )
 
 
-def _make_epcis_event(dpp_id: object) -> SimpleNamespace:
+def _make_epcis_event(dpp_id: object, *, event_time: datetime | None = None) -> SimpleNamespace:
+    when = event_time or datetime(2026, 2, 7, 10, 0, 0, tzinfo=UTC)
     return SimpleNamespace(
         id=uuid4(),
         tenant_id=_TENANT_ID,
         dpp_id=dpp_id,
         event_id=f"urn:uuid:{uuid4()}",
         event_type=EPCISEventType.OBJECT,
-        event_time=datetime(2026, 2, 7, 10, 0, 0, tzinfo=UTC),
+        event_time=when,
         event_time_zone_offset="+01:00",
         action="OBSERVE",
         biz_step="shipping",
@@ -118,13 +121,15 @@ async def test_published_dpp_returns_events(_app: FastAPI) -> None:
     """Published DPP should return its EPCIS events."""
     tenant = _make_tenant()
     dpp = _make_dpp(published=True)
-    event = _make_epcis_event(dpp.id)
+    older_event = _make_epcis_event(dpp.id, event_time=datetime(2026, 2, 7, 9, 0, 0, tzinfo=UTC))
+    newer_event = _make_epcis_event(dpp.id, event_time=datetime(2026, 2, 7, 11, 0, 0, tzinfo=UTC))
 
     fake_session = _FakeSession(
         [
             _FakeScalarResult(tenant),
             _FakeScalarResult(dpp),
-            _FakeScalarsResult([event]),
+            # Simulate DB return when query is ordered DESC.
+            _FakeScalarsResult([newer_event, older_event]),
         ]
     )
 
@@ -140,9 +145,16 @@ async def test_published_dpp_returns_events(_app: FastAPI) -> None:
     assert resp.status_code == status.HTTP_200_OK
     body = resp.json()
     assert body["type"] == "EPCISQueryDocument"
-    assert len(body["eventList"]) == 1
+    assert len(body["eventList"]) == 2
+    # Router should restore chronological order after fetching the DESC window.
+    assert body["eventList"][0]["event_time"] < body["eventList"][1]["event_time"]
+
+    # Verify fetch query uses DESC to take most recent rows.
+    events_stmt = fake_session.statements[2]
+    assert "ORDER BY epcis_events.event_time DESC" in str(events_stmt)
+
     evt = body["eventList"][0]
-    assert evt["event_id"] == event.event_id
+    assert evt["event_id"] == older_event.event_id
     # Internal fields must NOT be exposed in public responses
     assert "created_by_subject" not in evt
     assert "created_at" not in evt

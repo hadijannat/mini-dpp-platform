@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from uuid import uuid4
 
 import pytest
@@ -22,6 +22,8 @@ _DPP_ID = uuid4()
 def _make_session(*, should_fail: bool = False) -> AsyncMock:
     """Build a mock AsyncSession with begin_nested context manager."""
     session = AsyncMock()
+    # AsyncSession.add is synchronous; using Mock avoids un-awaited coroutine warnings.
+    session.add = Mock()
     if should_fail:
 
         @asynccontextmanager
