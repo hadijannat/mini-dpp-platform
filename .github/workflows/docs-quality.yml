@@ -16,16 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '20'
-
-      - name: Install markdown tools
-        run: npm i -g markdownlint-cli2
-
       - name: Run markdown lint
-        run: markdownlint-cli2 'README.md' 'CHANGELOG.md' 'docs/**/*.md'
+        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
+        with:
+          globs: |
+            README.md
+            CHANGELOG.md
+            docs/**/*.md
 
       - name: Run link check
         uses: lycheeverse/lychee-action@a8c4c7cb88f0c7386610c35eb25108e448569cb0 # v2
