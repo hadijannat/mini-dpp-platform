@@ -1,0 +1,181 @@
+{
+  "date": "2026-02-25",
+  "repo": "hadijannat/mini-dpp-platform",
+  "module": "EPCIS 2.0",
+  "endpoints": {
+    "tenant": [
+      {
+        "method": "POST",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/capture",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/events",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/events/{event_id}",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "POST",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/queries",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/queries",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "GET",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/queries/{name}/events",
+        "source": "backend/app/modules/epcis/router.py"
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/v1/tenants/{tenant_slug}/epcis/queries/{name}",
+        "source": "backend/app/modules/epcis/router.py"
+      }
+    ],
+    "public": [
+      {
+        "method": "GET",
+        "path": "/api/v1/public/{tenant_slug}/epcis/events/{dpp_id}",
+        "source": "backend/app/modules/epcis/public_router.py",
+        "notes": "published DPP only, max 100 events"
+      }
+    ]
+  },
+  "schemas": {
+    "eventTypes": [
+      "ObjectEvent",
+      "AggregationEvent",
+      "TransactionEvent",
+      "TransformationEvent",
+      "AssociationEvent"
+    ],
+    "files": [
+      "backend/app/modules/epcis/schemas.py",
+      "backend/app/modules/epcis/gs1_validator.py",
+      "backend/app/modules/epcis/cbv.py",
+      "frontend/src/features/epcis/lib/epcisApi.ts"
+    ]
+  },
+  "database": {
+    "tables": [
+      {
+        "name": "epcis_events",
+        "model": "backend/app/db/models.py:EPCISEvent",
+        "migration": "backend/app/db/migrations/versions/0016_epcis_events.py",
+        "indexes": [
+          "ix_epcis_events_tenant_dpp_time",
+          "ix_epcis_events_event_id",
+          "ix_epcis_events_biz_step",
+          "ix_epcis_events_payload"
+        ]
+      },
+      {
+        "name": "epcis_named_queries",
+        "model": "backend/app/db/models.py:EPCISNamedQuery",
+        "migration": "backend/app/db/migrations/versions/0017_epcis_named_queries.py",
+        "constraints": [
+          "uq_epcis_named_queries_tenant_name"
+        ]
+      }
+    ]
+  },
+  "featureFlags": [
+    {
+      "name": "epcis_enabled",
+      "source": "backend/app/core/config.py"
+    },
+    {
+      "name": "epcis_auto_record",
+      "source": "backend/app/core/config.py"
+    },
+    {
+      "name": "epcis_validate_gs1_schema",
+      "source": "backend/app/core/config.py"
+    }
+  ],
+  "integrations": [
+    {
+      "name": "DPP lifecycle auto-record",
+      "files": [
+        "backend/app/modules/epcis/handlers.py",
+        "backend/app/modules/dpps/router.py"
+      ]
+    },
+    {
+      "name": "AAS export traceability bridge",
+      "files": [
+        "backend/app/modules/epcis/aas_bridge.py",
+        "backend/app/modules/export/router.py",
+        "backend/app/modules/export/service.py"
+      ]
+    },
+    {
+      "name": "OPC UA EPCIS emitter",
+      "files": [
+        "backend/app/opcua_agent/epcis_emitter.py",
+        "backend/tests/test_opcua_epcis_emitter.py"
+      ]
+    },
+    {
+      "name": "GS1 Digital Link helpers",
+      "files": [
+        "backend/app/modules/epcis/digital_link.py",
+        "backend/tests/unit/test_epcis_digital_link.py"
+      ]
+    }
+  ],
+  "tests": {
+    "backendUnit": [
+      "backend/tests/unit/test_epcis_schemas.py",
+      "backend/tests/unit/test_epcis_gs1_validator.py",
+      "backend/tests/unit/test_epcis_digital_link.py",
+      "backend/tests/unit/test_epcis_named_queries.py",
+      "backend/tests/unit/test_epcis_public.py",
+      "backend/tests/unit/test_epcis_error_correction.py",
+      "backend/tests/unit/test_epcis_handlers.py",
+      "backend/tests/unit/test_epcis_cbv.py"
+    ],
+    "backendE2E": [
+      "backend/tests/e2e/test_epcis_flow.py"
+    ],
+    "frontend": [
+      "frontend/src/features/epcis/__tests__/CaptureDialog.test.tsx",
+      "frontend/src/features/epcis/__tests__/EventFilters.test.tsx",
+      "frontend/src/features/epcis/__tests__/EPCISTimeline.test.tsx"
+    ]
+  },
+  "riskFindings": [
+    {
+      "id": "EPCIS-001",
+      "severity": "P1",
+      "title": "GS1 warning findings treated as blocking",
+      "status": "fixed in this PR"
+    },
+    {
+      "id": "EPCIS-002",
+      "severity": "P1",
+      "title": "Public EPCIS endpoint selected oldest events instead of most recent window",
+      "status": "fixed in this PR"
+    },
+    {
+      "id": "EPCIS-003",
+      "severity": "P2",
+      "title": "AsyncMock warning noise in EPCIS handler tests",
+      "status": "fixed in this PR"
+    },
+    {
+      "id": "EPCIS-004",
+      "severity": "P2",
+      "title": "Public policy text contradicted dedicated public EPCIS endpoint contract",
+      "status": "fixed in this PR"
+    }
+  ]
+}

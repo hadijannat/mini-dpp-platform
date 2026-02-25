@@ -50,7 +50,8 @@ async def get_public_epcis_events(
     """Get EPCIS events for a published DPP (no authentication required).
 
     Only returns events for DPPs with status=PUBLISHED.
-    Limited to the most recent 100 events ordered by event time.
+    Returns the most recent 100 events while preserving chronological order.
+    Ties on ``event_time`` are broken deterministically by descending row id.
     """
     tenant = await _resolve_tenant(db, tenant_slug)
 
@@ -69,17 +70,17 @@ async def get_public_epcis_events(
             detail="Not found",
         )
 
-    # Fetch events
+    # Fetch the most recent window first, then return chronologically.
     events_result = await db.execute(
         select(EPCISEvent)
         .where(
             EPCISEvent.dpp_id == dpp_id,
             EPCISEvent.tenant_id == tenant.id,
         )
-        .order_by(EPCISEvent.event_time)
+        .order_by(EPCISEvent.event_time.desc(), EPCISEvent.id.desc())
         .limit(MAX_PUBLIC_EVENTS)
     )
-    rows = events_result.scalars().all()
+    rows = list(reversed(events_result.scalars().all()))
 
     return PublicEPCISQueryResponse(
         event_list=[PublicEPCISEventResponse.model_validate(row) for row in rows],

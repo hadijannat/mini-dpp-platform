@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -144,6 +145,127 @@ class TestErrorCorrectionValidation:
             created_by="test-user",
         )
         assert result.event_count == 1
+
+
+class TestGs1ValidationHandling:
+    @pytest.mark.asyncio
+    async def test_warning_only_messages_are_non_blocking(self) -> None:
+        """GS1 warning-tagged findings should be logged but not block capture."""
+        from uuid import uuid4
+
+        session = _FakeSession(found_event_ids=[])
+        service = EPCISService(session)  # type: ignore[arg-type]
+        doc = _make_document([])
+
+        with (
+            patch("app.modules.epcis.service.get_settings") as mock_settings,
+            patch(
+                "app.modules.epcis.service.validate_against_gs1_schema",
+                return_value=["Sample validator warning (warning)"],
+            ),
+            patch("app.modules.epcis.service.logger.warning") as log_warning,
+        ):
+            mock_settings.return_value.epcis_validate_gs1_schema = True
+            result = await service.capture(
+                tenant_id=uuid4(),
+                dpp_id=uuid4(),
+                document=doc,
+                created_by="test-user",
+            )
+
+        assert result.event_count == 1
+        log_warning.assert_called_once()
+        _, kwargs = log_warning.call_args
+        assert kwargs["warning_count"] == 1
+        assert "warnings" not in kwargs
+
+    @pytest.mark.asyncio
+    async def test_structural_errors_still_block_capture(self) -> None:
+        """GS1 structural errors should still fail capture with ValueError."""
+        from uuid import uuid4
+
+        session = _FakeSession(found_event_ids=[])
+        service = EPCISService(session)  # type: ignore[arg-type]
+        doc = _make_document([])
+
+        with (
+            patch("app.modules.epcis.service.get_settings") as mock_settings,
+            patch(
+                "app.modules.epcis.service.validate_against_gs1_schema",
+                return_value=["Missing required field: eventTime"],
+            ),
+        ):
+            mock_settings.return_value.epcis_validate_gs1_schema = True
+            with pytest.raises(ValueError, match="GS1 schema validation failed"):
+                await service.capture(
+                    tenant_id=uuid4(),
+                    dpp_id=uuid4(),
+                    document=doc,
+                    created_by="test-user",
+                )
+
+    @pytest.mark.asyncio
+    async def test_warning_substring_in_structural_error_is_blocking(self) -> None:
+        """Structural errors containing '(warning)' in values must still block capture."""
+        from uuid import uuid4
+
+        session = _FakeSession(found_event_ids=[])
+        service = EPCISService(session)  # type: ignore[arg-type]
+        doc = _make_document([])
+
+        with (
+            patch("app.modules.epcis.service.get_settings") as mock_settings,
+            patch(
+                "app.modules.epcis.service.validate_against_gs1_schema",
+                return_value=[
+                    (
+                        "Invalid eventTimeZoneOffset format: '(warning)' "
+                        "(expected +HH:MM, -HH:MM, or Z)"
+                    )
+                ],
+            ),
+        ):
+            mock_settings.return_value.epcis_validate_gs1_schema = True
+            with pytest.raises(ValueError, match="GS1 schema validation failed"):
+                await service.capture(
+                    tenant_id=uuid4(),
+                    dpp_id=uuid4(),
+                    document=doc,
+                    created_by="test-user",
+                )
+
+    @pytest.mark.asyncio
+    async def test_mixed_warnings_and_structural_errors_raise(self) -> None:
+        """Mixed GS1 findings should log warnings but still fail on structural errors."""
+        from uuid import uuid4
+
+        session = _FakeSession(found_event_ids=[])
+        service = EPCISService(session)  # type: ignore[arg-type]
+        doc = _make_document([])
+
+        with (
+            patch("app.modules.epcis.service.get_settings") as mock_settings,
+            patch(
+                "app.modules.epcis.service.validate_against_gs1_schema",
+                return_value=[
+                    "Sample validator warning (warning)",
+                    "Missing required field: eventTime",
+                ],
+            ),
+            patch("app.modules.epcis.service.logger.warning") as log_warning,
+        ):
+            mock_settings.return_value.epcis_validate_gs1_schema = True
+            with pytest.raises(ValueError, match="Missing required field: eventTime"):
+                await service.capture(
+                    tenant_id=uuid4(),
+                    dpp_id=uuid4(),
+                    document=doc,
+                    created_by="test-user",
+                )
+
+        log_warning.assert_called_once()
+        _, kwargs = log_warning.call_args
+        assert kwargs["warning_count"] == 1
 
     @pytest.mark.asyncio
     async def test_missing_corrective_ids_raises(self) -> None:

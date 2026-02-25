@@ -35,6 +35,7 @@ from .schemas import (
 )
 
 logger = get_logger(__name__)
+_WARNING_SUFFIX = "(warning)"
 
 
 class EPCISService:
@@ -82,14 +83,26 @@ class EPCISService:
         # Optional GS1 structural validation
         settings = get_settings()
         if settings.epcis_validate_gs1_schema:
-            all_errors: list[str] = []
+            structural_errors: list[str] = []
+            warning_count = 0
             for idx, event in enumerate(document.epcis_body.event_list):
                 event_dict = event.model_dump(mode="json", by_alias=True)
                 errors = validate_against_gs1_schema(event_dict)
                 for err in errors:
-                    all_errors.append(f"Event[{idx}]: {err}")
-            if all_errors:
-                raise ValueError(f"GS1 schema validation failed: {'; '.join(all_errors)}")
+                    entry = f"Event[{idx}]: {err}"
+                    if self._is_warning_message(err):
+                        warning_count += 1
+                    else:
+                        structural_errors.append(entry)
+            if warning_count:
+                logger.warning(
+                    "epcis_gs1_validation_warnings",
+                    tenant_id=str(tenant_id),
+                    dpp_id=str(dpp_id),
+                    warning_count=warning_count,
+                )
+            if structural_errors:
+                raise ValueError(f"GS1 schema validation failed: {'; '.join(structural_errors)}")
 
         capture_id = str(uuid.uuid4())
         count = 0
@@ -400,6 +413,11 @@ class EPCISService:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _is_warning_message(message: str) -> bool:
+        """Treat only explicit GS1 warning suffix findings as non-blocking."""
+        return message.strip().lower().endswith(_WARNING_SUFFIX)
 
     @staticmethod
     def _build_payload(event: EPCISEventUnion) -> dict[str, Any]:
