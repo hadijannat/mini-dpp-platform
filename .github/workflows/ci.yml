@@ -290,27 +290,25 @@ jobs:
       - name: Run npm audit (production dependencies)
         working-directory: frontend
         run: |
-          set -o pipefail
-          attempts=3
+          set +e
+          npm audit --omit=dev --audit-level=high > /tmp/npm-audit.log 2>&1
+          audit_status=$?
+          set -e
 
-          for attempt in $(seq 1 "$attempts"); do
-            echo "npm audit attempt ${attempt}/${attempts}"
-            if npm audit --omit=dev --audit-level=high 2>&1 | tee /tmp/npm-audit.log; then
-              exit 0
-            fi
+          cat /tmp/npm-audit.log
 
-            if grep -Eq "audit endpoint returned an error|403 Forbidden - POST https://registry\\.npmjs\\.org/-/npm/v1/security/audits/quick" /tmp/npm-audit.log; then
-              if [ "$attempt" -lt "$attempts" ]; then
-                sleep $((attempt * 5))
-                continue
-              fi
-              echo "::warning::npm audit endpoint unavailable after ${attempts} attempts (HTTP 403). Skipping npm audit gate for this run."
-              exit 0
-            fi
+          if [ "$audit_status" -eq 0 ]; then
+            exit 0
+          fi
 
-            echo "::error::npm audit failed for a non-transient reason."
-            exit 1
-          done
+          # npm audit occasionally fails on CI due transient upstream challenge pages.
+          # Fail only on real audit findings, not endpoint availability issues.
+          if grep -Eq "audit endpoint returned an error|403 Forbidden|security/audits/quick|Just a moment" /tmp/npm-audit.log; then
+            echo "::warning::npm audit endpoint temporarily unavailable; skipping hard failure for this run."
+            exit 0
+          fi
+
+          exit "$audit_status"
 
   aas-validation:
     name: AAS Schema Validation
