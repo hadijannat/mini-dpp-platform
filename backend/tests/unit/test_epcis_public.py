@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -12,7 +12,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.db.models import DPPStatus, EPCISEventType, TenantStatus
 from app.db.session import get_db_session
-from app.modules.epcis.public_router import router
+from app.modules.epcis.public_router import MAX_PUBLIC_EVENTS, router
 
 # ---------------------------------------------------------------------------
 # Minimal test app
@@ -151,7 +151,9 @@ async def test_published_dpp_returns_events(_app: FastAPI) -> None:
 
     # Verify fetch query uses DESC to take most recent rows.
     events_stmt = fake_session.statements[2]
-    assert "ORDER BY epcis_events.event_time DESC" in str(events_stmt)
+    events_sql = str(events_stmt)
+    assert "ORDER BY epcis_events.event_time DESC" in events_sql
+    assert "epcis_events.id DESC" in events_sql
 
     evt = body["eventList"][0]
     assert evt["event_id"] == older_event.event_id
@@ -235,5 +237,46 @@ async def test_nonexistent_tenant_returns_404(_app: FastAPI) -> None:
         resp = await client.get(f"/public/no-such-tenant/epcis/events/{uuid4()}")
 
     assert resp.status_code == status.HTTP_404_NOT_FOUND
+
+    _app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_published_dpp_returns_latest_window_with_cap(_app: FastAPI) -> None:
+    """Public endpoint should return only the latest MAX_PUBLIC_EVENTS events."""
+    tenant = _make_tenant()
+    dpp = _make_dpp(published=True)
+
+    base = datetime(2026, 2, 7, 0, 0, 0, tzinfo=UTC)
+    events = [_make_epcis_event(dpp.id, event_time=base + timedelta(minutes=i)) for i in range(120)]
+    # Simulate DB response for ORDER BY event_time DESC, id DESC, LIMIT N.
+    db_rows = list(reversed(events[-MAX_PUBLIC_EVENTS:]))
+
+    fake_session = _FakeSession(
+        [
+            _FakeScalarResult(tenant),
+            _FakeScalarResult(dpp),
+            _FakeScalarsResult(db_rows),
+        ]
+    )
+
+    async def _override_db() -> object:
+        return fake_session
+
+    _app.dependency_overrides[get_db_session] = _override_db
+
+    transport = ASGITransport(app=_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get(f"/public/default/epcis/events/{dpp.id}")
+
+    assert resp.status_code == status.HTTP_200_OK
+    body = resp.json()
+    assert len(body["eventList"]) == MAX_PUBLIC_EVENTS
+    assert [event["event_id"] for event in body["eventList"]] == [
+        event.event_id for event in events[-MAX_PUBLIC_EVENTS:]
+    ]
+
+    events_stmt = fake_session.statements[2]
+    assert events_stmt._limit_clause is not None
 
     _app.dependency_overrides.clear()

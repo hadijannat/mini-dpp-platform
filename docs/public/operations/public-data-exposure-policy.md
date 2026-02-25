@@ -1,12 +1,14 @@
 # Public Data Exposure Policy
 
-This policy defines what data is allowed on public landing pages and CIRPASS public lab APIs.
+This policy defines what data is allowed on public landing pages, CIRPASS public lab APIs,
+and the published-DPP EPCIS traceability endpoint.
 
 ## Scope
 
 - Public landing page at `https://dpp-platform.dev/`
 - Public summary endpoint: `GET /api/v1/public/{tenant_slug}/landing/summary`
 - Public regulatory timeline endpoint: `GET /api/v1/public/landing/regulatory-timeline`
+- Published-DPP EPCIS endpoint: `GET /api/v1/public/{tenant_slug}/epcis/events/{dpp_id}`
 - CIRPASS feed endpoint: `GET /api/v1/public/cirpass/stories/latest`
 - CIRPASS manifest endpoints:
   - `GET /api/v1/public/cirpass/lab/manifest/latest`
@@ -114,7 +116,7 @@ Retention:
 | CIRPASS story summaries + synthetic step payload examples | Yes | Must remain synthetic and non-tenant specific |
 | CIRPASS leaderboard nickname + score + completion time + version + rank | Yes | Pseudonymous only, no email/account linkage |
 | Anonymized telemetry hashes + step metadata | Yes | No reversible identifiers or secrets |
-| Product-level identifiers (`serialNumber`, `batchId`, `globalAssetId`, `dpp_id`) | No | Explicitly prohibited |
+| Product-level identifiers (`serialNumber`, `batchId`, `globalAssetId`) outside approved public contracts | No | Explicitly prohibited |
 | Raw AAS submodel content from private tenants | No | Restricted to protected routes |
 | Published-DPP EPCIS events (`GET /api/v1/public/{tenant_slug}/epcis/events/{dpp_id}`), including `payload`, `read_point`, and `biz_location` | Yes (endpoint-specific) | Allowed only for this traceability contract on published DPPs; response excludes actor/internal metadata |
 | Raw EPCIS payloads outside the dedicated published-DPP EPCIS endpoint | No | Explicitly prohibited |
