@@ -15,11 +15,12 @@ A multi-tenant Digital Product Passport (DPP) platform built on the Asset Admini
 
 ## Citation & Archive (Zenodo)
 
-This repository is archived on Zenodo for release `v0.1.0`.
+This repository is archived on Zenodo for release `v0.1.0`, and the latest GitHub release is `v0.1.2`.
 
 - DOI: [10.5281/zenodo.18732355](https://doi.org/10.5281/zenodo.18732355)
 - Zenodo record: [https://zenodo.org/records/18732355](https://zenodo.org/records/18732355)
-- GitHub release: [v0.1.0](https://github.com/hadijannat/mini-dpp-platform/releases/tag/v0.1.0)
+- Latest GitHub release: [v0.1.2](https://github.com/hadijannat/mini-dpp-platform/releases/tag/v0.1.2)
+- Zenodo-linked GitHub release: [v0.1.0](https://github.com/hadijannat/mini-dpp-platform/releases/tag/v0.1.0)
 
 If you use this software in research or reports, cite the Zenodo DOI above.
 
