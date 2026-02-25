@@ -102,9 +102,7 @@ class EPCISService:
                     warnings=warning_messages,
                 )
             if structural_errors:
-                raise ValueError(
-                    f"GS1 schema validation failed: {'; '.join(structural_errors)}"
-                )
+                raise ValueError(f"GS1 schema validation failed: {'; '.join(structural_errors)}")
 
         capture_id = str(uuid.uuid4())
         count = 0
