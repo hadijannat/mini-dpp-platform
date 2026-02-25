@@ -34,7 +34,7 @@ it('renders /tools/idta-submodel-editor without auth redirect', async () => {
 
   render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/tools/idta-submodel-editor']}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/tools/idta-submodel-editor']}>
         <App />
       </MemoryRouter>
     </QueryClientProvider>,

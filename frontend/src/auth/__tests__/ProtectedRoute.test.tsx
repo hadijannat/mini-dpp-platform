@@ -62,7 +62,7 @@ function WelcomeProbe() {
 
 function renderRoutes(initialEntry: string = '/console') {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <Routes>
         <Route
           path="/console"

@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -256,6 +257,9 @@ export default function ResolverPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Resolver Link</DialogTitle>
+            <DialogDescription>
+              Create a resolver link by providing an identifier, link type, and destination URL.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>

@@ -39,7 +39,7 @@ import WelcomePage from '../WelcomePage';
 
 function renderWelcome(initialEntry: string = '/welcome') {
   return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
+    <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
       <WelcomePage />
     </MemoryRouter>,
   );

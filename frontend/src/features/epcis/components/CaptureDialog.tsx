@@ -4,6 +4,7 @@ import { useAuth } from 'react-oidc-context';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -90,6 +91,9 @@ export function CaptureDialog({ open, onOpenChange, dppId }: CaptureDialogProps)
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Capture EPCIS Event</DialogTitle>
+          <DialogDescription>
+            Enter event details to capture a new EPCIS event for the selected DPP.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">

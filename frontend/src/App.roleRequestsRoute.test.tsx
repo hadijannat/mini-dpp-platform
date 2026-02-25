@@ -58,7 +58,7 @@ describe('App role requests route', () => {
     tenantAccessState.hasTenantRoleLevel = (requiredRole) => requiredRole === 'viewer';
 
     render(
-      <MemoryRouter initialEntries={['/console/role-requests']}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/console/role-requests']}>
         <App />
       </MemoryRouter>,
     );
@@ -77,7 +77,7 @@ describe('App role requests route', () => {
       requiredRole === 'viewer' || requiredRole === 'publisher' || requiredRole === 'tenant_admin';
 
     render(
-      <MemoryRouter initialEntries={['/console/role-requests']}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/console/role-requests']}>
         <App />
       </MemoryRouter>,
     );

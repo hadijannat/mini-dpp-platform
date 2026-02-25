@@ -96,7 +96,7 @@ function renderLayout() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PublisherLayout />
       </MemoryRouter>
     </QueryClientProvider>,

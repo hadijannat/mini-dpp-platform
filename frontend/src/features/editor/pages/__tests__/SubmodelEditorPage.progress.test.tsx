@@ -42,7 +42,7 @@ function renderEditor(
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[initialEntry]}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/console/dpps/:dppId/edit/:templateKey" element={<SubmodelEditorPage />} />
         </Routes>

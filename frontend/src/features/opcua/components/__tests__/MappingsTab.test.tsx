@@ -34,7 +34,7 @@ async function renderTab() {
   const { MappingsTab } = await import('../MappingsTab');
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <MappingsTab />
       </MemoryRouter>
     </QueryClientProvider>,

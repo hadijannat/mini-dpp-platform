@@ -46,7 +46,7 @@ function renderEditor() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/console/dpps/019c42a4-128f-7bd9-a95c-a842746f2f9a']}>
+      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }} initialEntries={['/console/dpps/019c42a4-128f-7bd9-a95c-a842746f2f9a']}>
         <Routes>
           <Route path="/console/dpps/:dppId" element={<DPPEditorPage />} />
         </Routes>
