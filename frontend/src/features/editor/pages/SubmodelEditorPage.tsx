@@ -53,6 +53,7 @@ import { AASRendererList } from '../components/AASRenderer';
 import { JsonEditor } from '../components/JsonEditor';
 import { FormToolbar } from '../components/FormToolbar';
 import { SubmodelEditorShell } from '../components/SubmodelEditorShell';
+import { TemplateContractDiagnostics } from '../components/TemplateContractDiagnostics';
 import { cn } from '@/lib/utils';
 import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
 import { buildSubmodelEditorOutline } from '@/features/dpp-outline/builders/buildSubmodelEditorOutline';
@@ -69,14 +70,6 @@ class AmbiguousBindingError extends Error {
     this.candidates = candidates;
   }
 }
-
-type UnsupportedContractNode = {
-  path?: string | null;
-  idShort?: string | null;
-  modelType?: string | null;
-  semanticId?: string | null;
-  reasons?: string[];
-};
 
 function flattenFormErrors(
   errors: Record<string, unknown>,
@@ -494,12 +487,6 @@ export default function SubmodelEditorPage() {
 
   const uiSchema = contract?.schema as UISchema | undefined;
   const templateDefinition = contract?.definition as TemplateDefinition | undefined;
-  const unsupportedNodes = useMemo<UnsupportedContractNode[]>(() => {
-    const raw = contract?.unsupported_nodes;
-    if (!Array.isArray(raw)) return [];
-    return raw.filter((entry): entry is UnsupportedContractNode => typeof entry === 'object' && entry !== null);
-  }, [contract?.unsupported_nodes]);
-  const hasUnsupportedNodes = unsupportedNodes.length > 0;
   const saveDisabledReason = null;
 
   // ── React Hook Form ──
@@ -1010,13 +997,12 @@ export default function SubmodelEditorPage() {
               </AlertDescription>
             </Alert>
           )}
-          {hasUnsupportedNodes && (
-            <Alert>
-              <AlertDescription className="text-xs">
-                Unsupported template nodes detected ({unsupportedNodes.length}). Save and publish
-                are blocked until renderer support is added for these nodes.
-              </AlertDescription>
-            </Alert>
+          {contract && (
+            <TemplateContractDiagnostics
+              unsupportedNodes={contract.unsupported_nodes}
+              dropinResolutionReport={contract.dropin_resolution_report}
+              mode="dpp"
+            />
           )}
           {hasAmbiguousTemplateBindings && (
             <Alert variant="destructive">

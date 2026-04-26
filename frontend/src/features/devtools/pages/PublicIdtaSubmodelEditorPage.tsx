@@ -15,6 +15,7 @@ import { useSubmodelForm } from '@/features/editor/hooks/useSubmodelForm';
 import { AASRendererList } from '@/features/editor/components/AASRenderer';
 import { JsonEditor } from '@/features/editor/components/JsonEditor';
 import { SubmodelEditorShell } from '@/features/editor/components/SubmodelEditorShell';
+import { TemplateContractDiagnostics } from '@/features/editor/components/TemplateContractDiagnostics';
 import type { TemplateContractResponse, TemplateDefinition } from '@/features/editor/types/definition';
 import type { UISchema } from '@/features/editor/types/uiSchema';
 import { defaultValueForSchema } from '@/features/editor/utils/formDefaults';
@@ -270,18 +271,6 @@ export default function PublicIdtaSubmodelEditorPage() {
   const { form } = useSubmodelForm(templateDefinition, uiSchema, emptyInitialData);
   const initialTemplateData = useMemo(() => buildInitialTemplateData(uiSchema), [uiSchema]);
   const hasDefinitionElements = Boolean(templateDefinition?.submodel?.elements?.length);
-  const diagnostics = useMemo(() => {
-    const unsupported = contractQuery.data?.unsupported_nodes ?? [];
-    const report = contractQuery.data?.dropin_resolution_report ?? [];
-    const unresolved = report.filter((entry) => {
-      if (!entry || typeof entry !== 'object') return false;
-      const statusValue = (entry as { status?: unknown }).status;
-      const status = typeof statusValue === 'string' ? statusValue.toLowerCase() : '';
-      return status !== 'resolved' && status !== 'skipped';
-    });
-    return { unsupported, unresolved };
-  }, [contractQuery.data?.dropin_resolution_report, contractQuery.data?.unsupported_nodes]);
-
   const syncDraftList = () => setDrafts(listSmtDrafts());
 
   const applyDraft = (draft: SmtDraftRecord) => {
@@ -748,32 +737,11 @@ export default function PublicIdtaSubmodelEditorPage() {
           )}
 
           {contractQuery.data && (
-            <div className="space-y-2 rounded-md border bg-muted/25 p-3 text-xs">
-              <p className="font-medium">Template diagnostics</p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={diagnostics.unsupported.length > 0 ? 'destructive' : 'secondary'}>
-                  Unsupported nodes: {diagnostics.unsupported.length}
-                </Badge>
-                <Badge variant={diagnostics.unresolved.length > 0 ? 'destructive' : 'secondary'}>
-                  Unresolved drop-ins: {diagnostics.unresolved.length}
-                </Badge>
-              </div>
-              {diagnostics.unsupported.slice(0, 3).map((entry, index) => (
-                <p key={`unsupported-${entry.path ?? 'root'}-${index}`} className="text-muted-foreground">
-                  {(entry.path ?? 'root')}: {(entry.reasons ?? []).join(', ') || 'unsupported'}
-                </p>
-              ))}
-              {diagnostics.unresolved.slice(0, 3).map((entry, index) => {
-                const record = entry as Record<string, unknown>;
-                const pathValue = typeof record.path === 'string' ? record.path : 'root';
-                const reasonValue = typeof record.reason === 'string' ? record.reason : 'unresolved';
-                return (
-                  <p key={`unresolved-${pathValue}-${index}`} className="text-muted-foreground">
-                    {pathValue}: {reasonValue}
-                  </p>
-                );
-              })}
-            </div>
+            <TemplateContractDiagnostics
+              unsupportedNodes={contractQuery.data.unsupported_nodes}
+              dropinResolutionReport={contractQuery.data.dropin_resolution_report}
+              mode="sandbox"
+            />
           )}
 
           <div className="space-y-2 rounded-md border p-3">
