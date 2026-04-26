@@ -415,13 +415,13 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText(/Template diagnostics/i)).toBeTruthy();
+      expect(screen.getByText(/Template contract needs review/i)).toBeTruthy();
       expect(screen.getByText(/Unsupported nodes: 1/i)).toBeTruthy();
       expect(screen.getByText(/Unresolved drop-ins: 1/i)).toBeTruthy();
     });
 
-    expect(document.body.textContent).toContain('unsupported_model_type:SubmodelElement');
-    expect(document.body.textContent).toContain('source_not_found');
+    expect(document.body.textContent).toContain('Unsupported model type: SubmodelElement');
+    expect(document.body.textContent).toContain('source not found');
   });
 
   it('seeds required list structure from schema so Carbon Footprint starts aligned', async () => {
