@@ -33,7 +33,7 @@ function collectExpandedDefaults(nodes: DppOutlineNode[]): Set<string> {
   const expanded = new Set<string>();
 
   const visit = (node: DppOutlineNode, depth: number) => {
-    if (node.children.length > 0 && depth <= 1) {
+    if (node.children.length > 0 && depth === 0) {
       expanded.add(node.id);
     }
     for (const child of node.children) {
@@ -130,7 +130,7 @@ export function DppOutlineTree({
   nodes,
   selectedId,
   onSelectNode,
-  ariaLabel = 'DPP structure outline',
+  ariaLabel = 'Passport navigation',
   virtualizeThreshold = 180,
   scrollClassName = 'max-h-[65vh]',
 }: DppOutlineTreeProps) {

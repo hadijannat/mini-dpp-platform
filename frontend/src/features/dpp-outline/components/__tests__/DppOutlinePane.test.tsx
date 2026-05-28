@@ -30,7 +30,7 @@ describe('DppOutlinePane', () => {
   it('shows empty-state message when search has no results', () => {
     render(<DppOutlinePane context="viewer" nodes={nodes} />);
 
-    fireEvent.change(screen.getByLabelText(/Search structure outline/i), {
+    fireEvent.change(screen.getByLabelText(/Search passport navigation/i), {
       target: { value: 'does-not-exist' },
     });
 
@@ -42,7 +42,7 @@ describe('DppOutlinePane', () => {
   it('shows matching nodes when search query matches', () => {
     render(<DppOutlinePane context="viewer" nodes={nodes} />);
 
-    fireEvent.change(screen.getByLabelText(/Search structure outline/i), {
+    fireEvent.change(screen.getByLabelText(/Search passport navigation/i), {
       target: { value: 'manufacturer' },
     });
 

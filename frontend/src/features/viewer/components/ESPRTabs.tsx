@@ -7,9 +7,15 @@ interface ESPRTabsProps {
   classified: Record<string, ClassifiedNode[]>;
   value?: string;
   onValueChange?: (value: string) => void;
+  showTechnicalMetadata?: boolean;
 }
 
-export function ESPRTabs({ classified, value, onValueChange }: ESPRTabsProps) {
+export function ESPRTabs({
+  classified,
+  value,
+  onValueChange,
+  showTechnicalMetadata = false,
+}: ESPRTabsProps) {
   // Find first non-empty category for default tab
   const defaultTab = ESPR_CATEGORIES.find(c => (classified[c.id]?.length ?? 0) > 0)?.id ?? 'identity';
   const controlled = typeof value === 'string';
@@ -35,7 +41,11 @@ export function ESPRTabs({ classified, value, onValueChange }: ESPRTabsProps) {
       </TabsList>
       {ESPR_CATEGORIES.map(category => (
         <TabsContent key={category.id} value={category.id} className="mt-4">
-          <CategorySection category={category} elements={classified[category.id] ?? []} />
+          <CategorySection
+            category={category}
+            elements={classified[category.id] ?? []}
+            showTechnicalMetadata={showTechnicalMetadata}
+          />
           {(classified[category.id]?.length ?? 0) === 0 && (
             <div className="text-center py-8 text-sm text-muted-foreground">
               No {category.label.toLowerCase()} data available for this product.

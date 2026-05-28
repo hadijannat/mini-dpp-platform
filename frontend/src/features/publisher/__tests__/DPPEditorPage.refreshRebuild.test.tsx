@@ -64,6 +64,7 @@ function renderEditor() {
 describe('DPPEditorPage refresh & rebuild', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates') {
@@ -169,8 +170,9 @@ describe('DPPEditorPage refresh & rebuild', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dpp-refresh-rebuild')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Technical Tools/i })).toBeTruthy();
     });
+    fireEvent.click(screen.getByRole('button', { name: /Technical Tools/i }));
 
     fireEvent.click(screen.getByTestId('dpp-refresh-rebuild'));
 

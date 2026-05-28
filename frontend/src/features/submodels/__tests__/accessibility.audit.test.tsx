@@ -149,6 +149,7 @@ describe('Submodel UX accessibility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates') {
@@ -217,6 +218,8 @@ describe('Submodel UX accessibility', () => {
       <DPPEditorPage />,
     );
 
+    const technicalTools = await screen.findByRole('button', { name: /Technical Tools/i });
+    fireEvent.click(technicalTools);
     const refreshButton = await screen.findByTestId('dpp-refresh-rebuild');
     expect(refreshButton).toBeTruthy();
 
@@ -235,15 +238,15 @@ describe('Submodel UX accessibility', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Edit Submodel/i })).toBeTruthy();
+      expect(screen.getByRole('heading', { name: /Guided Submodel Form/i })).toBeTruthy();
     });
 
     const a11y = await axe(container);
     expect(a11y.violations, JSON.stringify(a11y.violations, null, 2)).toHaveLength(0);
 
     const user = userEvent.setup();
-    const formTab = screen.getByRole('tab', { name: 'Form' });
-    const jsonTab = screen.getByRole('tab', { name: 'JSON' });
+    const formTab = screen.getByRole('tab', { name: 'Guided Form' });
+    const jsonTab = screen.getByRole('tab', { name: 'Advanced JSON' });
 
     formTab.focus();
     expect(document.activeElement).toBe(formTab);
@@ -257,7 +260,7 @@ describe('Submodel UX accessibility', () => {
     const { container } = renderInApp('/t/default/dpp/abc-123', '/t/:tenantSlug/dpp/:dppId', <DPPViewerPage />);
 
     await waitFor(() => {
-      expect(screen.getByText(/Product Information/i)).toBeTruthy();
+      expect(screen.getAllByText(/^Passport Details$/).length).toBeGreaterThan(0);
     });
 
     const a11y = await axe(container);

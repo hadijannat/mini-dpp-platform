@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History, Filter } from 'lucide-react';
+import { ArrowLeft, Send, Download, QrCode, Edit3, RefreshCw, Copy, Check, Activity, Plus, History, Filter, ChevronDown, ListTree, ShieldCheck } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { fetchEPCISEvents } from '@/features/epcis/lib/epcisApi';
 import { EPCISTimeline } from '@/features/epcis/components/EPCISTimeline';
@@ -18,6 +18,7 @@ import { classifyElement, ESPR_CATEGORIES } from '@/features/viewer/utils/esprCa
 import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane';
 import { buildEditorOutline } from '@/features/dpp-outline/builders/buildEditorOutline';
 import type { DppOutlineNode } from '@/features/dpp-outline/types';
+import { useDisclosurePreference } from '@/features/progressive-disclosure/useDisclosurePreference';
 import { PageHeader } from '@/components/page-header';
 import { ErrorBanner } from '@/components/error-banner';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -26,6 +27,11 @@ import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -231,6 +237,13 @@ export default function DPPEditorPage() {
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('all');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
   const [submodelSort, setSubmodelSort] = useState<SubmodelSortKey>('risk-desc');
+  const [showOutline, setShowOutline] = useDisclosurePreference('miniDpp.publisher.showOutline');
+  const [showTechnicalTools, setShowTechnicalTools] = useDisclosurePreference(
+    'miniDpp.publisher.technicalTools',
+  );
+  const [showTechnicalMetadata, setShowTechnicalMetadata] = useDisclosurePreference(
+    'miniDpp.publisher.technicalMetadata',
+  );
 
   const { data: dpp, isLoading } = useQuery({
     queryKey: ['dpp', tenantSlug, dppId],
@@ -454,6 +467,11 @@ export default function DPPEditorPage() {
       }),
     [dpp?.id, dppId, visibleSubmodelCards],
   );
+  const incompleteSectionCount = submodelCards.filter(
+    (entry) => entry.completionPercent !== null && entry.completionPercent < 100,
+  ).length;
+  const highRiskSectionCount = submodelCards.filter((entry) => entry.risk === 'high').length;
+  const latestTraceabilityCount = epcisData?.eventList?.length ?? 0;
 
   const handleOutlineNodeSelect = (node: DppOutlineNode) => {
     setSelectedOutlineNodeId(node.id);
@@ -525,6 +543,7 @@ export default function DPPEditorPage() {
 
   return (
     <div className="space-y-4">
+      {showOutline && (
       <DppOutlinePane
         context="editor"
         mobile
@@ -533,8 +552,10 @@ export default function DPPEditorPage() {
         selectedId={selectedOutlineNodeId}
         onSelectNode={handleOutlineNodeSelect}
       />
+      )}
 
-      <div className="xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6">
+      <div className={showOutline ? 'xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6' : ''}>
+        {showOutline && (
         <DppOutlinePane
           context="editor"
           className="hidden xl:block"
@@ -542,12 +563,13 @@ export default function DPPEditorPage() {
           selectedId={selectedOutlineNodeId}
           onSelectNode={handleOutlineNodeSelect}
         />
+        )}
 
         <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title={manufacturerPartId || 'DPP Editor'}
-        description={`ID: ${dpp.id}`}
+        description={`Passport ID: ${dpp.id}`}
         breadcrumb={
           <Button
             variant="ghost"
@@ -561,54 +583,15 @@ export default function DPPEditorPage() {
         }
         actions={
           <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={!actionState.canExport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={() => { void handleExport('json'); }}>
-                  Export JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { void handleExport('pdf'); }}>
-                  Export PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { void handleExport('aasx'); }}>
-                  Export AASX
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { void handleExport('jsonld'); }}>
-                  Export JSON-LD
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { void handleExport('turtle'); }}>
-                  Export Turtle
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { void handleExport('xml'); }}>
-                  Export XML
-                </DropdownMenuItem>
-                {actionState.canGenerateQr && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => { void handleQrCode(); }}>
-                      <QrCode className="h-4 w-4 mr-2" />
-                      QR Code
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {dpp.status === 'draft' && (
-              <Button
-                onClick={() => setPublishConfirmOpen(true)}
-                disabled={publishMutation.isPending || !actionState.canPublish}
-                variant="default"
-                title={publishBlocked ? publishBlockers[0] : undefined}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                {publishMutation.isPending ? 'Publishing...' : 'Publish'}
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowOutline(!showOutline)}
+              aria-expanded={showOutline}
+            >
+              <ListTree className="h-4 w-4 mr-2" />
+              {showOutline ? 'Hide navigation outline' : 'Show navigation outline'}
+            </Button>
           </>
         }
       />
@@ -621,34 +604,51 @@ export default function DPPEditorPage() {
         />
       )}
 
-      {/* Status */}
-      <Card>
-        <CardContent className="flex items-center justify-between p-6">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">Status</span>
-            <StatusBadge status={dpp.status} />
-          </div>
-          <div className="text-right">
-            <p className="text-sm text-muted-foreground">Revision</p>
-            <p className="text-lg font-bold">#{dpp.current_revision_no || 1}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Asset Information */}
+      {/* Passport Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Asset Information</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShieldCheck className="h-5 w-5" />
+            Passport Overview
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Current publication state, product identifiers, and the next data tasks.
+          </p>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-5">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Status</p>
+              <div className="mt-1">
+                <StatusBadge status={dpp.status} />
+              </div>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Revision</p>
+              <p className="mt-1 text-xl font-semibold">#{dpp.current_revision_no || 1}</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Incomplete sections</p>
+              <p className="mt-1 text-xl font-semibold">{incompleteSectionCount}</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">High-risk sections</p>
+              <p className="mt-1 text-xl font-semibold">{highRiskSectionCount}</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Traceability events</p>
+              <p className="mt-1 text-xl font-semibold">{latestTraceabilityCount}</p>
+            </div>
+          </div>
+
           {requiredAssetIds.length > 0 && (
             <p className="mb-3 text-xs text-muted-foreground">
-              Required specificAssetIds: {requiredAssetIds.join(', ')}
+              Required product identifiers: {requiredAssetIds.join(', ')}
             </p>
           )}
           {missingRequiredAssetIds.length > 0 && (
             <p className="mb-3 text-xs text-destructive">
-              Missing required specificAssetIds: {missingRequiredAssetIds.join(', ')}
+              Missing required product identifiers: {missingRequiredAssetIds.join(', ')}
             </p>
           )}
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -662,19 +662,22 @@ export default function DPPEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Submodels */}
+      {/* Data Sections */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
-          <CardTitle className="text-lg">Submodels</CardTitle>
+          <div>
+            <CardTitle className="text-lg">Data Sections</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Complete the passport one business section at a time.
+            </p>
+          </div>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refreshRebuildMutation.mutate()}
-            disabled={refreshRebuildMutation.isPending || !actionState.canRefreshRebuild}
-            data-testid="dpp-refresh-rebuild"
+            onClick={() => setShowTechnicalMetadata(!showTechnicalMetadata)}
+            aria-expanded={showTechnicalMetadata}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshRebuildMutation.isPending ? 'animate-spin' : ''}`} />
-            {refreshRebuildMutation.isPending ? 'Refreshing...' : 'Refresh & Rebuild'}
+            {showTechnicalMetadata ? 'Hide technical metadata' : 'Show technical metadata'}
           </Button>
         </CardHeader>
         <CardContent>
@@ -816,10 +819,14 @@ export default function DPPEditorPage() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground break-all">{String(entry.submodel.id ?? '-')}</p>
-                          {entry.binding?.semantic_id && (
+                          {showTechnicalMetadata && (
+                            <p className="text-xs text-muted-foreground break-all">
+                              AAS ID: {String(entry.submodel.id ?? '-')}
+                            </p>
+                          )}
+                          {showTechnicalMetadata && entry.binding?.semantic_id && (
                             <p className="text-[11px] text-muted-foreground break-all">
-                              semantic: {entry.binding.semantic_id}
+                              Semantic ID: {entry.binding.semantic_id}
                             </p>
                           )}
                         </div>
@@ -833,7 +840,7 @@ export default function DPPEditorPage() {
                           )}
                           <Badge variant="outline">{entry.health.leafCount} leaf fields</Badge>
                           <Badge variant="outline">{entry.health.validationSignals} rule signals</Badge>
-                          {entry.binding?.binding_source && (
+                          {showTechnicalMetadata && entry.binding?.binding_source && (
                             <Badge variant="outline" className="uppercase text-[10px]">
                               {entry.binding.binding_source}
                             </Badge>
@@ -871,11 +878,11 @@ export default function DPPEditorPage() {
                           <dd>{entry.rootNode.children.length}</dd>
                         </div>
                         <div className="rounded-md border bg-muted/20 px-2 py-1">
-                          <dt className="font-medium text-foreground">Leaf Fields</dt>
+                          <dt className="font-medium text-foreground">Data Fields</dt>
                           <dd>{entry.health.leafCount}</dd>
                         </div>
                         <div className="rounded-md border bg-muted/20 px-2 py-1">
-                          <dt className="font-medium text-foreground">Validation Signals</dt>
+                          <dt className="font-medium text-foreground">Rule Signals</dt>
                           <dd>{entry.health.validationSignals}</dd>
                         </div>
                       </dl>
@@ -894,7 +901,7 @@ export default function DPPEditorPage() {
           ) : (
             missingTemplates.length > 0 && (
               <div className="mt-6 border-t pt-4">
-                <h3 className="text-sm font-semibold mb-3">Available templates</h3>
+                <h3 className="text-sm font-semibold mb-3">Add data sections</h3>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {missingTemplates.map((template) => (
                     <Card key={template.id} className="p-0">
@@ -930,60 +937,151 @@ export default function DPPEditorPage() {
         </CardContent>
       </Card>
 
-      {/* Integrity */}
-      {dpp.digest_sha256 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Integrity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl>
-              <div className="space-y-1">
-                <dt className="text-sm font-medium text-muted-foreground">SHA-256 Digest</dt>
-                <dd className="m-0 flex items-start gap-2">
-                  <span className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
-                    {dpp.digest_sha256}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 h-8 w-8"
-                    onClick={() => { void handleCopyDigest(); }}
-                    aria-label={copied ? 'Digest copied' : 'Copy digest to clipboard'}
-                    title={copied ? 'Digest copied' : 'Copy digest to clipboard'}
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                  </Button>
-                </dd>
-              </div>
-            </dl>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Revision History */}
+      {/* Publishing and Sharing */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Revision History
-          </CardTitle>
+          <CardTitle className="text-lg">Publishing & Sharing</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Publish the passport and prepare access artifacts when the required data is ready.
+          </p>
         </CardHeader>
-        <CardContent>
-          <RevisionHistory dppId={dpp.id} token={token} />
+        <CardContent className="flex flex-wrap gap-2">
+          {dpp.status === 'draft' && (
+            <Button
+              onClick={() => setPublishConfirmOpen(true)}
+              disabled={publishMutation.isPending || !actionState.canPublish}
+              title={publishBlocked ? publishBlockers[0] : undefined}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {publishMutation.isPending ? 'Publishing...' : 'Publish passport'}
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            onClick={() => { void handleQrCode(); }}
+            disabled={!actionState.canGenerateQr}
+          >
+            <QrCode className="h-4 w-4 mr-2" />
+            Open QR code
+          </Button>
         </CardContent>
       </Card>
 
-      {/* Supply Chain Events */}
+      {/* Technical Tools */}
+      <Collapsible open={showTechnicalTools} onOpenChange={setShowTechnicalTools}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              className="flex w-full justify-between p-6 text-left"
+              aria-expanded={showTechnicalTools}
+            >
+              <span>
+                <span className="block text-lg font-semibold">Technical Tools</span>
+                <span className="mt-1 block text-sm font-normal text-muted-foreground">
+                  Exports, template rebuilds, integrity digests, and revision history.
+                </span>
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0" />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-5 border-t pt-4">
+              <div className="flex flex-wrap gap-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={!actionState.canExport}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => { void handleExport('json'); }}>
+                      Export JSON
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void handleExport('pdf'); }}>
+                      Export PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void handleExport('aasx'); }}>
+                      Export AASX
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void handleExport('jsonld'); }}>
+                      Export JSON-LD
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void handleExport('turtle'); }}>
+                      Export Turtle
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void handleExport('xml'); }}>
+                      Export XML
+                    </DropdownMenuItem>
+                    {actionState.canGenerateQr && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => { void handleQrCode(); }}>
+                          <QrCode className="h-4 w-4 mr-2" />
+                          QR Code
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  variant="outline"
+                  onClick={() => refreshRebuildMutation.mutate()}
+                  disabled={refreshRebuildMutation.isPending || !actionState.canRefreshRebuild}
+                  data-testid="dpp-refresh-rebuild"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${refreshRebuildMutation.isPending ? 'animate-spin' : ''}`} />
+                  {refreshRebuildMutation.isPending ? 'Refreshing...' : 'Refresh templates'}
+                </Button>
+              </div>
+
+              {dpp.digest_sha256 && (
+                <dl>
+                  <div className="space-y-1">
+                    <dt className="text-sm font-medium text-muted-foreground">SHA-256 digest</dt>
+                    <dd className="m-0 flex items-start gap-2">
+                      <span className="text-xs font-mono break-all bg-muted p-2 rounded flex-1">
+                        {dpp.digest_sha256}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="shrink-0 h-8 w-8"
+                        onClick={() => { void handleCopyDigest(); }}
+                        aria-label={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                        title={copied ? 'Digest copied' : 'Copy digest to clipboard'}
+                      >
+                        {copied ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </dd>
+                  </div>
+                </dl>
+              )}
+
+              <div>
+                <h2 className="mb-3 flex items-center gap-2 text-base font-semibold">
+                  <History className="h-5 w-5" />
+                  Revision History
+                </h2>
+                <RevisionHistory dppId={dpp.id} token={token} />
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Traceability Evidence */}
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Supply Chain
+            Traceability Evidence
             {(epcisData?.eventList?.length ?? 0) > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {epcisData!.eventList.length}

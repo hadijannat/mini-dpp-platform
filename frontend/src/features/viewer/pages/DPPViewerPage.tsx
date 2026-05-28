@@ -11,7 +11,7 @@ import { ErrorBanner } from '@/components/error-banner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, Activity } from 'lucide-react';
+import { ChevronDown, Activity, ListTree, ShieldCheck } from 'lucide-react';
 import { DPPHeader } from '../components/DPPHeader';
 import { ESPRTabs } from '../components/ESPRTabs';
 import { RawSubmodelTree } from '../components/RawSubmodelTree';
@@ -24,6 +24,8 @@ import type { DppOutlineNode } from '@/features/dpp-outline/types';
 import type { PublicDPPResponse } from '@/api/types';
 import { emitSubmodelUxMetric } from '@/features/submodels/telemetry/uxTelemetry';
 import { resolveSubmodelUxRollout } from '@/features/submodels/featureFlags';
+import { useDisclosurePreference } from '@/features/progressive-disclosure/useDisclosurePreference';
+import { Switch } from '@/components/ui/switch';
 
 async function fetchDPP(
   dppId: string,
@@ -87,6 +89,13 @@ export default function DPPViewerPage() {
   const [activeCategory, setActiveCategory] = useState(defaultCategory);
   const [selectedOutlineNodeId, setSelectedOutlineNodeId] = useState<string | null>(null);
   const [pendingScrollOutlineKey, setPendingScrollOutlineKey] = useState<string | null>(null);
+  const [showOutline, setShowOutline] = useDisclosurePreference('miniDpp.viewer.showOutline');
+  const [showTechnicalDetails, setShowTechnicalDetails] = useDisclosurePreference(
+    'miniDpp.viewer.technicalDetails',
+  );
+  const [showTechnicalMetadata, setShowTechnicalMetadata] = useDisclosurePreference(
+    'miniDpp.viewer.technicalMetadata',
+  );
   const suppressScrollSyncUntilRef = useRef(0);
   const outlineNodes = useMemo(
     () =>
@@ -113,6 +122,32 @@ export default function DPPViewerPage() {
   const productName =
     (dpp?.asset_ids?.manufacturerPartId as string) || 'Digital Product Passport';
   const epcisEvents = epcisData?.eventList ?? [];
+  const passportFacts = useMemo(() => {
+    const facts: Array<{ label: string; value: unknown }> = [];
+    const preferredLabels = ['ManufacturerName', 'Manufacturer', 'ProductName', 'SerialNumber', 'TotalCO2', 'Mass'];
+    const seen = new Set<string>();
+    const allFields = Object.values(classified)
+      .flat()
+      .filter((field) => field.value !== null && field.value !== undefined && field.value !== '');
+
+    for (const label of preferredLabels) {
+      const match = allFields.find((field) => field.label === label);
+      if (match && !seen.has(match.label)) {
+        facts.push({ label: match.label, value: match.value });
+        seen.add(match.label);
+      }
+      if (facts.length >= 6) return facts;
+    }
+
+    for (const field of allFields) {
+      if (seen.has(field.label)) continue;
+      facts.push({ label: field.label, value: field.value });
+      seen.add(field.label);
+      if (facts.length >= 6) break;
+    }
+
+    return facts;
+  }, [classified]);
 
   useEffect(() => {
     setActiveCategory(defaultCategory);
@@ -214,7 +249,7 @@ export default function DPPViewerPage() {
 
   return (
     <div className="space-y-4">
-      {submodels.length > 0 && (
+      {submodels.length > 0 && showOutline && (
         <DppOutlinePane
           context="viewer"
           mobile
@@ -225,8 +260,8 @@ export default function DPPViewerPage() {
         />
       )}
 
-      <div className="xl:grid xl:grid-cols-[minmax(250px,320px)_1fr] xl:gap-6">
-        {submodels.length > 0 ? (
+      <div className={showOutline ? 'xl:grid xl:grid-cols-[minmax(250px,320px)_1fr] xl:gap-6' : ''}>
+        {submodels.length > 0 && showOutline ? (
           <DppOutlinePane
             context="viewer"
             className="hidden xl:block"
@@ -234,9 +269,7 @@ export default function DPPViewerPage() {
             selectedId={selectedOutlineNodeId}
             onSelectNode={handleOutlineNodeSelect}
           />
-        ) : (
-          <div className="hidden xl:block" />
-        )}
+        ) : null}
 
         <div className="space-y-6">
       <DPPHeader
@@ -246,20 +279,98 @@ export default function DPPViewerPage() {
         assetIds={dpp.asset_ids}
       />
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <ShieldCheck className="h-5 w-5" />
+            Passport Summary
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Key product facts and trust signals before the technical passport structure.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Data sections</p>
+              <p className="mt-1 text-xl font-semibold">{submodels.length}</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Supply-chain events</p>
+              <p className="mt-1 text-xl font-semibold">{epcisEvents.length}</p>
+            </div>
+            <div className="rounded-md border bg-muted/20 p-3">
+              <p className="text-xs text-muted-foreground">Integrity status</p>
+              <p className="mt-1 text-sm font-medium">
+                {dpp.digest_sha256 ? 'Digest available' : 'No digest published'}
+              </p>
+            </div>
+          </div>
+
+          {passportFacts.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold">Important facts</h2>
+              <dl className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {passportFacts.map((fact) => (
+                  <div key={fact.label} className="rounded-md border p-3">
+                    <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+                    <dd className="mt-1 text-sm font-medium break-words">{String(fact.value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
+          {submodels.length > 0 && (
+            <div className="flex flex-wrap gap-2 border-t pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOutline(!showOutline)}
+                aria-expanded={showOutline}
+              >
+                <ListTree className="mr-2 h-4 w-4" />
+                {showOutline ? 'Hide navigation outline' : 'Show navigation outline'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setActiveCategory(defaultCategory)}
+              >
+                View passport details
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ESPR Category Tabs */}
       {submodels.length > 0 && (
         <Card>
-          <CardHeader>
-            <CardTitle>Product Information</CardTitle>
+          <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+            <CardTitle>Passport Details</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Organized per EU ESPR (European Sustainability Product Regulation) categories
+              Product data grouped into plain-language sustainability categories.
             </p>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Switch
+                checked={showTechnicalMetadata}
+                onCheckedChange={setShowTechnicalMetadata}
+                aria-label="Show technical metadata"
+              />
+              Show technical metadata
+            </label>
           </CardHeader>
           <CardContent>
             <ESPRTabs
               classified={classified}
               value={activeCategory}
               onValueChange={setActiveCategory}
+              showTechnicalMetadata={showTechnicalMetadata}
             />
           </CardContent>
         </Card>
@@ -285,16 +396,19 @@ export default function DPPViewerPage() {
 
       {/* Raw Data (for advanced users/regulators) */}
       {submodels.length > 0 && rollout.surfaces.viewer && (
-        <Collapsible>
+        <Collapsible open={showTechnicalDetails} onOpenChange={setShowTechnicalDetails}>
           <CollapsibleTrigger asChild>
             <Button variant="ghost" className="w-full justify-between text-muted-foreground">
-              Raw Submodel Data (Advanced)
+              Technical AAS Data
               <ChevronDown className="h-4 w-4" />
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <Card className="mt-2">
               <CardContent className="p-4">
+                <p className="mb-3 text-sm text-muted-foreground">
+                  For auditors, developers, and standards verification.
+                </p>
                 <RawSubmodelTree submodels={submodels} />
               </CardContent>
             </Card>
