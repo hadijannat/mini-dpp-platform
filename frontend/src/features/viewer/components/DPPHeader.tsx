@@ -43,7 +43,7 @@ export function DPPHeader({ productName, dppId, status, assetIds }: DPPHeaderPro
               <StatusBadge status={status} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">{productName}</h1>
-            <p className="mt-1 text-sm text-muted-foreground font-mono">ID: {dppId}</p>
+            <p className="mt-1 text-sm text-muted-foreground font-mono">Passport ID: {dppId}</p>
           </div>
         </div>
         {assetIds && Object.keys(assetIds).length > 0 && (

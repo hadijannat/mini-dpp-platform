@@ -121,6 +121,7 @@ describe('DPPEditorPage action gating', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates') {
@@ -172,10 +173,11 @@ describe('DPPEditorPage action gating', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dpp-refresh-rebuild')).toBeTruthy();
+      expect(screen.getByText(/^Data Sections$/)).toBeTruthy();
     });
+    await userEvent.setup().click(screen.getByRole('button', { name: /Technical Tools/i }));
 
-    expect((screen.getByRole('button', { name: /publish/i }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: /publish passport/i }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByTestId('dpp-refresh-rebuild') as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole('button', { name: /capture event/i }) as HTMLButtonElement).disabled).toBe(false);
 
@@ -204,10 +206,11 @@ describe('DPPEditorPage action gating', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dpp-refresh-rebuild')).toBeTruthy();
+      expect(screen.getByText(/^Data Sections$/)).toBeTruthy();
     });
+    await userEvent.setup().click(screen.getByRole('button', { name: /Technical Tools/i }));
 
-    expect((screen.getByRole('button', { name: /publish/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /publish passport/i }) as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByTestId('dpp-refresh-rebuild') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByRole('button', { name: /capture event/i }) as HTMLButtonElement).disabled).toBe(true);
 
@@ -235,12 +238,13 @@ describe('DPPEditorPage action gating', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /export/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Technical Tools/i })).toBeTruthy();
     });
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /export/i }));
-    expect(await screen.findByText(/QR Code/i)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Technical Tools/i }));
+    await user.click(screen.getByRole('button', { name: /^Export$/i }));
+    expect(await screen.findByRole('menuitem', { name: /QR Code/i })).toBeTruthy();
   });
 
   it('blocks refresh/rebuild when archived even if can_update is true', async () => {
@@ -264,8 +268,9 @@ describe('DPPEditorPage action gating', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dpp-refresh-rebuild')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Technical Tools/i })).toBeTruthy();
     });
+    await userEvent.setup().click(screen.getByRole('button', { name: /Technical Tools/i }));
 
     expect((screen.getByTestId('dpp-refresh-rebuild') as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByRole('button', { name: /publish/i })).toBeNull();
@@ -292,10 +297,11 @@ describe('DPPEditorPage action gating', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /export/i })).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Technical Tools/i })).toBeTruthy();
     });
+    await userEvent.setup().click(screen.getByRole('button', { name: /Technical Tools/i }));
 
-    expect((screen.getByRole('button', { name: /export/i }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole('button', { name: /^Export$/i }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText(/View all events/i)).toBeTruthy();
   });
 });

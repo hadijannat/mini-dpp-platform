@@ -7,9 +7,14 @@ import { buildViewerOutlineKey } from '../utils/outlineKey';
 interface CategorySectionProps {
   category: ESPRCategory;
   elements: ClassifiedNode[];
+  showTechnicalMetadata?: boolean;
 }
 
-export function CategorySection({ category, elements }: CategorySectionProps) {
+export function CategorySection({
+  category,
+  elements,
+  showTechnicalMetadata = false,
+}: CategorySectionProps) {
   if (elements.length === 0) return null;
 
   const Icon = category.icon;
@@ -34,14 +39,18 @@ export function CategorySection({ category, elements }: CategorySectionProps) {
                 value={element.value}
               />
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span>from {element.submodelIdShort}</span>
-                <span aria-hidden>•</span>
-                <span className="break-all">{element.path}</span>
-                {element.semanticId && (
+                <span>Source: {element.submodelIdShort}</span>
+                {showTechnicalMetadata && (
+                  <>
+                    <span aria-hidden>•</span>
+                    <span className="break-all">{element.path}</span>
+                  </>
+                )}
+                {showTechnicalMetadata && element.semanticId && (
                   <>
                     <span aria-hidden>•</span>
                     <Badge variant="outline" className="text-[10px]">
-                      semantic
+                      semantic ID
                     </Badge>
                   </>
                 )}

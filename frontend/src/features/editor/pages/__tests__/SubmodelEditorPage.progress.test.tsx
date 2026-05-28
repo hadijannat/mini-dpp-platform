@@ -126,6 +126,7 @@ const templateContract = {
 describe('SubmodelEditorPage progress and rebuild strategy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     if (!('scrollIntoView' in HTMLElement.prototype)) {
       Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
         configurable: true,
@@ -167,7 +168,7 @@ describe('SubmodelEditorPage progress and rebuild strategy', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByText(/Section Progress/i)).toBeTruthy();
+      expect(screen.getByText(/Required Information Progress/i)).toBeTruthy();
     });
 
     expect(screen.getAllByText(/ManufacturerData/i).length).toBeGreaterThan(0);
@@ -217,6 +218,11 @@ describe('SubmodelEditorPage progress and rebuild strategy', () => {
       renderEditor(
         '/console/dpps/dpp-1/edit/digital-nameplate?focus_path=ManufacturerData.ManufacturerName',
       );
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /Show navigation outline/i })).toBeTruthy();
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Show navigation outline/i }));
 
       await waitFor(() => {
         expect(screen.getByTestId('dpp-outline-submodel-desktop')).toBeTruthy();

@@ -59,6 +59,10 @@ describe('DppOutlineTree', () => {
 
     expect(screen.queryByRole('treeitem', { name: /ManufacturerName/i })).toBeNull();
 
+    const nameplate = screen.getByRole('treeitem', { name: /Nameplate/i });
+    nameplate.focus();
+    fireEvent.keyDown(nameplate, { key: 'ArrowRight' });
+
     const manufacturerSection = screen.getByRole('treeitem', { name: /ManufacturerData/i });
     manufacturerSection.focus();
     fireEvent.keyDown(manufacturerSection, { key: 'ArrowRight' });

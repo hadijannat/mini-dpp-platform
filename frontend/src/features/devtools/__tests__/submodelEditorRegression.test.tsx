@@ -36,6 +36,7 @@ function okJson(data: unknown) {
 describe('SubmodelEditorPage regression', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates/digital-nameplate') {
@@ -89,7 +90,7 @@ describe('SubmodelEditorPage regression', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Submodel Data/i)).toBeTruthy();
+      expect(screen.getByRole('heading', { name: /Guided Submodel Form/i })).toBeTruthy();
     });
   });
 });

@@ -41,7 +41,7 @@ function nodeCount(nodes: DppOutlineNode[]): number {
 
 export function DppOutlinePane({
   context,
-  title = 'DPP Structure',
+  title = 'Passport Navigation',
   nodes,
   selectedId,
   onSelectNode,
@@ -99,7 +99,7 @@ export function DppOutlinePane({
             size="icon"
             className="h-7 w-7"
             onClick={paneState.toggleCollapsed}
-            aria-label="Collapse outline"
+            aria-label="Collapse passport navigation"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -112,9 +112,9 @@ export function DppOutlinePane({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search structure"
+            placeholder="Search passport fields"
             className="h-8 pl-8 text-xs"
-            aria-label="Search structure outline"
+            aria-label="Search passport navigation"
           />
         </div>
 
@@ -122,6 +122,7 @@ export function DppOutlinePane({
           nodes={filteredNodes}
           selectedId={selectedId}
           onSelectNode={onSelectNode}
+          ariaLabel={title}
           scrollClassName="max-h-[65vh]"
         />
       </div>
@@ -154,7 +155,7 @@ export function DppOutlinePane({
           size="icon"
           className="h-10 w-10"
           onClick={paneState.toggleCollapsed}
-          aria-label="Expand outline"
+          aria-label="Expand passport navigation"
         >
           <ChevronRight className="h-4 w-4" />
         </Button>

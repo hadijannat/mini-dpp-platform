@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from 'react-oidc-context';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ListTree } from 'lucide-react';
 import { apiFetch, getApiErrorMessage, tenantApiFetch } from '@/lib/api';
 import { useTenantSlug } from '@/lib/tenant';
 import { buildSubmodelData } from '@/features/editor/utils/submodelData';
@@ -58,6 +58,7 @@ import { DppOutlinePane } from '@/features/dpp-outline/components/DppOutlinePane
 import { buildSubmodelEditorOutline } from '@/features/dpp-outline/builders/buildSubmodelEditorOutline';
 import { useOutlineScrollSync } from '@/features/dpp-outline/hooks/useOutlineScrollSync';
 import type { DppOutlineNode } from '@/features/dpp-outline/types';
+import { useDisclosurePreference } from '@/features/progressive-disclosure/useDisclosurePreference';
 
 class AmbiguousBindingError extends Error {
   candidates: string[];
@@ -518,6 +519,10 @@ export default function SubmodelEditorPage() {
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
   const [hasAppliedInitialFocus, setHasAppliedInitialFocus] = useState(false);
+  const [showOutline, setShowOutline] = useDisclosurePreference('miniDpp.submodel.showOutline');
+  const [showTechnicalDetails, setShowTechnicalDetails] = useDisclosurePreference(
+    'miniDpp.submodel.technicalDetails',
+  );
   const suppressScrollSyncUntilRef = useRef(0);
 
   // Sync RHF defaults when initial data loads
@@ -948,6 +953,7 @@ export default function SubmodelEditorPage() {
 
   return (
     <div className="space-y-4">
+      {showOutline && (
       <DppOutlinePane
         context="submodel"
         mobile
@@ -956,8 +962,10 @@ export default function SubmodelEditorPage() {
         selectedId={selectedOutlineNodeId}
         onSelectNode={handleOutlineNodeSelect}
       />
+      )}
 
-      <div className="xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6">
+      <div className={showOutline ? 'xl:grid xl:grid-cols-[minmax(260px,340px)_1fr] xl:gap-6' : ''}>
+        {showOutline && (
         <DppOutlinePane
           context="submodel"
           className="hidden xl:block"
@@ -965,12 +973,13 @@ export default function SubmodelEditorPage() {
           selectedId={selectedOutlineNodeId}
           onSelectNode={handleOutlineNodeSelect}
         />
+        )}
 
         <div className="space-y-6">
       {/* Header */}
       <PageHeader
-        title="Edit Submodel"
-        description={`Template: ${templateKey}`}
+        title="Guided Submodel Form"
+        description={`Complete required passport information for template: ${templateKey}`}
         breadcrumb={
           <Button
             variant="ghost"
@@ -983,13 +992,29 @@ export default function SubmodelEditorPage() {
         }
         actions={
           contract ? (
-            <Badge variant="secondary">{contract.idta_version}</Badge>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowOutline(!showOutline)}
+                aria-expanded={showOutline}
+              >
+                <ListTree className="h-4 w-4 mr-2" />
+                {showOutline ? 'Hide navigation outline' : 'Show navigation outline'}
+              </Button>
+              <Badge variant="secondary">{contract.idta_version}</Badge>
+            </div>
           ) : undefined
         }
       />
 
       {/* Editor Card */}
-      <SubmodelEditorShell title="Submodel Data" activeViewLabel={activeView}>
+      <SubmodelEditorShell
+        title="Guided Form"
+        activeViewLabel={activeView === 'json' ? 'json' : 'form'}
+        formDescription="Complete the business fields first. Technical JSON remains available for expert review."
+        jsonDescription="Edit the raw submodel JSON only when the guided form is not enough."
+      >
           <p className="sr-only" aria-live="polite">
             {updateMutation.isPending ? 'Saving submodel changes' : ''}
           </p>
@@ -1032,7 +1057,12 @@ export default function SubmodelEditorPage() {
               className="rounded-md border bg-muted/20 p-3"
             >
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-medium">Section Progress</p>
+                <div>
+                  <p className="text-sm font-medium">Required Information Progress</p>
+                  <p className="text-xs text-muted-foreground">
+                    Use this summary to find incomplete required fields before saving.
+                  </p>
+                </div>
                 <Badge variant="outline">
                   {completedRequiredAcrossSections}/{totalRequiredAcrossSections} required ({overallRequiredPercent}%)
                 </Badge>
@@ -1105,10 +1135,16 @@ export default function SubmodelEditorPage() {
 
           <Tabs value={activeView} onValueChange={(v) => handleViewChange(v as 'form' | 'json')}>
             <TabsList>
-              <TabsTrigger value="form" disabled={!uiSchema}>Form</TabsTrigger>
-              <TabsTrigger value="json">JSON</TabsTrigger>
+              <TabsTrigger value="form" disabled={!uiSchema}>Guided Form</TabsTrigger>
+              <TabsTrigger value="json">Advanced JSON</TabsTrigger>
             </TabsList>
             <TabsContent value="form">
+              <div className="mb-4 rounded-md border bg-muted/20 p-3">
+                <h2 className="text-sm font-semibold">Section fields</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Fill in the required passport data. Use the navigation outline only when you need to jump through long templates.
+                </p>
+              </div>
               <div className={cn(!actionState.canUpdate && 'opacity-90')}>
                 <fieldset disabled={!actionState.canUpdate} className="space-y-4">
                   {hasDefinitionElements ? (
@@ -1193,13 +1229,18 @@ export default function SubmodelEditorPage() {
           )}
       </SubmodelEditorShell>
 
-      {/* Debug panels */}
+      {/* Technical details */}
       {templateDefinition && (
-        <Card>
-          <Collapsible>
+        <Collapsible open={showTechnicalDetails} onOpenChange={setShowTechnicalDetails}>
+          <Card>
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="w-full justify-between p-6">
-                Template Definition (read-only)
+                <span className="text-left">
+                  <span className="block text-base font-semibold">Template Contract Details</span>
+                  <span className="mt-1 block text-xs font-normal text-muted-foreground">
+                    Advanced AAS/IDTA structure for auditors, developers, and template debugging.
+                  </span>
+                </span>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </CollapsibleTrigger>
@@ -1210,8 +1251,8 @@ export default function SubmodelEditorPage() {
                 </pre>
               </CardContent>
             </CollapsibleContent>
-          </Collapsible>
-        </Card>
+          </Card>
+        </Collapsible>
       )}
         </div>
       </div>

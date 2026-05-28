@@ -81,6 +81,7 @@ describe('DPPViewerPage', () => {
   beforeEach(() => {
     cleanup();
     vi.clearAllMocks();
+    window.localStorage.clear();
     scrollIntoViewMock = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -111,7 +112,16 @@ describe('DPPViewerPage', () => {
   it('renders outline and switches category tab + scroll target on node click', async () => {
     renderViewer('/t/acme/dpp/abc-123', '/t/:tenantSlug/dpp/:dppId');
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Show navigation outline/i })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Show navigation outline/i }));
+
     const outlinePane = await waitFor(() => screen.getByTestId('dpp-outline-viewer-desktop'));
+
+    const carbonNode = within(outlinePane).getByRole('treeitem', { name: /CarbonFootprint/i });
+    carbonNode.focus();
+    fireEvent.keyDown(carbonNode, { key: 'ArrowRight' });
 
     fireEvent.click(within(outlinePane).getByRole('treeitem', { name: /TotalCO2/i }));
 

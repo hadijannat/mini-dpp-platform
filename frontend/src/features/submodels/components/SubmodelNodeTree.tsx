@@ -57,7 +57,7 @@ function NodeItem({
         <p className="mt-2 text-sm break-all">{formatValue(node.value)}</p>
         {showSemanticMeta && node.meta.semanticId && (
           <p className="mt-2 text-[11px] text-muted-foreground break-all">
-            semantic: {node.meta.semanticId}
+            Semantic ID: {node.meta.semanticId}
           </p>
         )}
       </div>
@@ -98,7 +98,7 @@ function NodeItem({
       <CollapsibleContent className="space-y-2 px-3 pb-3">
         {showSemanticMeta && node.meta.semanticId && (
           <p className="text-[11px] text-muted-foreground break-all">
-            semantic: {node.meta.semanticId}
+            Semantic ID: {node.meta.semanticId}
           </p>
         )}
         {node.children.map((child) => (

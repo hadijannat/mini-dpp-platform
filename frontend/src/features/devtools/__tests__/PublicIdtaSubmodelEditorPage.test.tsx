@@ -44,6 +44,7 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     window.localStorage.removeItem(SMT_DRAFT_STORAGE_KEY);
     window.localStorage.removeItem('publicSmt.autoPreview.enabled');
     window.localStorage.removeItem('publicSmt.autoPreview.background');
+    window.localStorage.removeItem('miniDpp.publicSmt.technicalDetails');
 
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -264,7 +265,7 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     fireEvent.click(screen.getByText(/ManufacturerName: Required/i));
 
     await waitFor(() => {
-      expect(screen.getByRole('tab', { name: /Form/i }).getAttribute('data-state')).toBe('active');
+      expect(screen.getByRole('tab', { name: /Guided Form/i }).getAttribute('data-state')).toBe('active');
     });
   });
 
@@ -413,6 +414,12 @@ describe('PublicIdtaSubmodelEditorPage', () => {
     });
 
     renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Technical details/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Technical details/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/Template diagnostics/i)).toBeTruthy();

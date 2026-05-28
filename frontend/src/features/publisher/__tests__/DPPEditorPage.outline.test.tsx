@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import DPPEditorPage from '../pages/DPPEditorPage';
@@ -72,7 +72,9 @@ function renderEditor() {
 
 describe('DPPEditorPage outline integration', () => {
   beforeEach(() => {
+    cleanup();
     vi.clearAllMocks();
+    window.localStorage.clear();
 
     apiFetchMock.mockImplementation((path: string) => {
       if (path === '/api/v1/templates') {
@@ -161,21 +163,31 @@ describe('DPPEditorPage outline integration', () => {
     renderEditor();
 
     await waitFor(() => {
-      expect(screen.getByTestId('dpp-outline-editor-desktop')).toBeTruthy();
+      expect(screen.getByRole('button', { name: /Show navigation outline/i })).toBeTruthy();
     });
+    fireEvent.click(screen.getByRole('button', { name: /Show navigation outline/i }));
 
     expect(screen.getByText('Sections')).toBeTruthy();
-    expect(screen.getByText('Leaf Fields')).toBeTruthy();
-    expect(screen.getByText('Validation Signals')).toBeTruthy();
+    expect(screen.getByText('Data Fields')).toBeTruthy();
+    expect(screen.getByText('Rule Signals')).toBeTruthy();
     expect(screen.queryByRole('tree', { name: /Nameplate structure/i })).toBeNull();
   });
 
   it('navigates to submodel editor with focus query params when a tree node is selected', async () => {
     renderEditor();
 
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Show navigation outline/i })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Show navigation outline/i }));
+
     const outlinePane = await waitFor(() =>
       screen.getByTestId('dpp-outline-editor-desktop'),
     );
+
+    const nameplate = within(outlinePane).getByRole('treeitem', { name: /Nameplate/i });
+    nameplate.focus();
+    fireEvent.keyDown(nameplate, { key: 'ArrowRight' });
 
     fireEvent.click(
       within(outlinePane).getByRole('treeitem', { name: /ManufacturerData/i }),

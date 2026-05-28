@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Download, FileUp, RefreshCw } from 'lucide-react';
+import { ChevronDown, Download, FileUp, RefreshCw } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,6 +16,7 @@ import { useSubmodelForm } from '@/features/editor/hooks/useSubmodelForm';
 import { AASRendererList } from '@/features/editor/components/AASRenderer';
 import { JsonEditor } from '@/features/editor/components/JsonEditor';
 import { SubmodelEditorShell } from '@/features/editor/components/SubmodelEditorShell';
+import { useDisclosurePreference } from '@/features/progressive-disclosure/useDisclosurePreference';
 import type { TemplateContractResponse, TemplateDefinition } from '@/features/editor/types/definition';
 import type { UISchema } from '@/features/editor/types/uiSchema';
 import { defaultValueForSchema } from '@/features/editor/utils/formDefaults';
@@ -201,6 +203,9 @@ export default function PublicIdtaSubmodelEditorPage() {
   );
   const [drafts, setDrafts] = useState<SmtDraftRecord[]>(() => listSmtDrafts());
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const [showTechnicalDetails, setShowTechnicalDetails] = useDisclosurePreference(
+    'miniDpp.publicSmt.technicalDetails',
+  );
   const pendingDraftRef = useRef<SmtDraftRecord | null>(null);
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
@@ -651,7 +656,7 @@ export default function PublicIdtaSubmodelEditorPage() {
     <div className="space-y-6">
       <PageHeader
         title="IDTA Submodel Template Editor"
-        description="Anonymous AAS developer sandbox for cached IDTA templates"
+        description="Build a template instance with a guided form; advanced AAS/JSON details stay available."
         breadcrumb={<span className="text-xs text-muted-foreground">Tools / IDTA Submodel Editor</span>}
       />
 
@@ -727,53 +732,72 @@ export default function PublicIdtaSubmodelEditorPage() {
             </Select>
           </div>
 
-          {templateDetailQuery.data && (
-            <div className="space-y-2 rounded-md border bg-muted/25 p-3 text-xs">
-              <div className="flex items-center gap-2">
-                <Badge variant="outline">{templateDetailQuery.data.catalog_status}</Badge>
-                <Badge variant="secondary">v{templateDetailQuery.data.latest_version}</Badge>
-              </div>
-              <p>
-                <span className="font-medium">Semantic ID:</span> {templateDetailQuery.data.semantic_id}
-              </p>
-              <p>
-                <span className="font-medium">Repo ref:</span>{' '}
-                {templateDetailQuery.data.source_metadata.source_repo_ref}
-              </p>
-              <p>
-                <span className="font-medium">Source SHA:</span>{' '}
-                {templateDetailQuery.data.source_metadata.source_file_sha ?? 'n/a'}
-              </p>
-            </div>
-          )}
+          {(templateDetailQuery.data || contractQuery.data) && (
+            <Collapsible open={showTechnicalDetails} onOpenChange={setShowTechnicalDetails}>
+              <div className="rounded-md border">
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full justify-between px-3 py-2 text-left text-sm"
+                    aria-expanded={showTechnicalDetails}
+                  >
+                    <span>Technical details</span>
+                    <ChevronDown className="h-4 w-4" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 border-t p-3">
+                  {templateDetailQuery.data && (
+                    <div className="space-y-2 rounded-md bg-muted/25 p-3 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{templateDetailQuery.data.catalog_status}</Badge>
+                        <Badge variant="secondary">v{templateDetailQuery.data.latest_version}</Badge>
+                      </div>
+                      <p>
+                        <span className="font-medium">Semantic ID:</span> {templateDetailQuery.data.semantic_id}
+                      </p>
+                      <p>
+                        <span className="font-medium">Repo ref:</span>{' '}
+                        {templateDetailQuery.data.source_metadata.source_repo_ref}
+                      </p>
+                      <p>
+                        <span className="font-medium">Source SHA:</span>{' '}
+                        {templateDetailQuery.data.source_metadata.source_file_sha ?? 'n/a'}
+                      </p>
+                    </div>
+                  )}
 
-          {contractQuery.data && (
-            <div className="space-y-2 rounded-md border bg-muted/25 p-3 text-xs">
-              <p className="font-medium">Template diagnostics</p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={diagnostics.unsupported.length > 0 ? 'destructive' : 'secondary'}>
-                  Unsupported nodes: {diagnostics.unsupported.length}
-                </Badge>
-                <Badge variant={diagnostics.unresolved.length > 0 ? 'destructive' : 'secondary'}>
-                  Unresolved drop-ins: {diagnostics.unresolved.length}
-                </Badge>
+                  {contractQuery.data && (
+                    <div className="space-y-2 rounded-md bg-muted/25 p-3 text-xs">
+                      <p className="font-medium">Template diagnostics</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant={diagnostics.unsupported.length > 0 ? 'destructive' : 'secondary'}>
+                          Unsupported nodes: {diagnostics.unsupported.length}
+                        </Badge>
+                        <Badge variant={diagnostics.unresolved.length > 0 ? 'destructive' : 'secondary'}>
+                          Unresolved drop-ins: {diagnostics.unresolved.length}
+                        </Badge>
+                      </div>
+                      {diagnostics.unsupported.slice(0, 3).map((entry, index) => (
+                        <p key={`unsupported-${entry.path ?? 'root'}-${index}`} className="text-muted-foreground">
+                          {(entry.path ?? 'root')}: {(entry.reasons ?? []).join(', ') || 'unsupported'}
+                        </p>
+                      ))}
+                      {diagnostics.unresolved.slice(0, 3).map((entry, index) => {
+                        const record = entry as Record<string, unknown>;
+                        const pathValue = typeof record.path === 'string' ? record.path : 'root';
+                        const reasonValue = typeof record.reason === 'string' ? record.reason : 'unresolved';
+                        return (
+                          <p key={`unresolved-${pathValue}-${index}`} className="text-muted-foreground">
+                            {pathValue}: {reasonValue}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CollapsibleContent>
               </div>
-              {diagnostics.unsupported.slice(0, 3).map((entry, index) => (
-                <p key={`unsupported-${entry.path ?? 'root'}-${index}`} className="text-muted-foreground">
-                  {(entry.path ?? 'root')}: {(entry.reasons ?? []).join(', ') || 'unsupported'}
-                </p>
-              ))}
-              {diagnostics.unresolved.slice(0, 3).map((entry, index) => {
-                const record = entry as Record<string, unknown>;
-                const pathValue = typeof record.path === 'string' ? record.path : 'root';
-                const reasonValue = typeof record.reason === 'string' ? record.reason : 'unresolved';
-                return (
-                  <p key={`unresolved-${pathValue}-${index}`} className="text-muted-foreground">
-                    {pathValue}: {reasonValue}
-                  </p>
-                );
-              })}
-            </div>
+            </Collapsible>
           )}
 
           <div className="space-y-2 rounded-md border p-3">
@@ -832,7 +856,12 @@ export default function PublicIdtaSubmodelEditorPage() {
           ) : !contractQuery.data ? (
             <div className="rounded-md border p-8 text-sm text-muted-foreground">Select a template to start.</div>
           ) : (
-            <SubmodelEditorShell title="Sandbox Workspace" activeViewLabel={activeView === 'preview' ? 'json' : activeView}>
+            <SubmodelEditorShell
+              title="Sandbox Workspace"
+              activeViewLabel={activeView === 'json' || activeView === 'preview' ? 'json' : 'form'}
+              formDescription="Complete the template through a guided form before reviewing technical output."
+              jsonDescription="Use advanced JSON and AAS preview for standards verification."
+            >
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription className="text-xs">{error}</AlertDescription>
@@ -874,8 +903,8 @@ export default function PublicIdtaSubmodelEditorPage() {
 
               <Tabs value={activeView} onValueChange={(value) => handleViewChange(value as 'form' | 'json' | 'preview')}>
                 <TabsList>
-                  <TabsTrigger value="form" disabled={!uiSchema}>Form</TabsTrigger>
-                  <TabsTrigger value="json">Raw JSON</TabsTrigger>
+                  <TabsTrigger value="form" disabled={!uiSchema}>Guided Form</TabsTrigger>
+                  <TabsTrigger value="json">Advanced JSON</TabsTrigger>
                   <TabsTrigger value="preview">AAS JSON Preview</TabsTrigger>
                 </TabsList>
                 <TabsContent value="form">
